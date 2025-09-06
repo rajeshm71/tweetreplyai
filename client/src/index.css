@@ -4,25 +4,25 @@
 @tailwind utilities;
 
 :root {
-  --background: hsl(240, 10%, 3.9%);
-  --foreground: hsl(0, 0%, 98%);
-  --card: hsl(240, 10%, 3.9%);
-  --card-foreground: hsl(0, 0%, 98%);
-  --popover: hsl(240, 10%, 3.9%);
-  --popover-foreground: hsl(0, 0%, 98%);
-  --primary: hsl(142.1, 76.2%, 36.3%);
-  --primary-foreground: hsl(355.7, 100%, 97.3%);
-  --secondary: hsl(240, 3.7%, 15.9%);
-  --secondary-foreground: hsl(0, 0%, 98%);
-  --muted: hsl(240, 3.7%, 15.9%);
-  --muted-foreground: hsl(240, 5%, 64.9%);
-  --accent: hsl(240, 3.7%, 15.9%);
-  --accent-foreground: hsl(0, 0%, 98%);
-  --destructive: hsl(0, 62.8%, 30.6%);
+  --background: hsl(0, 0%, 100%);
+  --foreground: hsl(222, 15%, 15%);
+  --card: hsl(0, 0%, 100%);
+  --card-foreground: hsl(222, 15%, 15%);
+  --popover: hsl(0, 0%, 100%);
+  --popover-foreground: hsl(222, 15%, 15%);
+  --primary: hsl(221, 83%, 53%);
+  --primary-foreground: hsl(0, 0%, 98%);
+  --secondary: hsl(210, 40%, 98%);
+  --secondary-foreground: hsl(222, 15%, 15%);
+  --muted: hsl(210, 40%, 98%);
+  --muted-foreground: hsl(215, 16%, 47%);
+  --accent: hsl(210, 40%, 98%);
+  --accent-foreground: hsl(222, 15%, 15%);
+  --destructive: hsl(0, 84%, 60%);
   --destructive-foreground: hsl(0, 0%, 98%);
-  --border: hsl(240, 3.7%, 15.9%);
-  --input: hsl(240, 3.7%, 15.9%);
-  --ring: hsl(142.1, 76.2%, 36.3%);
+  --border: hsl(214, 32%, 91%);
+  --input: hsl(214, 32%, 91%);
+  --ring: hsl(221, 83%, 53%);
   --chart-1: hsl(220, 70%, 50%);
   --chart-2: hsl(160, 60%, 45%);
   --chart-3: hsl(30, 80%, 55%);
@@ -53,9 +53,9 @@
   --space-3xl: 6rem;
   --space-4xl: 8rem;
   
-  --gradient-primary: linear-gradient(135deg, hsl(142.1, 76.2%, 36.3%) 0%, hsl(158, 64%, 52%) 50%, hsl(142.1, 76.2%, 36.3%) 100%);
-  --gradient-secondary: linear-gradient(135deg, hsl(240, 3.7%, 15.9%) 0%, hsl(240, 5%, 20%) 100%);
-  --gradient-accent: linear-gradient(135deg, hsl(262.1, 83.3%, 57.8%) 0%, hsl(221.2, 83.2%, 53.3%) 100%);
+  --gradient-primary: linear-gradient(135deg, hsl(221, 83%, 53%) 0%, hsl(262, 83%, 58%) 50%, hsl(221, 83%, 53%) 100%);
+  --gradient-secondary: linear-gradient(135deg, hsl(210, 40%, 98%) 0%, hsl(220, 13%, 91%) 100%);
+  --gradient-accent: linear-gradient(135deg, hsl(262, 83%, 58%) 0%, hsl(291, 84%, 61%) 100%);
   
   --shadow-sm: 0 1px 2px 0 hsla(0, 0%, 0%, 0.05);
   --shadow-md: 0 4px 6px -1px hsla(0, 0%, 0%, 0.1), 0 2px 4px -1px hsla(0, 0%, 0%, 0.06);
@@ -136,23 +136,23 @@
 
 .glass-effect {
   backdrop-filter: blur(var(--blur-xl)) saturate(180%);
-  background: hsla(240, 10%, 3.9%, 0.75);
-  border: 1px solid hsla(240, 5%, 64.9%, 0.2);
-  box-shadow: var(--shadow-2xl), inset 0 1px 0 hsla(0, 0%, 100%, 0.1);
+  background: hsla(0, 0%, 100%, 0.85);
+  border: 1px solid hsla(214, 32%, 91%, 0.5);
+  box-shadow: var(--shadow-lg), inset 0 1px 0 hsla(0, 0%, 100%, 0.8);
 }
 
 .frosted-glass {
   backdrop-filter: blur(var(--blur-lg)) saturate(180%);
-  background: hsla(240, 3.7%, 15.9%, 0.8);
-  border: 1px solid hsla(240, 5%, 64.9%, 0.1);
+  background: hsla(0, 0%, 100%, 0.9);
+  border: 1px solid hsla(214, 32%, 91%, 0.3);
 }
 
 .neomorphic {
-  background: linear-gradient(145deg, hsl(240, 5%, 20%), hsl(240, 3%, 12%));
+  background: linear-gradient(145deg, hsl(210, 40%, 98%), hsl(220, 13%, 91%));
   box-shadow: 
-    20px 20px 40px hsla(0, 0%, 0%, 0.3),
-    -20px -20px 40px hsla(0, 0%, 100%, 0.02),
-    inset 0 1px 0 hsla(0, 0%, 100%, 0.05);
+    20px 20px 40px hsla(0, 0%, 0%, 0.1),
+    -20px -20px 40px hsla(0, 0%, 100%, 0.8),
+    inset 0 1px 0 hsla(0, 0%, 100%, 1);
 }
 
 .gradient-border {
@@ -213,9 +213,9 @@
 
 .hero-gradient {
   background: 
-    radial-gradient(ellipse 80% 50% at 50% -20%, hsla(142.1, 76.2%, 36.3%, 0.3), transparent),
-    radial-gradient(ellipse 60% 80% at 80% 50%, hsla(262.1, 83.3%, 57.8%, 0.2), transparent),
-    radial-gradient(ellipse 100% 100% at 50% 50%, hsla(240, 10%, 3.9%, 1));
+    radial-gradient(ellipse 80% 50% at 50% -20%, hsla(221, 83%, 53%, 0.1), transparent),
+    radial-gradient(ellipse 60% 80% at 80% 50%, hsla(262, 83%, 58%, 0.08), transparent),
+    radial-gradient(ellipse 100% 100% at 50% 50%, hsla(0, 0%, 100%, 1));
 }
 
 .section-padding {
@@ -235,8 +235,8 @@
 
 .grid-pattern {
   background-image: 
-    linear-gradient(hsla(240, 5%, 64.9%, 0.1) 1px, transparent 1px),
-    linear-gradient(90deg, hsla(240, 5%, 64.9%, 0.1) 1px, transparent 1px);
+    linear-gradient(hsla(214, 32%, 91%, 0.4) 1px, transparent 1px),
+    linear-gradient(90deg, hsla(214, 32%, 91%, 0.4) 1px, transparent 1px);
   background-size: 20px 20px;
 }
 
