@@ -133,6 +133,22 @@ export class UsageService {
   }
 
   async consumeReply(userId: string): Promise<UsageCounter> {
+    // In development mode, return a mock counter without actually tracking usage
+    if (process.env.NODE_ENV === 'development') {
+      return {
+        id: 'dev-counter',
+        userId,
+        planCode: 'development',
+        periodStart: new Date(),
+        periodEnd: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        repliesUsed: 0,
+        limit: 999999,
+        resetAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+    }
+
     const user = await storage.getUser(userId);
     if (!user) {
       throw new Error('User not found');
