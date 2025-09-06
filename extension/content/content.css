@@ -1,0 +1,121 @@
+/* TweetReply Content Styles */
+
+/* Suggest button styles */
+.tweetreply-suggest-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  background: rgba(29, 155, 240, 0.1);
+  color: rgb(29, 155, 240);
+  border: 1px solid rgba(29, 155, 240, 0.2);
+  border-radius: 16px;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.tweetreply-suggest-btn:hover:not(:disabled) {
+  background: rgba(29, 155, 240, 0.15);
+  border-color: rgba(29, 155, 240, 0.3);
+}
+
+.tweetreply-suggest-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.tweetreply-suggest-btn svg {
+  flex-shrink: 0;
+}
+
+/* Toolbar styles */
+.tweetreply-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 8px 0;
+}
+
+/* Message styles */
+.tweetreply-message {
+  padding: 8px 12px;
+  margin: 8px 0;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  animation: slideIn 0.3s ease;
+}
+
+.tweetreply-message--success {
+  background: rgba(0, 186, 124, 0.1);
+  color: rgb(0, 186, 124);
+  border: 1px solid rgba(0, 186, 124, 0.2);
+}
+
+.tweetreply-message--error {
+  background: rgba(244, 33, 46, 0.1);
+  color: rgb(244, 33, 46);
+  border: 1px solid rgba(244, 33, 46, 0.2);
+}
+
+.tweetreply-message--info {
+  background: rgba(29, 155, 240, 0.1);
+  color: rgb(29, 155, 240);
+  border: 1px solid rgba(29, 155, 240, 0.2);
+}
+
+/* Spinner animation */
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .tweetreply-suggest-btn {
+    background: rgba(29, 155, 240, 0.2);
+    color: rgb(29, 155, 240);
+    border-color: rgba(29, 155, 240, 0.3);
+  }
+  
+  .tweetreply-suggest-btn:hover:not(:disabled) {
+    background: rgba(29, 155, 240, 0.3);
+    border-color: rgba(29, 155, 240, 0.4);
+  }
+}
+
+/* Ensure compatibility with Twitter's styles */
+.tweetreply-suggest-btn,
+.tweetreply-message {
+  box-sizing: border-box;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .tweetreply-suggest-btn {
+    padding: 4px 8px;
+    font-size: 12px;
+  }
+  
+  .tweetreply-message {
+    font-size: 12px;
+    padding: 6px 8px;
+  }
+}

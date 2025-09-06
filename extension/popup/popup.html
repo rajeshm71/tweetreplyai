@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TweetReply</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Header -->
+    <div class="header">
+      <div class="logo">
+        <div class="logo-icon">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zM7.5 18c-.83 0-1.5-.67-1.5-1.5S6.67 15 7.5 15s1.5.67 1.5 1.5S8.33 18 7.5 18zM12 18c-.83 0-1.5-.67-1.5-1.5S11.17 15 12 15s1.5.67 1.5 1.5S12.83 18 12 18zM16.5 18c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/>
+          </svg>
+        </div>
+        <span class="logo-text">TweetReply</span>
+      </div>
+      <button id="settings-btn" class="settings-btn" title="Settings">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+          <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Not Authenticated State -->
+    <div id="not-authenticated" class="state hidden">
+      <div class="auth-content">
+        <h2>Welcome to TweetReply</h2>
+        <p>Sign in to start generating authentic replies to X posts</p>
+        <button id="signin-btn" class="primary-btn">Sign In</button>
+      </div>
+    </div>
+
+    <!-- Loading State -->
+    <div id="loading" class="state">
+      <div class="loading-content">
+        <div class="spinner"></div>
+        <p>Loading...</p>
+      </div>
+    </div>
+
+    <!-- Authenticated State -->
+    <div id="authenticated" class="state hidden">
+      <!-- Usage Section -->
+      <div class="usage-section">
+        <div class="usage-header">
+          <span class="usage-title">Today's Usage</span>
+          <div class="status-indicator">
+            <div id="status-dot" class="status-dot active"></div>
+            <span id="status-text" class="status-text">Active</span>
+          </div>
+        </div>
+        
+        <div class="usage-progress">
+          <div class="progress-bar">
+            <div id="progress-fill" class="progress-fill" style="width: 0%"></div>
+          </div>
+          <span id="usage-text" class="usage-numbers">0 / 10</span>
+        </div>
+        
+        <div id="reset-text" class="reset-time">Resets in --</div>
+      </div>
+
+      <!-- Action Button -->
+      <button id="suggest-btn" class="suggest-btn" disabled>
+        <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+          <path d="M12 2L13.09 8.26L19 7.27L14.18 12.09L20 17.91L13.09 15.74L12 22L10.91 15.74L4 17.91L8.82 12.09L3 7.27L8.91 8.26L12 2Z"/>
+        </svg>
+        <span>✨ Suggest reply</span>
+      </button>
+
+      <!-- Status Message -->
+      <div id="status-message" class="status-message">
+        Click "Reply" on any X post to generate suggestions
+      </div>
+
+      <!-- Quick Actions -->
+      <div class="quick-actions">
+        <button id="web-app-btn" class="action-btn">
+          <span>Open web app</span>
+          <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12">
+            <path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.11 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/>
+          </svg>
+        </button>
+        <button id="billing-btn" class="action-btn">
+          <span>Manage billing</span>
+          <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12">
+            <path d="M20 4H4c-1.11 0-1.99.89-1.99 2L2 18c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Quota Exceeded State -->
+    <div id="quota-exceeded" class="state error-state hidden">
+      <div class="error-content">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24" class="error-icon">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zM13 17h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+        </svg>
+        <h3>Daily limit reached</h3>
+        <p id="quota-reset-text">Resets in --</p>
+        <button id="upgrade-btn" class="primary-btn">Upgrade plan</button>
+      </div>
+    </div>
+
+    <!-- Settings Panel -->
+    <div id="settings-panel" class="settings-panel hidden">
+      <div class="settings-header">
+        <h3>Settings</h3>
+        <button id="close-settings" class="close-btn">×</button>
+      </div>
+      <div class="settings-content">
+        <div class="user-info">
+          <div class="user-email" id="user-email">user@example.com</div>
+        </div>
+        <div class="settings-actions">
+          <button id="signout-btn" class="secondary-btn">Sign Out</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
