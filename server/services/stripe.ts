@@ -1,12 +1,10 @@
 import Stripe from "stripe";
 
-if (!process.env.STRIPE_SECRET_KEY) {
-  throw new Error("STRIPE_SECRET_KEY environment variable is required");
-}
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+// TODO: Set up payment provider (Stripe, Razorpay, PayPal, or DodoPay)
+// Currently disabled until payment provider is configured
+const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY, {
   apiVersion: "2023-10-16",
-});
+}) : null;
 
 export interface PlanConfig {
   code: string;
@@ -44,6 +42,13 @@ export class StripeService {
     successUrl: string,
     cancelUrl: string
   ): Promise<Stripe.Checkout.Session> {
+    // TODO: Replace with chosen payment provider integration
+    throw new Error("Payment processing not yet configured. Please set up Stripe, Razorpay, PayPal, or DodoPay first.");
+    
+    if (!stripe) {
+      throw new Error("Payment provider not configured");
+    }
+    
     const plan = PLANS[planCode];
     if (!plan) {
       throw new Error(`Invalid plan code: ${planCode}`);
@@ -75,6 +80,13 @@ export class StripeService {
     customerId: string,
     returnUrl: string
   ): Promise<Stripe.BillingPortal.Session> {
+    // TODO: Replace with chosen payment provider portal
+    throw new Error("Payment processing not yet configured. Please set up Stripe, Razorpay, PayPal, or DodoPay first.");
+    
+    if (!stripe) {
+      throw new Error("Payment provider not configured");
+    }
+    
     const session = await stripe.billingPortal.sessions.create({
       customer: customerId,
       return_url: returnUrl,
@@ -84,10 +96,24 @@ export class StripeService {
   }
 
   async getSubscription(subscriptionId: string): Promise<Stripe.Subscription> {
+    // TODO: Replace with chosen payment provider subscription retrieval
+    throw new Error("Payment processing not yet configured");
+    
+    if (!stripe) {
+      throw new Error("Payment provider not configured");
+    }
+    
     return await stripe.subscriptions.retrieve(subscriptionId);
   }
 
   async cancelSubscription(subscriptionId: string): Promise<Stripe.Subscription> {
+    // TODO: Replace with chosen payment provider subscription cancellation
+    throw new Error("Payment processing not yet configured");
+    
+    if (!stripe) {
+      throw new Error("Payment provider not configured");
+    }
+    
     return await stripe.subscriptions.cancel(subscriptionId);
   }
 
@@ -95,6 +121,13 @@ export class StripeService {
     payload: string | Buffer,
     signature: string
   ): Promise<Stripe.Event> {
+    // TODO: Replace with chosen payment provider webhook handling
+    throw new Error("Payment processing not yet configured");
+    
+    if (!stripe) {
+      throw new Error("Payment provider not configured");
+    }
+    
     const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
     if (!webhookSecret) {
       throw new Error("STRIPE_WEBHOOK_SECRET environment variable is required");
