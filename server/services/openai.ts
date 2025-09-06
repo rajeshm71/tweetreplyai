@@ -127,7 +127,7 @@ Instructions:
           { role: "system", content: this.createSystemPrompt() },
           { role: "user", content: this.createUserPrompt(options.tweetText) }
         ],
-        max_tokens: 60, // Keep responses short
+        max_completion_tokens: 60, // Keep responses short
         temperature: 0.7, // Some creativity but not too random
       });
 
