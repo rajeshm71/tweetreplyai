@@ -102,15 +102,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error generating reply:", error);
       
-      if (error.message === 'User not found') {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      
+      if (errorMessage === 'User not found') {
         return res.status(404).json({ message: "User not found" });
       }
       
-      if (error.message === 'No active usage window' || error.message === 'Quota exceeded') {
+      if (errorMessage === 'No active usage window' || errorMessage === 'Quota exceeded') {
         const status = await usageService.getUsageStatus(req.user.claims.sub);
         return res.status(402).json({
           error: 'quota_exceeded',
-          message: error.message,
+          message: errorMessage,
           used: status?.used || 0,
           limit: status?.limit || 0,
           resetAt: status?.resetAt || new Date(),

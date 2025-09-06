@@ -3,7 +3,7 @@ import Stripe from "stripe";
 // TODO: Set up payment provider (Stripe, Razorpay, PayPal, or DodoPay)
 // Currently disabled until payment provider is configured
 const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY, {
-  apiVersion: "2023-10-16",
+  apiVersion: "2025-08-27.basil",
 }) : null;
 
 export interface PlanConfig {
@@ -54,7 +54,7 @@ export class StripeService {
       throw new Error(`Invalid plan code: ${planCode}`);
     }
 
-    const session = await stripe.checkout.sessions.create({
+    const session = await stripe!.checkout.sessions.create({
       mode: 'subscription',
       payment_method_types: ['card'],
       line_items: [
@@ -87,7 +87,7 @@ export class StripeService {
       throw new Error("Payment provider not configured");
     }
     
-    const session = await stripe.billingPortal.sessions.create({
+    const session = await stripe!.billingPortal.sessions.create({
       customer: customerId,
       return_url: returnUrl,
     });
@@ -103,7 +103,7 @@ export class StripeService {
       throw new Error("Payment provider not configured");
     }
     
-    return await stripe.subscriptions.retrieve(subscriptionId);
+    return await stripe!.subscriptions.retrieve(subscriptionId);
   }
 
   async cancelSubscription(subscriptionId: string): Promise<Stripe.Subscription> {
@@ -114,7 +114,7 @@ export class StripeService {
       throw new Error("Payment provider not configured");
     }
     
-    return await stripe.subscriptions.cancel(subscriptionId);
+    return await stripe!.subscriptions.cancel(subscriptionId);
   }
 
   async constructWebhookEvent(
@@ -133,7 +133,7 @@ export class StripeService {
       throw new Error("STRIPE_WEBHOOK_SECRET environment variable is required");
     }
 
-    return stripe.webhooks.constructEvent(payload, signature, webhookSecret);
+    return stripe!.webhooks.constructEvent(payload, signature, webhookSecret!);
   }
 
   planCodeFromPriceId(priceId: string): string | null {

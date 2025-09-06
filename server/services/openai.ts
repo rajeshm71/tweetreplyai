@@ -143,7 +143,8 @@ Instructions:
         latencyMs,
       };
     } catch (error) {
-      throw new Error(`Failed to generate reply: ${error.message}`);
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      throw new Error(`Failed to generate reply: ${message}`);
     }
   }
 }
