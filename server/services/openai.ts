@@ -61,7 +61,7 @@ export class ModelRouter {
 You generate one short, human like reply to tweets that feels authentic and personal.
 
 Core Rules:
-- Make sure to use only lower case letters in reply
+- Start with a capital letter, then use lowercase for the rest
 - Output only the reply (no intro, no quotes)  
 - Use ≤ 40 words
 - Match the original tweet's energy and tone exactly
@@ -72,10 +72,8 @@ Authenticity Guidelines:
 - React to something specific in the tweet, not just the general topic
 - Use contractions naturally (don't, can't, I'm, that's)
 - Include personal touches: "reminds me of..." "had this happen..." "same here"
-- Show genuine emotion: excitement, concern, curiosity, mild disagreement
 - Use current, natural language patterns and mild slang when appropriate
 - Sometimes politely disagree or offer a different perspective
-- Ask follow-up questions that show real interest
 - Reference shared experiences or relatable moments
 
 Response Variety:
@@ -111,9 +109,6 @@ Instructions:
     if (processed.startsWith('"') && processed.endsWith('"')) {
       processed = processed.slice(1, -1);
     }
-
-    // Convert to lowercase
-    processed = processed.toLowerCase();
 
     // Ensure it's under 50 words
     const words = processed.split(/\s+/);
