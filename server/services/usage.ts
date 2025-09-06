@@ -68,6 +68,17 @@ export class UsageService {
       return null;
     }
 
+    // In development mode, return unlimited usage
+    if (process.env.NODE_ENV === 'development') {
+      return {
+        planCode: 'development',
+        used: 0,
+        limit: 999999,
+        resetAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        status: 'active',
+      };
+    }
+
     const window = await this.resolveActiveWindow(user);
     if (!window) {
       return {
@@ -103,6 +114,11 @@ export class UsageService {
   }
 
   async canUseReply(userId: string): Promise<{ canUse: boolean; reason?: string }> {
+    // In development mode, allow unlimited usage for testing
+    if (process.env.NODE_ENV === 'development') {
+      return { canUse: true };
+    }
+
     const status = await this.getUsageStatus(userId);
     
     if (!status || status.status === 'no_access') {
