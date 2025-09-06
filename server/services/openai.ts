@@ -20,19 +20,19 @@ export interface ReplyResponse {
 }
 
 export class ModelRouter {
-  // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
+  // For compatibility, let's use GPT-4o models which are more stable with parameters
   private getModelForTweet(tweetText: string, modelPreference?: string): string {
     if (modelPreference && modelPreference !== 'auto') {
       return modelPreference;
     }
 
-    // Default routing logic: use gpt-5-mini for most tweets
-    // Use gpt-5 for complex or longer tweets
+    // Default routing logic: use gpt-4o-mini for most tweets
+    // Use gpt-4o for complex or longer tweets
     if (tweetText.length > 280 || this.isComplexTweet(tweetText)) {
-      return "gpt-5";
+      return "gpt-4o";
     }
     
-    return "gpt-5-mini";
+    return "gpt-4o-mini";
   }
 
   private isComplexTweet(tweetText: string): boolean {
@@ -128,7 +128,6 @@ Instructions:
           { role: "user", content: this.createUserPrompt(options.tweetText) }
         ],
         max_completion_tokens: 60, // Keep responses short
-        temperature: 0.7, // Some creativity but not too random
       });
 
       const rawReply = response.choices[0]?.message?.content || "";
