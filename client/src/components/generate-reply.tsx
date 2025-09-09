@@ -156,10 +156,7 @@ export function GenerateReply() {
   const handleCopy = async (content: string) => {
     try {
       await navigator.clipboard.writeText(content);
-      toast({
-        title: "Copied!",
-        description: "Reply copied to clipboard.",
-      });
+      // No notification - silent copy
     } catch (error) {
       toast({
         title: "Error",

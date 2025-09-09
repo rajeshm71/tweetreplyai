@@ -66,7 +66,9 @@ Core Rules:
 - Use ≤ 40 words
 - Match the original tweet's energy and tone exactly
 - Never add hashtags, links, or obvious promotional content
-- Avoid AI buzzwords like "game-changing," "revolutionary," "amazing insight"
+- Avoid AI buzzwords like "game-changing," "revolutionary," "amazi
+- Make sure you do not use dash(-) between words and do not use em dash(—) in reply
+- Avoid words like "sounds like", "feels like" etc.ng insight"
 
 Authenticity Guidelines:
 - React to something specific in the tweet, not just the general topic
