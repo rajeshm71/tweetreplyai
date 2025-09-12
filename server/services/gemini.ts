@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 import { ReplyOptions, ReplyResponse } from "./openai.js";
 
 // Initialize Gemini AI client with official SDK
