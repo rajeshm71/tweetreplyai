@@ -150,7 +150,11 @@ Instructions:
       options.modelPreference,
     );
 
+    console.log(`🚀 [Gemini] Starting request with model: ${modelKey}`);
+    console.log(`📝 [Gemini] Tweet text: "${options.tweetText}"`);
+
     if (!genAI) {
+      console.log(`❌ [Gemini] Gemini client not configured`);
       // Return a placeholder reply when Gemini is not configured
       return {
         reply:
@@ -161,32 +165,55 @@ Instructions:
     }
 
     try {
+      console.log(`🔑 [Gemini] API key configured: ${!!process.env.GEMINI_API_KEY}`);
+      
       // Get the generative model instance
+      console.log(`🤖 [Gemini] Getting generative model instance...`);
       const model = genAI.getGenerativeModel({ model: modelKey });
 
       // Create the full prompt with system instructions
       const fullPrompt = `${this.createSystemPrompt()}
 
 ${this.createUserPrompt(options.tweetText)}`;
+      
+      console.log(`📏 [Gemini] Prompt length: ${fullPrompt.length} characters`);
 
       // Generate content with proper configuration
-      const result = await model.generateContent({
+      const requestConfig = {
         contents: [{ role: "user", parts: [{ text: fullPrompt }] }],
         generationConfig: {
           maxOutputTokens: 60, // Keep responses short
           temperature: 0.7,
         },
-      });
+      };
+
+      console.log(`🔧 [Gemini] Generation config: ${JSON.stringify(requestConfig.generationConfig)}`);
+      console.log(`📡 [Gemini] Making API request to Gemini...`);
+
+      const result = await model.generateContent(requestConfig);
+
+      console.log(`✅ [Gemini] API response received`);
+      console.log(`🔍 [Gemini] Result object keys:`, Object.keys(result));
 
       // Get the response text correctly
       const response = await result.response;
+      console.log(`📦 [Gemini] Response object keys:`, Object.keys(response));
+      console.log(`🔍 [Gemini] Response candidates:`, response.candidates?.length);
+
       const rawReply = response.text() || "";
+      console.log(`📝 [Gemini] Raw reply: "${rawReply}"`);
+
       const processedReply = this.postProcessReply(rawReply);
+      console.log(`✨ [Gemini] Processed reply: "${processedReply}"`);
+
       const latencyMs = Date.now() - startTime;
+      console.log(`⏱️ [Gemini] Total latency: ${latencyMs}ms`);
 
       // Estimate token usage (Gemini doesn't provide exact counts in free tier)
       const estimatedInputTokens = Math.ceil(fullPrompt.length / 4);
       const estimatedOutputTokens = Math.ceil(processedReply.length / 4);
+
+      console.log(`📊 [Gemini] Estimated tokens - Input: ${estimatedInputTokens}, Output: ${estimatedOutputTokens}`);
 
       return {
         reply: processedReply,
@@ -197,6 +224,9 @@ ${this.createUserPrompt(options.tweetText)}`;
       };
     } catch (error: any) {
       const message = error?.message || error?.error?.message || "Unknown error";
+      console.error(`❌ [Gemini] Error generating reply: ${message}`);
+      console.error(`🔧 [Gemini] Model used: ${modelKey}`);
+      console.error(`🔧 [Gemini] Full error:`, error);
       throw new Error(`Failed to generate reply with Gemini: ${message}`);
     }
   }
