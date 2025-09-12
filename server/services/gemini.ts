@@ -9,22 +9,22 @@ const ai = process.env.GEMINI_API_KEY
 export class GeminiModelRouter {
   // Available Gemini models with their characteristics
   private readonly MODELS = {
-    "gemini-1.5-pro": {
-      name: "gemini-1.5-pro",
+    "gemini-2.5-pro": {
+      name: "gemini-2.5-pro",
       inputCost: 3.50, // per 1M tokens
       outputCost: 10.50, // per 1M tokens
       contextWindow: 2000000,
       description: "Advanced reasoning with multimodal capabilities",
     },
-    "gemini-1.5-flash": {
-      name: "gemini-1.5-flash", 
+    "gemini-2.5-flash": {
+      name: "gemini-2.5-flash", 
       inputCost: 0.35, // per 1M tokens
       outputCost: 1.05, // per 1M tokens
       contextWindow: 1000000,
       description: "Best price-performance ratio, well-rounded",
     },
-    "gemini-1.5-flash-8b": {
-      name: "gemini-1.5-flash-8b",
+    "gemini-2.5-lite": {
+      name: "gemini-2.5-lite",
       inputCost: 0.075, // per 1M tokens
       outputCost: 0.30, // per 1M tokens
       contextWindow: 1000000,
@@ -42,11 +42,11 @@ export class GeminiModelRouter {
 
     // Default routing logic for Gemini models
     if (tweetText.length > 280 || this.isComplexTweet(tweetText)) {
-      return "gemini-1.5-flash"; // Best balance for complex content
+      return "gemini-2.5-flash"; // Best balance for complex content
     }
 
-    // Use Flash-8B for simple tweets (most cost-effective)
-    return "gemini-1.5-flash-8b";
+    // Use Lite for simple tweets (most cost-effective)
+    return "gemini-2.5-lite";
   }
 
   private isComplexTweet(tweetText: string): boolean {
