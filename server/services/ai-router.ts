@@ -29,10 +29,10 @@ export class UnifiedAIRouter {
 
   async generateReply(options: ReplyOptions): Promise<ReplyResponse> {
     if (!options.modelPreference) {
-      // Default to GPT-5 nano for automatic routing
+      // Default to GPT-4o-mini for automatic routing (most cost-effective stable model)
       return openaiRouter.generateReply({
         ...options,
-        modelPreference: "gpt-5-nano",
+        modelPreference: "gpt-4o-mini",
       });
     }
 

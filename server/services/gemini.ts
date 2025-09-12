@@ -9,26 +9,26 @@ const ai = process.env.GEMINI_API_KEY
 export class GeminiModelRouter {
   // Available Gemini models with their characteristics
   private readonly MODELS = {
-    "gemini-2.5-pro": {
-      name: "gemini-2.5-pro",
-      inputCost: 0.30, // per 1M tokens
-      outputCost: 2.50, // per 1M tokens
+    "gemini-1.5-pro": {
+      name: "gemini-1.5-pro",
+      inputCost: 3.50, // per 1M tokens
+      outputCost: 10.50, // per 1M tokens
       contextWindow: 2000000,
-      description: "Most capable model for complex reasoning",
+      description: "Advanced reasoning with multimodal capabilities",
     },
-    "gemini-2.5-flash": {
-      name: "gemini-2.5-flash", 
-      inputCost: 0.30, // per 1M tokens (price increased)
-      outputCost: 2.50, // per 1M tokens (price increased)
+    "gemini-1.5-flash": {
+      name: "gemini-1.5-flash", 
+      inputCost: 0.35, // per 1M tokens
+      outputCost: 1.05, // per 1M tokens
       contextWindow: 1000000,
-      description: "Balanced speed and capability",
+      description: "Best price-performance ratio, well-rounded",
     },
-    "gemini-2.5-flash-lite": {
-      name: "gemini-2.5-flash-lite",
-      inputCost: 0.10, // per 1M tokens
-      outputCost: 0.40, // per 1M tokens
+    "gemini-1.5-flash-8b": {
+      name: "gemini-1.5-flash-8b",
+      inputCost: 0.075, // per 1M tokens
+      outputCost: 0.30, // per 1M tokens
       contextWindow: 1000000,
-      description: "Most cost-effective option",
+      description: "Most cost-effective for high throughput",
     },
   } as const;
 
@@ -42,11 +42,11 @@ export class GeminiModelRouter {
 
     // Default routing logic for Gemini models
     if (tweetText.length > 280 || this.isComplexTweet(tweetText)) {
-      return "gemini-2.5-pro"; // Most capable for complex content
+      return "gemini-1.5-flash"; // Best balance for complex content
     }
 
-    // Use Flash-Lite for simple tweets (most cost-effective)
-    return "gemini-2.5-flash-lite";
+    // Use Flash-8B for simple tweets (most cost-effective)
+    return "gemini-1.5-flash-8b";
   }
 
   private isComplexTweet(tweetText: string): boolean {
@@ -163,15 +163,17 @@ Instructions:
     try {
       const response = await ai.models.generateContent({
         model: modelKey,
-        config: {
-          systemInstruction: this.createSystemPrompt(),
+        generationConfig: {
           maxOutputTokens: 60, // Keep responses short
           temperature: 0.7,
         },
-        contents: this.createUserPrompt(options.tweetText),
+        contents: [{
+          role: "user",
+          parts: [{ text: `${this.createSystemPrompt()}\n\n${this.createUserPrompt(options.tweetText)}` }]
+        }],
       });
 
-      const rawReply = response.text || "";
+      const rawReply = response.text() || "";
       const processedReply = this.postProcessReply(rawReply);
       const latencyMs = Date.now() - startTime;
 

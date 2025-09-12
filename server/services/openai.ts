@@ -24,42 +24,50 @@ export interface ReplyResponse {
 export class ModelRouter {
   // Available OpenAI models with their characteristics
   private readonly MODELS = {
-    // GPT-5 Series (August 2025 release)
-    "gpt-5": {
-      name: "gpt-5",
-      inputCost: 1.25, // per 1M tokens
-      outputCost: 10.0, // per 1M tokens
-      contextWindow: 272000,
-      description: "Most advanced model for complex reasoning",
+    // GPT-4.1 Series (Latest flagship models)
+    "gpt-4.1": {
+      name: "gpt-4.1",
+      inputCost: 2.50, // per 1M tokens (estimated)
+      outputCost: 10.0, // per 1M tokens (estimated)
+      contextWindow: 1000000, // 1M tokens
+      description: "Latest flagship multimodal model",
     },
-    "gpt-5-mini": {
-      name: "gpt-5-mini",
-      inputCost: 0.25, // per 1M tokens
-      outputCost: 2.0, // per 1M tokens
-      contextWindow: 272000,
-      description: "General-purpose model with great performance",
+    "gpt-4.1-mini": {
+      name: "gpt-4.1-mini",
+      inputCost: 0.30, // per 1M tokens (estimated)
+      outputCost: 1.20, // per 1M tokens (estimated)
+      contextWindow: 1000000,
+      description: "High performance at lower cost",
     },
-    "gpt-5-nano": {
-      name: "gpt-5-nano",
-      inputCost: 0.05, // per 1M tokens
-      outputCost: 0.40, // per 1M tokens
-      contextWindow: 272000,
-      description: "Ultra-efficient for simple tasks",
+    "gpt-4.1-nano": {
+      name: "gpt-4.1-nano",
+      inputCost: 0.10, // per 1M tokens (estimated)
+      outputCost: 0.40, // per 1M tokens (estimated)
+      contextWindow: 1000000,
+      description: "Fastest and most cost-effective",
     },
-    // GPT-4o Series (legacy models)
+    // GPT-4o Series (Current stable models)
     "gpt-4o": {
       name: "gpt-4o",
       inputCost: 2.50, // per 1M tokens
       outputCost: 10.0, // per 1M tokens
       contextWindow: 128000,
-      description: "Legacy flagship model",
+      description: "Multimodal model with vision capabilities",
     },
     "gpt-4o-mini": {
       name: "gpt-4o-mini",
       inputCost: 0.15, // per 1M tokens
       outputCost: 0.60, // per 1M tokens
       contextWindow: 128000,
-      description: "Budget-friendly option",
+      description: "Cost-effective multimodal option",
+    },
+    // GPT-4 Turbo (Reliable workhorse)
+    "gpt-4-turbo": {
+      name: "gpt-4-turbo",
+      inputCost: 10.0, // per 1M tokens
+      outputCost: 30.0, // per 1M tokens
+      contextWindow: 128000,
+      description: "Fast and reliable for complex tasks",
     },
   } as const;
 
@@ -71,12 +79,12 @@ export class ModelRouter {
       return modelPreference;
     }
 
-    // Default routing logic with GPT-5 series
+    // Default routing logic with proven stable models
     if (tweetText.length > 280 || this.isComplexTweet(tweetText)) {
-      return "gpt-5-mini"; // Better performance than GPT-4o at lower cost
+      return "gpt-4o"; // Reliable multimodal for complex tweets
     }
 
-    return "gpt-5-nano"; // Ultra-efficient for simple tweets
+    return "gpt-4o-mini"; // Cost-effective for simple tweets
   }
 
   private isComplexTweet(tweetText: string): boolean {
@@ -105,9 +113,9 @@ Core Rules:
 - Use ≤ 40 words
 - Match the original tweet's energy and tone exactly
 - Never add hashtags, links, or obvious promotional content
-- Avoid AI buzzwords like "game-changing," "revolutionary," "amazi
+- Avoid AI buzzwords like "game-changing," "revolutionary," "amazing insight"
 - Make sure you do not use dash(-) between words and do not use em dash(—) in reply
-- Avoid words like "sounds like", "feels like" etc.ng insight"
+- Avoid words like "sounds like", "feels like" etc.
 
 Authenticity Guidelines:
 - React to something specific in the tweet, not just the general topic
@@ -198,7 +206,7 @@ Instructions:
           { role: "system", content: this.createSystemPrompt() },
           { role: "user", content: this.createUserPrompt(options.tweetText) },
         ],
-        max_completion_tokens: 60, // Keep responses short
+        max_tokens: 60, // Keep responses short
       });
 
       const rawReply = response.choices[0]?.message?.content || "";

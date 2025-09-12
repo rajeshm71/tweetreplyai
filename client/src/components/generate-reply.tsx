@@ -47,7 +47,7 @@ interface ChatMessage {
 
 export function GenerateReply() {
   const [tweetText, setTweetText] = useState("");
-  const [selectedModel, setSelectedModel] = useState<string>("gpt-5-nano");
+  const [selectedModel, setSelectedModel] = useState<string>("gpt-4o-mini");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [feedbackGiven, setFeedbackGiven] = useState(false);
   const { toast } = useToast();
