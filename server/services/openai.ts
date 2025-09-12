@@ -185,7 +185,12 @@ Instructions:
       options.modelPreference,
     );
 
+    console.log(`🚀 [OpenAI] Starting request with model: ${modelKey}`);
+    console.log(`📝 [OpenAI] Tweet text: "${options.tweetText}"`);
+    console.log(`⚡ [OpenAI] Is GPT-5 model: ${this.isGPT5Model(modelKey)}`);
+
     if (!openai) {
+      console.log(`❌ [OpenAI] OpenAI client not configured`);
       // Return a placeholder reply when OpenAI is not configured
       return {
         reply:
@@ -207,15 +212,29 @@ Instructions:
 
       if (this.isGPT5Model(modelKey)) {
         completionParams.max_completion_tokens = 60;
+        console.log(`🔧 [OpenAI] Using max_completion_tokens=60 for GPT-5 model`);
       } else {
         completionParams.max_tokens = 60;
+        console.log(`🔧 [OpenAI] Using max_tokens=60 for GPT-4 model`);
       }
 
+      console.log(`📡 [OpenAI] Making API request to OpenAI...`);
+      console.log(`🔑 [OpenAI] API key configured: ${!!process.env.OPENAI_API_KEY}`);
+      
       const response = await openai.chat.completions.create(completionParams);
 
+      console.log(`✅ [OpenAI] API response received`);
+      console.log(`🔍 [OpenAI] Choices length: ${response.choices?.length}`);
+      console.log(`📊 [OpenAI] Usage: ${JSON.stringify(response.usage)}`);
+
       const rawReply = response.choices[0]?.message?.content || "";
+      console.log(`📝 [OpenAI] Raw reply: "${rawReply}"`);
+
       const processedReply = this.postProcessReply(rawReply);
+      console.log(`✨ [OpenAI] Processed reply: "${processedReply}"`);
+
       const latencyMs = Date.now() - startTime;
+      console.log(`⏱️ [OpenAI] Total latency: ${latencyMs}ms`);
 
       return {
         reply: processedReply,
@@ -226,6 +245,9 @@ Instructions:
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
+      console.error(`❌ [OpenAI] Error generating reply: ${message}`);
+      console.error(`🔧 [OpenAI] Model used: ${modelKey}`);
+      console.error(`🔧 [OpenAI] Full error:`, error);
       throw new Error(`Failed to generate reply: ${message}`);
     }
   }
