@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -7,7 +7,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Label } from "@/components/ui/label";
-import { Sparkles, Copy, ThumbsUp, ThumbsDown, Clock, Zap, Send, User, Bot } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Sparkles, Copy, ThumbsUp, ThumbsDown, Clock, Zap, Send, User, Bot, Settings, Brain } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
 
@@ -20,6 +21,16 @@ interface GenerateReplyResponse {
     modelKey: string;
     latencyMs: number;
   };
+}
+
+interface ModelInfo {
+  key: string;
+  name: string;
+  provider: "openai" | "gemini";
+  inputCost: number;
+  outputCost: number;
+  contextWindow: number;
+  description: string;
 }
 
 interface ChatMessage {
@@ -36,13 +47,20 @@ interface ChatMessage {
 
 export function GenerateReply() {
   const [tweetText, setTweetText] = useState("");
+  const [selectedModel, setSelectedModel] = useState<string>("gpt-5-nano");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [feedbackGiven, setFeedbackGiven] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // Fetch available models
+  const { data: modelsData, isLoading: modelsLoading } = useQuery<{openai: ModelInfo[], gemini: ModelInfo[]}>({
+    queryKey: ["/api/models"],
+    refetchOnWindowFocus: false,
+  });
+
   const generateMutation = useMutation({
-    mutationFn: async (data: { tweet_text: string }) => {
+    mutationFn: async (data: { tweet_text: string; model_key?: string }) => {
       const response = await apiRequest("POST", "/api/generate-reply", data);
       return response.json();
     },
@@ -146,8 +164,11 @@ export function GenerateReply() {
     };
     setMessages(prev => [...prev, userMessage]);
     
-    // Generate AI reply
-    generateMutation.mutate({ tweet_text: tweetText.trim() });
+    // Generate AI reply with selected model
+    generateMutation.mutate({ 
+      tweet_text: tweetText.trim(),
+      model_key: selectedModel 
+    });
     
     // Clear input
     setTweetText("");
@@ -254,6 +275,60 @@ export function GenerateReply() {
 
       {/* Input Area */}
       <div className="border-t border-border p-4">
+        {/* Model Selection */}
+        <div className="mb-4">
+          <Label htmlFor="model-select" className="text-sm font-medium mb-2 flex items-center">
+            <Brain className="w-4 h-4 mr-2" />
+            AI Model
+          </Label>
+          <Select value={selectedModel} onValueChange={setSelectedModel}>
+            <SelectTrigger className="w-full" data-testid="select-ai-model">
+              <SelectValue placeholder="Select AI model..." />
+            </SelectTrigger>
+            <SelectContent>
+              {modelsLoading ? (
+                <SelectItem value="loading" disabled>Loading models...</SelectItem>
+              ) : (
+                modelsData && (
+                  <>
+                    {/* OpenAI Models */}
+                    <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">OpenAI</div>
+                    {modelsData.openai.map((model) => (
+                      <SelectItem key={model.key} value={model.key} data-testid={`model-${model.key}`}>
+                        <div className="flex items-center justify-between w-full">
+                          <div className="flex flex-col">
+                            <span className="font-medium">{model.name}</span>
+                            <span className="text-xs text-muted-foreground">{model.description}</span>
+                          </div>
+                          <Badge variant="outline" className="ml-2 text-xs">
+                            ${model.inputCost.toFixed(2)}/1M
+                          </Badge>
+                        </div>
+                      </SelectItem>
+                    ))}
+                    
+                    {/* Gemini Models */}
+                    <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground mt-2">Google Gemini</div>
+                    {modelsData.gemini.map((model) => (
+                      <SelectItem key={model.key} value={model.key} data-testid={`model-${model.key}`}>
+                        <div className="flex items-center justify-between w-full">
+                          <div className="flex flex-col">
+                            <span className="font-medium">{model.name}</span>
+                            <span className="text-xs text-muted-foreground">{model.description}</span>
+                          </div>
+                          <Badge variant="outline" className="ml-2 text-xs">
+                            ${model.inputCost.toFixed(2)}/1M
+                          </Badge>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </>
+                )
+              )}
+            </SelectContent>
+          </Select>
+        </div>
+        
         <div className="flex gap-3">
           <div className="flex-1">
             <Textarea

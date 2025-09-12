@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
-import { modelRouter } from "./services/openai";
+import { aiRouter } from "./services/ai-router";
 import { stripeService, PLANS } from "./services/stripe";
 import { usageService } from "./services/usage";
 import { z } from "zod";
@@ -20,6 +20,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
+    }
+  });
+
+  // Models route - get available AI models
+  app.get('/api/models', (req, res) => {
+    try {
+      const modelsByProvider = aiRouter.getModelsByProvider();
+      res.json(modelsByProvider);
+    } catch (error) {
+      console.error("Error fetching models:", error);
+      res.status(500).json({ message: "Failed to fetch models" });
     }
   });
 
@@ -49,10 +60,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const schema = z.object({
         tweet_text: z.string().min(1).max(2000),
         tweet_id: z.string().optional(),
-        model_preference: z.string().optional(),
+        model_key: z.string().optional(),
       });
 
-      const { tweet_text, tweet_id, model_preference } = schema.parse(req.body);
+      const { tweet_text, tweet_id, model_key } = schema.parse(req.body);
 
       // Check if user can use a reply
       const { canUse, reason } = await usageService.canUseReply(userId);
@@ -71,10 +82,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updatedCounter = await usageService.consumeReply(userId);
 
       // Generate the reply
-      const replyResponse = await modelRouter.generateReply({
+      const replyResponse = await aiRouter.generateReply({
         tweetText: tweet_text,
         tweetId: tweet_id,
-        modelPreference: model_preference,
+        modelPreference: model_key,
       });
 
       // Log the reply event
