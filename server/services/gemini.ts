@@ -1,65 +1,34 @@
-import OpenAI from "openai";
+import { GoogleGenAI } from "@google/genai";
+import { ReplyOptions, ReplyResponse } from "./openai.js";
 
-// TODO: Set OPENAI_API_KEY in environment to enable AI reply generation
-const openai = process.env.OPENAI_API_KEY
-  ? new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-    })
+// Initialize Gemini AI client
+const ai = process.env.GEMINI_API_KEY
+  ? new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })
   : null;
 
-export interface ReplyOptions {
-  tweetText: string;
-  tweetId?: string;
-  modelPreference?: string;
-}
-
-export interface ReplyResponse {
-  reply: string;
-  modelKey: string;
-  tokensIn?: number;
-  tokensOut?: number;
-  latencyMs: number;
-}
-
-export class ModelRouter {
-  // Available OpenAI models with their characteristics
+export class GeminiModelRouter {
+  // Available Gemini models with their characteristics
   private readonly MODELS = {
-    // GPT-5 Series (August 2025 release)
-    "gpt-5": {
-      name: "gpt-5",
-      inputCost: 1.25, // per 1M tokens
-      outputCost: 10.0, // per 1M tokens
-      contextWindow: 272000,
-      description: "Most advanced model for complex reasoning",
+    "gemini-2.5-pro": {
+      name: "gemini-2.5-pro",
+      inputCost: 0.30, // per 1M tokens
+      outputCost: 2.50, // per 1M tokens
+      contextWindow: 2000000,
+      description: "Most capable model for complex reasoning",
     },
-    "gpt-5-mini": {
-      name: "gpt-5-mini",
-      inputCost: 0.25, // per 1M tokens
-      outputCost: 2.0, // per 1M tokens
-      contextWindow: 272000,
-      description: "General-purpose model with great performance",
+    "gemini-2.5-flash": {
+      name: "gemini-2.5-flash", 
+      inputCost: 0.30, // per 1M tokens (price increased)
+      outputCost: 2.50, // per 1M tokens (price increased)
+      contextWindow: 1000000,
+      description: "Balanced speed and capability",
     },
-    "gpt-5-nano": {
-      name: "gpt-5-nano",
-      inputCost: 0.05, // per 1M tokens
+    "gemini-2.5-flash-lite": {
+      name: "gemini-2.5-flash-lite",
+      inputCost: 0.10, // per 1M tokens
       outputCost: 0.40, // per 1M tokens
-      contextWindow: 272000,
-      description: "Ultra-efficient for simple tasks",
-    },
-    // GPT-4o Series (legacy models)
-    "gpt-4o": {
-      name: "gpt-4o",
-      inputCost: 2.50, // per 1M tokens
-      outputCost: 10.0, // per 1M tokens
-      contextWindow: 128000,
-      description: "Legacy flagship model",
-    },
-    "gpt-4o-mini": {
-      name: "gpt-4o-mini",
-      inputCost: 0.15, // per 1M tokens
-      outputCost: 0.60, // per 1M tokens
-      contextWindow: 128000,
-      description: "Budget-friendly option",
+      contextWindow: 1000000,
+      description: "Most cost-effective option",
     },
   } as const;
 
@@ -71,16 +40,17 @@ export class ModelRouter {
       return modelPreference;
     }
 
-    // Default routing logic with GPT-5 series
+    // Default routing logic for Gemini models
     if (tweetText.length > 280 || this.isComplexTweet(tweetText)) {
-      return "gpt-5-mini"; // Better performance than GPT-4o at lower cost
+      return "gemini-2.5-pro"; // Most capable for complex content
     }
 
-    return "gpt-5-nano"; // Ultra-efficient for simple tweets
+    // Use Flash-Lite for simple tweets (most cost-effective)
+    return "gemini-2.5-flash-lite";
   }
 
   private isComplexTweet(tweetText: string): boolean {
-    // Simple heuristic for complexity
+    // Same complexity detection as OpenAI service
     const complexPatterns = [
       /https?:\/\/[^\s]+/g, // URLs
       /@\w+/g, // Mentions
@@ -105,9 +75,9 @@ Core Rules:
 - Use ≤ 40 words
 - Match the original tweet's energy and tone exactly
 - Never add hashtags, links, or obvious promotional content
-- Avoid AI buzzwords like "game-changing," "revolutionary," "amazi
+- Avoid AI buzzwords like "game-changing," "revolutionary," "amazing insight"
 - Make sure you do not use dash(-) between words and do not use em dash(—) in reply
-- Avoid words like "sounds like", "feels like" etc.ng insight"
+- Avoid words like "sounds like", "feels like" etc.
 
 Authenticity Guidelines:
 - React to something specific in the tweet, not just the general topic
@@ -127,7 +97,6 @@ Response Variety:
 Decision Rules:
 - Binary choices: Pick one side clearly; add a 3–6 word reason.
 
-
 If the tweet is unclear, respond with genuine confusion or ask for clarification rather than generic support.
 
 Sound like a real person scrolling their feed, not a customer service bot.`;
@@ -143,7 +112,7 @@ Instructions:
   }
 
   private postProcessReply(reply: string): string {
-    // Trim whitespace and ensure proper length
+    // Same post-processing as OpenAI service
     let processed = reply.trim();
 
     // Remove quotes if the AI wrapped the response
@@ -181,40 +150,47 @@ Instructions:
       options.modelPreference,
     );
 
-    if (!openai) {
-      // Return a placeholder reply when OpenAI is not configured
+    if (!ai) {
+      // Return a placeholder reply when Gemini is not configured
       return {
         reply:
-          "Thanks for sharing! This is a demo reply since OpenAI isn't configured yet.",
-        modelKey: "demo",
+          "Thanks for sharing! This is a demo reply since Gemini isn't configured yet.",
+        modelKey: "demo-gemini",
         latencyMs: Date.now() - startTime,
       };
     }
 
     try {
-      const response = await openai.chat.completions.create({
+      const response = await ai.models.generateContent({
         model: modelKey,
-        messages: [
-          { role: "system", content: this.createSystemPrompt() },
-          { role: "user", content: this.createUserPrompt(options.tweetText) },
-        ],
-        max_completion_tokens: 60, // Keep responses short
+        config: {
+          systemInstruction: this.createSystemPrompt(),
+          maxOutputTokens: 60, // Keep responses short
+          temperature: 0.7,
+        },
+        contents: this.createUserPrompt(options.tweetText),
       });
 
-      const rawReply = response.choices[0]?.message?.content || "";
+      const rawReply = response.text || "";
       const processedReply = this.postProcessReply(rawReply);
       const latencyMs = Date.now() - startTime;
+
+      // Estimate token usage (Gemini doesn't provide exact counts in free tier)
+      const estimatedInputTokens = Math.ceil(
+        (this.createSystemPrompt() + this.createUserPrompt(options.tweetText)).length / 4
+      );
+      const estimatedOutputTokens = Math.ceil(processedReply.length / 4);
 
       return {
         reply: processedReply,
         modelKey,
-        tokensIn: response.usage?.prompt_tokens,
-        tokensOut: response.usage?.completion_tokens,
+        tokensIn: estimatedInputTokens,
+        tokensOut: estimatedOutputTokens,
         latencyMs,
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
-      throw new Error(`Failed to generate reply: ${message}`);
+      throw new Error(`Failed to generate reply with Gemini: ${message}`);
     }
   }
 
@@ -223,14 +199,13 @@ Instructions:
     return this.MODELS[modelKey as keyof typeof this.MODELS] || null;
   }
 
-  // Get all available OpenAI models
+  // Get all available models
   getAvailableModels() {
     return Object.entries(this.MODELS).map(([key, info]) => ({
       key,
       ...info,
-      provider: "openai",
     }));
   }
 }
 
-export const modelRouter = new ModelRouter();
+export const geminiModelRouter = new GeminiModelRouter();
