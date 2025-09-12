@@ -174,6 +174,10 @@ Instructions:
     return processed.trim();
   }
 
+  private isGPT5Model(modelKey: string): boolean {
+    return modelKey.startsWith("gpt-5");
+  }
+
   async generateReply(options: ReplyOptions): Promise<ReplyResponse> {
     const startTime = Date.now();
     const modelKey = this.getModelForTweet(
@@ -192,14 +196,22 @@ Instructions:
     }
 
     try {
-      const response = await openai.chat.completions.create({
+      // GPT-5 models use max_completion_tokens, GPT-4 models use max_tokens
+      const completionParams: any = {
         model: modelKey,
         messages: [
           { role: "system", content: this.createSystemPrompt() },
           { role: "user", content: this.createUserPrompt(options.tweetText) },
         ],
-        max_tokens: 60, // Keep responses short
-      });
+      };
+
+      if (this.isGPT5Model(modelKey)) {
+        completionParams.max_completion_tokens = 60;
+      } else {
+        completionParams.max_tokens = 60;
+      }
+
+      const response = await openai.chat.completions.create(completionParams);
 
       const rawReply = response.choices[0]?.message?.content || "";
       const processedReply = this.postProcessReply(rawReply);

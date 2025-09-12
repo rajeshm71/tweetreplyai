@@ -1,30 +1,30 @@
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { ReplyOptions, ReplyResponse } from "./openai.js";
 
-// Initialize Gemini AI client
-const ai = process.env.GEMINI_API_KEY
-  ? new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })
+// Initialize Gemini AI client with official SDK
+const genAI = process.env.GEMINI_API_KEY
+  ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
   : null;
 
 export class GeminiModelRouter {
-  // Available Gemini models with their characteristics
+  // Available Gemini models with their characteristics - REAL MODEL NAMES
   private readonly MODELS = {
-    "gemini-2.5-pro": {
-      name: "gemini-2.5-pro",
+    "gemini-1.5-pro": {
+      name: "gemini-1.5-pro",
       inputCost: 3.50, // per 1M tokens
       outputCost: 10.50, // per 1M tokens
       contextWindow: 2000000,
       description: "Advanced reasoning with multimodal capabilities",
     },
-    "gemini-2.5-flash": {
-      name: "gemini-2.5-flash", 
+    "gemini-1.5-flash": {
+      name: "gemini-1.5-flash", 
       inputCost: 0.35, // per 1M tokens
       outputCost: 1.05, // per 1M tokens
       contextWindow: 1000000,
       description: "Best price-performance ratio, well-rounded",
     },
-    "gemini-2.5-lite": {
-      name: "gemini-2.5-lite",
+    "gemini-1.5-flash-8b": {
+      name: "gemini-1.5-flash-8b",
       inputCost: 0.075, // per 1M tokens
       outputCost: 0.30, // per 1M tokens
       contextWindow: 1000000,
@@ -42,11 +42,11 @@ export class GeminiModelRouter {
 
     // Default routing logic for Gemini models
     if (tweetText.length > 280 || this.isComplexTweet(tweetText)) {
-      return "gemini-2.5-flash"; // Best balance for complex content
+      return "gemini-1.5-flash"; // Best balance for complex content
     }
 
-    // Use Lite for simple tweets (most cost-effective)
-    return "gemini-2.5-lite";
+    // Use Flash-8B for simple tweets (most cost-effective)
+    return "gemini-1.5-flash-8b";
   }
 
   private isComplexTweet(tweetText: string): boolean {
@@ -150,7 +150,7 @@ Instructions:
       options.modelPreference,
     );
 
-    if (!ai) {
+    if (!genAI) {
       // Return a placeholder reply when Gemini is not configured
       return {
         reply:
@@ -161,26 +161,31 @@ Instructions:
     }
 
     try {
-      const response = await ai.models.generateContent({
-        model: modelKey,
+      // Get the generative model instance
+      const model = genAI.getGenerativeModel({ model: modelKey });
+
+      // Create the full prompt with system instructions
+      const fullPrompt = `${this.createSystemPrompt()}
+
+${this.createUserPrompt(options.tweetText)}`;
+
+      // Generate content with proper configuration
+      const result = await model.generateContent({
+        contents: [{ role: "user", parts: [{ text: fullPrompt }] }],
         generationConfig: {
           maxOutputTokens: 60, // Keep responses short
           temperature: 0.7,
         },
-        contents: [{
-          role: "user",
-          parts: [{ text: `${this.createSystemPrompt()}\n\n${this.createUserPrompt(options.tweetText)}` }]
-        }],
       });
 
+      // Get the response text correctly
+      const response = await result.response;
       const rawReply = response.text() || "";
       const processedReply = this.postProcessReply(rawReply);
       const latencyMs = Date.now() - startTime;
 
       // Estimate token usage (Gemini doesn't provide exact counts in free tier)
-      const estimatedInputTokens = Math.ceil(
-        (this.createSystemPrompt() + this.createUserPrompt(options.tweetText)).length / 4
-      );
+      const estimatedInputTokens = Math.ceil(fullPrompt.length / 4);
       const estimatedOutputTokens = Math.ceil(processedReply.length / 4);
 
       return {
@@ -190,8 +195,8 @@ Instructions:
         tokensOut: estimatedOutputTokens,
         latencyMs,
       };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown error";
+    } catch (error: any) {
+      const message = error?.message || error?.error?.message || "Unknown error";
       throw new Error(`Failed to generate reply with Gemini: ${message}`);
     }
   }
@@ -206,6 +211,7 @@ Instructions:
     return Object.entries(this.MODELS).map(([key, info]) => ({
       key,
       ...info,
+      provider: "gemini",
     }));
   }
 }
