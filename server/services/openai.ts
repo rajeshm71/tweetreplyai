@@ -24,36 +24,7 @@ export interface ReplyResponse {
 export class ModelRouter {
   // Available OpenAI models with their characteristics
   private readonly MODELS = {
-    // GPT-4.1 Series (Latest flagship models)
-    "gpt-4.1": {
-      name: "gpt-4.1",
-      inputCost: 2.50, // per 1M tokens (estimated)
-      outputCost: 10.0, // per 1M tokens (estimated)
-      contextWindow: 1000000, // 1M tokens
-      description: "Latest flagship multimodal model",
-    },
-    "gpt-4.1-mini": {
-      name: "gpt-4.1-mini",
-      inputCost: 0.30, // per 1M tokens (estimated)
-      outputCost: 1.20, // per 1M tokens (estimated)
-      contextWindow: 1000000,
-      description: "High performance at lower cost",
-    },
-    "gpt-4.1-nano": {
-      name: "gpt-4.1-nano",
-      inputCost: 0.10, // per 1M tokens (estimated)
-      outputCost: 0.40, // per 1M tokens (estimated)
-      contextWindow: 1000000,
-      description: "Fastest and most cost-effective",
-    },
-    // GPT-4o Series (Current stable models)
-    "gpt-4o": {
-      name: "gpt-4o",
-      inputCost: 2.50, // per 1M tokens
-      outputCost: 10.0, // per 1M tokens
-      contextWindow: 128000,
-      description: "Multimodal model with vision capabilities",
-    },
+    // GPT-4o Series (Stable models)
     "gpt-4o-mini": {
       name: "gpt-4o-mini",
       inputCost: 0.15, // per 1M tokens
@@ -61,13 +32,34 @@ export class ModelRouter {
       contextWindow: 128000,
       description: "Cost-effective multimodal option",
     },
-    // GPT-4 Turbo (Reliable workhorse)
-    "gpt-4-turbo": {
-      name: "gpt-4-turbo",
-      inputCost: 10.0, // per 1M tokens
-      outputCost: 30.0, // per 1M tokens
+    "gpt-4o": {
+      name: "gpt-4o",
+      inputCost: 2.50, // per 1M tokens
+      outputCost: 10.0, // per 1M tokens
       contextWindow: 128000,
-      description: "Fast and reliable for complex tasks",
+      description: "Multimodal model with vision capabilities",
+    },
+    // GPT-5 Series (Latest flagship models)
+    "gpt-5": {
+      name: "gpt-5",
+      inputCost: 1.25, // per 1M tokens
+      outputCost: 10.0, // per 1M tokens
+      contextWindow: 272000,
+      description: "Latest flagship model with reasoning capabilities",
+    },
+    "gpt-5-mini": {
+      name: "gpt-5-mini",
+      inputCost: 0.25, // per 1M tokens
+      outputCost: 2.0, // per 1M tokens
+      contextWindow: 272000,
+      description: "Smaller, faster, cost-effective GPT-5 version",
+    },
+    "gpt-5-nano": {
+      name: "gpt-5-nano",
+      inputCost: 0.05, // per 1M tokens
+      outputCost: 0.40, // per 1M tokens
+      contextWindow: 272000,
+      description: "Ultra-lightweight GPT-5 for simple tasks",
     },
   } as const;
 
@@ -79,7 +71,7 @@ export class ModelRouter {
       return modelPreference;
     }
 
-    // Default routing logic with proven stable models
+    // Default routing logic with stable models
     if (tweetText.length > 280 || this.isComplexTweet(tweetText)) {
       return "gpt-4o"; // Reliable multimodal for complex tweets
     }
