@@ -3,7 +3,7 @@ import { ReplyOptions, ReplyResponse } from "./openai.js";
 
 // Initialize Gemini AI client with official SDK
 const genAI = process.env.GEMINI_API_KEY
-  ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
+  ? new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })
   : null;
 
 export class GeminiModelRouter {
@@ -11,24 +11,25 @@ export class GeminiModelRouter {
   private readonly MODELS = {
     "gemini-2.5-pro": {
       name: "gemini-2.5-pro",
-      inputCost: 3.50, // per 1M tokens
-      outputCost: 10.50, // per 1M tokens
+      inputCost: 1.25, // per 1M tokens
+      outputCost: 10, // per 1M tokens
       contextWindow: 1048576,
-      description: "Enhanced thinking and reasoning, multimodal understanding, advanced coding",
+      description:
+        "Enhanced thinking and reasoning, multimodal understanding, advanced coding",
     },
     "gemini-2.5-flash": {
-      name: "gemini-2.5-flash", 
-      inputCost: 0.35, // per 1M tokens
-      outputCost: 1.05, // per 1M tokens
+      name: "gemini-2.5-flash",
+      inputCost: 0.3, // per 1M tokens
+      outputCost: 2.5, // per 1M tokens
       contextWindow: 1048576,
-      description: "Best price-performance ratio, well-rounded capabilities",
+      description: "Best price performance ratio, well-rounded capabilities",
     },
     "gemini-2.5-flash-lite": {
       name: "gemini-2.5-flash-lite",
-      inputCost: 0.075, // per 1M tokens
-      outputCost: 0.30, // per 1M tokens
+      inputCost: 0.1, // per 1M tokens
+      outputCost: 0.4, // per 1M tokens
       contextWindow: 1048576,
-      description: "Most cost-efficient model supporting high throughput",
+      description: "Most cost efficient model supporting high throughput",
     },
   } as const;
 
@@ -66,40 +67,52 @@ export class GeminiModelRouter {
   }
 
   private createSystemPrompt(): string {
-    return `You are TweetReply, a social co-pilot for X (Twitter).
-You generate one short, human like reply to tweets that feels authentic and personal.
+    return `You're a regular person scrolling X (Twitter) who replies naturally to tweets that catch your attention.
 
-Core Rules:
-- Start with a capital letter, then use lowercase for the rest
-- Output only the reply (no intro, no quotes)  
-- Use ≤ 40 words
-- Match the original tweet's energy and tone exactly
-- Never add hashtags, links, or obvious promotional content
-- Avoid AI buzzwords like "game-changing," "revolutionary," "amazing insight"
-- Make sure you do not use dash(-) between words and do not use em dash(—) in reply
-- Avoid words like "sounds like", "feels like" etc.
+  Read the tweet first. Notice its tone - is it serious, casual, funny, or just everyday stuff?
 
-Authenticity Guidelines:
-- React to something specific in the tweet, not just the general topic
-- Use contractions naturally (don't, can't, I'm, that's)
-- Include personal touches: "reminds me of..." "had this happen..." "same here"
-- Use current, natural language patterns and mild slang when appropriate
-- Sometimes politely disagree or offer a different perspective
-- Reference shared experiences or relatable moments
 
-Response Variety:
-- Supportive: "felt this" "totally get it" "been there"  
-- Curious: "wait, how did..." "what made you..."
-- Experiential: "same thing happened when I..." "reminds me of..."
-- Gently challenging: "interesting, though I wonder if..." "fair point, but..."
-- Reactive: "no way!" "wait what?" "that's wild"
+    Your personality:
+    - You have your own opinions and experiences
+    - You are trying to be helpful or professional
+    - You react genuinely
+    - You use casual language like you're texting a friend
 
-Decision Rules:
-- Binary choices: Pick one side clearly; add a 3–6 word reason.
+    Response style:
+    - Keep it under 35 words
+    - Match the tweet's energy (don't be hyped about boring stuff)
+    - React to something specific you noticed
+    - Start casual, no formal greetings
+    - Use varied, natural language don't repeat the same expressions
+    - Sometimes be casual, sometimes more direct
+    - Avoid overusing slang words
+    - Include typos or informal grammar occasionally (but stay readable)
+    - React to ONE specific thing in the tweet, not the whole topic
+    - Sometimes be a bit sarcastic or playful
+    - Don't always be positive real people disagree sometimes
+    - Emoji → Use at most one if it naturally fits, otherwise none.
 
-If the tweet is unclear, respond with genuine confusion or ask for clarification rather than generic support.
+    Avoid:
+    - Must not use Jargon, buzzwords, motivational clichés 
+    - Must not use conversational fillers (like empathetic clichés), 
+    - Must not use rhetorical patterns (such as ‘No this, No that, Just …’)
+    - Must not use typographic separators (like hyphens or em dashes between words).
+    - Being overly encouraging or supportive
+    - Hashtags, links, or promotional language
+    - Explaining things unless asked
+    - Being fake positive about everything
 
-Sound like a real person scrolling their feed, not a customer service bot.`;
+    Decision Rules:
+    - Binary choices: Pick one side clearly; add a 3–6 word reason.
+
+    TONE GUIDELINES:
+    - For serious tweets: respond thoughtfully but briefly
+    - For funny tweets: light humor or simple appreciation
+    - For controversial tweets: stay neutral or politely disagree
+    - For everyday tweets: casual acknowledgment
+    - For exciting news: mild interest or brief congratulations
+
+    Be genuine. Not every tweet needs a big reaction. Sometimes "yeah" or "makes sense" is perfect. Other times you might be more engaged. Just respond how you naturally would as a person`;
   }
 
   private createUserPrompt(tweetText: string): string {
@@ -165,42 +178,33 @@ Instructions:
     }
 
     try {
-      console.log(`🔑 [Gemini] API key configured: ${!!process.env.GEMINI_API_KEY}`);
-      
+      console.log(
+        `🔑 [Gemini] API key configured: ${!!process.env.GEMINI_API_KEY}`,
+      );
+
       // Get the generative model instance
       console.log(`🤖 [Gemini] Getting generative model instance...`);
-      const model = genAI.getGenerativeModel({ model: modelKey });
+      //const model = genAI.getGenerativeModel({ model: modelKey });
 
       // Create the full prompt with system instructions
       const fullPrompt = `${this.createSystemPrompt()}
 
 ${this.createUserPrompt(options.tweetText)}`;
-      
+
       console.log(`📏 [Gemini] Prompt length: ${fullPrompt.length} characters`);
 
-      // Generate content with proper configuration
-      const requestConfig = {
-        contents: [{ role: "user", parts: [{ text: fullPrompt }] }],
-        generationConfig: {
-          maxOutputTokens: 60, // Keep responses short
+      const response = await genAI.models.generateContent({
+        model: modelKey,
+        contents: fullPrompt,
+        config: {
+          maxOutputTokens: 1000,
           temperature: 0.7,
         },
-      };
+      });
+      console.log(`📝 [Gemini] Response received:`, response);
+      const rawReply = response.text || "";
 
-      console.log(`🔧 [Gemini] Generation config: ${JSON.stringify(requestConfig.generationConfig)}`);
-      console.log(`📡 [Gemini] Making API request to Gemini...`);
-
-      const result = await model.generateContent(requestConfig);
-
-      console.log(`✅ [Gemini] API response received`);
-      console.log(`🔍 [Gemini] Result object keys:`, Object.keys(result));
-
-      // Get the response text correctly
-      const response = await result.response;
-      console.log(`📦 [Gemini] Response object keys:`, Object.keys(response));
-      console.log(`🔍 [Gemini] Response candidates:`, response.candidates?.length);
-
-      const rawReply = response.text() || "";
+      //const rawReply = response.text() || "";
       console.log(`📝 [Gemini] Raw reply: "${rawReply}"`);
 
       const processedReply = this.postProcessReply(rawReply);
@@ -210,10 +214,16 @@ ${this.createUserPrompt(options.tweetText)}`;
       console.log(`⏱️ [Gemini] Total latency: ${latencyMs}ms`);
 
       // Estimate token usage (Gemini doesn't provide exact counts in free tier)
-      const estimatedInputTokens = Math.ceil(fullPrompt.length / 4);
-      const estimatedOutputTokens = Math.ceil(processedReply.length / 4);
+      const estimatedInputTokens =
+        response.usageMetadata?.promptTokenCount ||
+        Math.ceil(fullPrompt.length / 4);
+      const estimatedOutputTokens =
+        response.usageMetadata?.candidatesTokenCount ||
+        Math.ceil(processedReply.length / 4);
 
-      console.log(`📊 [Gemini] Estimated tokens - Input: ${estimatedInputTokens}, Output: ${estimatedOutputTokens}`);
+      console.log(
+        `📊 [Gemini] Estimated tokens - Input: ${estimatedInputTokens}, Output: ${estimatedOutputTokens}`,
+      );
 
       return {
         reply: processedReply,
@@ -223,7 +233,8 @@ ${this.createUserPrompt(options.tweetText)}`;
         latencyMs,
       };
     } catch (error: any) {
-      const message = error?.message || error?.error?.message || "Unknown error";
+      const message =
+        error?.message || error?.error?.message || "Unknown error";
       console.error(`❌ [Gemini] Error generating reply: ${message}`);
       console.error(`🔧 [Gemini] Model used: ${modelKey}`);
       console.error(`🔧 [Gemini] Full error:`, error);
