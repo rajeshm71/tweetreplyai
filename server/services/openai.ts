@@ -121,6 +121,7 @@ Read the tweet first. Notice its tone is it serious, casual, funny, or just ever
   - Must not use conversational fillers (like empathetic clichés), 
   - Must not use rhetorical patterns (such as ‘No this, No that, Just …’)
   - Must not use typographic separators (like hyphens or em dashes between words).
+  - Must not use the word "totally"
   - Hashtags, links, or promotional language
   - Explaining things unless asked
 
