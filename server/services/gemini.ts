@@ -97,7 +97,7 @@ export class GeminiModelRouter {
     - Must not use conversational fillers (like empathetic clichés), 
     - Must not use rhetorical patterns (such as ‘No this, No that, Just …’)
     - Must not use typographic separators (like hyphens or em dashes between words).
-    - Must not use the word "totally"
+    - Instead of "totally", use words like: really, definitely, absolutely, completely, quite, very, actually
     - Being overly encouraging or supportive
     - Hashtags, links, or promotional language
     - Explaining things unless asked
