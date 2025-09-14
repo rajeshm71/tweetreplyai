@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Sparkles, Copy, ThumbsUp, ThumbsDown, Clock, Zap, Send, User, Bot, Settings, Brain } from "lucide-react";
+import { Sparkles, Copy, Check, ThumbsUp, ThumbsDown, Clock, Zap, Send, User, Bot, Settings, Brain } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
 
@@ -50,6 +50,7 @@ export function GenerateReply() {
   const [selectedModel, setSelectedModel] = useState<string>("gpt-4o-mini");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [feedbackGiven, setFeedbackGiven] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -174,13 +175,11 @@ export function GenerateReply() {
     setTweetText("");
   };
 
-  const handleCopy = async (content: string) => {
+  const handleCopy = async (content: string, id: string) => {
     try {
       await navigator.clipboard.writeText(content);
-      toast({
-        title: "Copied!",
-        description: "Reply copied to clipboard",
-      });
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 1500);
     } catch (error) {
       toast({
         title: "Error",
@@ -236,11 +235,20 @@ export function GenerateReply() {
                       size="sm"
                       variant="ghost"
                       className="h-6 px-2 text-xs hover:bg-background/20"
-                      onClick={() => handleCopy(message.content)}
+                      onClick={() => handleCopy(message.content, message.id)}
                       data-testid="button-copy-reply"
                     >
-                      <Copy className="w-3 h-3 mr-1" />
-                      Copy
+                      {copiedId === message.id ? (
+                        <>
+                          <Check className="w-3 h-3 mr-1" />
+                          Copied
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3 h-3 mr-1" />
+                          Copy
+                        </>
+                      )}
                     </Button>
                   </div>
                 )}
