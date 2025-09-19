@@ -36,12 +36,12 @@ export class ModelRouter {
       description: "Multimodal model with vision capabilities",
     },
     // GPT-5 Series (Latest flagship models)
-    "gpt-5": {
-      name: "gpt-5",
-      inputCost: 1.25, // per 1M tokens
-      outputCost: 10.0, // per 1M tokens
+    "gpt-4.1-mini": {
+      name: "gpt-4.1-mini",
+      inputCost: 0.4, // per 1M tokens
+      outputCost: 1.6, // per 1M tokens
       contextWindow: 272000,
-      description: "Latest flagship model with reasoning capabilities",
+      description: "Better than 4o mini",
     },
     "gpt-5-mini": {
       name: "gpt-5-mini",
@@ -94,27 +94,27 @@ export class ModelRouter {
   private createSystemPrompt(): string {
     return `You're a regular person scrolling X (Twitter) who replies naturally to tweets that catch your attention.
 
-Read the tweet first. Notice its tone is it serious, casual, funny, or just everyday stuff?
-
+Read, think and understand tweet first. Notice its tone is it serious, casual, funny, or just everyday stuff?
 
   Your personality:
-  - You have your own opinions and experiences
-  - You are trying to be helpful or professional
-  - You react genuinely
+  - React briefly and directly
+  - Don't give advice or life lessons
+  - Just comment on what you see
+  - Keep observations simple and personal
   - You use casual language like you're texting a friend
+  - You are a human, not a bot and human's are never perfect
 
   Response style:
   - Keep it under 35 words
   - Match the tweet's energy (don't be hyped about boring stuff)
   - React to something specific you noticed
   - Start casual, no formal greetings
-  - Use varied, natural language don't repeat the same expressions
-  - Sometimes be casual, sometimes more direct
   - Avoid overusing slang words
-  - Include typos or informal grammar occasionally (but stay readable)
   - React to ONE specific thing in the tweet, not the whole topic
   - Don't always be positive real people disagree sometimes
   - Emoji → Use at most one if it naturally fits, otherwise none.
+  - Do not over explain or use complex phrasing. 
+  - Most replies should be direct. Keep it simple, clear, and genuine
 
   Avoid:
   - Must not use Jargon, buzzwords, motivational clichés 
@@ -122,8 +122,8 @@ Read the tweet first. Notice its tone is it serious, casual, funny, or just ever
   - Must not use rhetorical patterns (such as ‘No this, No that, Just …’)
   - Must not use typographic separators (like hyphens or em dashes between words).
   - Instead of "totally", use words like: really, definitely, absolutely, completely, quite, very, actually
+  - Never use exclamation or question marks
   - Hashtags, links, or promotional language
-  - Explaining things unless asked
 
   Decision Rules:
   - Binary choices: Pick one side clearly; add a 3–6 word reason.
@@ -195,26 +195,55 @@ Read the tweet first. Notice its tone is it serious, casual, funny, or just ever
     }
 
     try {
-      const response = await openai.responses.create({
-        model: modelKey,
-        input: [
-          { role: "system", content: this.createSystemPrompt() },
-          { role: "user", content: this.createUserPrompt(options.tweetText) },
-        ],
-        //max_output_tokens: 1000,
-      });
-      console.log(`📝 [OpenAI] Response received:`, response);
-      const rawReply = response.output_text || "";
-      const processedReply = this.postProcessReply(rawReply);
-      const latencyMs = Date.now() - startTime;
+      // Use responses API only for GPT-5 versions
+      if (modelKey.startsWith('gpt-5')) {
+        const response = await openai.responses.create({
+          model: modelKey,
+          input: [
+            { role: "system", content: this.createSystemPrompt() },
+            { role: "user", content: this.createUserPrompt(options.tweetText) },
+          ],
+          temperature: 0.7,
+          top_p: 1,
+          //max_output_tokens: 1000,
+        });
+        console.log(`📝 [OpenAI] Response received:`, response);
+        const rawReply = response.output_text || "";
+        const processedReply = this.postProcessReply(rawReply);
+        const latencyMs = Date.now() - startTime;
 
-      return {
-        reply: processedReply,
-        modelKey,
-        tokensIn: response.usage?.input_tokens,
-        tokensOut: response.usage?.output_tokens,
-        latencyMs,
-      };
+        return {
+          reply: processedReply,
+          modelKey,
+          tokensIn: response.usage?.input_tokens,
+          tokensOut: response.usage?.output_tokens,
+          latencyMs,
+        };
+      } else {
+        // Use chat completions API for GPT-4 models
+        const response = await openai.chat.completions.create({
+          model: modelKey,
+          messages: [
+            { role: "system", content: this.createSystemPrompt() },
+            { role: "user", content: this.createUserPrompt(options.tweetText) },
+          ],
+          max_tokens: 1000,
+          temperature: 0.7,
+          top_p: 1,
+        });
+        console.log(`📝 [OpenAI] Response received:`, response);
+        const rawReply = response.choices[0]?.message?.content || "";
+        const processedReply = this.postProcessReply(rawReply);
+        const latencyMs = Date.now() - startTime;
+
+        return {
+          reply: processedReply,
+          modelKey,
+          tokensIn: response.usage?.prompt_tokens,
+          tokensOut: response.usage?.completion_tokens,
+          latencyMs,
+        };
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
       console.error(`❌ [OpenAI] Error generating reply: ${message}`);
