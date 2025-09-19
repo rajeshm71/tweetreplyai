@@ -195,55 +195,28 @@ Read, think and understand tweet first. Notice its tone is it serious, casual, f
     }
 
     try {
-      // Use responses API only for GPT-5 versions
-      if (modelKey.startsWith('gpt-5')) {
-        const response = await openai.responses.create({
-          model: modelKey,
-          input: [
-            { role: "system", content: this.createSystemPrompt() },
-            { role: "user", content: this.createUserPrompt(options.tweetText) },
-          ],
-          temperature: 0.7,
-          top_p: 1,
-          //max_output_tokens: 1000,
-        });
-        console.log(`📝 [OpenAI] Response received:`, response);
-        const rawReply = response.output_text || "";
-        const processedReply = this.postProcessReply(rawReply);
-        const latencyMs = Date.now() - startTime;
+      const response = await openai.responses.create({
+        model: modelKey,
+        input: [
+          { role: "system", content: this.createSystemPrompt() },
+          { role: "user", content: this.createUserPrompt(options.tweetText) },
+        ],
+        temperature: 0.7,
+        top_p: 1,
+        //max_output_tokens: 1000,
+      });
+      console.log(`📝 [OpenAI] Response received:`, response);
+      const rawReply = response.output_text || "";
+      const processedReply = this.postProcessReply(rawReply);
+      const latencyMs = Date.now() - startTime;
 
-        return {
-          reply: processedReply,
-          modelKey,
-          tokensIn: response.usage?.input_tokens,
-          tokensOut: response.usage?.output_tokens,
-          latencyMs,
-        };
-      } else {
-        // Use chat completions API for GPT-4 models
-        const response = await openai.chat.completions.create({
-          model: modelKey,
-          messages: [
-            { role: "system", content: this.createSystemPrompt() },
-            { role: "user", content: this.createUserPrompt(options.tweetText) },
-          ],
-          max_tokens: 1000,
-          temperature: 0.7,
-          top_p: 1,
-        });
-        console.log(`📝 [OpenAI] Response received:`, response);
-        const rawReply = response.choices[0]?.message?.content || "";
-        const processedReply = this.postProcessReply(rawReply);
-        const latencyMs = Date.now() - startTime;
-
-        return {
-          reply: processedReply,
-          modelKey,
-          tokensIn: response.usage?.prompt_tokens,
-          tokensOut: response.usage?.completion_tokens,
-          latencyMs,
-        };
-      }
+      return {
+        reply: processedReply,
+        modelKey,
+        tokensIn: response.usage?.input_tokens,
+        tokensOut: response.usage?.output_tokens,
+        latencyMs,
+      };
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
       console.error(`❌ [OpenAI] Error generating reply: ${message}`);
