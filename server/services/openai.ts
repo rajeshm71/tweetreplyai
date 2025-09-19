@@ -203,7 +203,7 @@ Read, think and understand tweet first. Notice its tone is it serious, casual, f
             { role: "system", content: this.createSystemPrompt() },
             { role: "user", content: this.createUserPrompt(options.tweetText) },
           ],
-          temperature: 0,
+          temperature: 0.7,
           top_p: 1,
           //max_output_tokens: 1000,
         });
@@ -228,8 +228,6 @@ Read, think and understand tweet first. Notice its tone is it serious, casual, f
             { role: "user", content: this.createUserPrompt(options.tweetText) },
           ],
           max_tokens: 1000,
-          temperature: 0.7,
-          top_p: 1,
         });
         console.log(`📝 [OpenAI] Response received:`, response);
         const rawReply = response.choices[0]?.message?.content || "";
