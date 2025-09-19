@@ -119,7 +119,7 @@ Read, think and understand tweet first. Notice its tone is it serious, casual, f
   Avoid:
   - Must not use Jargon, buzzwords, motivational clichés 
   - Must not use conversational fillers (like empathetic clichés), 
-  - Must not use rhetorical patterns (such as ‘No this, No that, Just …’)
+  - Must not use rhetorical patterns (such as 'No this, No that, Just …')
   - Must not use typographic separators (like hyphens or em dashes between words).
   - Instead of "totally", use words like: really, definitely, absolutely, completely, quite, very, actually
   - Never use exclamation or question marks
@@ -203,7 +203,7 @@ Read, think and understand tweet first. Notice its tone is it serious, casual, f
             { role: "system", content: this.createSystemPrompt() },
             { role: "user", content: this.createUserPrompt(options.tweetText) },
           ],
-          temperature: 0.7,
+          temperature: 0,
           top_p: 1,
           //max_output_tokens: 1000,
         });
