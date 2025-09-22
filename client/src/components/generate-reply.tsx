@@ -33,6 +33,11 @@ interface ModelInfo {
   description: string;
 }
 
+interface PromptInfo {
+  name: string;
+  description: string;
+}
+
 interface ChatMessage {
   id: string;
   type: 'user' | 'assistant';
@@ -48,6 +53,7 @@ interface ChatMessage {
 export function GenerateReply() {
   const [tweetText, setTweetText] = useState("");
   const [selectedModel, setSelectedModel] = useState<string>("gpt-4o-mini");
+  const [selectedPrompt, setSelectedPrompt] = useState<string>("default");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [feedbackGiven, setFeedbackGiven] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -60,8 +66,14 @@ export function GenerateReply() {
     refetchOnWindowFocus: false,
   });
 
+  // Fetch available prompts
+  const { data: promptsData, isLoading: promptsLoading } = useQuery<PromptInfo[]>({
+    queryKey: ["/api/prompts"],
+    refetchOnWindowFocus: false,
+  });
+
   const generateMutation = useMutation({
-    mutationFn: async (data: { tweet_text: string; model_key?: string }) => {
+    mutationFn: async (data: { tweet_text: string; model_key?: string; prompt_variation?: string }) => {
       const response = await apiRequest("POST", "/api/generate-reply", data);
       return response.json();
     },
@@ -165,10 +177,11 @@ export function GenerateReply() {
     };
     setMessages(prev => [...prev, userMessage]);
     
-    // Generate AI reply with selected model
+    // Generate AI reply with selected model and prompt
     generateMutation.mutate({ 
       tweet_text: tweetText.trim(),
-      model_key: selectedModel 
+      model_key: selectedModel,
+      prompt_variation: selectedPrompt
     });
     
     // Clear input
@@ -286,12 +299,14 @@ export function GenerateReply() {
 
       {/* Input Area */}
       <div className="border-t border-border p-4">
-        {/* Model Selection */}
-        <div className="mb-4">
-          <Label htmlFor="model-select" className="text-sm font-medium mb-2 flex items-center">
-            <Brain className="w-4 h-4 mr-2" />
-            AI Model
-          </Label>
+        {/* Model and Prompt Selection */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          {/* Model Selection */}
+          <div>
+            <Label htmlFor="model-select" className="text-sm font-medium mb-2 flex items-center">
+              <Brain className="w-4 h-4 mr-2" />
+              AI Model
+            </Label>
           <Select value={selectedModel} onValueChange={setSelectedModel}>
             <SelectTrigger className="w-full" data-testid="select-ai-model">
               <SelectValue placeholder="Select AI model..." />
@@ -338,6 +353,34 @@ export function GenerateReply() {
               )}
             </SelectContent>
           </Select>
+          </div>
+          
+          {/* Prompt Selection */}
+          <div>
+            <Label htmlFor="prompt-select" className="text-sm font-medium mb-2 flex items-center">
+              <Settings className="w-4 h-4 mr-2" />
+              Prompt Style
+            </Label>
+            <Select value={selectedPrompt} onValueChange={setSelectedPrompt}>
+              <SelectTrigger className="w-full" data-testid="select-prompt-style">
+                <SelectValue placeholder="Select prompt style..." />
+              </SelectTrigger>
+              <SelectContent>
+                {promptsLoading ? (
+                  <SelectItem value="loading" disabled>Loading prompts...</SelectItem>
+                ) : (
+                  promptsData && promptsData.map((prompt, index) => (
+                    <SelectItem key={index} value={prompt.name} data-testid={`prompt-${prompt.name}`}>
+                      <div className="flex flex-col">
+                        <span className="font-medium capitalize">{prompt.name.replace(/([A-Z])/g, ' $1').trim()}</span>
+                        <span className="text-xs text-muted-foreground">{prompt.description}</span>
+                      </div>
+                    </SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
         
         <div className="flex gap-3">
