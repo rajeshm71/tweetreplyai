@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { getPromptConfig, type PromptConfig } from "./prompts";
 
 // TODO: Set OPENAI_API_KEY in environment to enable AI reply generation
 const openai = process.env.OPENAI_API_KEY ? new OpenAI() : null;
@@ -7,6 +8,7 @@ export interface ReplyOptions {
   tweetText: string;
   tweetId?: string;
   modelPreference?: string;
+  promptVariation?: string;
 }
 
 export interface ReplyResponse {
@@ -91,55 +93,8 @@ export class ModelRouter {
     return matches > 2 || tweetText.split("\n").length > 2;
   }
 
-  private createSystemPrompt(): string {
-    return `You're a regular person scrolling X (Twitter) who replies naturally to tweets that catch your attention.
-
-Read, think and understand tweet first. Notice its tone is it serious, casual, funny, or just everyday stuff?
-
-  Your personality:
-  - React briefly and directly
-  - Don't give advice or life lessons
-  - Just comment on what you see
-  - Keep observations simple and personal
-  - You use casual language like you're texting a friend
-  - You are a human, not a bot and human's are never perfect
-
-  Response style:
-  - Keep it under 35 words
-  - Match the tweet's energy (don't be hyped about boring stuff)
-  - React to something specific you noticed
-  - Start casual, no formal greetings
-  - Avoid overusing slang words
-  - React to ONE specific thing in the tweet, not the whole topic
-  - Don't always be positive real people disagree sometimes
-  - Emoji → Use at most one if it naturally fits, otherwise none.
-  - Do not over explain or use complex phrasing. 
-  - Most replies should be direct. Keep it simple, clear, and genuine
-
-  Avoid:
-  - Must not use Jargon, buzzwords, motivational clichés 
-  - Must not use conversational fillers (like empathetic clichés), 
-  - Must not use rhetorical patterns (such as 'No this, No that, Just …')
-  - Must not use typographic separators (like hyphens or em dashes between words).
-  - Instead of "totally", use words like: really, definitely, absolutely, completely, quite, very, actually
-  - Never use exclamation or question marks
-  - Hashtags, links, or promotional language
-
-  Decision Rules:
-  - Binary choices: Pick one side clearly; add a 3–6 word reason.
-
-  TONE GUIDELINES:
-  - For serious tweets: respond thoughtfully but briefly
-  - For funny tweets: light humor or simple appreciation
-  - For controversial tweets: stay neutral or politely disagree
-  - For everyday tweets: casual acknowledgment
-  - For exciting news: mild interest or brief congratulations
-
-  Be genuine. Not every tweet needs a big reaction. Sometimes "yeah" or "makes sense" is perfect. Other times you might be more engaged. Just respond how you naturally would as a person`;
-  }
-
-  private createUserPrompt(tweetText: string): string {
-    return `Tweet: "${tweetText}"`;
+  private getPromptConfig(promptVariation?: string): PromptConfig {
+    return getPromptConfig(promptVariation);
   }
 
   private postProcessReply(reply: string): string {
@@ -180,9 +135,11 @@ Read, think and understand tweet first. Notice its tone is it serious, casual, f
       options.tweetText,
       options.modelPreference,
     );
+    const promptConfig = this.getPromptConfig(options.promptVariation);
 
     console.log(`🚀 [OpenAI] Starting request with model: ${modelKey}`);
     console.log(`📝 [OpenAI] Tweet text: "${options.tweetText}"`);
+    console.log(`🎯 [OpenAI] Using prompt: ${promptConfig.name}`);
 
     if (!openai) {
       console.log("❌ [OpenAI] OpenAI client not configured");
@@ -196,15 +153,15 @@ Read, think and understand tweet first. Notice its tone is it serious, casual, f
 
     try {
       // Use responses API only for GPT-5 versions
-      if (modelKey.startsWith('gpt-5')) {
+      if (modelKey.startsWith("gpt-5") || modelKey.startsWith("gpt-4o")) {
         const response = await openai.responses.create({
           model: modelKey,
           input: [
-            { role: "system", content: this.createSystemPrompt() },
-            { role: "user", content: this.createUserPrompt(options.tweetText) },
+            { role: "system", content: promptConfig.systemPrompt },
+            { role: "user", content: promptConfig.userPrompt(options.tweetText) },
           ],
-          temperature: 0.7,
           top_p: 1,
+          temperature: 0.7,
           //max_output_tokens: 1000,
         });
         console.log(`📝 [OpenAI] Response received:`, response);
@@ -221,13 +178,18 @@ Read, think and understand tweet first. Notice its tone is it serious, casual, f
         };
       } else {
         // Use chat completions API for GPT-4 models
+        console.log(
+          `🚀 [OpenAI] Using chat completions for model: ${modelKey}`,
+        );
         const response = await openai.chat.completions.create({
           model: modelKey,
           messages: [
-            { role: "system", content: this.createSystemPrompt() },
-            { role: "user", content: this.createUserPrompt(options.tweetText) },
+            { role: "system", content: promptConfig.systemPrompt },
+            { role: "user", content: promptConfig.userPrompt(options.tweetText) },
           ],
-          max_tokens: 1000,
+          temperature: 0.7,
+          frequency_penalty: 0.5,
+          presence_penalty: 0.5,
         });
         console.log(`📝 [OpenAI] Response received:`, response);
         const rawReply = response.choices[0]?.message?.content || "";

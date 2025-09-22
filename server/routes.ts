@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { aiRouter } from "./services/ai-router";
+import { getAvailablePrompts } from "./services/prompts";
 import { stripeService, PLANS } from "./services/stripe";
 import { usageService } from "./services/usage";
 import { z } from "zod";
@@ -34,6 +35,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Prompts route - get available prompt variations
+  app.get('/api/prompts', (req, res) => {
+    try {
+      const prompts = getAvailablePrompts();
+      res.json(prompts);
+    } catch (error) {
+      console.error("Error fetching prompts:", error);
+      res.status(500).json({ message: "Failed to fetch prompts" });
+    }
+  });
+
   // Usage and quota routes
   app.get('/api/usage', isAuthenticated, async (req: any, res) => {
     try {
@@ -61,9 +73,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         tweet_text: z.string().min(1).max(2000),
         tweet_id: z.string().optional(),
         model_key: z.string().optional(),
+        prompt_variation: z.string().optional(),
       });
 
-      const { tweet_text, tweet_id, model_key } = schema.parse(req.body);
+      const { tweet_text, tweet_id, model_key, prompt_variation } = schema.parse(req.body);
 
       // Check if user can use a reply
       const { canUse, reason } = await usageService.canUseReply(userId);
@@ -86,6 +99,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         tweetText: tweet_text,
         tweetId: tweet_id,
         modelPreference: model_key,
+        promptVariation: prompt_variation,
       });
 
       // Log the reply event

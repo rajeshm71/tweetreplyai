@@ -1,5 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import { ReplyOptions, ReplyResponse } from "./openai.js";
+import { getPromptConfig, type PromptConfig } from "./prompts";
 
 // Initialize Gemini AI client with official SDK
 const genAI = process.env.GEMINI_API_KEY
@@ -48,6 +49,10 @@ export class GeminiModelRouter {
 
     // Use Flash-Lite for simple tweets (most cost-effective)
     return "gemini-2.5-flash-lite";
+  }
+
+  private getPromptConfig(promptVariation?: string): PromptConfig {
+    return getPromptConfig(promptVariation);
   }
 
   private isComplexTweet(tweetText: string): boolean {
@@ -163,9 +168,11 @@ Instructions:
       options.tweetText,
       options.modelPreference,
     );
+    const promptConfig = this.getPromptConfig(options.promptVariation);
 
     console.log(`🚀 [Gemini] Starting request with model: ${modelKey}`);
     console.log(`📝 [Gemini] Tweet text: "${options.tweetText}"`);
+    console.log(`🎯 [Gemini] Using prompt: ${promptConfig.name}`);
 
     if (!genAI) {
       console.log(`❌ [Gemini] Gemini client not configured`);
@@ -188,9 +195,9 @@ Instructions:
       //const model = genAI.getGenerativeModel({ model: modelKey });
 
       // Create the full prompt with system instructions
-      const fullPrompt = `${this.createSystemPrompt()}
+      const fullPrompt = `${promptConfig.systemPrompt}
 
-${this.createUserPrompt(options.tweetText)}`;
+${promptConfig.userPrompt(options.tweetText)}`;
 
       console.log(`📏 [Gemini] Prompt length: ${fullPrompt.length} characters`);
 
