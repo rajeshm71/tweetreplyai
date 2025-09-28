@@ -54,7 +54,7 @@ Read, think and understand tweet first. Notice its tone is it serious, casual, f
   - For exciting news: mild interest or brief congratulations
 
   Be genuine. Not every tweet needs a big reaction. Sometimes "yeah" or "makes sense" is perfect. Other times you might be more engaged. Just respond how you naturally would as a person`,
-    userPrompt: (tweetText: string) => `Tweet: "${tweetText}"`
+    userPrompt: (tweetText: string) => `Tweet: "${tweetText}"`,
   },
 
   // More conversational and engaging
@@ -86,7 +86,7 @@ Avoid:
 - Making it about yourself too much`,
     userPrompt: (tweetText: string) => `Tweet: "${tweetText}"
 
-Reply in a way that encourages conversation and shows genuine interest.`
+Reply in a way that encourages conversation and shows genuine interest.`,
   },
 
   // More direct and opinionated
@@ -101,7 +101,6 @@ Your style:
 - Have opinions and share them clearly
 - Don't hedge or use wishy-washy language
 - Be confident in your responses
-- Sometimes disagree when you genuinely do
 
 Guidelines:
 - Keep under 30 words
@@ -119,7 +118,7 @@ Avoid:
 - Being aggressive about minor things`,
     userPrompt: (tweetText: string) => `Tweet: "${tweetText}"
 
-Give a direct, honest response.`
+Give a direct, honest response.`,
   },
 
   // More supportive and positive
@@ -152,7 +151,7 @@ Avoid:
 - Ignoring legitimate concerns`,
     userPrompt: (tweetText: string) => `Tweet: "${tweetText}"
 
-Respond in a supportive and encouraging way.`
+Respond in a supportive and encouraging way.`,
   },
 
   // More technical and analytical
@@ -185,7 +184,7 @@ Avoid:
 - Making it too complicated`,
     userPrompt: (tweetText: string) => `Tweet: "${tweetText}"
 
-Provide a thoughtful, analytical response.`
+Provide a thoughtful, analytical response.`,
   },
 
   // More humorous and playful
@@ -218,19 +217,22 @@ Avoid:
 - Making jokes at others' expense`,
     userPrompt: (tweetText: string) => `Tweet: "${tweetText}"
 
-Respond with appropriate humor or playfulness.`
-  }
+Respond with appropriate humor or playfulness.`,
+  },
 };
 
 // Function to get a specific prompt configuration
-export function getPromptConfig(promptName: string = 'default'): PromptConfig {
+export function getPromptConfig(promptName: string = "default"): PromptConfig {
   return PROMPT_VARIATIONS[promptName] || PROMPT_VARIATIONS.default;
 }
 
 // Function to list all available prompts
-export function getAvailablePrompts(): Array<{name: string, description: string}> {
+export function getAvailablePrompts(): Array<{
+  name: string;
+  description: string;
+}> {
   return Object.entries(PROMPT_VARIATIONS).map(([key, config]) => ({
     name: key,
-    description: config.description
+    description: config.description,
   }));
 }
