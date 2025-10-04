@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { setupLocalAuth } from "./localAuth";
+import { setupGoogleAuth } from "./googleAuth";
 import { aiRouter } from "./services/ai-router";
 import { getAvailablePrompts } from "./services/prompts";
 import { stripeService, PLANS } from "./services/stripe";
@@ -14,6 +15,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware
   await setupAuth(app);
   setupLocalAuth();
+  setupGoogleAuth();
 
   // Auth routes
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
@@ -61,6 +63,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     })(req, res, next);
   });
+
+  // Google OAuth routes
+  app.get('/api/auth/google', passport.authenticate('google', {
+    scope: ['profile', 'email']
+  }));
+
+  app.get('/api/auth/google/callback',
+    passport.authenticate('google', { failureRedirect: '/login' }),
+    (req, res) => {
+      res.redirect('/');
+    }
+  );
 
   // Models route - get available AI models
   app.get('/api/models', (req, res) => {
