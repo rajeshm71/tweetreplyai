@@ -3,9 +3,11 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { PricingCards } from "@/components/pricing-cards";
-import { Sparkles, Zap, ArrowRight, CheckCircle, Rocket, Brain, MessageCircle, Download, Crown, Star, Shield, ChevronRight, TrendingUp } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { Sparkles, Zap, ArrowRight, CheckCircle, Rocket, Brain, MessageCircle, Download, Crown, Star, Shield, ChevronRight, TrendingUp, Chrome, Heart } from "lucide-react";
 
 export default function Landing() {
+  const { isAuthenticated } = useAuth();
   const faqs = [
     {
       question: "How do the reply quotas work?",
@@ -34,16 +36,34 @@ export default function Landing() {
       {/* Navigation */}
       <nav className="sticky top-0 z-50 glass-effect border-b border-border/50 backdrop-blur-xl">
         <div className="container flex items-center justify-between h-16">
-          <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center shadow-lg">
-              <Sparkles className="w-4 h-4 text-white" />
+          <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center shadow-lg">
+                <Sparkles className="w-4 h-4 text-white" />
+              </div>
+              <span className="font-display font-bold text-xl">TweetReply</span>
             </div>
-            <span className="font-display font-bold text-xl">TweetReply</span>
+            
+            <Button 
+              onClick={() => {
+                if (isAuthenticated) {
+                  window.open('https://chrome.google.com/webstore', '_blank');
+                } else {
+                  window.location.href = '/api/login';
+                }
+              }}
+              className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl hover-lift border-0 font-medium shadow-md"
+              data-testid="button-add-to-chrome"
+              size="sm"
+            >
+              <Chrome className="w-4 h-4 mr-2" />
+              Add to Chrome
+            </Button>
           </div>
           
           <div className="flex items-center space-x-6">
-            <a href="#features" className="text-muted-foreground hover:text-foreground smooth-transition text-sm font-medium">Features</a>
-            <a href="#pricing" className="text-muted-foreground hover:text-foreground smooth-transition text-sm font-medium">Pricing</a>
+            <a href="#features" className="text-muted-foreground hover:text-foreground smooth-transition text-sm font-medium hidden md:block">Features</a>
+            <a href="#pricing" className="text-muted-foreground hover:text-foreground smooth-transition text-sm font-medium hidden md:block">Pricing</a>
             <Button 
               onClick={() => window.location.href = '/api/login'}
               className="bg-gradient-to-r from-primary to-primary/80 text-white shadow-lg hover-lift border-0 font-semibold"
