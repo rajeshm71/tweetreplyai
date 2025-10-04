@@ -57,12 +57,25 @@ function updateUserSession(
 async function upsertUser(
   claims: any,
 ) {
+  const userId = claims["sub"];
+  const existingUser = await storage.getUser(userId);
+  
+  const authProviders = existingUser?.authProviders || [];
+  if (!authProviders.includes('replit')) {
+    authProviders.push('replit');
+  }
+  
   await storage.upsertUser({
-    id: claims["sub"],
+    id: userId,
     email: claims["email"],
+    emailVerified: true,
+    replitSub: userId,
     firstName: claims["first_name"],
     lastName: claims["last_name"],
     profileImageUrl: claims["profile_image_url"],
+    authProviders,
+    primaryAuthProvider: existingUser?.primaryAuthProvider || 'replit',
+    lastLoginAt: new Date(),
   });
 }
 
