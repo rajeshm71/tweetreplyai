@@ -16,12 +16,19 @@ import {
   type InsertFeedback,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc, gte, lt } from "drizzle-orm";
+import { eq, and, desc, gte, lt, sql, or } from "drizzle-orm";
 
 export interface IStorage {
   // User operations (required for Replit Auth)
   getUser(id: string): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<User | undefined>;
+  getUserByGoogleSub(googleSub: string): Promise<User | undefined>;
+  getUserByTwitterId(twitterId: string): Promise<User | undefined>;
+  getUserByReplitSub(replitSub: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
+  updateUser(id: string, updates: Partial<User>): Promise<User>;
+  addAuthProvider(userId: string, provider: string): Promise<void>;
+  removeAuthProvider(userId: string, provider: string): Promise<void>;
   
   // Subscription operations
   getActiveSubscription(userId: string): Promise<Subscription | undefined>;
@@ -48,6 +55,26 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.email, email));
+    return user;
+  }
+
+  async getUserByGoogleSub(googleSub: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.googleSub, googleSub));
+    return user;
+  }
+
+  async getUserByTwitterId(twitterId: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.twitterId, twitterId));
+    return user;
+  }
+
+  async getUserByReplitSub(replitSub: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.replitSub, replitSub));
+    return user;
+  }
+
   async upsertUser(userData: UpsertUser): Promise<User> {
     const [user] = await db
       .insert(users)
@@ -61,6 +88,45 @@ export class DatabaseStorage implements IStorage {
       })
       .returning();
     return user;
+  }
+
+  async updateUser(id: string, updates: Partial<User>): Promise<User> {
+    const [user] = await db
+      .update(users)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(users.id, id))
+      .returning();
+    return user;
+  }
+
+  async addAuthProvider(userId: string, provider: string): Promise<void> {
+    const user = await this.getUser(userId);
+    if (!user) throw new Error('User not found');
+    
+    const providers = user.authProviders || [];
+    if (!providers.includes(provider)) {
+      await db
+        .update(users)
+        .set({ 
+          authProviders: [...providers, provider],
+          updatedAt: new Date()
+        })
+        .where(eq(users.id, userId));
+    }
+  }
+
+  async removeAuthProvider(userId: string, provider: string): Promise<void> {
+    const user = await this.getUser(userId);
+    if (!user) throw new Error('User not found');
+    
+    const providers = user.authProviders || [];
+    await db
+      .update(users)
+      .set({ 
+        authProviders: providers.filter(p => p !== provider),
+        updatedAt: new Date()
+      })
+      .where(eq(users.id, userId));
   }
 
   // Subscription operations
@@ -152,10 +218,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Feedback operations
-  async createFeedback(feedback: InsertFeedback): Promise<Feedback> {
+  async createFeedback(feedbackData: InsertFeedback): Promise<Feedback> {
     const [newFeedback] = await db
       .insert(feedback)
-      .values(feedback)
+      .values(feedbackData)
       .returning();
     return newFeedback;
   }
