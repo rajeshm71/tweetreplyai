@@ -1,0 +1,93 @@
+Add “Add to Chrome” Button (Top-Left beside logo)
+
+If the user is logged in, redirect to Chrome Web Store page.
+
+If not logged in, redirect to /signup.
+
+Use a gradient button:
+
+<Button className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl">
+  Add to Chrome
+</Button>
+
+
+Replace “AI Model Selection” Feature
+
+Remove this — users don’t need to choose models.
+
+Replace with:
+“Natural, Human-like Contextual Replies”
+“Understands tone, humor, and context to make every reply sound authentically you.”
+
+Add “Example Replies” Showcase Section (After Hero)
+
+New section: “See It in Action”
+
+Show 3–4 real tweet-and-reply mockups (chat-bubble UI).
+
+Example:
+
+@elonmusk: “Thinking about building XPhone.”  
+🤖 TweetReply: “If it comes with a Dogecoin wallet, I’m in 😂”
+
+
+Add small button: Generate Your Own Demo →
+
+Fix Pricing Card Alignment + Simplify Buttons
+
+“Subscribe weekly” and “Subscribe monthly” buttons are misaligned vertically.
+
+Make both consistent height and label them simply as “Subscribe”.
+
+Highlight the Weekly Plan with a subtle glow or gradient border.
+
+Update Final Call-to-Action Text (Last Section)
+Replace:
+
+“Start Creating Amazing Replies”
+With something more emotional + product-specific:
+“Let Every Tweet Spark a Conversation ✨”
+Sub-text:
+“Join 5,000+ creators already turning engagement into growth with TweetReply.”
+
+Hero Section Improvement
+
+Add subtle animated gradient background (Framer Motion or Vanta.js).
+
+Below the CTA, add social proof avatars (“Loved by creators from X, Y, Z”).
+
+Add “See it work” → scrolls to example replies.
+
+Add Mini Demo GIF or Lottie Animation
+
+Instead of static hero right-side illustration, show the AI reply appearing dynamically (loop animation).
+
+This builds instant trust + curiosity.
+
+Enhance Pricing Section CTA Consistency
+
+Add toggle (“Weekly / Monthly”) instead of multiple cards.
+
+Example:
+“Save 20% with monthly plan” toggle above cards.
+
+Add Social Proof & Logos Section
+
+Below hero or before testimonials:
+“Trusted by creators from” + small grayscale logos (X, IndieHackers, ProductHunt, etc.)
+
+Make Testimonials Carousel Auto-Slide
+
+Use Framer Motion or Swiper.js to auto rotate testimonials every 5 seconds.
+
+💡 Optional Enhancements (For Aesthetic Polish)
+
+Enable Dark Mode Toggle — soft gradient inversion.
+
+Glassmorphism Footer — transparent blur with subtle neon border.
+
+Sticky Navbar Animation — shrink & blur on scroll.
+
+Add Floating “Chat with AI Demo” Button (Bottom-Right) — opens mini chat demo.
+
+Use Slight Scroll Parallax Effects on hero & stats for depth.
