@@ -148,8 +148,138 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* Example Replies Showcase */}
+      <section className="section-padding bg-gradient-to-b from-background to-muted/5">
+        <div className="container">
+          <div className="text-center mb-16">
+            <Badge variant="secondary" className="mb-4 glass-effect border border-primary/20">
+              <Sparkles className="w-4 h-4 mr-2" />
+              See It in Action
+            </Badge>
+            <h2 className="text-4xl md:text-5xl font-display font-bold mb-6">
+              <span className="gradient-text">Real Examples</span> of AI-Powered Replies
+            </h2>
+            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+              Watch how TweetReply creates natural, contextual responses that sound authentically human.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-6 max-w-5xl mx-auto mb-8">
+            {/* Example 1 */}
+            <Card className="neomorphic border-0 p-6">
+              <div className="space-y-4">
+                <div className="flex gap-3 justify-end">
+                  <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-muted/50">
+                    <div className="text-xs text-muted-foreground mb-1">@elonmusk</div>
+                    <p className="text-sm">Thinking about building XPhone.</p>
+                  </div>
+                  <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+                    <MessageCircle className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="flex gap-3">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center flex-shrink-0">
+                    <Sparkles className="w-4 h-4 text-white" />
+                  </div>
+                  <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-primary/10">
+                    <div className="text-xs text-primary mb-1">TweetReply AI</div>
+                    <p className="text-sm">If it comes with a Dogecoin wallet, I'm in 😂</p>
+                  </div>
+                </div>
+              </div>
+            </Card>
+
+            {/* Example 2 */}
+            <Card className="neomorphic border-0 p-6">
+              <div className="space-y-4">
+                <div className="flex gap-3 justify-end">
+                  <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-muted/50">
+                    <div className="text-xs text-muted-foreground mb-1">@ProductHunt</div>
+                    <p className="text-sm">What's the best productivity tool you've discovered this year?</p>
+                  </div>
+                  <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+                    <MessageCircle className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="flex gap-3">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center flex-shrink-0">
+                    <Sparkles className="w-4 h-4 text-white" />
+                  </div>
+                  <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-primary/10">
+                    <div className="text-xs text-primary mb-1">TweetReply AI</div>
+                    <p className="text-sm">TweetReply ironically! Saves me hours crafting authentic replies daily 🚀</p>
+                  </div>
+                </div>
+              </div>
+            </Card>
+
+            {/* Example 3 */}
+            <Card className="neomorphic border-0 p-6">
+              <div className="space-y-4">
+                <div className="flex gap-3 justify-end">
+                  <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-muted/50">
+                    <div className="text-xs text-muted-foreground mb-1">@TechCrunch</div>
+                    <p className="text-sm">AI is changing how we work. Thoughts?</p>
+                  </div>
+                  <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+                    <MessageCircle className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="flex gap-3">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center flex-shrink-0">
+                    <Sparkles className="w-4 h-4 text-white" />
+                  </div>
+                  <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-primary/10">
+                    <div className="text-xs text-primary mb-1">TweetReply AI</div>
+                    <p className="text-sm">Game changer for engagement! AI handles the replies, we focus on strategy ⚡</p>
+                  </div>
+                </div>
+              </div>
+            </Card>
+
+            {/* Example 4 */}
+            <Card className="neomorphic border-0 p-6">
+              <div className="space-y-4">
+                <div className="flex gap-3 justify-end">
+                  <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-muted/50">
+                    <div className="text-xs text-muted-foreground mb-1">@ycombinator</div>
+                    <p className="text-sm">Just launched our startup! Any advice for first-time founders?</p>
+                  </div>
+                  <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+                    <MessageCircle className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="flex gap-3">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center flex-shrink-0">
+                    <Sparkles className="w-4 h-4 text-white" />
+                  </div>
+                  <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-primary/10">
+                    <div className="text-xs text-primary mb-1">TweetReply AI</div>
+                    <p className="text-sm">Congrats! Build in public, engage authentically, and ship fast. You've got this! 🎉</p>
+                  </div>
+                </div>
+              </div>
+            </Card>
+          </div>
+
+          <div className="text-center">
+            <Button 
+              onClick={() => window.location.href = '/api/login'}
+              variant="outline"
+              size="lg"
+              className="glass-effect border-primary/30 hover:bg-primary/10 smooth-transition"
+              data-testid="button-generate-demo"
+            >
+              <Sparkles className="w-5 h-5 mr-2" />
+              Generate Your Own Demo
+              <ArrowRight className="w-4 h-4 ml-2" />
+            </Button>
+          </div>
+        </div>
+      </section>
+
       {/* Product Tour */}
-      <section id="features" className="section-padding bg-gradient-to-b from-background to-muted/10">
+      <section id="features" className="section-padding bg-gradient-to-b from-muted/5 to-muted/10">
         <div className="container">
           <div className="text-center mb-16">
             <Badge variant="secondary" className="mb-4 glass-effect border border-primary/20">
