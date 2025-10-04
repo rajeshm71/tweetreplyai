@@ -2,7 +2,7 @@ import { storage } from '../storage';
 import type { User } from '@shared/schema';
 
 export interface AuthProfile {
-  provider: 'google' | 'twitter' | 'password' | 'replit';
+  provider: 'google' | 'password' | 'replit';
   providerId: string;
   email?: string;
   firstName?: string;
@@ -18,9 +18,6 @@ export class AuthService {
     switch (profile.provider) {
       case 'google':
         user = await storage.getUserByGoogleSub(profile.providerId);
-        break;
-      case 'twitter':
-        user = await storage.getUserByTwitterId(profile.providerId);
         break;
       case 'replit':
         user = await storage.getUserByReplitSub(profile.providerId);
@@ -60,9 +57,6 @@ export class AuthService {
       case 'google':
         userData.googleSub = profile.providerId;
         break;
-      case 'twitter':
-        userData.twitterId = profile.providerId;
-        break;
       case 'replit':
         userData.replitSub = profile.providerId;
         userData.id = profile.providerId;
@@ -80,9 +74,6 @@ export class AuthService {
     switch (profile.provider) {
       case 'google':
         updates.googleSub = profile.providerId;
-        break;
-      case 'twitter':
-        updates.twitterId = profile.providerId;
         break;
       case 'replit':
         updates.replitSub = profile.providerId;
@@ -131,9 +122,6 @@ export class AuthService {
     switch (provider) {
       case 'google':
         updates.googleSub = null;
-        break;
-      case 'twitter':
-        updates.twitterId = null;
         break;
       case 'replit':
         updates.replitSub = null;

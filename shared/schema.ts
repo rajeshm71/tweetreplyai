@@ -36,7 +36,6 @@ export const users = pgTable("users", {
   passwordHash: varchar("password_hash"),
   replitSub: varchar("replit_sub").unique(),
   googleSub: varchar("google_sub").unique(),
-  twitterId: varchar("twitter_id").unique(),
   
   authProviders: text("auth_providers").array(),
   primaryAuthProvider: varchar("primary_auth_provider"),
