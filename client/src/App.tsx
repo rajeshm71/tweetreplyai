@@ -9,6 +9,8 @@ import Home from "@/pages/home";
 import Pricing from "@/pages/pricing";
 import AppPage from "@/pages/app";
 import AuthPage from "@/pages/auth";
+import ProfilePage from "@/pages/profile";
+import SettingsPage from "@/pages/settings";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -26,6 +28,8 @@ function Router() {
         <>
           <Route path="/" component={Home} />
           <Route path="/app" component={AppPage} />
+          <Route path="/profile" component={ProfilePage} />
+          <Route path="/settings" component={SettingsPage} />
           <Route path="/login" component={AuthPage} />
           <Route path="/pricing" component={Pricing} />
         </>
