@@ -80,6 +80,8 @@ export default function Landing() {
   const [testimonialEmblaRef, testimonialEmblaApi] = useEmblaCarousel({ loop: true }, [Autoplay({ delay: 5000, stopOnInteraction: false })]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [testimonialIndex, setTestimonialIndex] = useState(0);
+  const [demoTweet, setDemoTweet] = useState("");
+  const [demoReply, setDemoReply] = useState("");
 
   const onSelect = useCallback(() => {
     if (!emblaApi) return;
@@ -108,6 +110,26 @@ export default function Landing() {
       testimonialEmblaApi.off('select', onTestimonialSelect);
     };
   }, [testimonialEmblaApi, onTestimonialSelect]);
+
+  const generateDemoReply = (tweet: string) => {
+    if (!tweet.trim()) {
+      setDemoReply("");
+      return;
+    }
+    
+    const demoReplies = [
+      "That's a great perspective! I totally agree 💯",
+      "Interesting take! Have you considered the impact on... 🤔",
+      "This is exactly what I've been thinking about lately!",
+      "Love this! More people need to hear about it 🚀",
+      "Thanks for sharing! This really resonated with me ✨"
+    ];
+    
+    setTimeout(() => {
+      const randomReply = demoReplies[Math.floor(Math.random() * demoReplies.length)];
+      setDemoReply(randomReply);
+    }, 800);
+  };
 
   const faqs = [
     {
@@ -442,6 +464,87 @@ export default function Landing() {
                 </div>
               </CardContent>
             </Card>
+          </div>
+        </div>
+      </section>
+
+      {/* Interactive Live Demo */}
+      <section className="section-padding bg-background">
+        <div className="container">
+          <div className="text-center mb-16">
+            <Badge variant="secondary" className="mb-4 glass-effect border border-primary/20">
+              <Brain className="w-4 h-4 mr-2" />
+              Try It Live
+            </Badge>
+            <h2 className="text-4xl md:text-5xl font-display font-bold mb-6">
+              See <span className="gradient-text">AI Magic</span> in Action
+            </h2>
+            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+              Type any tweet below and watch TweetReply generate a perfect response instantly
+            </p>
+          </div>
+
+          <div className="max-w-3xl mx-auto">
+            <Card className="neomorphic border-0 p-8">
+              <div className="space-y-6">
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Enter a Tweet</label>
+                  <textarea
+                    className="w-full p-4 rounded-xl border border-border bg-background resize-none focus:outline-none focus:ring-2 focus:ring-primary/50 smooth-transition"
+                    placeholder="Example: Just launched our new AI-powered app! What do you think?"
+                    rows={3}
+                    value={demoTweet}
+                    onChange={(e) => {
+                      setDemoTweet(e.target.value);
+                      generateDemoReply(e.target.value);
+                    }}
+                    data-testid="input-demo-tweet"
+                  />
+                </div>
+
+                {demoReply && (
+                  <div className="bg-primary/5 rounded-xl p-6 border border-primary/20 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center flex-shrink-0">
+                        <Sparkles className="w-5 h-5 text-white" />
+                      </div>
+                      <div>
+                        <div className="text-xs text-primary mb-1 font-semibold">TweetReply AI Generated</div>
+                        <p className="text-foreground">{demoReply}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {!demoReply && demoTweet && (
+                  <div className="bg-muted/30 rounded-xl p-6 border border-border/50">
+                    <div className="flex items-center gap-2">
+                      <div className="animate-spin w-4 h-4 border-2 border-primary border-t-transparent rounded-full" />
+                      <span className="text-sm text-muted-foreground">Generating reply...</span>
+                    </div>
+                  </div>
+                )}
+
+                {!demoTweet && (
+                  <div className="text-center text-sm text-muted-foreground">
+                    <Sparkles className="w-4 h-4 inline mr-2" />
+                    Start typing to see AI-generated replies appear instantly
+                  </div>
+                )}
+              </div>
+            </Card>
+
+            <div className="text-center mt-8">
+              <Button
+                onClick={() => window.location.href = '/api/login'}
+                size="lg"
+                className="bg-gradient-to-r from-primary to-primary/80 text-white shadow-xl hover-lift border-0 font-semibold"
+                data-testid="button-demo-cta"
+              >
+                Get Full Access Now
+                <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
+            </div>
           </div>
         </div>
       </section>
