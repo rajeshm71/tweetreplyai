@@ -23,7 +23,6 @@ export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
   getUserByGoogleSub(googleSub: string): Promise<User | undefined>;
-  getUserByTwitterId(twitterId: string): Promise<User | undefined>;
   getUserByReplitSub(replitSub: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
   updateUser(id: string, updates: Partial<User>): Promise<User>;
@@ -62,11 +61,6 @@ export class DatabaseStorage implements IStorage {
 
   async getUserByGoogleSub(googleSub: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.googleSub, googleSub));
-    return user;
-  }
-
-  async getUserByTwitterId(twitterId: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.twitterId, twitterId));
     return user;
   }
 
