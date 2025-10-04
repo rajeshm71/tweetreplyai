@@ -201,20 +201,20 @@ export default function Landing() {
               </CardContent>
             </Card>
 
-            {/* AI Models */}
+            {/* Natural Contextual Replies */}
             <Card className="neomorphic border-0 hover-lift group overflow-hidden relative">
               <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 via-transparent to-pink-500/10 opacity-0 group-hover:opacity-100 smooth-transition" />
               <CardContent className="p-8 text-center relative z-10">
                 <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-xl group-hover:scale-110 group-hover:rotate-3 smooth-transition">
-                  <Brain className="w-8 h-8 text-white" />
+                  <Heart className="w-8 h-8 text-white" />
                 </div>
-                <h3 className="text-2xl font-display font-semibold mb-3 text-foreground">AI Model Selection</h3>
+                <h3 className="text-2xl font-display font-semibold mb-3 text-foreground">Natural, Human-like Replies</h3>
                 <p className="text-muted-foreground mb-6 leading-relaxed">
-                  Choose from GPT-4o, Gemini, and more for custom reply styles
+                  Understands tone, humor, and context to make every reply sound authentically you
                 </p>
                 <div className="flex items-center justify-center text-sm text-muted-foreground">
                   <CheckCircle className="w-4 h-4 mr-2 text-primary" />
-                  <span>Multiple AI providers</span>
+                  <span>Contextual & authentic</span>
                 </div>
               </CardContent>
             </Card>
