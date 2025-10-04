@@ -1,68 +1,52 @@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Sparkles, Zap, Clock, Shield, Star, ArrowRight, CheckCircle, Globe, Rocket, Brain, Users, TrendingUp, MessageCircle } from "lucide-react";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { PricingCards } from "@/components/pricing-cards";
+import { Sparkles, Zap, ArrowRight, CheckCircle, Rocket, Brain, MessageCircle, Download, Crown, Star, Shield, ChevronRight, TrendingUp } from "lucide-react";
 
 export default function Landing() {
-  const features = [
+  const faqs = [
     {
-      icon: <Brain className="w-6 h-6" />,
-      title: "AI-Powered Intelligence",
-      description: "Advanced GPT models understand context and generate authentic, human-like replies that feel natural.",
-      color: "from-blue-500 to-purple-600"
+      question: "How do the reply quotas work?",
+      answer: "Your quota resets automatically based on your plan. Trial users get 10 replies per day, weekly subscribers get 700 replies every 7 days, and monthly subscribers get 3,000 replies every 30 days."
     },
     {
-      icon: <Zap className="w-6 h-6" />,
-      title: "Lightning Fast",
-      description: "Get high-quality replies in under 2 seconds with our optimized AI pipeline and smart routing.",
-      color: "from-orange-500 to-red-500"
+      question: "Can I use both the extension and web app?",
+      answer: "Yes! Your subscription covers both the Chrome extension and the mobile-friendly web interface. Your quota is shared across both platforms."
     },
     {
-      icon: <Shield className="w-6 h-6" />,
-      title: "Privacy Focused",
-      description: "Your data stays secure with enterprise-grade encryption and transparent privacy policies.",
-      color: "from-green-500 to-emerald-600"
+      question: "How authentic are the AI-generated replies?",
+      answer: "Our AI is trained to generate human-like, contextual replies under 25 words. Most users post our suggestions without any edits. We avoid generic AI clichés and hashtags."
     },
     {
-      icon: <Globe className="w-6 h-6" />,
-      title: "Chrome Extension",
-      description: "Reply directly on Twitter/X with our seamless browser extension for effortless engagement.",
-      color: "from-cyan-500 to-blue-600"
+      question: "What AI models do you use?",
+      answer: "We use the latest GPT and Gemini models, automatically selecting the best model based on tweet complexity for optimal results."
+    },
+    {
+      question: "Can I cancel anytime?",
+      answer: "Absolutely! You can cancel your subscription at any time. Your plan will remain active until the end of your current billing cycle."
     }
-  ];
-
-  const stats = [
-    { value: "50K+", label: "Replies Generated", icon: <Sparkles className="w-4 h-4" /> },
-    { value: "99.9%", label: "Uptime", icon: <Zap className="w-4 h-4" /> },
-    { value: "<2s", label: "Response Time", icon: <Clock className="w-4 h-4" /> },
-    { value: "5★", label: "User Rating", icon: <Star className="w-4 h-4" /> }
-  ];
-
-  const benefits = [
-    "Boost engagement by 300% with authentic replies",
-    "Save 2+ hours daily on social media management", 
-    "Maintain consistent brand voice across platforms",
-    "Never miss important conversations again"
   ];
 
   return (
     <div className="min-h-screen bg-background">
       {/* Navigation */}
-      <nav className="sticky top-0 z-50 glass-effect border-b border-border/30">
+      <nav className="sticky top-0 z-50 glass-effect border-b border-border/50 backdrop-blur-xl">
         <div className="container flex items-center justify-between h-16">
-          <div className="flex items-center space-x-3">
-            <div className="w-9 h-9 bg-gradient-to-br from-primary to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
-              <MessageCircle className="w-5 h-5 text-white" />
+          <div className="flex items-center space-x-2">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center shadow-lg">
+              <Sparkles className="w-4 h-4 text-white" />
             </div>
-            <span className="text-xl font-bold tracking-tight">TweetReply</span>
+            <span className="font-display font-bold text-xl">TweetReply</span>
           </div>
           
           <div className="flex items-center space-x-6">
-            <a href="#features" className="text-muted-foreground hover:text-foreground transition-colors">Features</a>
-            <a href="#pricing" className="text-muted-foreground hover:text-foreground transition-colors">Pricing</a>
+            <a href="#features" className="text-muted-foreground hover:text-foreground smooth-transition text-sm font-medium">Features</a>
+            <a href="#pricing" className="text-muted-foreground hover:text-foreground smooth-transition text-sm font-medium">Pricing</a>
             <Button 
               onClick={() => window.location.href = '/api/login'}
-              className="bg-gradient-to-r from-primary to-purple-600 text-white shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105"
+              className="bg-gradient-to-r from-primary to-primary/80 text-white shadow-lg hover-lift border-0 font-semibold"
               data-testid="button-signin"
             >
               Get Started
@@ -73,221 +57,309 @@ export default function Landing() {
       </nav>
 
       {/* Hero Section */}
-      <section className="relative overflow-hidden pt-20 pb-32">
-        <div className="hero-gradient">
-          <div className="container relative">
+      <section className="relative overflow-hidden">
+        <div className="hero-gradient grid-pattern">
+          <div className="container section-padding relative">
             {/* Floating Elements */}
-            <div className="absolute top-20 left-10 w-20 h-20 bg-gradient-to-br from-primary/20 to-purple-500/20 rounded-full blur-2xl animate-pulse" />
-            <div className="absolute top-40 right-20 w-32 h-32 bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s' }} />
+            <div className="absolute top-10 right-10 w-24 h-24 bg-gradient-to-br from-primary/20 to-purple-500/20 rounded-full blur-2xl floating-animation" />
+            <div className="absolute bottom-10 left-10 w-32 h-32 bg-gradient-to-br from-cyan-500/20 to-blue-500/20 rounded-full blur-3xl floating-animation" style={{ animationDelay: '-3s' }} />
+            <div className="absolute top-1/2 right-1/4 w-20 h-20 bg-gradient-to-br from-pink-500/20 to-purple-500/20 rounded-full blur-2xl floating-animation" style={{ animationDelay: '-5s' }} />
             
-            <div className="text-center max-w-4xl mx-auto relative z-10">
-              <Badge variant="secondary" className="mb-8 px-4 py-2 text-sm font-medium border border-primary/20 bg-white/80">
+            <div className="text-center mb-16 relative z-10">
+              <Badge variant="secondary" className="mb-6 px-4 py-2 text-sm font-medium glass-effect border border-primary/20 shadow-lg">
                 <Rocket className="w-4 h-4 mr-2" />
-                Powered by GPT-5 Technology
+                Powered by Advanced AI
               </Badge>
               
-              <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold mb-8 leading-tight">
-                Generate Perfect
+              <h1 className="text-5xl md:text-7xl lg:text-8xl font-display font-bold mb-8 leading-none">
+                <span className="gradient-text">Generate Perfect</span>
                 <br />
-                <span className="gradient-text">Twitter Replies</span>
+                <span className="text-foreground">Twitter Replies</span>
                 <br />
-                Instantly
+                <span className="text-foreground">Instantly</span>
               </h1>
               
-              <p className="text-xl sm:text-2xl text-muted-foreground mb-12 leading-relaxed max-w-3xl mx-auto">
+              <p className="text-xl md:text-2xl text-muted-foreground mb-12 max-w-3xl mx-auto leading-relaxed">
                 Transform your social media engagement with AI that creates authentic, 
                 contextual replies in seconds. <span className="text-foreground font-semibold">No more writer's block.</span>
               </p>
-              
+
               <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-16">
                 <Button 
                   size="lg"
                   onClick={() => window.location.href = '/api/login'}
-                  className="h-14 px-8 text-lg bg-gradient-to-r from-primary to-purple-600 text-white shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-105 font-semibold"
+                  className="h-14 px-8 text-lg bg-gradient-to-r from-primary to-primary/80 text-white shadow-2xl hover-lift pulse-glow border-0 font-semibold"
                   data-testid="button-start-trial"
                 >
                   <Sparkles className="w-5 h-5 mr-3" />
                   Start Free Trial
                   <ArrowRight className="w-5 h-5 ml-3" />
                 </Button>
-                <Button 
-                  variant="outline" 
-                  size="lg"
-                  className="h-14 px-8 text-lg border-2 hover:bg-muted/50 transition-all duration-300"
-                >
-                  Watch Demo
-                </Button>
+                
+                <div className="flex items-center space-x-3 text-sm text-muted-foreground">
+                  <CheckCircle className="w-4 h-4 text-primary" />
+                  <span>No credit card required</span>
+                  <CheckCircle className="w-4 h-4 text-primary" />
+                  <span>7-day trial</span>
+                </div>
               </div>
-              
-              {/* Stats */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-6 max-w-3xl mx-auto">
-                {stats.map((stat, index) => (
-                  <Card key={index} className="bg-white/60 backdrop-blur-sm border border-border/50 hover:shadow-lg transition-all duration-300 hover:scale-105">
-                    <CardContent className="p-6 text-center">
-                      <div className="flex items-center justify-center mb-2 text-primary">
-                        {stat.icon}
-                      </div>
-                      <div className="text-2xl font-bold text-foreground mb-1">{stat.value}</div>
-                      <div className="text-sm text-muted-foreground">{stat.label}</div>
-                    </CardContent>
-                  </Card>
-                ))}
+
+              {/* Quick Stats */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-4xl mx-auto">
+                <Card className="glass-effect border border-primary/20 p-4 hover-lift">
+                  <div className="text-3xl font-bold text-primary mb-1">50K+</div>
+                  <div className="text-sm text-muted-foreground">Replies Generated</div>
+                </Card>
+                <Card className="glass-effect border border-primary/20 p-4 hover-lift">
+                  <div className="text-3xl font-bold text-primary mb-1">99.9%</div>
+                  <div className="text-sm text-muted-foreground">Uptime</div>
+                </Card>
+                <Card className="glass-effect border border-primary/20 p-4 hover-lift">
+                  <div className="text-3xl font-bold text-primary mb-1">&lt;2s</div>
+                  <div className="text-sm text-muted-foreground">Response Time</div>
+                </Card>
+                <Card className="glass-effect border border-primary/20 p-4 hover-lift">
+                  <div className="text-3xl font-bold text-primary mb-1">5★</div>
+                  <div className="text-sm text-muted-foreground">User Rating</div>
+                </Card>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Features Section */}
-      <section id="features" className="py-24 bg-gradient-to-b from-muted/30 to-background">
+      {/* Product Tour */}
+      <section id="features" className="section-padding bg-gradient-to-b from-background to-muted/10">
         <div className="container">
-          <div className="text-center mb-20">
-            <Badge variant="secondary" className="mb-4 bg-white/80 border border-primary/20">
-              <Star className="w-4 h-4 mr-2" />
-              Why Choose TweetReply
+          <div className="text-center mb-16">
+            <Badge variant="secondary" className="mb-4 glass-effect border border-primary/20">
+              <Rocket className="w-4 h-4 mr-2" />
+              Three Ways to Use TweetReply
             </Badge>
-            <h2 className="text-4xl sm:text-5xl font-bold mb-6">
-              Powerful Features for <span className="gradient-text">Modern Creators</span>
+            <h2 className="text-4xl md:text-5xl font-display font-bold mb-6">
+              Choose Your <span className="gradient-text">Perfect Workflow</span>
             </h2>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Everything you need to elevate your social media presence with intelligent, authentic engagement.
+              Whether you prefer web, extension, or advanced AI customization, we've got you covered.
             </p>
           </div>
-          
-          <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
-            {features.map((feature, index) => (
-              <Card key={index} className="group bg-white/80 backdrop-blur-sm border border-border/50 hover:shadow-xl transition-all duration-500 hover:scale-105">
-                <CardContent className="p-8">
-                  <div className="flex items-start space-x-4">
-                    <div className={`flex-shrink-0 p-3 rounded-xl bg-gradient-to-br ${feature.color} text-white shadow-lg group-hover:scale-110 transition-transform duration-300`}>
-                      {feature.icon}
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="text-xl font-semibold mb-3 text-foreground">{feature.title}</h3>
-                      <p className="text-muted-foreground leading-relaxed">{feature.description}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+
+          <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+            {/* Web App */}
+            <Card className="neomorphic border-0 hover-lift group overflow-hidden relative">
+              <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-purple-500/10 opacity-0 group-hover:opacity-100 smooth-transition" />
+              <CardContent className="p-8 text-center relative z-10">
+                <div className="w-16 h-16 bg-gradient-to-br from-primary to-primary/60 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-xl group-hover:scale-110 group-hover:rotate-3 smooth-transition">
+                  <MessageCircle className="w-8 h-8 text-white" />
+                </div>
+                <h3 className="text-2xl font-display font-semibold mb-3 text-foreground">Web Application</h3>
+                <p className="text-muted-foreground mb-6 leading-relaxed">
+                  Paste tweet text and generate replies instantly with our powerful web interface
+                </p>
+                <div className="flex items-center justify-center text-sm text-muted-foreground">
+                  <CheckCircle className="w-4 h-4 mr-2 text-primary" />
+                  <span>Mobile-friendly design</span>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Chrome Extension */}
+            <Card className="neomorphic border-0 hover-lift group overflow-hidden relative">
+              <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/10 via-transparent to-blue-500/10 opacity-0 group-hover:opacity-100 smooth-transition" />
+              <CardContent className="p-8 text-center relative z-10">
+                <div className="w-16 h-16 bg-gradient-to-br from-cyan-500 to-blue-500 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-xl group-hover:scale-110 group-hover:rotate-3 smooth-transition">
+                  <Download className="w-8 h-8 text-white" />
+                </div>
+                <h3 className="text-2xl font-display font-semibold mb-3 text-foreground">Chrome Extension</h3>
+                <p className="text-muted-foreground mb-6 leading-relaxed">
+                  Generate replies directly on X (Twitter) with seamless integration
+                </p>
+                <div className="flex items-center justify-center text-sm text-muted-foreground">
+                  <CheckCircle className="w-4 h-4 mr-2 text-primary" />
+                  <span>One-click integration</span>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* AI Models */}
+            <Card className="neomorphic border-0 hover-lift group overflow-hidden relative">
+              <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 via-transparent to-pink-500/10 opacity-0 group-hover:opacity-100 smooth-transition" />
+              <CardContent className="p-8 text-center relative z-10">
+                <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-xl group-hover:scale-110 group-hover:rotate-3 smooth-transition">
+                  <Brain className="w-8 h-8 text-white" />
+                </div>
+                <h3 className="text-2xl font-display font-semibold mb-3 text-foreground">AI Model Selection</h3>
+                <p className="text-muted-foreground mb-6 leading-relaxed">
+                  Choose from GPT-4o, Gemini, and more for custom reply styles
+                </p>
+                <div className="flex items-center justify-center text-sm text-muted-foreground">
+                  <CheckCircle className="w-4 h-4 mr-2 text-primary" />
+                  <span>Multiple AI providers</span>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </section>
 
-      {/* Benefits Section */}
-      <section className="py-24">
+      {/* Pricing Section */}
+      <section id="pricing" className="section-padding bg-gradient-to-b from-muted/10 to-background">
         <div className="container">
-          <div className="grid lg:grid-cols-2 gap-16 items-center max-w-6xl mx-auto">
-            <div>
-              <Badge variant="secondary" className="mb-4 bg-white/80 border border-primary/20">
-                <TrendingUp className="w-4 h-4 mr-2" />
-                Proven Results
-              </Badge>
-              <h2 className="text-4xl font-bold mb-8">
-                <span className="gradient-text">Transform</span> Your Social Media Strategy
-              </h2>
-              <p className="text-lg text-muted-foreground mb-8 leading-relaxed">
-                Join thousands of creators, marketers, and businesses who have revolutionized their 
-                social media engagement with our AI-powered platform.
-              </p>
-              
-              <div className="space-y-4 mb-8">
-                {benefits.map((benefit, index) => (
-                  <div key={index} className="flex items-center space-x-3">
-                    <CheckCircle className="w-5 h-5 text-primary flex-shrink-0" />
-                    <span className="text-foreground font-medium">{benefit}</span>
-                  </div>
-                ))}
-              </div>
-              
-              <Button 
-                size="lg"
-                onClick={() => window.location.href = '/api/login'}
-                className="h-12 px-6 bg-gradient-to-r from-primary to-purple-600 text-white shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105"
-              >
-                Start Your Journey
-                <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
-            </div>
+          <div className="text-center mb-16">
+            <Badge variant="secondary" className="mb-6 px-4 py-2 text-sm font-medium glass-effect border border-primary/20 shadow-lg">
+              <Crown className="w-4 h-4 mr-2" />
+              Simple, Transparent Pricing
+            </Badge>
             
-            <div className="relative">
-              <Card className="bg-white/90 backdrop-blur-sm border border-border/50 shadow-2xl p-8">
-                <div className="space-y-6">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-purple-600 flex items-center justify-center">
-                      <Users className="w-5 h-5 text-white" />
-                    </div>
-                    <div>
-                      <div className="font-semibold text-foreground">Sarah Chen</div>
-                      <div className="text-sm text-muted-foreground">Marketing Director @ TechCorp</div>
-                    </div>
-                  </div>
-                  <blockquote className="text-lg text-foreground leading-relaxed">
-                    "TweetReply completely transformed our social media strategy. We've seen a 300% increase 
-                    in engagement and save hours every week. The AI responses are so natural, our audience 
-                    can't tell the difference!"
-                  </blockquote>
+            <h2 className="text-5xl md:text-6xl font-display font-bold mb-8 leading-none">
+              <span className="gradient-text">Choose Your Plan</span>
+            </h2>
+            
+            <p className="text-xl md:text-2xl text-muted-foreground mb-4 max-w-3xl mx-auto leading-relaxed">
+              Start with a free trial, then pick the plan that fits your needs. 
+              <span className="text-foreground font-semibold"> No hidden fees, cancel anytime.</span>
+            </p>
+          </div>
+
+          <PricingCards />
+        </div>
+      </section>
+
+      {/* Social Proof */}
+      <section className="section-padding">
+        <div className="container">
+          <div className="max-w-4xl mx-auto">
+            <Card className="neomorphic border-0 p-10 relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-purple-500/5" />
+              <div className="relative z-10">
+                <div className="flex items-center justify-center mb-6">
                   <div className="flex space-x-1">
                     {[...Array(5)].map((_, i) => (
-                      <Star key={i} className="w-5 h-5 text-yellow-400 fill-current" />
+                      <Star key={i} className="w-6 h-6 text-yellow-400 fill-current" />
                     ))}
                   </div>
                 </div>
-              </Card>
-            </div>
+                <blockquote className="text-xl md:text-2xl text-center text-foreground leading-relaxed mb-6">
+                  "TweetReply completely transformed our social media strategy. We've seen a <strong className="text-primary">300% increase 
+                  in engagement</strong> and save hours every week. The AI responses are so natural!"
+                </blockquote>
+                <div className="text-center">
+                  <div className="font-semibold text-foreground">Sarah Chen</div>
+                  <div className="text-sm text-muted-foreground">Marketing Director @ TechCorp</div>
+                </div>
+              </div>
+            </Card>
           </div>
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="py-24 bg-gradient-to-b from-muted/30 to-background">
+      {/* FAQ Section */}
+      <section className="section-padding bg-gradient-to-b from-background to-muted/10">
         <div className="container">
-          <Card className="max-w-4xl mx-auto bg-white/90 backdrop-blur-sm border border-border/50 shadow-2xl p-12 text-center relative overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-purple-500/5" />
+          <div className="text-center mb-16">
+            <Badge variant="secondary" className="mb-4 glass-effect border border-primary/20">
+              <Star className="w-4 h-4 mr-2" />
+              Frequently Asked Questions
+            </Badge>
+            <h2 className="text-4xl md:text-5xl font-display font-bold mb-6">
+              Everything You <span className="gradient-text">Need to Know</span>
+            </h2>
+          </div>
+          
+          <div className="max-w-3xl mx-auto">
+            <Accordion type="single" collapsible className="space-y-4">
+              {faqs.map((faq, index) => (
+                <AccordionItem 
+                  key={index} 
+                  value={`item-${index}`}
+                  className="border-0"
+                >
+                  <Card className="neomorphic border-0 overflow-hidden">
+                    <AccordionTrigger 
+                      className="px-6 py-4 hover:no-underline hover:bg-primary/5 smooth-transition"
+                      data-testid={`faq-question-${index}`}
+                    >
+                      <span className="text-lg font-semibold text-left">{faq.question}</span>
+                    </AccordionTrigger>
+                    <AccordionContent className="px-6 pb-4">
+                      <p className="text-muted-foreground leading-relaxed" data-testid={`faq-answer-${index}`}>
+                        {faq.answer}
+                      </p>
+                    </AccordionContent>
+                  </Card>
+                </AccordionItem>
+              ))}
+            </Accordion>
+          </div>
+        </div>
+      </section>
+
+      {/* Final CTA */}
+      <section className="section-padding">
+        <div className="container">
+          <Card className="neomorphic border-0 p-12 md:p-16 text-center relative overflow-hidden max-w-5xl mx-auto">
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-purple-500/10" />
+            <div className="absolute top-10 right-10 w-32 h-32 bg-gradient-to-br from-primary/20 to-purple-500/20 rounded-full blur-3xl" />
+            <div className="absolute bottom-10 left-10 w-40 h-40 bg-gradient-to-br from-cyan-500/20 to-blue-500/20 rounded-full blur-3xl" />
+            
             <div className="relative z-10">
-              <h2 className="text-4xl sm:text-5xl font-bold mb-6">
-                Ready to <span className="gradient-text">Revolutionize</span> Your Engagement?
+              <Badge variant="secondary" className="mb-6 glass-effect border border-primary/20 shadow-lg">
+                <Rocket className="w-4 h-4 mr-2" />
+                Ready to Transform Your Social Media?
+              </Badge>
+              
+              <h2 className="text-4xl md:text-6xl font-display font-bold mb-6">
+                Start Creating <span className="gradient-text">Amazing Replies</span>
               </h2>
-              <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-                Join thousands of creators who are already using TweetReply to build stronger 
-                connections and grow their audience authentically.
+              
+              <p className="text-xl text-muted-foreground mb-10 max-w-2xl mx-auto leading-relaxed">
+                Join thousands of professionals who are already boosting their engagement with AI-powered responses.
               </p>
-              <Button 
-                size="lg"
-                onClick={() => window.location.href = '/api/login'}
-                className="h-14 px-8 text-lg bg-gradient-to-r from-primary to-purple-600 text-white shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-105 font-semibold"
-              >
-                <Sparkles className="w-5 h-5 mr-3" />
-                Start Your Free Trial
-                <ArrowRight className="w-5 h-5 ml-3" />
-              </Button>
-              <p className="text-sm text-muted-foreground mt-4">
-                No credit card required • 7-day free trial • Cancel anytime
-              </p>
+              
+              <div className="flex flex-col sm:flex-row gap-6 justify-center items-center mb-8">
+                <Button 
+                  size="lg"
+                  onClick={() => window.location.href = '/api/login'}
+                  className="h-16 px-10 text-lg bg-gradient-to-r from-primary to-primary/80 text-white shadow-2xl hover-lift pulse-glow border-0 font-semibold"
+                  data-testid="button-final-cta"
+                >
+                  <Sparkles className="w-6 h-6 mr-3" />
+                  Start Free Trial
+                  <ArrowRight className="w-6 h-6 ml-3" />
+                </Button>
+              </div>
+
+              <div className="grid md:grid-cols-3 gap-6 max-w-3xl mx-auto">
+                <div className="flex items-center justify-center space-x-2 text-sm text-muted-foreground">
+                  <Shield className="w-4 h-4 text-primary" />
+                  <span>Secure & Private</span>
+                </div>
+                <div className="flex items-center justify-center space-x-2 text-sm text-muted-foreground">
+                  <CheckCircle className="w-4 h-4 text-primary" />
+                  <span>Cancel Anytime</span>
+                </div>
+                <div className="flex items-center justify-center space-x-2 text-sm text-muted-foreground">
+                  <Sparkles className="w-4 h-4 text-primary" />
+                  <span>AI-Powered</span>
+                </div>
+              </div>
             </div>
           </Card>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-border/50 py-12">
-        <div className="container">
-          <div className="flex flex-col sm:flex-row justify-between items-center">
-            <div className="flex items-center space-x-3 mb-6 sm:mb-0">
-              <div className="w-8 h-8 bg-gradient-to-br from-primary to-purple-600 rounded-xl flex items-center justify-center shadow-sm">
-                <MessageCircle className="w-4 h-4 text-white" />
+      <footer className="border-t border-border/50 mt-20">
+        <div className="container py-12">
+          <div className="text-center">
+            <div className="flex items-center justify-center space-x-2 mb-4">
+              <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center shadow-lg">
+                <Sparkles className="w-3 h-3 text-white" />
               </div>
-              <span className="font-bold text-lg tracking-tight">TweetReply</span>
+              <span className="font-display font-bold text-lg">TweetReply</span>
             </div>
-            <div className="flex space-x-8 text-sm text-muted-foreground">
-              <a href="#" className="hover:text-foreground transition-colors">Privacy Policy</a>
-              <a href="#" className="hover:text-foreground transition-colors">Terms of Service</a>
-              <a href="#" className="hover:text-foreground transition-colors">Contact Us</a>
-            </div>
-          </div>
-          <div className="text-center mt-8 pt-8 border-t border-border/50">
             <p className="text-muted-foreground">
-              © 2024 TweetReply. All rights reserved. Built with ❤️ for creators and marketers.
+              © 2024 TweetReply. All rights reserved. Powered by advanced AI technology.
             </p>
           </div>
         </div>
