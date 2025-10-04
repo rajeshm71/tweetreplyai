@@ -172,7 +172,7 @@ export default function Landing() {
                 if (isAuthenticated) {
                   window.open('https://chrome.google.com/webstore', '_blank');
                 } else {
-                  window.location.href = '/api/login';
+                  window.location.href = '/login';
                 }
               }}
               className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl hover-lift border-0 font-medium shadow-md"
@@ -188,7 +188,7 @@ export default function Landing() {
             <a href="#features" className="text-muted-foreground hover:text-foreground smooth-transition text-sm font-medium hidden md:block">Features</a>
             <a href="#pricing" className="text-muted-foreground hover:text-foreground smooth-transition text-sm font-medium hidden md:block">Pricing</a>
             <Button 
-              onClick={() => window.location.href = '/api/login'}
+              onClick={() => window.location.href = '/login'}
               className="bg-gradient-to-r from-primary to-primary/80 text-white shadow-lg hover-lift border-0 font-semibold"
               data-testid="button-signin"
             >
@@ -238,7 +238,7 @@ export default function Landing() {
               <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-16">
                 <Button 
                   size="lg"
-                  onClick={() => window.location.href = '/api/login'}
+                  onClick={() => window.location.href = '/login'}
                   className="h-14 px-8 text-lg bg-gradient-to-r from-primary to-primary/80 text-white shadow-2xl hover-lift pulse-glow border-0 font-semibold"
                   data-testid="button-start-trial"
                 >
@@ -560,7 +560,7 @@ export default function Landing() {
 
             <div className="text-center mt-8">
               <Button
-                onClick={() => window.location.href = '/api/login'}
+                onClick={() => window.location.href = '/login'}
                 size="lg"
                 className="bg-gradient-to-r from-primary to-primary/80 text-white shadow-xl hover-lift border-0 font-semibold"
                 data-testid="button-demo-cta"
@@ -787,7 +787,7 @@ export default function Landing() {
               <div className="flex flex-col sm:flex-row gap-6 justify-center items-center mb-8">
                 <Button 
                   size="lg"
-                  onClick={() => window.location.href = '/api/login'}
+                  onClick={() => window.location.href = '/login'}
                   className="h-16 px-10 text-lg bg-gradient-to-r from-primary to-primary/80 text-white shadow-2xl hover-lift pulse-glow border-0 font-semibold"
                   data-testid="button-final-cta"
                 >

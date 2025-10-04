@@ -8,6 +8,7 @@ import Landing from "@/pages/landing";
 import Home from "@/pages/home";
 import Pricing from "@/pages/pricing";
 import AppPage from "@/pages/app";
+import AuthPage from "@/pages/auth";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -18,12 +19,14 @@ function Router() {
       {isLoading || !isAuthenticated ? (
         <>
           <Route path="/" component={Landing} />
+          <Route path="/login" component={AuthPage} />
           <Route path="/pricing" component={Pricing} />
         </>
       ) : (
         <>
           <Route path="/" component={Home} />
           <Route path="/app" component={AppPage} />
+          <Route path="/login" component={AuthPage} />
           <Route path="/pricing" component={Pricing} />
         </>
       )}
