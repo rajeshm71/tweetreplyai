@@ -146,14 +146,27 @@ export async function setupAuth(app: Express) {
     })(req, res, next);
   });
 
-  app.get("/api/logout", (req, res) => {
-    req.logout(() => {
-      res.redirect(
-        client.buildEndSessionUrl(config, {
-          client_id: process.env.REPL_ID!,
-          post_logout_redirect_uri: `${req.protocol}://${req.hostname}`,
-        }).href
-      );
+  app.post("/api/auth/logout", (req, res) => {
+    const user = req.user as any;
+    
+    req.logout((err) => {
+      if (err) {
+        return res.status(500).json({ message: "Logout failed" });
+      }
+      
+      // If Replit OAuth user, redirect to Replit end session URL
+      if (user && user.claims) {
+        return res.json({
+          success: true,
+          redirectUrl: client.buildEndSessionUrl(config, {
+            client_id: process.env.REPL_ID!,
+            post_logout_redirect_uri: `${req.protocol}://${req.hostname}`,
+          }).href
+        });
+      }
+      
+      // For local and Google OAuth, just return success
+      res.json({ success: true });
     });
   });
 }
