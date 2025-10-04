@@ -2,26 +2,64 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
+import { setupLocalAuth } from "./localAuth";
 import { aiRouter } from "./services/ai-router";
 import { getAvailablePrompts } from "./services/prompts";
 import { stripeService, PLANS } from "./services/stripe";
 import { usageService } from "./services/usage";
 import { z } from "zod";
+import passport from "passport";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware
   await setupAuth(app);
+  setupLocalAuth();
 
   // Auth routes
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.claims?.sub || req.user.id;
       const user = await storage.getUser(userId);
       res.json(user);
     } catch (error) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
     }
+  });
+
+  // Local authentication routes
+  app.post('/api/auth/register', (req, res, next) => {
+    passport.authenticate('local-register', (err: any, user: any, info: any) => {
+      if (err) {
+        return res.status(500).json({ message: 'Registration failed', error: err.message });
+      }
+      if (!user) {
+        return res.status(400).json({ message: info?.message || 'Registration failed' });
+      }
+      req.logIn(user, (err) => {
+        if (err) {
+          return res.status(500).json({ message: 'Login after registration failed' });
+        }
+        return res.json({ user, message: 'Registration successful' });
+      });
+    })(req, res, next);
+  });
+
+  app.post('/api/auth/login', (req, res, next) => {
+    passport.authenticate('local-login', (err: any, user: any, info: any) => {
+      if (err) {
+        return res.status(500).json({ message: 'Login failed', error: err.message });
+      }
+      if (!user) {
+        return res.status(401).json({ message: info?.message || 'Invalid credentials' });
+      }
+      req.logIn(user, (err) => {
+        if (err) {
+          return res.status(500).json({ message: 'Login failed' });
+        }
+        return res.json({ user, message: 'Login successful' });
+      });
+    })(req, res, next);
   });
 
   // Models route - get available AI models
