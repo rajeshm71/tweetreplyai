@@ -1,12 +1,13 @@
 import { Link } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
-import { MessageCircle, Download, LogOut, Sparkles, Zap, TrendingUp, ArrowRight, Star, CheckCircle, Brain, Rocket, Crown, Shield, ChevronRight, Palette } from "lucide-react";
+import { Sparkles, Zap, TrendingUp, ArrowRight, Star, CheckCircle, Brain, Rocket, Crown, Shield, ChevronRight, Palette, MessageCircle, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { PricingCards } from "@/components/pricing-cards";
+import { AppHeader } from "@/components/app-header";
 import { useToast } from "@/hooks/use-toast";
 import { useEffect } from "react";
 
@@ -93,30 +94,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Navigation */}
-      <nav className="sticky top-0 z-50 glass-effect border-b border-border/50 backdrop-blur-xl">
-        <div className="container flex items-center justify-between h-16">
-          <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center shadow-lg">
-              <Sparkles className="w-4 h-4 text-white" />
-            </div>
-            <span className="font-display font-bold text-xl">TweetReply</span>
-          </div>
-          
-          <div className="flex items-center space-x-4">
-            <UsageBadge />
-            <Button 
-              variant="ghost" 
-              onClick={() => window.location.href = '/api/logout'}
-              data-testid="button-logout"
-              className="smooth-transition hover:bg-destructive/10 hover:text-destructive hover-scale"
-            >
-              <LogOut className="w-4 h-4 mr-2" />
-              Sign out
-            </Button>
-          </div>
-        </div>
-      </nav>
+      <AppHeader />
 
       {/* Hero Section */}
       <section className="relative overflow-hidden">
