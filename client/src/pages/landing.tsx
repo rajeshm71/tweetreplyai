@@ -454,16 +454,16 @@ export default function Landing() {
             
             <div className="relative z-10">
               <Badge variant="secondary" className="mb-6 glass-effect border border-primary/20 shadow-lg">
-                <Rocket className="w-4 h-4 mr-2" />
-                Ready to Transform Your Social Media?
+                <Heart className="w-4 h-4 mr-2 text-primary" />
+                Join 5,000+ Creators
               </Badge>
               
               <h2 className="text-4xl md:text-6xl font-display font-bold mb-6">
-                Start Creating <span className="gradient-text">Amazing Replies</span>
+                Let Every Tweet Spark <span className="gradient-text">a Conversation</span> ✨
               </h2>
               
               <p className="text-xl text-muted-foreground mb-10 max-w-2xl mx-auto leading-relaxed">
-                Join thousands of professionals who are already boosting their engagement with AI-powered responses.
+                More than 5,000 creators trust TweetReply to help them stay authentic while scaling their engagement. Your voice, amplified.
               </p>
               
               <div className="flex flex-col sm:flex-row gap-6 justify-center items-center mb-8">
