@@ -87,17 +87,17 @@ export function PricingCards() {
           
           <Button 
             variant="secondary" 
-            className="w-full" 
+            className="w-full font-medium" 
             disabled
             data-testid="button-trial-signup"
           >
-            Auto on signup
+            Subscribe
           </Button>
         </CardContent>
       </Card>
 
       {/* Weekly Plan */}
-      <Card className="border-2 border-primary relative">
+      <Card className="border-2 border-primary relative shadow-[0_0_30px_rgba(var(--primary-rgb),0.3)] hover:shadow-[0_0_40px_rgba(var(--primary-rgb),0.4)] transition-shadow duration-300">
         <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
           <Badge className="bg-primary text-primary-foreground">
             Most Popular
@@ -131,7 +131,7 @@ export function PricingCards() {
           </div>
           
           <Button 
-            className="w-full" 
+            className="w-full font-medium" 
             onClick={() => handleSubscribe('weekly')}
             disabled={loadingPlan === 'weekly'}
             data-testid="button-subscribe-weekly"
@@ -142,7 +142,7 @@ export function PricingCards() {
                 Loading...
               </>
             ) : (
-              'Subscribe weekly'
+              'Subscribe'
             )}
           </Button>
         </CardContent>
@@ -177,7 +177,7 @@ export function PricingCards() {
           </div>
           
           <Button 
-            className="w-full" 
+            className="w-full font-medium" 
             onClick={() => handleSubscribe('monthly')}
             disabled={loadingPlan === 'monthly'}
             data-testid="button-subscribe-monthly"
@@ -188,7 +188,7 @@ export function PricingCards() {
                 Loading...
               </>
             ) : (
-              'Subscribe monthly'
+              'Subscribe'
             )}
           </Button>
         </CardContent>
