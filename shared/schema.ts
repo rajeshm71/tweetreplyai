@@ -30,8 +30,17 @@ export const sessions = pgTable(
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   email: varchar("email").unique(),
+  emailVerified: boolean("email_verified").default(false),
   emailVerifiedAt: timestamp("email_verified_at"),
+  
+  passwordHash: varchar("password_hash"),
+  replitSub: varchar("replit_sub").unique(),
   googleSub: varchar("google_sub").unique(),
+  twitterId: varchar("twitter_id").unique(),
+  
+  authProviders: text("auth_providers").array(),
+  primaryAuthProvider: varchar("primary_auth_provider"),
+  
   stripeCustomerId: varchar("stripe_customer_id"),
   handle: varchar("handle"),
   avatarUrl: varchar("avatar_url"),
