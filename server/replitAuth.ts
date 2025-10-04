@@ -188,3 +188,23 @@ export const isAuthenticated: RequestHandler = async (req, res, next) => {
 
   return next();
 };
+
+export function getUserId(req: any): string {
+  const user = req.user;
+  
+  if (!user) {
+    throw new Error("User not authenticated");
+  }
+  
+  // Replit OAuth user - has claims.sub
+  if (user.claims && user.claims.sub) {
+    return user.claims.sub;
+  }
+  
+  // Google OAuth or Local password user - has id
+  if (user.id) {
+    return user.id;
+  }
+  
+  throw new Error("Unable to extract user ID from session");
+}
