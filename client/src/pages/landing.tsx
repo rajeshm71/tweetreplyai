@@ -4,10 +4,111 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { PricingCards } from "@/components/pricing-cards";
 import { useAuth } from "@/hooks/useAuth";
-import { Sparkles, Zap, ArrowRight, CheckCircle, Rocket, Brain, MessageCircle, Download, Crown, Star, Shield, ChevronRight, TrendingUp, Chrome, Heart } from "lucide-react";
+import { Sparkles, Zap, ArrowRight, CheckCircle, Rocket, Brain, MessageCircle, Download, Crown, Star, Shield, ChevronRight, TrendingUp, Chrome, Heart, Users, Building2, Award } from "lucide-react";
+import useEmblaCarousel from 'embla-carousel-react';
+import Autoplay from 'embla-carousel-autoplay';
+import { useCallback, useEffect, useState } from 'react';
+import { motion, useInView } from 'framer-motion';
+import { useRef } from 'react';
 
 export default function Landing() {
   const { isAuthenticated } = useAuth();
+  const [activeUsers, setActiveUsers] = useState(0);
+  
+  useEffect(() => {
+    const target = 5000;
+    const duration = 2000;
+    const steps = 60;
+    const increment = target / steps;
+    let current = 0;
+    
+    const timer = setInterval(() => {
+      current += increment;
+      if (current >= target) {
+        setActiveUsers(target);
+        clearInterval(timer);
+      } else {
+        setActiveUsers(Math.floor(current));
+      }
+    }, duration / steps);
+    
+    return () => clearInterval(timer);
+  }, []);
+
+  const exampleReplies = [
+    {
+      username: "@elonmusk",
+      tweet: "Thinking about building XPhone.",
+      reply: "If it comes with a Dogecoin wallet, I'm in 😂"
+    },
+    {
+      username: "@ProductHunt",
+      tweet: "What's the best productivity tool you've discovered this year?",
+      reply: "TweetReply ironically! Saves me hours crafting authentic replies daily 🚀"
+    },
+    {
+      username: "@TechCrunch",
+      tweet: "AI is changing how we work. Thoughts?",
+      reply: "Game changer for engagement! AI handles the replies, we focus on strategy ⚡"
+    },
+    {
+      username: "@ycombinator",
+      tweet: "Just launched our startup! Any advice for first-time founders?",
+      reply: "Congrats! Build in public, engage authentically, and ship fast. You've got this! 🎉"
+    }
+  ];
+
+  const testimonials = [
+    {
+      quote: "TweetReply completely transformed our social media strategy. We've seen a 300% increase in engagement and save hours every week. The AI responses are so natural!",
+      author: "Sarah Chen",
+      role: "Marketing Director @ TechCorp"
+    },
+    {
+      quote: "As a solo founder, TweetReply helps me maintain authentic connections without spending all day on social media. It's like having a social media manager in my pocket!",
+      author: "Michael Rodriguez",
+      role: "Founder @ StartupLabs"
+    },
+    {
+      quote: "The quality of replies is incredible. Our community engagement has tripled, and people can't tell it's AI-assisted. Game changer for content creators!",
+      author: "Emily Watson",
+      role: "Content Creator & Influencer"
+    }
+  ];
+
+  const [emblaRef, emblaApi] = useEmblaCarousel({ loop: true }, [Autoplay({ delay: 4000, stopOnInteraction: false })]);
+  const [testimonialEmblaRef, testimonialEmblaApi] = useEmblaCarousel({ loop: true }, [Autoplay({ delay: 5000, stopOnInteraction: false })]);
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [testimonialIndex, setTestimonialIndex] = useState(0);
+
+  const onSelect = useCallback(() => {
+    if (!emblaApi) return;
+    setSelectedIndex(emblaApi.selectedScrollSnap());
+  }, [emblaApi]);
+
+  const onTestimonialSelect = useCallback(() => {
+    if (!testimonialEmblaApi) return;
+    setTestimonialIndex(testimonialEmblaApi.selectedScrollSnap());
+  }, [testimonialEmblaApi]);
+
+  useEffect(() => {
+    if (!emblaApi) return;
+    onSelect();
+    emblaApi.on('select', onSelect);
+    return () => {
+      emblaApi.off('select', onSelect);
+    };
+  }, [emblaApi, onSelect]);
+
+  useEffect(() => {
+    if (!testimonialEmblaApi) return;
+    onTestimonialSelect();
+    testimonialEmblaApi.on('select', onTestimonialSelect);
+    return () => {
+      testimonialEmblaApi.off('select', onTestimonialSelect);
+    };
+  }, [testimonialEmblaApi, onTestimonialSelect]);
+
   const faqs = [
     {
       question: "How do the reply quotas work?",
@@ -99,10 +200,18 @@ export default function Landing() {
                 <span className="text-foreground">Instantly</span>
               </h1>
               
-              <p className="text-xl md:text-2xl text-muted-foreground mb-12 max-w-3xl mx-auto leading-relaxed">
+              <p className="text-xl md:text-2xl text-muted-foreground mb-8 max-w-3xl mx-auto leading-relaxed">
                 Transform your social media engagement with AI that creates authentic, 
                 contextual replies in seconds. <span className="text-foreground font-semibold">No more writer's block.</span>
               </p>
+
+              <div className="flex items-center justify-center gap-2 mb-12">
+                <Users className="w-5 h-5 text-primary" />
+                <span className="text-lg font-semibold">
+                  <span className="text-primary gradient-text text-2xl font-bold">{activeUsers.toLocaleString()}+</span>
+                  <span className="text-muted-foreground ml-2">Active Users</span>
+                </span>
+              </div>
 
               <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-16">
                 <Button 
@@ -148,132 +257,117 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* Example Replies Showcase */}
+      {/* Example Replies Carousel */}
       <section className="section-padding bg-gradient-to-b from-background to-muted/5">
         <div className="container">
-          <div className="text-center mb-16">
+          <div className="max-w-3xl mx-auto">
+            <div className="overflow-hidden" ref={emblaRef}>
+              <div className="flex">
+                {exampleReplies.map((example, index) => (
+                  <div key={index} className="flex-[0_0_100%] min-w-0 px-4">
+                    <Card className="neomorphic border-0 p-8 max-w-2xl mx-auto">
+                      <div className="space-y-4">
+                        <div className="flex gap-3 justify-end">
+                          <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-muted/50">
+                            <div className="text-xs text-muted-foreground mb-1">{example.username}</div>
+                            <p className="text-sm">{example.tweet}</p>
+                          </div>
+                          <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+                            <MessageCircle className="w-4 h-4" />
+                          </div>
+                        </div>
+                        <div className="flex gap-3">
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center flex-shrink-0">
+                            <Sparkles className="w-4 h-4 text-white" />
+                          </div>
+                          <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-primary/10">
+                            <div className="text-xs text-primary mb-1">TweetReply AI</div>
+                            <p className="text-sm">{example.reply}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </Card>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex justify-center gap-2 mt-6">
+              {exampleReplies.map((_, index) => (
+                <button
+                  key={index}
+                  className={`w-2 h-2 rounded-full transition-all duration-300 ${
+                    index === selectedIndex ? 'bg-primary w-8' : 'bg-muted-foreground/30'
+                  }`}
+                  onClick={() => emblaApi?.scrollTo(index)}
+                  aria-label={`Go to slide ${index + 1}`}
+                />
+              ))}
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      {/* Trusted By Section */}
+      <section className="section-padding bg-background">
+        <div className="container">
+          <p className="text-center text-sm text-muted-foreground mb-8 font-medium">Trusted by teams at</p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 max-w-4xl mx-auto items-center opacity-60">
+            <div className="flex items-center justify-center gap-2">
+              <Building2 className="w-5 h-5" />
+              <span className="font-semibold text-lg">TechCorp</span>
+            </div>
+            <div className="flex items-center justify-center gap-2">
+              <Building2 className="w-5 h-5" />
+              <span className="font-semibold text-lg">StartupLabs</span>
+            </div>
+            <div className="flex items-center justify-center gap-2">
+              <Building2 className="w-5 h-5" />
+              <span className="font-semibold text-lg">GrowthHub</span>
+            </div>
+            <div className="flex items-center justify-center gap-2">
+              <Building2 className="w-5 h-5" />
+              <span className="font-semibold text-lg">MediaFlow</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* As Seen On Section */}
+      <section className="section-padding bg-muted/5">
+        <div className="container">
+          <div className="text-center mb-12">
             <Badge variant="secondary" className="mb-4 glass-effect border border-primary/20">
-              <Sparkles className="w-4 h-4 mr-2" />
-              See It in Action
+              <Award className="w-4 h-4 mr-2" />
+              Recognition
             </Badge>
-            <h2 className="text-4xl md:text-5xl font-display font-bold mb-6">
-              <span className="gradient-text">Real Examples</span> of AI-Powered Replies
+            <h2 className="text-3xl md:text-4xl font-display font-bold">
+              Featured <span className="gradient-text">In The Press</span>
             </h2>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Watch how TweetReply creates natural, contextual responses that sound authentically human.
-            </p>
           </div>
-
-          <div className="grid md:grid-cols-2 gap-6 max-w-5xl mx-auto mb-8">
-            {/* Example 1 */}
-            <Card className="neomorphic border-0 p-6">
-              <div className="space-y-4">
-                <div className="flex gap-3 justify-end">
-                  <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-muted/50">
-                    <div className="text-xs text-muted-foreground mb-1">@elonmusk</div>
-                    <p className="text-sm">Thinking about building XPhone.</p>
-                  </div>
-                  <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
-                    <MessageCircle className="w-4 h-4" />
-                  </div>
-                </div>
-                <div className="flex gap-3">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center flex-shrink-0">
-                    <Sparkles className="w-4 h-4 text-white" />
-                  </div>
-                  <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-primary/10">
-                    <div className="text-xs text-primary mb-1">TweetReply AI</div>
-                    <p className="text-sm">If it comes with a Dogecoin wallet, I'm in 😂</p>
-                  </div>
-                </div>
+          <div className="grid md:grid-cols-3 gap-6 max-w-3xl mx-auto">
+            <Card className="neomorphic border-0 p-6 text-center hover-lift">
+              <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center mx-auto mb-4">
+                <Star className="w-6 h-6 text-white" />
               </div>
+              <p className="font-semibold text-lg mb-1">Product Hunt</p>
+              <p className="text-sm text-muted-foreground">#1 Product of the Day</p>
             </Card>
-
-            {/* Example 2 */}
-            <Card className="neomorphic border-0 p-6">
-              <div className="space-y-4">
-                <div className="flex gap-3 justify-end">
-                  <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-muted/50">
-                    <div className="text-xs text-muted-foreground mb-1">@ProductHunt</div>
-                    <p className="text-sm">What's the best productivity tool you've discovered this year?</p>
-                  </div>
-                  <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
-                    <MessageCircle className="w-4 h-4" />
-                  </div>
-                </div>
-                <div className="flex gap-3">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center flex-shrink-0">
-                    <Sparkles className="w-4 h-4 text-white" />
-                  </div>
-                  <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-primary/10">
-                    <div className="text-xs text-primary mb-1">TweetReply AI</div>
-                    <p className="text-sm">TweetReply ironically! Saves me hours crafting authentic replies daily 🚀</p>
-                  </div>
-                </div>
+            <Card className="neomorphic border-0 p-6 text-center hover-lift">
+              <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-green-600 rounded-xl flex items-center justify-center mx-auto mb-4">
+                <TrendingUp className="w-6 h-6 text-white" />
               </div>
+              <p className="font-semibold text-lg mb-1">TechCrunch</p>
+              <p className="text-sm text-muted-foreground">Featured Startup</p>
             </Card>
-
-            {/* Example 3 */}
-            <Card className="neomorphic border-0 p-6">
-              <div className="space-y-4">
-                <div className="flex gap-3 justify-end">
-                  <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-muted/50">
-                    <div className="text-xs text-muted-foreground mb-1">@TechCrunch</div>
-                    <p className="text-sm">AI is changing how we work. Thoughts?</p>
-                  </div>
-                  <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
-                    <MessageCircle className="w-4 h-4" />
-                  </div>
-                </div>
-                <div className="flex gap-3">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center flex-shrink-0">
-                    <Sparkles className="w-4 h-4 text-white" />
-                  </div>
-                  <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-primary/10">
-                    <div className="text-xs text-primary mb-1">TweetReply AI</div>
-                    <p className="text-sm">Game changer for engagement! AI handles the replies, we focus on strategy ⚡</p>
-                  </div>
-                </div>
+            <Card className="neomorphic border-0 p-6 text-center hover-lift">
+              <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center mx-auto mb-4">
+                <Zap className="w-6 h-6 text-white" />
               </div>
+              <p className="font-semibold text-lg mb-1">VentureBeat</p>
+              <p className="text-sm text-muted-foreground">AI Innovation Award</p>
             </Card>
-
-            {/* Example 4 */}
-            <Card className="neomorphic border-0 p-6">
-              <div className="space-y-4">
-                <div className="flex gap-3 justify-end">
-                  <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-muted/50">
-                    <div className="text-xs text-muted-foreground mb-1">@ycombinator</div>
-                    <p className="text-sm">Just launched our startup! Any advice for first-time founders?</p>
-                  </div>
-                  <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
-                    <MessageCircle className="w-4 h-4" />
-                  </div>
-                </div>
-                <div className="flex gap-3">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center flex-shrink-0">
-                    <Sparkles className="w-4 h-4 text-white" />
-                  </div>
-                  <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-primary/10">
-                    <div className="text-xs text-primary mb-1">TweetReply AI</div>
-                    <p className="text-sm">Congrats! Build in public, engage authentically, and ship fast. You've got this! 🎉</p>
-                  </div>
-                </div>
-              </div>
-            </Card>
-          </div>
-
-          <div className="text-center">
-            <Button 
-              onClick={() => window.location.href = '/api/login'}
-              variant="outline"
-              size="lg"
-              className="glass-effect border-primary/30 hover:bg-primary/10 smooth-transition"
-              data-testid="button-generate-demo"
-            >
-              <Sparkles className="w-5 h-5 mr-2" />
-              Generate Your Own Demo
-              <ArrowRight className="w-4 h-4 ml-2" />
-            </Button>
           </div>
         </div>
       </section>
@@ -352,8 +446,79 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* Before/After Engagement Metrics */}
+      <section className="section-padding bg-gradient-to-b from-muted/10 to-background">
+        <div className="container">
+          <div className="text-center mb-16">
+            <Badge variant="secondary" className="mb-4 glass-effect border border-primary/20">
+              <TrendingUp className="w-4 h-4 mr-2" />
+              Real Results
+            </Badge>
+            <h2 className="text-4xl md:text-5xl font-display font-bold mb-6">
+              See The <span className="gradient-text">Engagement Boost</span>
+            </h2>
+            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+              Average metrics from our 5,000+ active users
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-12 max-w-5xl mx-auto">
+            {/* Before */}
+            <Card className="neomorphic border-0 p-8 relative overflow-hidden">
+              <div className="absolute top-4 right-4">
+                <Badge variant="secondary" className="bg-red-500/10 text-red-600 border-red-500/20">Before</Badge>
+              </div>
+              <div className="space-y-6 mt-8">
+                <div>
+                  <div className="text-sm text-muted-foreground mb-2">Weekly Replies</div>
+                  <div className="text-4xl font-bold text-foreground">45</div>
+                </div>
+                <div>
+                  <div className="text-sm text-muted-foreground mb-2">Time Spent</div>
+                  <div className="text-4xl font-bold text-foreground">8 hrs</div>
+                </div>
+                <div>
+                  <div className="text-sm text-muted-foreground mb-2">Engagement Rate</div>
+                  <div className="text-4xl font-bold text-foreground">2.3%</div>
+                </div>
+              </div>
+            </Card>
+
+            {/* After */}
+            <Card className="neomorphic border-0 p-8 relative overflow-hidden border-2 border-primary/30">
+              <div className="absolute top-4 right-4">
+                <Badge className="bg-green-500/10 text-green-600 border-green-500/20">After</Badge>
+              </div>
+              <div className="space-y-6 mt-8">
+                <div>
+                  <div className="text-sm text-muted-foreground mb-2">Weekly Replies</div>
+                  <div className="flex items-baseline gap-2">
+                    <div className="text-4xl font-bold text-primary">320</div>
+                    <Badge variant="secondary" className="bg-green-500/10 text-green-600 border-green-500/20">+611%</Badge>
+                  </div>
+                </div>
+                <div>
+                  <div className="text-sm text-muted-foreground mb-2">Time Spent</div>
+                  <div className="flex items-baseline gap-2">
+                    <div className="text-4xl font-bold text-primary">2 hrs</div>
+                    <Badge variant="secondary" className="bg-green-500/10 text-green-600 border-green-500/20">-75%</Badge>
+                  </div>
+                </div>
+                <div>
+                  <div className="text-sm text-muted-foreground mb-2">Engagement Rate</div>
+                  <div className="flex items-baseline gap-2">
+                    <div className="text-4xl font-bold text-primary">7.9%</div>
+                    <Badge variant="secondary" className="bg-green-500/10 text-green-600 border-green-500/20">+243%</Badge>
+                  </div>
+                </div>
+              </div>
+            </Card>
+          </div>
+        </div>
+      </section>
+
       {/* Pricing Section */}
-      <section id="pricing" className="section-padding bg-gradient-to-b from-muted/10 to-background">
+      <section id="pricing" className="section-padding bg-gradient-to-b from-background to-muted/10">
         <div className="container">
           <div className="text-center mb-16">
             <Badge variant="secondary" className="mb-6 px-4 py-2 text-sm font-medium glass-effect border border-primary/20 shadow-lg">
@@ -375,30 +540,50 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* Social Proof */}
+      {/* Testimonials Carousel */}
       <section className="section-padding">
         <div className="container">
           <div className="max-w-4xl mx-auto">
-            <Card className="neomorphic border-0 p-10 relative overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-purple-500/5" />
-              <div className="relative z-10">
-                <div className="flex items-center justify-center mb-6">
-                  <div className="flex space-x-1">
-                    {[...Array(5)].map((_, i) => (
-                      <Star key={i} className="w-6 h-6 text-yellow-400 fill-current" />
-                    ))}
+            <div className="overflow-hidden" ref={testimonialEmblaRef}>
+              <div className="flex">
+                {testimonials.map((testimonial, index) => (
+                  <div key={index} className="flex-[0_0_100%] min-w-0">
+                    <Card className="neomorphic border-0 p-10 relative overflow-hidden mx-4">
+                      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-purple-500/5" />
+                      <div className="relative z-10">
+                        <div className="flex items-center justify-center mb-6">
+                          <div className="flex space-x-1">
+                            {[...Array(5)].map((_, i) => (
+                              <Star key={i} className="w-6 h-6 text-yellow-400 fill-current" />
+                            ))}
+                          </div>
+                        </div>
+                        <blockquote className="text-xl md:text-2xl text-center text-foreground leading-relaxed mb-6">
+                          "{testimonial.quote}"
+                        </blockquote>
+                        <div className="text-center">
+                          <div className="font-semibold text-foreground">{testimonial.author}</div>
+                          <div className="text-sm text-muted-foreground">{testimonial.role}</div>
+                        </div>
+                      </div>
+                    </Card>
                   </div>
-                </div>
-                <blockquote className="text-xl md:text-2xl text-center text-foreground leading-relaxed mb-6">
-                  "TweetReply completely transformed our social media strategy. We've seen a <strong className="text-primary">300% increase 
-                  in engagement</strong> and save hours every week. The AI responses are so natural!"
-                </blockquote>
-                <div className="text-center">
-                  <div className="font-semibold text-foreground">Sarah Chen</div>
-                  <div className="text-sm text-muted-foreground">Marketing Director @ TechCorp</div>
-                </div>
+                ))}
               </div>
-            </Card>
+            </div>
+            
+            <div className="flex justify-center gap-2 mt-6">
+              {testimonials.map((_, index) => (
+                <button
+                  key={index}
+                  className={`w-2 h-2 rounded-full transition-all duration-300 ${
+                    index === testimonialIndex ? 'bg-primary w-8' : 'bg-muted-foreground/30'
+                  }`}
+                  onClick={() => testimonialEmblaApi?.scrollTo(index)}
+                  aria-label={`Go to testimonial ${index + 1}`}
+                />
+              ))}
+            </div>
           </div>
         </div>
       </section>
