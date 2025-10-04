@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { setupAuth, isAuthenticated } from "./replitAuth";
+import { setupAuth, isAuthenticated, getUserId } from "./replitAuth";
 import { setupLocalAuth } from "./localAuth";
 import { setupGoogleAuth } from "./googleAuth";
 import { aiRouter } from "./services/ai-router";
@@ -101,7 +101,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Usage and quota routes
   app.get('/api/usage', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = getUserId(req);
       const status = await usageService.getUsageStatus(userId);
       
       if (!status) {
@@ -118,7 +118,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Reply generation route
   app.post('/api/generate-reply', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = getUserId(req);
       
       // Validate request body
       const schema = z.object({
@@ -186,7 +186,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       if (errorMessage === 'No active usage window' || errorMessage === 'Quota exceeded') {
-        const status = await usageService.getUsageStatus(req.user.claims.sub);
+        const status = await usageService.getUsageStatus(getUserId(req));
         return res.status(402).json({
           error: 'quota_exceeded',
           message: errorMessage,
@@ -216,7 +216,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Checkout route
   app.post('/api/checkout', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = getUserId(req);
       const user = await storage.getUser(userId);
       
       if (!user || !user.email) {
@@ -255,7 +255,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Customer portal route
   app.post('/api/billing/portal', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = getUserId(req);
       const user = await storage.getUser(userId);
       
       if (!user || !user.stripeCustomerId) {
@@ -408,7 +408,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Feedback route
   app.post('/api/feedback', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = getUserId(req);
       
       const schema = z.object({
         reply_event_id: z.number().optional(),
@@ -436,7 +436,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Initialize trial for new users
   app.post('/api/auth/initialize-trial', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = getUserId(req);
       await usageService.initializeTrialForUser(userId);
       res.json({ success: true });
     } catch (error) {
