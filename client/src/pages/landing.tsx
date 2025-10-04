@@ -280,7 +280,13 @@ export default function Landing() {
       </section>
 
       {/* Example Replies Carousel */}
-      <section className="section-padding bg-gradient-to-b from-background to-muted/5">
+      <motion.section 
+        initial={{ opacity: 0, y: 20 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6 }}
+        viewport={{ once: true }}
+        className="section-padding bg-gradient-to-b from-background to-muted/5"
+      >
         <div className="container">
           <div className="max-w-3xl mx-auto">
             <div className="overflow-hidden" ref={emblaRef}>
@@ -329,10 +335,16 @@ export default function Landing() {
           </div>
 
         </div>
-      </section>
+      </motion.section>
 
       {/* Trusted By Section */}
-      <section className="section-padding bg-background">
+      <motion.section 
+        initial={{ opacity: 0, y: 20 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6 }}
+        viewport={{ once: true }}
+        className="section-padding bg-background"
+      >
         <div className="container">
           <p className="text-center text-sm text-muted-foreground mb-8 font-medium">Trusted by teams at</p>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 max-w-4xl mx-auto items-center opacity-60">
@@ -354,10 +366,16 @@ export default function Landing() {
             </div>
           </div>
         </div>
-      </section>
+      </motion.section>
 
       {/* As Seen On Section */}
-      <section className="section-padding bg-muted/5">
+      <motion.section 
+        initial={{ opacity: 0, y: 20 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, delay: 0.2 }}
+        viewport={{ once: true }}
+        className="section-padding bg-muted/5"
+      >
         <div className="container">
           <div className="text-center mb-12">
             <Badge variant="secondary" className="mb-4 glass-effect border border-primary/20">
@@ -392,7 +410,7 @@ export default function Landing() {
             </Card>
           </div>
         </div>
-      </section>
+      </motion.section>
 
       {/* Product Tour */}
       <section id="features" className="section-padding bg-gradient-to-b from-muted/5 to-muted/10">
@@ -469,7 +487,13 @@ export default function Landing() {
       </section>
 
       {/* Interactive Live Demo */}
-      <section className="section-padding bg-background">
+      <motion.section 
+        initial={{ opacity: 0, scale: 0.95 }}
+        whileInView={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.7 }}
+        viewport={{ once: true }}
+        className="section-padding bg-background"
+      >
         <div className="container">
           <div className="text-center mb-16">
             <Badge variant="secondary" className="mb-4 glass-effect border border-primary/20">
@@ -547,10 +571,16 @@ export default function Landing() {
             </div>
           </div>
         </div>
-      </section>
+      </motion.section>
 
       {/* Before/After Engagement Metrics */}
-      <section className="section-padding bg-gradient-to-b from-muted/10 to-background">
+      <motion.section 
+        initial={{ opacity: 0, y: 30 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.8 }}
+        viewport={{ once: true }}
+        className="section-padding bg-gradient-to-b from-muted/10 to-background"
+      >
         <div className="container">
           <div className="text-center mb-16">
             <Badge variant="secondary" className="mb-4 glass-effect border border-primary/20">
@@ -618,7 +648,7 @@ export default function Landing() {
             </Card>
           </div>
         </div>
-      </section>
+      </motion.section>
 
       {/* Pricing Section */}
       <section id="pricing" className="section-padding bg-gradient-to-b from-background to-muted/10">
