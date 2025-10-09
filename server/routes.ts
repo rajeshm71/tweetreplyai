@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { setupAuth, isAuthenticated, getUserId } from "./replitAuth";
+import { setupAuth, isAuthenticated as replitIsAuthenticated, getUserId as replitGetUserId } from "./replitAuth";
 import { setupLocalAuth } from "./localAuth";
 import { setupGoogleAuth } from "./googleAuth";
 import { aiRouter } from "./services/ai-router";
@@ -10,10 +10,65 @@ import { stripeService, PLANS } from "./services/stripe";
 import { usageService } from "./services/usage";
 import { z } from "zod";
 import passport from "passport";
+import session from "express-session";
+import connectPg from "connect-pg-simple";
+
+// Local auth helpers for development
+const localIsAuthenticated = (req: any, res: any, next: any) => {
+  if (!req.isAuthenticated()) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+  return next();
+};
+
+const localGetUserId = (req: any): string => {
+  const user = req.user;
+  if (!user) {
+    throw new Error("User not authenticated");
+  }
+  return user.id;
+};
+
+// Choose auth functions based on environment
+const isAuthenticated = process.env.REPL_ID ? replitIsAuthenticated : localIsAuthenticated;
+const getUserId = process.env.REPL_ID ? replitGetUserId : localGetUserId;
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware
-  await setupAuth(app);
+  if (process.env.REPL_ID) {
+    await setupAuth(app);
+  } else {
+    // For local development, set up session without Replit auth
+    // For local development, use memory store to avoid database session issues
+    console.log('Using memory store for sessions (local development)');
+    app.use(session({
+      secret: process.env.SESSION_SECRET || 'dev-secret',
+      resave: false,
+      saveUninitialized: false,
+      cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 }, // 1 week
+    }));
+    
+    app.use(passport.initialize());
+    app.use(passport.session());
+    
+    // Setup passport serialization for local development
+    passport.serializeUser((user: any, cb) => {
+      console.log('Serializing user:', user.id);
+      cb(null, { id: user.id, type: 'local' });
+    });
+    
+    passport.deserializeUser(async (sessionUser: any, cb) => {
+      try {
+        console.log('Deserializing user:', sessionUser.id);
+        const user = await storage.getUser(sessionUser.id);
+        cb(null, user);
+      } catch (error) {
+        console.error('Deserialization error:', error);
+        cb(error, null);
+      }
+    });
+  }
+  
   setupLocalAuth();
   setupGoogleAuth();
 
@@ -84,11 +139,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
   }));
 
   app.get('/api/auth/google/callback',
-    passport.authenticate('google', { failureRedirect: '/login' }),
+    (req, res, next) => {
+      console.log('Google callback received:', req.url);
+      console.log('Query params:', req.query);
+      
+      passport.authenticate('google', { 
+        failureRedirect: '/login',
+        failureMessage: true 
+      })(req, res, next);
+    },
     (req, res) => {
+      console.log('Google auth successful, user:', req.user);
       res.redirect('/');
     }
   );
+
+  // Logout route for local development
+  app.post('/api/auth/logout', (req, res) => {
+    console.log('Logout requested');
+    req.logout((err) => {
+      if (err) {
+        console.error('Logout error:', err);
+        return res.status(500).json({ message: 'Logout failed' });
+      }
+      console.log('Logout successful');
+      res.json({ success: true });
+    });
+  });
 
   // Models route - get available AI models
   app.get('/api/models', (req, res) => {
