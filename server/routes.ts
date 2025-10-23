@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { setupAuth, isAuthenticated as replitIsAuthenticated, getUserId as replitGetUserId } from "./replitAuth";
+// Replit auth removed - using local auth only
 import { setupLocalAuth } from "./localAuth";
 import { setupGoogleAuth } from "./googleAuth";
 import { aiRouter } from "./services/ai-router";
@@ -29,19 +29,16 @@ const localGetUserId = (req: any): string => {
   return user.id;
 };
 
-// Choose auth functions based on environment
-const isAuthenticated = process.env.REPL_ID ? replitIsAuthenticated : localIsAuthenticated;
-const getUserId = process.env.REPL_ID ? replitGetUserId : localGetUserId;
+// Using local auth only
+const isAuthenticated = localIsAuthenticated;
+const getUserId = localGetUserId;
 
 // Export alias for tests
 export const setupRoutes = registerRoutes;
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Auth middleware
-  if (process.env.REPL_ID) {
-    await setupAuth(app);
-  } else {
-    // For local development, set up session without Replit auth
+  // Auth middleware - using local auth only
+  // For local development, set up session without Replit auth
     // For local development, use memory store to avoid database session issues
     console.log('Using memory store for sessions (local development)');
     app.use(session({
