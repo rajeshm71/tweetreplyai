@@ -1,7 +1,7 @@
 import "dotenv/config";
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes.js";
-import { setupVite, serveStatic, log } from "./vite.js";
+import { serveStatic, log } from "./static.js";
 
 const app = express();
 app.use(express.json());
@@ -61,6 +61,8 @@ app.use((req, res, next) => {
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
   if (app.get("env") === "development") {
+    // Dynamically import vite only in development to avoid bundling it
+    const { setupVite } = await import("./vite.js");
     await setupVite(app, server);
   } else {
     serveStatic(app);
