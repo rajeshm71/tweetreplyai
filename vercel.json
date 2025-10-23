@@ -5,21 +5,9 @@
     {
       "src": "dist/index.js",
       "use": "@vercel/node"
-    },
-    {
-      "src": "dist/public/**",
-      "use": "@vercel/static"
     }
   ],
   "routes": [
-    {
-      "src": "/assets/(.*)",
-      "dest": "/dist/public/assets/$1"
-    },
-    {
-      "src": "/api/(.*)",
-      "dest": "/dist/index.js"
-    },
     {
       "src": "/(.*)",
       "dest": "/dist/index.js"
