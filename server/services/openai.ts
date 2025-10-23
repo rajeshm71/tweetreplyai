@@ -157,10 +157,10 @@ export class ModelRouter {
     let enhancedSystemPrompt = promptConfig.systemPrompt;
     if (options.tweetContext) {
       const { tweetContextAnalyzer } = await import('./tweet-context');
-      const authorInfo = options.authorInfo ? {
+      const authorInfo = options.authorInfo && options.authorInfo.username ? {
         username: options.authorInfo.username,
-        verified: options.authorInfo.verified,
-        followerCount: options.authorInfo.followerCount
+        verified: options.authorInfo.verified || false,
+        followerCount: options.authorInfo.follower_count || 0
       } : undefined;
       const contextPrompt = tweetContextAnalyzer.generateContextPrompt(
         options.tweetContext,

@@ -261,9 +261,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Analyze tweet context if not provided
       const { tweetContextAnalyzer } = await import('./services/tweet-context');
-      const authorInfo = author_info ? {
+      const authorInfo = author_info && author_info.username ? {
         username: author_info.username,
-        verified: author_info.verified,
+        verified: author_info.verified || false,
         followerCount: author_info.follower_count || 0
       } : undefined;
       const tweetContext = tweetContextAnalyzer.analyzeTweet(
