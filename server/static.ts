@@ -39,6 +39,8 @@ export function serveStatic(app: Express) {
   }
 
   console.log(`Successfully found static files directory at: ${distPath}`);
+  
+  // Serve static files - let Vercel handle the MIME types
   app.use(express.static(distPath));
 
   // fall through to index.html if the file doesn't exist
