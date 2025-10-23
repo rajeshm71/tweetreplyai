@@ -7,9 +7,7 @@ if (!process.env.SUPABASE_URL) {
     // For tests, we'll use mocked database operations
     console.log('Running in test mode - database operations will be mocked');
   } else {
-    throw new Error(
-      "SUPABASE_URL must be set. Did you forget to provision a Supabase database?",
-    );
+    console.warn('SUPABASE_URL not set - database operations will be unavailable');
   }
 }
 
