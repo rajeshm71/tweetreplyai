@@ -8,11 +8,7 @@ export function setupGoogleAuth() {
     return;
   }
 
-  // const callbackURL = process.env.REPLIT_DOMAINS
-  //   ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}/api/auth/google/callback`
-  //   : 'http://localhost:5000/api/auth/google/callback';
-
-  const callbackURL = 'http://localhost:5000/api/auth/google/callback';
+  const callbackURL = process.env.GOOGLE_CALLBACK_URL || 'http://localhost:5000/api/auth/google/callback';
   
   console.log('Google OAuth callbackURL:', callbackURL);
 
