@@ -1,15 +1,33 @@
-import { Pool, neonConfig } from '@neondatabase/serverless';
-import { drizzle } from 'drizzle-orm/neon-serverless';
-import ws from "ws";
+import { drizzle } from 'drizzle-orm/postgres-js';
+import postgres from 'postgres';
 import * as schema from "@shared/schema";
 
-neonConfig.webSocketConstructor = ws;
-
 if (!process.env.DATABASE_URL) {
-  throw new Error(
-    "DATABASE_URL must be set. Did you forget to provision a database?",
-  );
+  if (process.env.NODE_ENV === 'test') {
+    // For tests, we'll use mocked database operations
+    console.log('Running in test mode - database operations will be mocked');
+  } else {
+    throw new Error(
+      "DATABASE_URL must be set. Did you forget to provision a database?",
+    );
+  }
 }
 
-export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-export const db = drizzle({ client: pool, schema });
+// Create postgres connection for Supabase
+// Note: Supabase recommends using pooled connection (port 6543)
+let queryClient: any;
+let db: any;
+
+if (process.env.DATABASE_URL) {
+  queryClient = postgres(process.env.DATABASE_URL, {
+    max: 10, // Maximum number of connections
+    idle_timeout: 20, // Close idle connections after 20s
+    connect_timeout: 10, // Connection timeout in seconds
+  });
+  db = drizzle(queryClient, { schema });
+} else {
+  // For test mode without DATABASE_URL, create a mock db
+  db = null;
+}
+
+export { db };

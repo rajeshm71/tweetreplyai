@@ -8,10 +8,10 @@ import { aiRouter } from "./services/ai-router";
 import { getAvailablePrompts } from "./services/prompts";
 import { stripeService, PLANS } from "./services/stripe";
 import { usageService } from "./services/usage";
-import { z } from "zod";
+import { z, ZodError } from "zod";
 import passport from "passport";
 import session from "express-session";
-import connectPg from "connect-pg-simple";
+// connect-pg-simple is only used in replitAuth.ts for Replit sessions
 
 // Local auth helpers for development
 const localIsAuthenticated = (req: any, res: any, next: any) => {
@@ -32,6 +32,9 @@ const localGetUserId = (req: any): string => {
 // Choose auth functions based on environment
 const isAuthenticated = process.env.REPL_ID ? replitIsAuthenticated : localIsAuthenticated;
 const getUserId = process.env.REPL_ID ? replitGetUserId : localGetUserId;
+
+// Export alias for tests
+export const setupRoutes = registerRoutes;
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware
@@ -271,6 +274,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error generating reply:", error);
       
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      
+      // Handle Zod validation errors
+      if (error instanceof ZodError) {
+        return res.status(400).json({ 
+          message: "Validation error",
+          errors: error.errors.map(err => ({
+            field: err.path.join('.'),
+            message: err.message
+          }))
+        });
+      }
       
       if (errorMessage === 'User not found') {
         return res.status(404).json({ message: "User not found" });
@@ -520,6 +534,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     } catch (error) {
       console.error("Error creating feedback:", error);
+
+      // Handle Zod validation errors
+      if (error instanceof ZodError) {
+        return res.status(400).json({
+          message: "Validation error",
+          errors: error.errors.map(err => ({
+            field: err.path.join('.'),
+            message: err.message
+          }))
+        });
+      }
+
       res.status(500).json({ message: "Failed to create feedback" });
     }
   });
