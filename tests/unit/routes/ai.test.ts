@@ -27,6 +27,32 @@ vi.mock('../../../server/services/usage', () => ({
 vi.mock('../../../server/storage', () => ({
   storage: {
     createReplyEvent: vi.fn(),
+    createReplyHistory: vi.fn().mockResolvedValue({
+      id: 'test-reply-history-id',
+      userId: 'test-user',
+      originalTweet: 'Test tweet',
+      generatedReply: 'Test reply',
+      wasUsed: false,
+      modelKey: 'gpt-4o-mini',
+      promptVariation: 'default',
+      qualityScore: 85,
+      createdAt: new Date(),
+    }),
+    getReplyHistory: vi.fn().mockResolvedValue([]),
+    markReplyAsUsed: vi.fn().mockResolvedValue(undefined),
+    updateReplyPerformance: vi.fn().mockResolvedValue(undefined),
+    getUserPreferences: vi.fn().mockResolvedValue(undefined),
+    upsertUserPreferences: vi.fn().mockResolvedValue({
+      id: 'test-prefs-id',
+      userId: 'test-user',
+      preferredPrompt: 'default',
+      preferredModel: 'gpt-4o-mini',
+      tonePreference: 'casual',
+      maxReplyLength: 200,
+      autoRegenerate: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }),
   },
 }));
 
@@ -57,6 +83,35 @@ vi.mock('../../../server/services/prompts', () => ({
     { name: 'analytical', description: 'More thoughtful, analytical, focuses on details' },
     { name: 'humorous', description: 'Witty, playful, finds humor in situations' },
   ]),
+}));
+
+// Mock tweet context analyzer
+vi.mock('../../../server/services/tweet-context', () => ({
+  tweetContextAnalyzer: {
+    analyzeTweet: vi.fn().mockReturnValue({
+      sentiment: 'neutral',
+      category: 'general',
+      topics: [],
+      languageComplexity: 'medium',
+      hasEmojis: false,
+      hasMentions: false,
+      hasHashtags: false,
+      hasUrls: false,
+    }),
+    generateContextPrompt: vi.fn().mockReturnValue(''),
+  },
+}));
+
+// Mock quality checker
+vi.mock('../../../server/services/quality-checker', () => ({
+  qualityChecker: {
+    checkQuality: vi.fn().mockReturnValue({
+      passed: true,
+      score: 85,
+      issues: [],
+    }),
+    getImprovementSuggestions: vi.fn().mockReturnValue([]),
+  },
 }));
 
 describe('AI Endpoints - Unit Tests', () => {

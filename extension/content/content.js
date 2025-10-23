@@ -148,6 +148,18 @@ class TwitterReplyInjector {
   }
 
   createSuggestButton(composer) {
+    const container = document.createElement('div');
+    container.className = 'tweetreply-button-container';
+    
+    // Model dropdown
+    const modelSelect = this.createModelSelect();
+    container.appendChild(modelSelect);
+    
+    // Prompt dropdown
+    const promptSelect = this.createPromptSelect();
+    container.appendChild(promptSelect);
+    
+    // Suggest button
     const button = document.createElement('button');
     button.className = 'tweetreply-suggest-btn';
     button.innerHTML = `
@@ -163,10 +175,96 @@ class TwitterReplyInjector {
     button.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      this.handleSuggestReply(composer, button);
+      this.handleSuggestReply(composer, button, {
+        modelKey: modelSelect.value,
+        promptVariation: promptSelect.value
+      });
     });
 
-    return button;
+    container.appendChild(button);
+    return container;
+  }
+
+  createModelSelect() {
+    const select = document.createElement('select');
+    select.className = 'tweetreply-model-select';
+    select.title = 'Choose AI model';
+    
+    // Default option
+    const defaultOption = document.createElement('option');
+    defaultOption.value = '';
+    defaultOption.textContent = 'Auto';
+    select.appendChild(defaultOption);
+    
+    // Load models from API
+    this.loadModels().then(models => {
+      if (models && models.openai) {
+        models.openai.forEach(model => {
+          const option = document.createElement('option');
+          option.value = model.key;
+          option.textContent = model.name;
+          select.appendChild(option);
+        });
+      }
+      if (models && models.gemini) {
+        models.gemini.forEach(model => {
+          const option = document.createElement('option');
+          option.value = model.key;
+          option.textContent = model.name;
+          select.appendChild(option);
+        });
+      }
+    }).catch(error => {
+      console.error('Failed to load models:', error);
+    });
+    
+    return select;
+  }
+
+  createPromptSelect() {
+    const select = document.createElement('select');
+    select.className = 'tweetreply-prompt-select';
+    select.title = 'Choose reply style';
+    
+    // Default option
+    const defaultOption = document.createElement('option');
+    defaultOption.value = '';
+    defaultOption.textContent = 'Default';
+    select.appendChild(defaultOption);
+    
+    // Load prompts from API
+    this.loadPrompts().then(prompts => {
+      if (prompts && Array.isArray(prompts)) {
+        prompts.forEach(prompt => {
+          const option = document.createElement('option');
+          option.value = prompt.name;
+          option.textContent = prompt.name;
+          select.appendChild(option);
+        });
+      }
+    }).catch(error => {
+      console.error('Failed to load prompts:', error);
+    });
+    
+    return select;
+  }
+
+  async loadModels() {
+    try {
+      return await this.apiClient.getModels();
+    } catch (error) {
+      console.error('Failed to load models:', error);
+      return null;
+    }
+  }
+
+  async loadPrompts() {
+    try {
+      return await this.apiClient.getPrompts();
+    } catch (error) {
+      console.error('Failed to load prompts:', error);
+      return null;
+    }
   }
 
   updateButtonState(button) {
@@ -194,7 +292,7 @@ class TwitterReplyInjector {
     }
   }
 
-  async handleSuggestReply(composer, button) {
+  async handleSuggestReply(composer, button, options = {}) {
     if (!this.isAuthenticated) {
       this.showMessage(composer, 'Please sign in to use TweetReply', 'error');
       return;
@@ -222,13 +320,26 @@ class TwitterReplyInjector {
     `;
 
     try {
+      // Extract additional context
+      const authorInfo = this.extractAuthorInfo();
+      const conversationContext = this.extractConversationContext();
+      const tweetMetadata = this.extractTweetMetadata();
+
       const response = await this.apiClient.generateReply({
         tweet_text: tweetText,
-        tweet_id: this.extractTweetId()
+        tweet_id: this.extractTweetId(),
+        model_key: options.modelKey,
+        prompt_variation: options.promptVariation,
+        author_info: authorInfo,
+        conversation_context: conversationContext,
+        tweet_metadata: tweetMetadata
       });
 
-      // Insert the reply into the composer
-      this.insertReplyIntoComposer(composer, response.reply);
+      // Insert the reply into the composer with quality score
+      this.insertReplyIntoComposer(composer, {
+        reply: response.reply,
+        qualityScore: response.qualityScore
+      });
       
       // Update usage data
       this.usageData = {
@@ -318,7 +429,86 @@ class TwitterReplyInjector {
     return urlMatch ? urlMatch[1] : null;
   }
 
-  insertReplyIntoComposer(composer, replyText) {
+  extractAuthorInfo() {
+    try {
+      const authorElement = document.querySelector('[data-testid="User-Name"]');
+      if (!authorElement) return null;
+
+      const username = authorElement.textContent?.trim() || '';
+      
+      // Check if verified (blue checkmark)
+      const verifiedIcon = authorElement.querySelector('[data-testid="icon-verified"]');
+      const isVerified = !!verifiedIcon;
+
+      // Try to get follower count (this is tricky with Twitter's current structure)
+      let followerCount = null;
+      const bioElement = document.querySelector('[data-testid="UserDescription"]');
+      if (bioElement) {
+        const followerMatch = bioElement.textContent?.match(/(\d+(?:\.\d+)?[KMB]?)\s*followers?/i);
+        if (followerMatch) {
+          followerCount = followerMatch[1];
+        }
+      }
+
+      return {
+        username,
+        verified: isVerified,
+        follower_count: followerCount
+      };
+    } catch (error) {
+      console.error('Failed to extract author info:', error);
+      return null;
+    }
+  }
+
+  extractConversationContext() {
+    try {
+      const tweets = document.querySelectorAll('[data-testid="tweet"]');
+      const parentTweets = [];
+      
+      // Get up to 3 parent tweets for context
+      for (let i = 0; i < Math.min(tweets.length, 3); i++) {
+        const tweet = tweets[i];
+        const tweetText = tweet.querySelector('[data-testid="tweetText"]');
+        if (tweetText) {
+          const text = tweetText.textContent?.trim();
+          if (text && text.length > 10) {
+            parentTweets.push(text);
+          }
+        }
+      }
+      
+      return parentTweets.length > 0 ? parentTweets : null;
+    } catch (error) {
+      console.error('Failed to extract conversation context:', error);
+      return null;
+    }
+  }
+
+  extractTweetMetadata() {
+    try {
+      const hasMedia = !!document.querySelector('[data-testid="tweetPhoto"], [data-testid="videoPlayer"]');
+      const hasPoll = !!document.querySelector('[data-testid="poll"]');
+      
+      // Get timestamp
+      const timeElement = document.querySelector('time');
+      const timestamp = timeElement ? timeElement.getAttribute('datetime') : null;
+
+      return {
+        has_media: hasMedia,
+        has_poll: hasPoll,
+        timestamp: timestamp
+      };
+    } catch (error) {
+      console.error('Failed to extract tweet metadata:', error);
+      return null;
+    }
+  }
+
+  insertReplyIntoComposer(composer, replyData) {
+    const replyText = typeof replyData === 'string' ? replyData : replyData.reply;
+    const qualityScore = typeof replyData === 'object' ? replyData.qualityScore : null;
+
     // Different approaches for different composer types
     if (composer.contentEditable === 'true') {
       // For contenteditable composers
@@ -345,9 +535,40 @@ class TwitterReplyInjector {
       // Try to find nested input elements
       const input = composer.querySelector('textarea, [contenteditable="true"]');
       if (input) {
-        this.insertReplyIntoComposer(input, replyText);
+        this.insertReplyIntoComposer(input, replyData);
       }
     }
+
+    // Show quality score indicator
+    if (qualityScore) {
+      this.showQualityBadge(composer, qualityScore);
+    }
+  }
+
+  showQualityBadge(composer, score) {
+    // Remove existing badge
+    const existingBadge = composer.parentElement?.querySelector('.tweetreply-quality-badge');
+    if (existingBadge) {
+      existingBadge.remove();
+    }
+
+    const badge = document.createElement('div');
+    badge.className = 'tweetreply-quality-badge';
+    badge.innerHTML = `
+      <span class="quality-label">Quality:</span>
+      <span class="quality-score quality-${this.getQualityClass(score)}">${score}</span>
+    `;
+    
+    const parent = composer.parentElement;
+    if (parent) {
+      parent.insertBefore(badge, composer.nextSibling);
+    }
+  }
+
+  getQualityClass(score) {
+    if (score >= 80) return 'high';
+    if (score >= 60) return 'medium';
+    return 'low';
   }
 
   updateAllButtonStates() {

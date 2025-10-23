@@ -23,12 +23,24 @@ class PopupManager {
     // Buttons
     this.signinBtn = document.getElementById('signin-btn');
     this.suggestBtn = document.getElementById('suggest-btn');
+    this.historyBtn = document.getElementById('history-btn');
+    this.improveBtn = document.getElementById('improve-btn');
+    this.analyticsBtn = document.getElementById('analytics-btn');
     this.webAppBtn = document.getElementById('web-app-btn');
     this.billingBtn = document.getElementById('billing-btn');
     this.upgradeBtn = document.getElementById('upgrade-btn');
     this.settingsBtn = document.getElementById('settings-btn');
     this.signoutBtn = document.getElementById('signout-btn');
     this.closeSettingsBtn = document.getElementById('close-settings');
+    
+    // Panel close buttons
+    this.closeHistoryBtn = document.getElementById('close-history');
+    this.closeImproveBtn = document.getElementById('close-improve');
+    this.closeAnalyticsBtn = document.getElementById('close-analytics');
+    
+    // Draft improvement elements
+    this.analyzeBtn = document.getElementById('analyze-btn');
+    this.draftInput = document.getElementById('draft-input');
     
     // Usage elements
     this.statusDot = document.getElementById('status-dot');
@@ -42,17 +54,33 @@ class PopupManager {
     // Settings
     this.settingsPanel = document.getElementById('settings-panel');
     this.userEmail = document.getElementById('user-email');
+    
+    // Panels
+    this.historyPanel = document.getElementById('history-panel');
+    this.improvePanel = document.getElementById('improve-panel');
+    this.analyticsPanel = document.getElementById('analytics-panel');
   }
 
   attachEventListeners() {
     this.signinBtn?.addEventListener('click', () => this.handleSignIn());
     this.suggestBtn?.addEventListener('click', () => this.handleSuggestReply());
+    this.historyBtn?.addEventListener('click', () => this.showHistory());
+    this.improveBtn?.addEventListener('click', () => this.showImprove());
+    this.analyticsBtn?.addEventListener('click', () => this.showAnalytics());
     this.webAppBtn?.addEventListener('click', () => this.handleOpenWebApp());
     this.billingBtn?.addEventListener('click', () => this.handleManageBilling());
     this.upgradeBtn?.addEventListener('click', () => this.handleUpgrade());
     this.settingsBtn?.addEventListener('click', () => this.showSettings());
     this.signoutBtn?.addEventListener('click', () => this.handleSignOut());
     this.closeSettingsBtn?.addEventListener('click', () => this.hideSettings());
+    
+    // Panel close buttons
+    this.closeHistoryBtn?.addEventListener('click', () => this.hideHistory());
+    this.closeImproveBtn?.addEventListener('click', () => this.hideImprove());
+    this.closeAnalyticsBtn?.addEventListener('click', () => this.hideAnalytics());
+    
+    // Draft improvement
+    this.analyzeBtn?.addEventListener('click', () => this.handleAnalyzeDraft());
   }
 
   async initialize() {
@@ -286,6 +314,189 @@ class PopupManager {
 
   hideSettings() {
     this.settingsPanel?.classList.add('hidden');
+  }
+
+  showHistory() {
+    this.hideAllPanels();
+    this.historyPanel?.classList.remove('hidden');
+    this.loadReplyHistory();
+  }
+
+  hideHistory() {
+    this.historyPanel?.classList.add('hidden');
+  }
+
+  showImprove() {
+    this.hideAllPanels();
+    this.improvePanel?.classList.remove('hidden');
+  }
+
+  hideImprove() {
+    this.improvePanel?.classList.add('hidden');
+  }
+
+  showAnalytics() {
+    this.hideAllPanels();
+    this.analyticsPanel?.classList.remove('hidden');
+    this.loadAnalytics();
+  }
+
+  hideAnalytics() {
+    this.analyticsPanel?.classList.add('hidden');
+  }
+
+  hideAllPanels() {
+    this.settingsPanel?.classList.add('hidden');
+    this.historyPanel?.classList.add('hidden');
+    this.improvePanel?.classList.add('hidden');
+    this.analyticsPanel?.classList.add('hidden');
+  }
+
+  async loadReplyHistory() {
+    try {
+      const history = await this.apiClient.getReplyHistory(20);
+      this.displayHistory(history.history);
+    } catch (error) {
+      console.error('Failed to load history:', error);
+    }
+  }
+
+  displayHistory(entries) {
+    const listElement = document.getElementById('history-list');
+    if (!listElement) return;
+    
+    listElement.innerHTML = '';
+    
+    if (!entries || entries.length === 0) {
+      listElement.innerHTML = '<div class="empty-state">No reply history found</div>';
+      return;
+    }
+    
+    entries.forEach(entry => {
+      const item = document.createElement('div');
+      item.className = 'history-item';
+      item.innerHTML = `
+        <div class="history-header">
+          <span class="history-date">${new Date(entry.createdAt).toLocaleDateString()}</span>
+          ${entry.qualityScore ? `<span class="quality-badge">Quality: ${entry.qualityScore}</span>` : ''}
+        </div>
+        <div class="history-tweet">${this.truncate(entry.originalTweet, 80)}</div>
+        <div class="history-reply">${entry.generatedReply}</div>
+        <button class="copy-btn" data-text="${this.escapeHtml(entry.generatedReply)}">Copy</button>
+      `;
+      
+      // Add copy functionality
+      const copyBtn = item.querySelector('.copy-btn');
+      copyBtn?.addEventListener('click', () => {
+        navigator.clipboard.writeText(entry.generatedReply);
+        copyBtn.textContent = 'Copied!';
+        setTimeout(() => {
+          copyBtn.textContent = 'Copy';
+        }, 1000);
+      });
+      
+      listElement.appendChild(item);
+    });
+  }
+
+  async handleAnalyzeDraft() {
+    const draftText = this.draftInput?.value;
+    if (!draftText?.trim()) return;
+    
+    try {
+      this.analyzeBtn.disabled = true;
+      this.analyzeBtn.textContent = 'Analyzing...';
+      
+      const result = await this.apiClient.suggestImprovements(draftText, '');
+      this.displayImprovementResults(result);
+    } catch (error) {
+      console.error('Failed to analyze draft:', error);
+      this.showStatusMessage('Failed to analyze draft', 'error');
+    } finally {
+      this.analyzeBtn.disabled = false;
+      this.analyzeBtn.textContent = 'Analyze';
+    }
+  }
+
+  displayImprovementResults(result) {
+    const resultsDiv = document.getElementById('improvement-results');
+    if (!resultsDiv) return;
+    
+    resultsDiv.classList.remove('hidden');
+    
+    // Display quality score
+    const qualityDisplay = resultsDiv.querySelector('.quality-score-display');
+    if (qualityDisplay) {
+      qualityDisplay.innerHTML = `
+        <h4>Quality Score: ${result.qualityScore}/100</h4>
+      `;
+    }
+    
+    // Display issues
+    const issuesList = resultsDiv.querySelector('.issues-list');
+    if (issuesList && result.issues && result.issues.length > 0) {
+      issuesList.innerHTML = `
+        <h4>Issues:</h4>
+        <ul>${result.issues.map(issue => `<li>${issue}</li>`).join('')}</ul>
+      `;
+    } else if (issuesList) {
+      issuesList.innerHTML = '';
+    }
+    
+    // Display suggestions
+    const suggestionsList = resultsDiv.querySelector('.suggestions-list');
+    if (suggestionsList && result.suggestions && result.suggestions.length > 0) {
+      suggestionsList.innerHTML = `
+        <h4>Suggestions:</h4>
+        <ul>${result.suggestions.map(sug => `<li>${sug}</li>`).join('')}</ul>
+      `;
+    } else if (suggestionsList) {
+      suggestionsList.innerHTML = '';
+    }
+  }
+
+  async loadAnalytics() {
+    try {
+      const metrics = await this.apiClient.getQualityMetrics();
+      this.displayAnalytics(metrics);
+    } catch (error) {
+      console.error('Failed to load analytics:', error);
+    }
+  }
+
+  displayAnalytics(data) {
+    if (data.metrics) {
+      const avgQuality = document.getElementById('avg-quality');
+      const totalReplies = document.getElementById('total-replies');
+      const highQuality = document.getElementById('high-quality');
+      
+      if (avgQuality) avgQuality.textContent = data.metrics.averageScore || '-';
+      if (totalReplies) totalReplies.textContent = data.metrics.totalReplies || '-';
+      if (highQuality) highQuality.textContent = data.metrics.highQualityCount || '-';
+    }
+    
+    // Display recommendations
+    const recommendationsList = document.getElementById('recommendations-list');
+    if (recommendationsList && data.recommendations && data.recommendations.length > 0) {
+      recommendationsList.innerHTML = `
+        <h4>Recommendations:</h4>
+        <ul>${data.recommendations.map(rec => `<li>${rec}</li>`).join('')}</ul>
+      `;
+    } else if (recommendationsList) {
+      recommendationsList.innerHTML = '';
+    }
+  }
+
+  truncate(text, maxLength) {
+    if (!text) return '';
+    return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
+  }
+
+  escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
   }
 
   showStatusMessage(message, type = 'info') {

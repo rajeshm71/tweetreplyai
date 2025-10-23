@@ -107,6 +107,48 @@
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
+/* Quality badge styles */
+.tweetreply-quality-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: #f7f9fa;
+  border-radius: 12px;
+  font-size: 11px;
+  margin-top: 4px;
+}
+
+.quality-score {
+  font-weight: bold;
+}
+
+.quality-high { color: #00ba7c; }
+.quality-medium { color: #f4b400; }
+.quality-low { color: #f4212e; }
+
+/* Button container styles */
+.tweetreply-button-container {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.tweetreply-model-select,
+.tweetreply-prompt-select {
+  padding: 4px 8px;
+  border: 1px solid #cfd9de;
+  border-radius: 16px;
+  font-size: 12px;
+  background: white;
+  color: #0f1419;
+}
+
+.tweetreply-model-select:hover,
+.tweetreply-prompt-select:hover {
+  border-color: #1d9bf0;
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .tweetreply-suggest-btn {
@@ -117,5 +159,15 @@
   .tweetreply-message {
     font-size: 12px;
     padding: 6px 8px;
+  }
+
+  .tweetreply-button-container {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .tweetreply-model-select,
+  .tweetreply-prompt-select {
+    font-size: 11px;
   }
 }

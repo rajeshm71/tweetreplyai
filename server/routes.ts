@@ -220,9 +220,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
         tweet_id: z.string().optional(),
         model_key: z.string().optional(),
         prompt_variation: z.string().optional(),
+        author_info: z.object({
+          username: z.string().optional(),
+          verified: z.boolean().optional(),
+          follower_count: z.number().optional(),
+        }).optional(),
+        conversation_context: z.array(z.string()).optional(),
+        tweet_metadata: z.object({
+          has_media: z.boolean().optional(),
+          has_poll: z.boolean().optional(),
+          timestamp: z.string().optional(),
+        }).optional(),
       });
 
-      const { tweet_text, tweet_id, model_key, prompt_variation } = schema.parse(req.body);
+      const { 
+        tweet_text, 
+        tweet_id, 
+        model_key, 
+        prompt_variation,
+        author_info,
+        conversation_context,
+        tweet_metadata
+      } = schema.parse(req.body);
 
       // Check if user can use a reply
       const { canUse, reason } = await usageService.canUseReply(userId);
@@ -240,13 +259,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Consume a reply from quota
       const updatedCounter = await usageService.consumeReply(userId);
 
-      // Generate the reply
-      const replyResponse = await aiRouter.generateReply({
+      // Analyze tweet context if not provided
+      const { tweetContextAnalyzer } = await import('./services/tweet-context');
+      const tweetContext = tweetContextAnalyzer.analyzeTweet(
+        tweet_text,
+        author_info,
+        conversation_context ? { parentTweets: conversation_context, threadLength: conversation_context.length, isThread: conversation_context.length > 0 } : undefined
+      );
+
+      // Generate the reply with context
+      let replyResponse = await aiRouter.generateReply({
         tweetText: tweet_text,
         tweetId: tweet_id,
         modelPreference: model_key,
         promptVariation: prompt_variation,
+        tweetContext,
+        authorInfo: author_info,
+        conversationContext: conversation_context,
+        tweetMetadata: tweet_metadata,
       });
+
+      // Quality check and regenerate if needed
+      const { qualityChecker } = await import('./services/quality-checker');
+      const qualityCheck = qualityChecker.checkQuality(replyResponse.reply, tweet_text);
+      
+      if (!qualityCheck.passed) {
+        console.log(`⚠️ [Quality] Reply failed quality check (score: ${qualityCheck.score})`);
+        console.log(`🔧 [Quality] Issues: ${qualityCheck.issues.join(', ')}`);
+        
+        // Try to regenerate with a different approach
+        try {
+          const retryResponse = await aiRouter.generateReply({
+            tweetText: tweet_text,
+            tweetId: tweet_id,
+            modelPreference: model_key,
+            promptVariation: prompt_variation === 'default' ? 'direct' : 'default', // Try different prompt
+            tweetContext,
+            authorInfo: author_info,
+            conversationContext: conversation_context,
+            tweetMetadata: tweet_metadata,
+          });
+          
+          const retryQualityCheck = qualityChecker.checkQuality(retryResponse.reply, tweet_text);
+          if (retryQualityCheck.score > qualityCheck.score) {
+            console.log(`✅ [Quality] Retry improved quality (${retryQualityCheck.score} vs ${qualityCheck.score})`);
+            replyResponse = retryResponse;
+          }
+        } catch (retryError) {
+          console.log(`❌ [Quality] Retry failed, using original reply`);
+        }
+      } else {
+        console.log(`✅ [Quality] Reply passed quality check (score: ${qualityCheck.score})`);
+      }
 
       // Log the reply event
       await storage.createReplyEvent({
@@ -256,6 +320,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         tokensIn: replyResponse.tokensIn,
         tokensOut: replyResponse.tokensOut,
         latencyMs: replyResponse.latencyMs,
+      });
+
+      // Save to reply history
+      const historyEntry = await storage.createReplyHistory({
+        userId,
+        originalTweet: tweet_text,
+        generatedReply: replyResponse.reply,
+        modelKey: replyResponse.modelKey,
+        promptVariation: prompt_variation || 'default',
+        qualityScore: qualityCheck.score,
       });
 
       // Return response with updated usage
@@ -559,6 +633,176 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error initializing trial:", error);
       res.status(500).json({ message: "Failed to initialize trial" });
+    }
+  });
+
+  // Reply history endpoints
+  app.get('/api/reply-history', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const limit = parseInt(req.query.limit as string) || 50;
+      
+      const history = await storage.getReplyHistory(userId, limit);
+      res.json({ history });
+    } catch (error) {
+      console.error("Error fetching reply history:", error);
+      res.status(500).json({ message: "Failed to fetch reply history" });
+    }
+  });
+
+  app.post('/api/reply-history/:id/mark-used', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+      const { tweetUrl } = req.body;
+      
+      await storage.markReplyAsUsed(id, tweetUrl);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error marking reply as used:", error);
+      res.status(500).json({ message: "Failed to mark reply as used" });
+    }
+  });
+
+  app.get('/api/reply-templates', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const history = await storage.getReplyHistory(userId, 20);
+      
+      // Extract successful replies as templates
+      const templates = history
+        .filter(entry => entry.wasUsed && entry.qualityScore && entry.qualityScore > 70)
+        .map(entry => ({
+          id: entry.id,
+          template: entry.generatedReply,
+          originalTweet: entry.originalTweet,
+          qualityScore: entry.qualityScore,
+          createdAt: entry.createdAt,
+        }));
+      
+      res.json({ templates });
+    } catch (error) {
+      console.error("Error fetching reply templates:", error);
+      res.status(500).json({ message: "Failed to fetch reply templates" });
+    }
+  });
+
+  // Suggest improvements endpoint
+  app.post('/api/suggest-improvements', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      
+      const schema = z.object({
+        draft_reply: z.string().min(1).max(500),
+        original_tweet: z.string().optional(),
+      });
+
+      const { draft_reply, original_tweet } = schema.parse(req.body);
+
+      // Use AI to suggest improvements
+      const { aiRouter } = await import('./services/ai-router');
+      const { qualityChecker } = await import('./services/quality-checker');
+      
+      // Analyze the draft
+      const qualityCheck = qualityChecker.checkQuality(draft_reply, original_tweet || '');
+      const suggestions = qualityChecker.getImprovementSuggestions(draft_reply, original_tweet || '');
+      
+      // Generate an improved version using AI
+      let improvedReply = '';
+      try {
+        const improvementResponse = await aiRouter.generateReply({
+          tweetText: original_tweet || 'Improve this reply',
+          modelPreference: 'gpt-4o-mini',
+          promptVariation: 'default',
+        });
+        
+        // Use a custom prompt for improvement
+        const improvementPrompt = `Please improve this draft reply to make it more engaging and natural:
+
+Original tweet: "${original_tweet || 'N/A'}"
+Draft reply: "${draft_reply}"
+
+Make it more conversational, specific, and engaging while keeping it under 200 characters.`;
+
+        // For now, we'll use the quality checker suggestions
+        // In a full implementation, you'd call the AI with the improvement prompt
+        improvedReply = draft_reply; // Placeholder
+      } catch (error) {
+        console.error('Error generating improvement:', error);
+      }
+
+      res.json({
+        original: draft_reply,
+        improved: improvedReply,
+        qualityScore: qualityCheck.score,
+        issues: qualityCheck.issues,
+        suggestions: suggestions,
+        analysis: {
+          wordCount: draft_reply.split(/\s+/).length,
+          length: draft_reply.length,
+          hasEmojis: /[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u.test(draft_reply),
+        }
+      });
+    } catch (error) {
+      console.error("Error suggesting improvements:", error);
+      
+      if (error instanceof ZodError) {
+        return res.status(400).json({
+          message: "Validation error",
+          errors: error.errors.map(err => ({
+            field: err.path.join('.'),
+            message: err.message
+          }))
+        });
+      }
+      
+      res.status(500).json({ message: "Failed to suggest improvements" });
+    }
+  });
+
+  // Feedback analytics endpoint
+  app.get('/api/analytics/feedback-stats', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const days = parseInt(req.query.days as string) || 30;
+      
+      // Validate days parameter
+      if (days < 1 || days > 365) {
+        return res.status(400).json({ message: "Days must be between 1 and 365" });
+      }
+      
+      const { feedbackAnalytics } = await import('./services/feedback-analytics');
+      const stats = await feedbackAnalytics.getFeedbackStats(userId, days);
+      
+      res.json(stats);
+    } catch (error) {
+      console.error("Error fetching feedback stats:", error);
+      res.status(500).json({ message: "Failed to fetch feedback stats" });
+    }
+  });
+
+  // Quality metrics endpoint
+  app.get('/api/quality/metrics', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const days = parseInt(req.query.days as string) || 30;
+      
+      // Validate days parameter
+      if (days < 1 || days > 365) {
+        return res.status(400).json({ message: "Days must be between 1 and 365" });
+      }
+      
+      const { feedbackAnalytics } = await import('./services/feedback-analytics');
+      const metrics = await feedbackAnalytics.getQualityMetrics(userId, days);
+      const recommendations = await feedbackAnalytics.getRecommendations(userId);
+      
+      res.json({
+        metrics,
+        recommendations
+      });
+    } catch (error) {
+      console.error("Error fetching quality metrics:", error);
+      res.status(500).json({ message: "Failed to fetch quality metrics" });
     }
   });
 

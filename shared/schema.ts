@@ -105,6 +105,35 @@ export const feedback = pgTable("feedback", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Reply history table for tracking generated and used replies
+export const replyHistory = pgTable("reply_history", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  originalTweet: text("original_tweet").notNull(),
+  generatedReply: text("generated_reply").notNull(),
+  wasUsed: boolean("was_used").default(false).notNull(),
+  usedAt: timestamp("used_at"),
+  tweetUrl: varchar("tweet_url"),
+  performance: jsonb("performance"), // { likes, replies, retweets }
+  modelKey: varchar("model_key").notNull(),
+  promptVariation: varchar("prompt_variation"),
+  qualityScore: integer("quality_score"), // 0-100
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// User preferences table for learned preferences
+export const userPreferences = pgTable("user_preferences", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  preferredPrompt: varchar("preferred_prompt").default("default"),
+  preferredModel: varchar("preferred_model"),
+  tonePreference: varchar("tone_preference"), // 'casual', 'professional', 'humorous', etc.
+  maxReplyLength: integer("max_reply_length").default(200),
+  autoRegenerate: boolean("auto_regenerate").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Zod schemas
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -132,6 +161,17 @@ export const insertFeedbackSchema = createInsertSchema(feedback).omit({
   createdAt: true,
 });
 
+export const insertReplyHistorySchema = createInsertSchema(replyHistory).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertUserPreferencesSchema = createInsertSchema(userPreferences).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type UpsertUser = typeof users.$inferInsert;
@@ -143,3 +183,7 @@ export type ReplyEvent = typeof replyEvents.$inferSelect;
 export type InsertReplyEvent = z.infer<typeof insertReplyEventSchema>;
 export type Feedback = typeof feedback.$inferSelect;
 export type InsertFeedback = z.infer<typeof insertFeedbackSchema>;
+export type ReplyHistory = typeof replyHistory.$inferSelect;
+export type InsertReplyHistory = z.infer<typeof insertReplyHistorySchema>;
+export type UserPreferences = typeof userPreferences.$inferSelect;
+export type InsertUserPreferences = z.infer<typeof insertUserPreferencesSchema>;

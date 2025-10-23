@@ -9,6 +9,18 @@ export interface ReplyOptions {
   tweetId?: string;
   modelPreference?: string;
   promptVariation?: string;
+  tweetContext?: any; // Will be imported from tweet-context.ts
+  authorInfo?: {
+    username?: string;
+    verified?: boolean;
+    follower_count?: number;
+  };
+  conversationContext?: string[];
+  tweetMetadata?: {
+    has_media?: boolean;
+    has_poll?: boolean;
+    timestamp?: string;
+  };
 }
 
 export interface ReplyResponse {
@@ -141,6 +153,25 @@ export class ModelRouter {
     console.log(`📝 [OpenAI] Tweet text: "${options.tweetText}"`);
     console.log(`🎯 [OpenAI] Using prompt: ${promptConfig.name}`);
 
+    // Generate context-aware prompt if context is available
+    let enhancedSystemPrompt = promptConfig.systemPrompt;
+    if (options.tweetContext) {
+      const { tweetContextAnalyzer } = await import('./tweet-context');
+      const contextPrompt = tweetContextAnalyzer.generateContextPrompt(
+        options.tweetContext,
+        options.authorInfo,
+        options.conversationContext ? {
+          parentTweets: options.conversationContext,
+          threadLength: options.conversationContext.length,
+          isThread: options.conversationContext.length > 0
+        } : undefined
+      );
+      
+      if (contextPrompt) {
+        enhancedSystemPrompt = `${promptConfig.systemPrompt}\n\n${contextPrompt}`;
+      }
+    }
+
     if (!openai) {
       console.log("❌ [OpenAI] OpenAI client not configured");
       return {
@@ -157,7 +188,7 @@ export class ModelRouter {
         const response = await openai.responses.create({
           model: modelKey,
           input: [
-            { role: "system", content: promptConfig.systemPrompt },
+            { role: "system", content: enhancedSystemPrompt },
             { role: "user", content: promptConfig.userPrompt(options.tweetText) },
           ],
           top_p: 1,
@@ -184,7 +215,7 @@ export class ModelRouter {
         const response = await openai.chat.completions.create({
           model: modelKey,
           messages: [
-            { role: "system", content: promptConfig.systemPrompt },
+            { role: "system", content: enhancedSystemPrompt },
             { role: "user", content: promptConfig.userPrompt(options.tweetText) },
           ],
           temperature: 0.7,

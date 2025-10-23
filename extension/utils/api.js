@@ -111,4 +111,41 @@ export class ApiClient {
       body: { plan_code: planCode }
     });
   }
+
+  async getReplyHistory(limit = 50) {
+    return this.makeRequest(`/api/reply-history?limit=${limit}`);
+  }
+
+  async markReplyAsUsed(id, tweetUrl) {
+    return this.makeRequest(`/api/reply-history/${id}/mark-used`, {
+      method: 'POST',
+      body: { tweetUrl }
+    });
+  }
+
+  async suggestImprovements(draftReply, originalTweet) {
+    return this.makeRequest('/api/suggest-improvements', {
+      method: 'POST',
+      body: { 
+        draft_reply: draftReply,
+        original_tweet: originalTweet
+      }
+    });
+  }
+
+  async getModels() {
+    return this.makeRequest('/api/models');
+  }
+
+  async getPrompts() {
+    return this.makeRequest('/api/prompts');
+  }
+
+  async getAnalytics(days = 30) {
+    return this.makeRequest(`/api/analytics/feedback-stats?days=${days}`);
+  }
+
+  async getQualityMetrics(days = 30) {
+    return this.makeRequest(`/api/quality/metrics?days=${days}`);
+  }
 }

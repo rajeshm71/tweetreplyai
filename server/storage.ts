@@ -4,6 +4,8 @@ import {
   usageCounters,
   replyEvents,
   feedback,
+  replyHistory,
+  userPreferences,
   type User,
   type UpsertUser,
   type Subscription,
@@ -14,6 +16,10 @@ import {
   type InsertReplyEvent,
   type Feedback,
   type InsertFeedback,
+  type ReplyHistory,
+  type InsertReplyHistory,
+  type UserPreferences,
+  type InsertUserPreferences,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, gte, lt, sql, or } from "drizzle-orm";
@@ -45,6 +51,16 @@ export interface IStorage {
   
   // Feedback operations
   createFeedback(feedback: InsertFeedback): Promise<Feedback>;
+  
+  // Reply history operations
+  createReplyHistory(replyHistory: InsertReplyHistory): Promise<ReplyHistory>;
+  getReplyHistory(userId: string, limit?: number): Promise<ReplyHistory[]>;
+  markReplyAsUsed(replyHistoryId: string, tweetUrl?: string): Promise<void>;
+  updateReplyPerformance(replyHistoryId: string, performance: any): Promise<void>;
+  
+  // User preferences operations
+  getUserPreferences(userId: string): Promise<UserPreferences | undefined>;
+  upsertUserPreferences(preferences: InsertUserPreferences): Promise<UserPreferences>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -218,6 +234,67 @@ export class DatabaseStorage implements IStorage {
       .values(feedbackData)
       .returning();
     return newFeedback;
+  }
+
+  // Reply history operations
+  async createReplyHistory(replyHistoryData: InsertReplyHistory): Promise<ReplyHistory> {
+    const [newReplyHistory] = await db
+      .insert(replyHistory)
+      .values(replyHistoryData)
+      .returning();
+    return newReplyHistory;
+  }
+
+  async getReplyHistory(userId: string, limit: number = 50): Promise<ReplyHistory[]> {
+    return await db
+      .select()
+      .from(replyHistory)
+      .where(eq(replyHistory.userId, userId))
+      .orderBy(desc(replyHistory.createdAt))
+      .limit(limit);
+  }
+
+  async markReplyAsUsed(replyHistoryId: string, tweetUrl?: string): Promise<void> {
+    await db
+      .update(replyHistory)
+      .set({
+        wasUsed: true,
+        usedAt: new Date(),
+        tweetUrl: tweetUrl || null,
+      })
+      .where(eq(replyHistory.id, replyHistoryId));
+  }
+
+  async updateReplyPerformance(replyHistoryId: string, performance: any): Promise<void> {
+    await db
+      .update(replyHistory)
+      .set({ performance })
+      .where(eq(replyHistory.id, replyHistoryId));
+  }
+
+  // User preferences operations
+  async getUserPreferences(userId: string): Promise<UserPreferences | undefined> {
+    const [preferences] = await db
+      .select()
+      .from(userPreferences)
+      .where(eq(userPreferences.userId, userId))
+      .limit(1);
+    return preferences;
+  }
+
+  async upsertUserPreferences(preferencesData: InsertUserPreferences): Promise<UserPreferences> {
+    const [preferences] = await db
+      .insert(userPreferences)
+      .values(preferencesData)
+      .onConflictDoUpdate({
+        target: userPreferences.userId,
+        set: {
+          ...preferencesData,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    return preferences;
   }
 }
 

@@ -79,6 +79,15 @@
 
       <!-- Quick Actions -->
       <div class="quick-actions">
+        <button id="history-btn" class="action-btn">
+          <span>History</span>
+        </button>
+        <button id="improve-btn" class="action-btn">
+          <span>Improve Draft</span>
+        </button>
+        <button id="analytics-btn" class="action-btn">
+          <span>Analytics</span>
+        </button>
         <button id="web-app-btn" class="action-btn">
           <span>Open web app</span>
           <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12">
@@ -119,6 +128,61 @@
         <div class="settings-actions">
           <button id="signout-btn" class="secondary-btn">Sign Out</button>
         </div>
+      </div>
+    </div>
+
+    <!-- Reply History Panel -->
+    <div id="history-panel" class="panel hidden">
+      <div class="panel-header">
+        <h3>Reply History</h3>
+        <button id="close-history" class="close-btn">×</button>
+      </div>
+      <div class="panel-content">
+        <div id="history-list" class="history-list">
+          <!-- Dynamic content -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Draft Improvement Panel -->
+    <div id="improve-panel" class="panel hidden">
+      <div class="panel-header">
+        <h3>Improve Draft</h3>
+        <button id="close-improve" class="close-btn">×</button>
+      </div>
+      <div class="panel-content">
+        <textarea id="draft-input" placeholder="Paste your draft reply here..."></textarea>
+        <button id="analyze-btn" class="primary-btn">Analyze</button>
+        <div id="improvement-results" class="hidden">
+          <div class="quality-score-display"></div>
+          <div class="issues-list"></div>
+          <div class="suggestions-list"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Analytics Panel -->
+    <div id="analytics-panel" class="panel hidden">
+      <div class="panel-header">
+        <h3>Analytics</h3>
+        <button id="close-analytics" class="close-btn">×</button>
+      </div>
+      <div class="panel-content">
+        <div class="metrics-grid">
+          <div class="metric-card">
+            <div class="metric-value" id="avg-quality">-</div>
+            <div class="metric-label">Avg Quality</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-value" id="total-replies">-</div>
+            <div class="metric-label">Total Replies</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-value" id="high-quality">-</div>
+            <div class="metric-label">High Quality</div>
+          </div>
+        </div>
+        <div id="recommendations-list"></div>
       </div>
     </div>
   </div>

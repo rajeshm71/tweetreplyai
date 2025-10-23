@@ -14,7 +14,8 @@
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest watch",
     "test:integration": "vitest run --testNamePattern='Integration'",
-    "test:unit": "vitest run --testNamePattern='Unit'"
+    "test:unit": "vitest run --testNamePattern='Unit'",
+    "vercel-build": "npm run build"
   },
   "dependencies": {
     "@google/genai": "^1.19.0",
