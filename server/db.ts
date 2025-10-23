@@ -2,13 +2,13 @@ import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import * as schema from "@shared/schema";
 
-if (!process.env.DATABASE_URL) {
+if (!process.env.SUPABASE_URL) {
   if (process.env.NODE_ENV === 'test') {
     // For tests, we'll use mocked database operations
     console.log('Running in test mode - database operations will be mocked');
   } else {
     throw new Error(
-      "DATABASE_URL must be set. Did you forget to provision a database?",
+      "SUPABASE_URL must be set. Did you forget to provision a Supabase database?",
     );
   }
 }
@@ -18,15 +18,15 @@ if (!process.env.DATABASE_URL) {
 let queryClient: any;
 let db: any;
 
-if (process.env.DATABASE_URL) {
-  queryClient = postgres(process.env.DATABASE_URL, {
+if (process.env.SUPABASE_URL) {
+  queryClient = postgres(process.env.SUPABASE_URL, {
     max: 10, // Maximum number of connections
     idle_timeout: 20, // Close idle connections after 20s
     connect_timeout: 10, // Connection timeout in seconds
   });
   db = drizzle(queryClient, { schema });
 } else {
-  // For test mode without DATABASE_URL, create a mock db
+  // For test mode without SUPABASE_URL, create a mock db
   db = null;
 }
 
