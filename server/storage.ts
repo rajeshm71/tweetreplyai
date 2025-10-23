@@ -20,7 +20,7 @@ import {
   type InsertReplyHistory,
   type UserPreferences,
   type InsertUserPreferences,
-} from "@shared/schema";
+} from "../shared/schema.js";
 import { db } from "./db.js";
 import { eq, and, desc, gte, lt, sql, or } from "drizzle-orm";
 

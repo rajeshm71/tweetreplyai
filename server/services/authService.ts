@@ -1,5 +1,5 @@
 import { storage } from '../storage.js';
-import type { User } from '@shared/schema';
+import type { User } from '../../shared/schema.js';
 
 export interface AuthProfile {
   provider: 'google' | 'password' | 'replit';

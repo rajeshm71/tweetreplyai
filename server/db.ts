@@ -1,6 +1,6 @@
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
-import * as schema from "@shared/schema";
+import * as schema from "../shared/schema.js";
 
 if (!process.env.SUPABASE_URL) {
   if (process.env.NODE_ENV === 'test') {

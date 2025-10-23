@@ -1,6 +1,6 @@
 import { storage } from '../storage.js';
 import { db } from '../db.js';
-import { feedback, replyEvents, replyHistory } from '@shared/schema';
+import { feedback, replyEvents, replyHistory } from '../../shared/schema.js';
 import { eq, and, desc, gte, sql, count, avg } from 'drizzle-orm';
 
 export interface FeedbackStats {
