@@ -5,8 +5,8 @@
   "license": "MIT",
   "scripts": {
     "dev": "NODE_ENV=development tsx server/index.ts",
-    "build": "vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist --external:vite --external:rollup --external:@rollup/*",
-    "start": "NODE_ENV=production node dist/index.js",
+    "build": "vite build && esbuild server/prod.ts --platform=node --packages=external --bundle --format=esm --outdir=dist --external:vite --external:rollup --external:@rollup/*",
+    "start": "NODE_ENV=production node dist/prod.js",
     "check": "tsc",
     "db:push": "drizzle-kit push",
     "test": "vitest",
@@ -120,7 +120,6 @@
     "esbuild": "^0.25.0",
     "msw": "^2.11.6",
     "postcss": "^8.4.47",
-
     "supertest": "^7.1.4",
     "tailwindcss": "^3.4.17",
     "tsx": "^4.19.1",
