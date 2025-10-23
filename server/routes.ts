@@ -39,35 +39,34 @@ export const setupRoutes = registerRoutes;
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware - using local auth only
   // For local development, set up session without Replit auth
-    // For local development, use memory store to avoid database session issues
-    console.log('Using memory store for sessions (local development)');
-    app.use(session({
-      secret: process.env.SESSION_SECRET || 'dev-secret',
-      resave: false,
-      saveUninitialized: false,
-      cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 }, // 1 week
-    }));
+  // For local development, use memory store to avoid database session issues
+  console.log('Using memory store for sessions (local development)');
+  app.use(session({
+    secret: process.env.SESSION_SECRET || 'dev-secret',
+    resave: false,
+    saveUninitialized: false,
+    cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 }, // 1 week
+  }));
     
-    app.use(passport.initialize());
-    app.use(passport.session());
+  app.use(passport.initialize());
+  app.use(passport.session());
     
-    // Setup passport serialization for local development
-    passport.serializeUser((user: any, cb) => {
-      console.log('Serializing user:', user.id);
-      cb(null, { id: user.id, type: 'local' });
-    });
+  // Setup passport serialization for local development
+  passport.serializeUser((user: any, cb) => {
+    console.log('Serializing user:', user.id);
+    cb(null, { id: user.id, type: 'local' });
+  });
     
-    passport.deserializeUser(async (sessionUser: any, cb) => {
-      try {
-        console.log('Deserializing user:', sessionUser.id);
-        const user = await storage.getUser(sessionUser.id);
-        cb(null, user);
-      } catch (error) {
-        console.error('Deserialization error:', error);
-        cb(error, null);
-      }
-    });
-  }
+  passport.deserializeUser(async (sessionUser: any, cb) => {
+    try {
+      console.log('Deserializing user:', sessionUser.id);
+      const user = await storage.getUser(sessionUser.id);
+      cb(null, user);
+    } catch (error) {
+      console.error('Deserialization error:', error);
+      cb(error, null);
+    }
+  });
   
   setupLocalAuth();
   setupGoogleAuth();
