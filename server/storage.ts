@@ -21,7 +21,7 @@ import {
   type UserPreferences,
   type InsertUserPreferences,
 } from "@shared/schema";
-import { db } from "./db";
+import { db } from "./db.js";
 import { eq, and, desc, gte, lt, sql, or } from "drizzle-orm";
 
 export interface IStorage {

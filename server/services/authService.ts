@@ -1,4 +1,4 @@
-import { storage } from '../storage';
+import { storage } from '../storage.js';
 import type { User } from '@shared/schema';
 
 export interface AuthProfile {

@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import { getPromptConfig, type PromptConfig } from "./prompts";
+import { getPromptConfig, type PromptConfig } from "./prompts.js";
 
 // TODO: Set OPENAI_API_KEY in environment to enable AI reply generation
 const openai = process.env.OPENAI_API_KEY ? new OpenAI() : null;
@@ -156,7 +156,7 @@ export class ModelRouter {
     // Generate context-aware prompt if context is available
     let enhancedSystemPrompt = promptConfig.systemPrompt;
     if (options.tweetContext) {
-      const { tweetContextAnalyzer } = await import('./tweet-context');
+      const { tweetContextAnalyzer } = await import('./tweet-context.js');
       const authorInfo = options.authorInfo && options.authorInfo.username ? {
         username: options.authorInfo.username,
         verified: options.authorInfo.verified || false,

@@ -1,5 +1,5 @@
-import { storage } from '../storage';
-import { db } from '../db';
+import { storage } from '../storage.js';
+import { db } from '../db.js';
 import { feedback, replyEvents, replyHistory } from '@shared/schema';
 import { eq, and, desc, gte, sql, count, avg } from 'drizzle-orm';
 

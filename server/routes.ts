@@ -1,13 +1,13 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { storage } from "./storage";
+import { storage } from "./storage.js";
 // Replit auth removed - using local auth only
-import { setupLocalAuth } from "./localAuth";
-import { setupGoogleAuth } from "./googleAuth";
-import { aiRouter } from "./services/ai-router";
-import { getAvailablePrompts } from "./services/prompts";
-import { stripeService, PLANS } from "./services/stripe";
-import { usageService } from "./services/usage";
+import { setupLocalAuth } from "./localAuth.js";
+import { setupGoogleAuth } from "./googleAuth.js";
+import { aiRouter } from "./services/ai-router.js";
+import { getAvailablePrompts } from "./services/prompts.js";
+import { stripeService, PLANS } from "./services/stripe.js";
+import { usageService } from "./services/usage.js";
 import { z, ZodError } from "zod";
 import passport from "passport";
 import session from "express-session";
@@ -257,7 +257,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updatedCounter = await usageService.consumeReply(userId);
 
       // Analyze tweet context if not provided
-      const { tweetContextAnalyzer } = await import('./services/tweet-context');
+      const { tweetContextAnalyzer } = await import('./services/tweet-context.js');
       const authorInfo = author_info && author_info.username ? {
         username: author_info.username,
         verified: author_info.verified || false,
@@ -282,7 +282,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       // Quality check and regenerate if needed
-      const { qualityChecker } = await import('./services/quality-checker');
+      const { qualityChecker } = await import('./services/quality-checker.js');
       const qualityCheck = qualityChecker.checkQuality(replyResponse.reply, tweet_text);
       
       if (!qualityCheck.passed) {
@@ -702,8 +702,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { draft_reply, original_tweet } = schema.parse(req.body);
 
       // Use AI to suggest improvements
-      const { aiRouter } = await import('./services/ai-router');
-      const { qualityChecker } = await import('./services/quality-checker');
+      const { aiRouter } = await import('./services/ai-router.js');
+      const { qualityChecker } = await import('./services/quality-checker.js');
       
       // Analyze the draft
       const qualityCheck = qualityChecker.checkQuality(draft_reply, original_tweet || '');
@@ -773,7 +773,7 @@ Make it more conversational, specific, and engaging while keeping it under 200 c
         return res.status(400).json({ message: "Days must be between 1 and 365" });
       }
       
-      const { feedbackAnalytics } = await import('./services/feedback-analytics');
+      const { feedbackAnalytics } = await import('./services/feedback-analytics.js');
       const stats = await feedbackAnalytics.getFeedbackStats(userId, days);
       
       res.json(stats);
@@ -794,7 +794,7 @@ Make it more conversational, specific, and engaging while keeping it under 200 c
         return res.status(400).json({ message: "Days must be between 1 and 365" });
       }
       
-      const { feedbackAnalytics } = await import('./services/feedback-analytics');
+      const { feedbackAnalytics } = await import('./services/feedback-analytics.js');
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - days);
       const metrics = await feedbackAnalytics.getQualityMetrics(userId, startDate);

@@ -1,5 +1,5 @@
-import { storage } from "../storage";
-import { PLANS } from "./stripe";
+import { storage } from "../storage.js";
+import { PLANS } from "./stripe.js";
 import type { User, UsageCounter } from "@shared/schema";
 
 export interface UsageWindow {

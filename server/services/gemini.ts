@@ -1,6 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import { ReplyOptions, ReplyResponse } from "./openai.js";
-import { getPromptConfig, type PromptConfig } from "./prompts";
+import { getPromptConfig, type PromptConfig } from "./prompts.js";
 
 // Initialize Gemini AI client with official SDK
 const genAI = process.env.GEMINI_API_KEY
