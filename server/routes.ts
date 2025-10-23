@@ -261,9 +261,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Analyze tweet context if not provided
       const { tweetContextAnalyzer } = await import('./services/tweet-context');
+      const authorInfo = author_info ? {
+        username: author_info.username,
+        verified: author_info.verified,
+        followerCount: author_info.follower_count || 0
+      } : undefined;
       const tweetContext = tweetContextAnalyzer.analyzeTweet(
         tweet_text,
-        author_info,
+        authorInfo,
         conversation_context ? { parentTweets: conversation_context, threadLength: conversation_context.length, isThread: conversation_context.length > 0 } : undefined
       );
 
@@ -793,7 +798,9 @@ Make it more conversational, specific, and engaging while keeping it under 200 c
       }
       
       const { feedbackAnalytics } = await import('./services/feedback-analytics');
-      const metrics = await feedbackAnalytics.getQualityMetrics(userId, days);
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - days);
+      const metrics = await feedbackAnalytics.getQualityMetrics(userId, startDate);
       const recommendations = await feedbackAnalytics.getRecommendations(userId);
       
       res.json({

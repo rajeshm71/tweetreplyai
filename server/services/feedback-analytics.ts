@@ -99,8 +99,8 @@ export class FeedbackAnalytics {
 
     const results = await query.groupBy(feedback.rating);
 
-    const upvotes = results.find(r => r.rating === 'up')?.count || 0;
-    const downvotes = results.find(r => r.rating === 'down')?.count || 0;
+    const upvotes = results.find((r: any) => r.rating === 'up')?.count || 0;
+    const downvotes = results.find((r: any) => r.rating === 'down')?.count || 0;
     const total = upvotes + downvotes;
 
     return {
@@ -205,8 +205,8 @@ export class FeedbackAnalytics {
 
       const results = await query.groupBy(feedback.rating);
       
-      const upvotes = results.find(r => r.rating === 'up')?.count || 0;
-      const downvotes = results.find(r => r.rating === 'down')?.count || 0;
+      const upvotes = results.find((r: any) => r.rating === 'up')?.count || 0;
+      const downvotes = results.find((r: any) => r.rating === 'down')?.count || 0;
       
       trends.push({
         date: startOfDay.toISOString().split('T')[0],
@@ -219,7 +219,7 @@ export class FeedbackAnalytics {
     return trends;
   }
 
-  private async getQualityMetrics(userId?: string, startDate?: Date) {
+  async getQualityMetrics(userId?: string, startDate?: Date) {
     let query = db
       .select({
         avg_quality: avg(replyHistory.qualityScore),
@@ -252,47 +252,6 @@ export class FeedbackAnalytics {
     };
   }
 
-  async getQualityMetrics(userId?: string, days: number = 30): Promise<QualityMetrics> {
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - days);
-    
-    // Validate startDate
-    if (isNaN(startDate.getTime())) {
-      console.error('Invalid startDate created:', startDate);
-      throw new Error('Invalid date range provided');
-    }
-
-    let query = db
-      .select({
-        avg_quality: avg(replyHistory.qualityScore),
-        high_quality: count(sql`CASE WHEN ${replyHistory.qualityScore} > 80 THEN 1 END`),
-        low_quality: count(sql`CASE WHEN ${replyHistory.qualityScore} < 60 THEN 1 END`),
-        total_replies: count(),
-        avg_latency: avg(replyEvents.latencyMs)
-      })
-      .from(replyHistory)
-      .leftJoin(replyEvents, eq(replyHistory.modelKey, replyEvents.modelKey));
-
-    if (userId) {
-      query = query.where(eq(replyHistory.userId, userId));
-    }
-
-    if (startDate) {
-      query = query.where(gte(replyHistory.createdAt, startDate));
-    }
-
-    const [result] = await query;
-
-    return {
-      avg_quality_score: Math.round(result.avg_quality || 0),
-      high_quality_replies: result.high_quality,
-      low_quality_replies: result.low_quality,
-      regeneration_rate: result.low_quality > 0 ? 
-        Math.round((result.low_quality / result.total_replies) * 100) : 0,
-      avg_latency: Math.round(result.avg_latency || 0),
-      cost_efficiency: 0 // Would need cost tracking to calculate
-    };
-  }
 
   async getLowPerformingPatterns(userId?: string, days: number = 30): Promise<string[]> {
     // This would analyze feedback comments and downvoted replies to find patterns
