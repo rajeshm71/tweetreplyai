@@ -198,16 +198,6 @@ export async function registerRoutes(app: Express): Promise<Express> {
     (req, res, next) => {
       console.log('=== GOOGLE OAUTH CALLBACK ===');
       console.log('Callback URL received:', req.url);
-      console.log('Full URL:', req.protocol + '://' + req.get('host') + req.originalUrl);
-      console.log('Query params:', req.query);
-      console.log('Expected callback URL:', process.env.GOOGLE_CALLBACK_URL);
-      
-      // Debug environment variables
-      console.log('=== ENVIRONMENT VARIABLES DEBUG ===');
-  console.log('SUPABASE_URL configured:', !!process.env.SUPABASE_URL);
-  console.log('SUPABASE_ANON_KEY configured:', !!process.env.SUPABASE_ANON_KEY);
-  console.log('SESSION_SECRET configured:', !!process.env.SESSION_SECRET);
-  console.log('NODE_ENV:', process.env.NODE_ENV);
       
       passport.authenticate('google', { 
         failureRedirect: '/login',
