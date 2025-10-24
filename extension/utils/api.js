@@ -12,7 +12,7 @@ export class ApiClient {
         chrome.runtime.sendMessage({ action: 'getApiDomain' }, resolve);
       });
       
-      const domain = response.domain || 'localhost:5000';
+      const domain = response.domain || 'tweetreplyai.vercel.app';
       const protocol = domain.includes('localhost') ? 'http' : 'https';
       this.baseUrl = `${protocol}://${domain}`;
     }
@@ -54,6 +54,10 @@ export class ApiClient {
         throw new Error('401: Unauthorized');
       }
       
+      if (response.status === 402) {
+        throw new Error('402: Payment required - quota exceeded');
+      }
+      
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(`${response.status}: ${errorText || response.statusText}`);
@@ -68,12 +72,22 @@ export class ApiClient {
       }
     } catch (error) {
       console.error(`API request failed: ${endpoint}`, error);
+      
+      // Add retry logic for network errors
+      if (error.name === 'TypeError' && error.message.includes('fetch')) {
+        throw new Error('Network error - please check your connection');
+      }
+      
       throw error;
     }
   }
 
   async getCurrentUser() {
     return this.makeRequest('/api/auth/user');
+  }
+
+  async getExtensionAuth() {
+    return this.makeRequest('/api/extension/auth');
   }
 
   async getUsage() {

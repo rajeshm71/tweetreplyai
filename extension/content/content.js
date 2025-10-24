@@ -73,15 +73,25 @@ class TwitterReplyInjector {
     const composerSelectors = [
       '[data-testid="tweetTextarea_0"]',
       '[data-testid="tweetTextarea_1"]',
+      '[data-testid="tweetTextarea_2"]',
       '[aria-label*="reply" i][contenteditable="true"]',
       '[aria-label*="post" i][contenteditable="true"]',
+      '[aria-label*="tweet" i][contenteditable="true"]',
       '.public-DraftEditor-content',
       '.DraftEditor-editorContainer',
+      '[data-testid="toolBar"] ~ div [contenteditable="true"]',
+      // Fallback selectors for different Twitter layouts
+      'div[contenteditable="true"][role="textbox"]',
+      'div[contenteditable="true"][data-testid]',
     ];
 
     composerSelectors.forEach(selector => {
-      const composers = container.querySelectorAll ? container.querySelectorAll(selector) : [];
-      composers.forEach(composer => this.injectSuggestButton(composer));
+      try {
+        const composers = container.querySelectorAll ? container.querySelectorAll(selector) : [];
+        composers.forEach(composer => this.injectSuggestButton(composer));
+      } catch (error) {
+        console.error('Error checking selectors:', selector, error);
+      }
     });
   }
 
@@ -362,9 +372,11 @@ class TwitterReplyInjector {
         this.isAuthenticated = false;
         this.showMessage(composer, 'Please sign in again', 'error');
       } else if (error.message.includes('402')) {
-        this.showMessage(composer, 'Quota exceeded', 'error');
+        this.showMessage(composer, 'Quota exceeded - upgrade your plan', 'error');
+      } else if (error.message.includes('Network error')) {
+        this.showMessage(composer, 'Network error - check your connection', 'error');
       } else {
-        this.showMessage(composer, 'Failed to generate reply', 'error');
+        this.showMessage(composer, `Failed to generate reply: ${error.message}`, 'error');
       }
     } finally {
       // Restore button

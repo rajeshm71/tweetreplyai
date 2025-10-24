@@ -84,10 +84,46 @@ class BackgroundManager {
           });
           
           console.log('Auth token stored from successful login');
+        } else {
+          // If we can't extract token directly, try to get it via API
+          await this.requestAuthFromWebApp(tabId);
         }
       } catch (error) {
         console.error('Failed to extract auth token:', error);
       }
+    }
+  }
+
+  async requestAuthFromWebApp(tabId) {
+    try {
+      // Execute script in the web app context to call our extension auth endpoint
+      const results = await chrome.scripting.executeScript({
+        target: { tabId },
+        function: async () => {
+          try {
+            const response = await fetch('/api/extension/auth', {
+              credentials: 'include'
+            });
+            if (response.ok) {
+              const data = await response.json();
+              return data;
+            }
+          } catch (error) {
+            console.error('Failed to get auth from web app:', error);
+          }
+          return null;
+        }
+      });
+      
+      if (results[0]?.result?.token) {
+        await chrome.storage.local.set({
+          authToken: results[0].result.token,
+          authTime: Date.now()
+        });
+        console.log('Auth token obtained from web app API');
+      }
+    } catch (error) {
+      console.error('Failed to request auth from web app:', error);
     }
   }
 
@@ -97,18 +133,25 @@ class BackgroundManager {
     const sources = [
       () => localStorage.getItem('auth_token'),
       () => localStorage.getItem('jwt_token'),
+      () => localStorage.getItem('token'),
       () => sessionStorage.getItem('auth_token'),
       () => sessionStorage.getItem('jwt_token'),
+      () => sessionStorage.getItem('token'),
       () => {
         // Try to extract from cookies
         const cookies = document.cookie.split(';');
         for (const cookie of cookies) {
           const [name, value] = cookie.trim().split('=');
-          if (name === 'auth_token' || name === 'jwt_token') {
+          if (name === 'auth_token' || name === 'jwt_token' || name === 'token') {
             return value;
           }
         }
         return null;
+      },
+      () => {
+        // Try to extract JWT from meta tags (alternative approach)
+        const metaToken = document.querySelector('meta[name="jwt-token"]');
+        return metaToken ? metaToken.getAttribute('content') : null;
       }
     ];
     
@@ -174,17 +217,17 @@ class BackgroundManager {
       let domain = result.apiDomain;
       
       if (!domain) {
-        // Try to detect the domain from REPLIT_DOMAINS or use default
-        domain = 'localhost:5000'; // Default for development
+        // Default to production API domain
+        domain = 'tweetreplyai.vercel.app'; // Default for production
         
-        // In production, this would be set during installation or configuration
+        // Store the default domain for future use
         await chrome.storage.local.set({ apiDomain: domain });
       }
       
       sendResponse({ domain });
     } catch (error) {
       console.error('Failed to get API domain:', error);
-      sendResponse({ domain: 'localhost:5000' });
+      sendResponse({ domain: 'tweetreplyai.vercel.app' });
     }
   }
 

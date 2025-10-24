@@ -228,6 +228,31 @@ export async function registerRoutes(app: Express): Promise<Express> {
     }
   });
 
+  // Extension authentication endpoint
+  app.get('/api/extension/auth', isAuthenticated, async (req: any, res) => {
+    try {
+      const user = await storage.getUser(getUserId(req));
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      // Return token for extension use
+      const token = req.headers.authorization?.replace('Bearer ', '') || req.cookies?.token;
+      res.json({ 
+        authenticated: true,
+        token: token,
+        user: {
+          id: user.id,
+          email: user.email,
+          authProviders: user.authProviders || [],
+        }
+      });
+    } catch (error) {
+      console.error("Error getting extension auth:", error);
+      res.status(500).json({ message: "Failed to get auth status" });
+    }
+  });
+
   // Usage and quota routes
   app.get('/api/usage', isAuthenticated, async (req: any, res) => {
     try {

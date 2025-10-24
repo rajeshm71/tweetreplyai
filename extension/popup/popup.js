@@ -224,7 +224,7 @@ class PopupManager {
     try {
       // Open the web app for authentication
       const domains = await this.getDomains();
-      const domain = domains[0] || 'localhost:5000';
+      const domain = domains[0] || 'tweetreplyai.vercel.app';
       const protocol = domain.includes('localhost') ? 'http' : 'https';
       const loginUrl = `${protocol}://${domain}/api/login`;
       
@@ -262,7 +262,7 @@ class PopupManager {
   async handleOpenWebApp() {
     try {
       const domains = await this.getDomains();
-      const domain = domains[0] || 'localhost:5000';
+      const domain = domains[0] || 'tweetreplyai.vercel.app';
       const protocol = domain.includes('localhost') ? 'http' : 'https';
       const webAppUrl = `${protocol}://${domain}/app`;
       
@@ -287,7 +287,7 @@ class PopupManager {
   async handleUpgrade() {
     try {
       const domains = await this.getDomains();
-      const domain = domains[0] || 'localhost:5000';
+      const domain = domains[0] || 'tweetreplyai.vercel.app';
       const protocol = domain.includes('localhost') ? 'http' : 'https';
       const pricingUrl = `${protocol}://${domain}/pricing`;
       
@@ -523,16 +523,16 @@ class PopupManager {
   async getDomains() {
     try {
       // Try to get domains from storage or environment
-      const result = await chrome.storage.local.get(['domains']);
-      if (result.domains && result.domains.length > 0) {
-        return result.domains;
+      const result = await chrome.storage.local.get(['apiDomain']);
+      if (result.apiDomain) {
+        return [result.apiDomain];
       }
       
-      // Fallback to common patterns
-      return ['localhost:5000'];
+      // Fallback to production domain
+      return ['tweetreplyai.vercel.app'];
     } catch (error) {
       console.error('Failed to get domains:', error);
-      return ['localhost:5000'];
+      return ['tweetreplyai.vercel.app'];
     }
   }
 }
