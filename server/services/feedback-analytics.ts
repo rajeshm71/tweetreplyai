@@ -1,7 +1,5 @@
 import { storage } from '../storage.js';
-import { db } from '../db.js';
-import { feedback, replyEvents, replyHistory } from '../../shared/schema.js';
-import { eq, and, desc, gte, sql, count, avg } from 'drizzle-orm';
+import { supabase } from '../supabase.js';
 
 export interface FeedbackStats {
   overall_quality: {
@@ -81,26 +79,24 @@ export class FeedbackAnalytics {
   }
 
   private async getOverallFeedbackStats(userId?: string, startDate?: Date) {
-    let query = db
-      .select({
-        rating: feedback.rating,
-        count: count()
-      })
-      .from(feedback)
-      .innerJoin(replyEvents, eq(feedback.replyEventId, replyEvents.id));
-
-    if (userId) {
-      query = query.where(eq(replyEvents.userId, userId));
-    }
+    let query = supabase
+      .from('feedback')
+      .select('rating, reply_events!inner(user_id)')
+      .eq('reply_events.user_id', userId);
 
     if (startDate) {
-      query = query.where(gte(feedback.createdAt, startDate));
+      query = query.gte('created_at', startDate.toISOString());
     }
 
-    const results = await query.groupBy(feedback.rating);
+    const { data, error } = await query;
+    
+    if (error) {
+      console.error('Error fetching feedback stats:', error);
+      return { upvotes: 0, downvotes: 0, upvote_percentage: 0 };
+    }
 
-    const upvotes = results.find((r: any) => r.rating === 'up')?.count || 0;
-    const downvotes = results.find((r: any) => r.rating === 'down')?.count || 0;
+    const upvotes = data?.filter((r: any) => r.rating === 'up').length || 0;
+    const downvotes = data?.filter((r: any) => r.rating === 'down').length || 0;
     const total = upvotes + downvotes;
 
     return {
@@ -117,54 +113,57 @@ export class FeedbackAnalytics {
   }
 
   private async getStatsByModel(userId?: string, startDate?: Date) {
-    let query = db
-      .select({
-        modelKey: replyEvents.modelKey,
-        rating: feedback.rating,
-        count: count(),
-        avg_latency: avg(replyEvents.latencyMs)
-      })
-      .from(feedback)
-      .innerJoin(replyEvents, eq(feedback.replyEventId, replyEvents.id));
-
-    if (userId) {
-      query = query.where(eq(replyEvents.userId, userId));
-    }
+    let query = supabase
+      .from('feedback')
+      .select('rating, reply_events!inner(user_id, model_key, latency_ms)')
+      .eq('reply_events.user_id', userId);
 
     if (startDate) {
-      query = query.where(gte(feedback.createdAt, startDate));
+      query = query.gte('created_at', startDate.toISOString());
     }
 
-    const results = await query.groupBy(replyEvents.modelKey, feedback.rating);
+    const { data, error } = await query;
+    
+    if (error) {
+      console.error('Error fetching model stats:', error);
+      return {};
+    }
 
     // Group by model
     const modelStats: Record<string, any> = {};
     
-    for (const result of results) {
-      if (!modelStats[result.modelKey]) {
-        modelStats[result.modelKey] = {
+    for (const item of data || []) {
+      const modelKey = item.reply_events?.model_key || 'unknown';
+      const rating = item.rating;
+      const latency = item.reply_events?.latency_ms || 0;
+      
+      if (!modelStats[modelKey]) {
+        modelStats[modelKey] = {
           upvotes: 0,
           downvotes: 0,
           total_replies: 0,
-          avg_latency: 0
+          avg_latency: 0,
+          latency_sum: 0
         };
       }
       
-      if (result.rating === 'up') {
-        modelStats[result.modelKey].upvotes = result.count;
-      } else if (result.rating === 'down') {
-        modelStats[result.modelKey].downvotes = result.count;
+      if (rating === 'up') {
+        modelStats[modelKey].upvotes++;
+      } else if (rating === 'down') {
+        modelStats[modelKey].downvotes++;
       }
       
-      modelStats[result.modelKey].total_replies += result.count;
-      modelStats[result.modelKey].avg_latency = result.avg_latency || 0;
+      modelStats[modelKey].total_replies++;
+      modelStats[modelKey].latency_sum += latency;
     }
 
-    // Calculate percentages
+    // Calculate percentages and average latency
     for (const model in modelStats) {
       const stats = modelStats[model];
       const total = stats.upvotes + stats.downvotes;
       stats.upvote_percentage = total > 0 ? Math.round((stats.upvotes / total) * 100) : 0;
+      stats.avg_latency = stats.total_replies > 0 ? Math.round(stats.latency_sum / stats.total_replies) : 0;
+      delete stats.latency_sum; // Clean up
     }
 
     return modelStats;
@@ -185,28 +184,22 @@ export class FeedbackAnalytics {
         continue;
       }
 
-      let query = db
-        .select({
-          rating: feedback.rating,
-          count: count()
-        })
-        .from(feedback)
-        .innerJoin(replyEvents, eq(feedback.replyEventId, replyEvents.id))
-        .where(
-          and(
-            gte(feedback.createdAt, startOfDay),
-            sql`${feedback.createdAt} < ${endOfDay}`
-          )
-        );
+      let query = supabase
+        .from('feedback')
+        .select('rating, reply_events!inner(user_id)')
+        .eq('reply_events.user_id', userId)
+        .gte('created_at', startOfDay.toISOString())
+        .lt('created_at', endOfDay.toISOString());
 
-      if (userId) {
-        query = query.where(eq(replyEvents.userId, userId));
-      }
-
-      const results = await query.groupBy(feedback.rating);
+      const { data, error } = await query;
       
-      const upvotes = results.find((r: any) => r.rating === 'up')?.count || 0;
-      const downvotes = results.find((r: any) => r.rating === 'down')?.count || 0;
+      if (error) {
+        console.error('Error fetching trends for date:', startOfDay.toISOString(), error);
+        continue;
+      }
+      
+      const upvotes = data?.filter((r: any) => r.rating === 'up').length || 0;
+      const downvotes = data?.filter((r: any) => r.rating === 'down').length || 0;
       
       trends.push({
         date: startOfDay.toISOString().split('T')[0],
@@ -220,34 +213,42 @@ export class FeedbackAnalytics {
   }
 
   async getQualityMetrics(userId?: string, startDate?: Date) {
-    let query = db
-      .select({
-        avg_quality: avg(replyHistory.qualityScore),
-        high_quality: count(sql`CASE WHEN ${replyHistory.qualityScore} > 80 THEN 1 END`),
-        low_quality: count(sql`CASE WHEN ${replyHistory.qualityScore} < 60 THEN 1 END`),
-        total_replies: count()
-      })
-      .from(replyHistory);
-
-    if (userId) {
-      query = query.where(eq(replyHistory.userId, userId));
-    }
+    let query = supabase
+      .from('reply_history')
+      .select('quality_score, created_at')
+      .eq('user_id', userId);
 
     if (startDate) {
-      query = query.where(gte(replyHistory.createdAt, startDate));
+      query = query.gte('created_at', startDate.toISOString());
     }
 
-    const [result] = await query;
+    const { data, error } = await query;
+    
+    if (error) {
+      console.error('Error fetching quality metrics:', error);
+      return {
+        avg_quality_score: 0,
+        high_quality_replies: 0,
+        low_quality_replies: 0,
+        regeneration_rate: 0
+      };
+    }
+
+    const scores = data?.map((r: any) => r.quality_score).filter((s: number) => s != null) || [];
+    const avgQuality = scores.length > 0 ? scores.reduce((a: number, b: number) => a + b, 0) / scores.length : 0;
+    const highQuality = scores.filter((s: number) => s > 80).length;
+    const lowQuality = scores.filter((s: number) => s < 60).length;
+    const totalReplies = scores.length;
 
     // Calculate regeneration rate (this would need to be tracked in replyEvents)
     // For now, estimate based on quality scores
-    const regenerationRate = result.low_quality > 0 ? 
-      Math.round((result.low_quality / result.total_replies) * 100) : 0;
+    const regenerationRate = lowQuality > 0 ? 
+      Math.round((lowQuality / totalReplies) * 100) : 0;
 
     return {
-      avg_quality_score: Math.round(result.avg_quality || 0),
-      high_quality_replies: result.high_quality,
-      low_quality_replies: result.low_quality,
+      avg_quality_score: Math.round(avgQuality),
+      high_quality_replies: highQuality,
+      low_quality_replies: lowQuality,
       regeneration_rate: regenerationRate
     };
   }
