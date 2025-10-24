@@ -69,15 +69,19 @@ export class UsageService {
 
   async getUsageStatus(userId: string): Promise<UsageStatus | null> {
     console.log('=== USAGE: getUsageStatus called ===');
+    console.log('User ID:', userId);
+    
     const user = await storage.getUser(userId);
+    console.log('User lookup result:', user);
+    
     if (!user) {
-      console.log('User not found');
+      console.log('User not found - returning null');
       return null;
     }
 
-    console.log('User found:', user.id);
+    console.log('User found:', user.id, user.email);
     const window = await this.resolveActiveWindow(user);
-    console.log('Active window:', window);
+    console.log('Active window result:', window);
     
     // resolveActiveWindow always returns a window, so this check is unnecessary
     // but keeping it for safety in case the method is modified in the future
