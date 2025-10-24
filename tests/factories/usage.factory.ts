@@ -1,4 +1,4 @@
-import type { UsageCounter, InsertUsageCounter } from '../../shared/schema';
+import type { UsageCounter, InsertUsageCounter } from '../../shared/types';
 
 export const createMockUsageCounter = (overrides: Partial<InsertUsageCounter> = {}): InsertUsageCounter => ({
   userId: `test-user-${Date.now()}`,

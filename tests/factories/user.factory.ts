@@ -1,4 +1,4 @@
-import type { User, UpsertUser } from '../../shared/schema';
+import type { User, UpsertUser } from '../../shared/types';
 
 export const createMockUser = (overrides: Partial<UpsertUser> = {}): UpsertUser => ({
   id: `test-user-${Date.now()}`,

@@ -1,4 +1,4 @@
-import type { Subscription, InsertSubscription } from '../../shared/schema';
+import type { Subscription, InsertSubscription } from '../../shared/types';
 
 export const createMockSubscription = (overrides: Partial<InsertSubscription> = {}): InsertSubscription => ({
   userId: `test-user-${Date.now()}`,
