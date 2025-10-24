@@ -20,13 +20,21 @@ if (process.env.DATABASE_URL) {
   // Convert direct connection URL to pooled connection URL for serverless
   let connectionUrl = process.env.DATABASE_URL;
   
+  console.log('=== DATABASE_URL DEBUG ===');
+  console.log('Original DATABASE_URL:', connectionUrl.replace(/\/\/.*@/, '//***:***@')); // Hide credentials
+  console.log('Contains port 5432:', connectionUrl.includes(':5432'));
+  console.log('Contains port 6543:', connectionUrl.includes(':6543'));
+  console.log('Contains pooler:', connectionUrl.includes('pooler'));
+  console.log('Contains aws-0:', connectionUrl.includes('aws-0'));
+  
   // If it's a direct connection (port 5432), convert to pooled (port 6543)
   if (connectionUrl.includes(':5432')) {
     connectionUrl = connectionUrl.replace(':5432', ':6543');
     console.log('Converted to pooled connection URL for serverless');
+    console.log('Converted URL:', connectionUrl.replace(/\/\/.*@/, '//***:***@')); // Hide credentials
   }
   
-  console.log('Using database connection URL:', connectionUrl.replace(/\/\/.*@/, '//***:***@')); // Hide credentials in logs
+  console.log('Final connection URL:', connectionUrl.replace(/\/\/.*@/, '//***:***@')); // Hide credentials in logs
   
   queryClient = postgres(connectionUrl, {
     max: 5, // Reduce max connections for serverless

@@ -46,6 +46,17 @@ app.use((req, res, next) => {
   console.log('DATABASE_URL configured:', !!process.env.DATABASE_URL);
   console.log('SUPABASE_URL configured:', !!process.env.SUPABASE_URL);
   
+  // Debug DATABASE_URL format
+  if (process.env.DATABASE_URL) {
+    console.log('DATABASE_URL format check:');
+    console.log('- Contains postgres://:', process.env.DATABASE_URL.includes('postgres://'));
+    console.log('- Contains :5432:', process.env.DATABASE_URL.includes(':5432'));
+    console.log('- Contains :6543:', process.env.DATABASE_URL.includes(':6543'));
+    console.log('- Contains pooler:', process.env.DATABASE_URL.includes('pooler'));
+    console.log('- Contains aws-0:', process.env.DATABASE_URL.includes('aws-0'));
+    console.log('- URL preview:', process.env.DATABASE_URL.replace(/\/\/.*@/, '//***:***@'));
+  }
+  
   try {
     const server = await registerRoutes(app);
     console.log('Routes registered successfully');
