@@ -11,7 +11,33 @@ import { usageService } from "./services/usage.js";
 import { z, ZodError } from "zod";
 import passport from "passport";
 import session from "express-session";
+import jwt from "jsonwebtoken";
 // connect-pg-simple is only used in replitAuth.ts for Replit sessions
+
+// JWT-based authentication for serverless environments
+const jwtIsAuthenticated = (req: any, res: any, next: any) => {
+  const token = req.headers.authorization?.replace('Bearer ', '') || req.cookies?.token;
+  
+  if (!token) {
+    console.log('No token found, checking session auth');
+    // Fallback to session-based auth
+    if (!req.isAuthenticated()) {
+      console.log('User not authenticated, returning 401');
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    return next();
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.SESSION_SECRET || 'dev-secret');
+    req.user = decoded;
+    console.log('JWT authentication successful');
+    return next();
+  } catch (error) {
+    console.log('JWT verification failed:', error.message);
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+};
 
 // Local auth helpers for development
 const localIsAuthenticated = (req: any, res: any, next: any) => {
@@ -34,8 +60,8 @@ const localGetUserId = (req: any): string => {
   return user.id;
 };
 
-// Using local auth only
-const isAuthenticated = localIsAuthenticated;
+// Use JWT-based auth for serverless environments
+const isAuthenticated = jwtIsAuthenticated;
 const getUserId = localGetUserId;
 
 // Export alias for tests
@@ -143,7 +169,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (err) {
           return res.status(500).json({ message: 'Login after registration failed' });
         }
-        return res.json({ user, message: 'Registration successful' });
+        // Generate JWT token for serverless environments
+        const token = jwt.sign(
+          { id: user.id, email: user.email },
+          process.env.SESSION_SECRET || 'dev-secret',
+          { expiresIn: '7d' }
+        );
+        res.cookie('token', token, { httpOnly: true, secure: true, sameSite: 'strict' });
+        return res.json({ user, token, message: 'Registration successful' });
       });
     })(req, res, next);
   });
@@ -160,7 +193,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (err) {
           return res.status(500).json({ message: 'Login failed' });
         }
-        return res.json({ user, message: 'Login successful' });
+        // Generate JWT token for serverless environments
+        const token = jwt.sign(
+          { id: user.id, email: user.email },
+          process.env.SESSION_SECRET || 'dev-secret',
+          { expiresIn: '7d' }
+        );
+        res.cookie('token', token, { httpOnly: true, secure: true, sameSite: 'strict' });
+        return res.json({ user, token, message: 'Login successful' });
       });
     })(req, res, next);
   });
@@ -182,6 +222,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     },
     (req, res) => {
       console.log('Google auth successful, user:', req.user);
+      // Generate JWT token for serverless environments
+      const user = req.user as any;
+      const token = jwt.sign(
+        { id: user.id, email: user.email },
+        process.env.SESSION_SECRET || 'dev-secret',
+        { expiresIn: '7d' }
+      );
+      res.cookie('token', token, { httpOnly: true, secure: true, sameSite: 'strict' });
       res.redirect('/');
     }
   );
@@ -195,6 +243,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(500).json({ message: 'Logout failed' });
       }
       console.log('Logout successful');
+      res.clearCookie('token'); // Clear JWT token
       res.json({ success: true });
     });
   });
