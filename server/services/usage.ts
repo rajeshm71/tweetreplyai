@@ -70,6 +70,7 @@ export class UsageService {
   async getUsageStatus(userId: string): Promise<UsageStatus | null> {
     console.log('=== USAGE: getUsageStatus called ===');
     console.log('User ID:', userId);
+    console.log('=== USAGE: About to call storage.getUser ===');
     
     const user = await storage.getUser(userId);
     console.log('User lookup result:', user);

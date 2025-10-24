@@ -283,16 +283,24 @@ export async function registerRoutes(app: Express): Promise<Express> {
 
   // Usage and quota routes
   app.get('/api/usage', isAuthenticated, async (req: any, res) => {
+    console.log('=== USAGE API ENDPOINT CALLED ===');
     try {
       const userId = getUserId(req);
+      console.log('=== USAGE API: User ID extracted ===', userId);
+      
+      console.log('=== USAGE API: Calling usageService.getUsageStatus ===');
       const status = await usageService.getUsageStatus(userId);
+      console.log('=== USAGE API: getUsageStatus returned ===', status);
       
       if (!status) {
+        console.log('=== USAGE API: Status is null/undefined, returning 404 ===');
         return res.status(404).json({ message: "User not found" });
       }
 
+      console.log('=== USAGE API: Returning status ===', status);
       res.json(status);
     } catch (error) {
+      console.error("=== USAGE API: Error occurred ===", error);
       console.error("Error fetching usage:", error);
       res.status(500).json({ message: "Failed to fetch usage" });
     }

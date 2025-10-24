@@ -21,11 +21,16 @@ export class SupabaseStorage implements IStorage {
   // User operations
   async getUser(id: string): Promise<User | undefined> {
     console.log('=== SUPABASE: getUser called (line 23) ===');
+    console.log('User ID:', id);
+    
     const { data, error } = await supabase
       .from('users')
       .select('id, email, password_hash, google_sub, replit_sub, auth_providers, created_at, updated_at')
       .eq('id', id)
       .single();
+    
+    console.log('Supabase query result - data:', data);
+    console.log('Supabase query result - error:', error);
     
     if (error) {
       console.error('Supabase getUser error (line 31):', error);
@@ -33,7 +38,7 @@ export class SupabaseStorage implements IStorage {
     }
     
     // Map database fields to our User interface
-    return {
+    const user = {
       id: data.id,
       email: data.email,
       password: data.password_hash,
@@ -43,6 +48,9 @@ export class SupabaseStorage implements IStorage {
       createdAt: new Date(data.created_at),
       updatedAt: new Date(data.updated_at)
     } as User;
+    
+    console.log('Mapped user object:', user);
+    return user;
   }
 
   async getUserByEmail(email: string): Promise<User | undefined> {
