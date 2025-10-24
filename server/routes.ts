@@ -90,6 +90,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   };
 
   // Force database session store in production if SUPABASE_URL is available
+  console.log('SUPABASE_URL:', process.env.SUPABASE_URL);
   if (process.env.SUPABASE_URL) {
     try {
       // Use database session store for production
@@ -212,14 +213,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Google OAuth routes
-  app.get('/api/auth/google', passport.authenticate('google', {
-    scope: ['profile', 'email']
-  }));
+  app.get('/api/auth/google', (req, res, next) => {
+    console.log('=== GOOGLE OAUTH INITIATION ===');
+    console.log('Request URL:', req.url);
+    console.log('Request headers:', req.headers);
+    console.log('Current callback URL from env:', process.env.GOOGLE_CALLBACK_URL);
+    
+    passport.authenticate('google', {
+      scope: ['profile', 'email']
+    })(req, res, next);
+  });
 
   app.get('/api/auth/google/callback',
     (req, res, next) => {
-      console.log('Google callback received:', req.url);
+      console.log('=== GOOGLE OAUTH CALLBACK ===');
+      console.log('Callback URL received:', req.url);
+      console.log('Full URL:', req.protocol + '://' + req.get('host') + req.originalUrl);
       console.log('Query params:', req.query);
+      console.log('Expected callback URL:', process.env.GOOGLE_CALLBACK_URL);
       
       passport.authenticate('google', { 
         failureRedirect: '/login',

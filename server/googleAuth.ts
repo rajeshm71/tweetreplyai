@@ -15,6 +15,16 @@ export function setupGoogleAuth() {
   console.log('GOOGLE_CLIENT_SECRET configured:', !!process.env.GOOGLE_CLIENT_SECRET);
   console.log('GOOGLE_CALLBACK_URL:', callbackURL);
   console.log('NODE_ENV:', process.env.NODE_ENV);
+  console.log('All environment variables with GOOGLE:', Object.keys(process.env).filter(key => key.includes('GOOGLE')));
+  
+  if (!callbackURL) {
+    console.error('GOOGLE_CALLBACK_URL is not set! This will cause OAuth to fail.');
+    return;
+  }
+  
+  if (callbackURL.includes('localhost')) {
+    console.error('WARNING: GOOGLE_CALLBACK_URL contains localhost! This will not work in production.');
+  }
 
   passport.use(new GoogleStrategy(
     {
