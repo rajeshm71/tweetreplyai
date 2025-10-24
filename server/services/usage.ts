@@ -1,6 +1,7 @@
 import { storage } from "../storage.js";
 import { PLANS } from "./stripe.js";
 import type { User, UsageCounter } from "../../shared/types.js";
+import crypto from "crypto";
 
 export interface UsageWindow {
   planCode: string;
@@ -31,30 +32,39 @@ export class UsageService {
 
   async resolveActiveWindow(user: User): Promise<UsageWindow | null> {
     const now = new Date();
+    console.log('=== USAGE: resolveActiveWindow called ===');
+    console.log('User ID:', user.id);
 
     // Check for active paid subscription first
     const activeSubscription = await storage.getActiveSubscription(user.id);
+    console.log('Active subscription:', activeSubscription);
+    
     if (activeSubscription && activeSubscription.currentPeriodEnd > now) {
       const plan = PLANS[activeSubscription.planCode];
+      console.log('Plan found:', plan);
       if (plan) {
-        return {
+        const result = {
           planCode: activeSubscription.planCode,
           periodStart: activeSubscription.currentPeriodStart,
           periodEnd: activeSubscription.currentPeriodEnd,
           limit: plan.replies,
           resetAt: activeSubscription.currentPeriodEnd,
         };
+        console.log('Returning paid subscription window:', result);
+        return result;
       }
     }
 
     // For all other users (trial, no trial, etc.), give a very high limit for testing
-    return {
+    const fallbackResult = {
       planCode: 'testing',
       periodStart: this.getTodayStart(),
       periodEnd: this.getTodayEnd(),
       limit: 50000, // Very high limit for testing
       resetAt: this.getTodayEnd(),
     };
+    console.log('Returning fallback testing window:', fallbackResult);
+    return fallbackResult;
   }
 
   async getUsageStatus(userId: string): Promise<UsageStatus | null> {
@@ -69,6 +79,8 @@ export class UsageService {
     const window = await this.resolveActiveWindow(user);
     console.log('Active window:', window);
     
+    // resolveActiveWindow always returns a window, so this check is unnecessary
+    // but keeping it for safety in case the method is modified in the future
     if (!window) {
       console.log('No active window - returning no access');
       return {
@@ -84,6 +96,7 @@ export class UsageService {
     let counter = await storage.getUsageCounter(userId, window.periodStart);
     if (!counter) {
       counter = await storage.createUsageCounter({
+        id: crypto.randomUUID(),
         userId,
         planCode: window.planCode,
         periodStart: window.periodStart,
@@ -94,7 +107,7 @@ export class UsageService {
       });
     }
 
-    const result = {
+    const result: UsageStatus = {
       planCode: window.planCode,
       used: counter.repliesUsed,
       limit: counter.limit,
@@ -135,6 +148,7 @@ export class UsageService {
     let counter = await storage.getUsageCounter(userId, window.periodStart);
     if (!counter) {
       counter = await storage.createUsageCounter({
+        id: crypto.randomUUID(),
         userId,
         planCode: window.planCode,
         periodStart: window.periodStart,
@@ -156,18 +170,21 @@ export class UsageService {
 
   async initializeTrialForUser(userId: string): Promise<void> {
     const user = await storage.getUser(userId);
-    if (!user || user.trialStart) {
-      return; // Trial already initialized or user not found
+    if (!user) {
+      return; // User not found
     }
 
-    const now = new Date();
-    const trialEnd = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 days
+    // Check if user already has a trial period by looking at their usage counters
+    const todayStart = this.getTodayStart();
+    const existingCounter = await storage.getUsageCounter(userId, todayStart);
+    
+    if (existingCounter && existingCounter.planCode === 'trial') {
+      return; // Trial already initialized
+    }
 
-    await storage.upsertUser({
-      ...user,
-      trialStart: now,
-      trialEnd,
-    });
+    // For now, we'll use the testing plan instead of a separate trial
+    // This gives users the high limit without needing trial-specific logic
+    console.log('Trial initialization skipped - using testing plan instead');
   }
 }
 

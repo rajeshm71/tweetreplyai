@@ -25,6 +25,7 @@ export interface Subscription {
   id: string;
   userId: string;
   stripeSubscriptionId: string;
+  planCode: string;
   status: 'active' | 'canceled' | 'past_due' | 'unpaid';
   currentPeriodStart: Date;
   currentPeriodEnd: Date;
@@ -36,6 +37,7 @@ export interface InsertSubscription {
   id: string;
   userId: string;
   stripeSubscriptionId: string;
+  planCode: string;
   status: 'active' | 'canceled' | 'past_due' | 'unpaid';
   currentPeriodStart: Date;
   currentPeriodEnd: Date;
@@ -46,8 +48,12 @@ export interface InsertSubscription {
 export interface UsageCounter {
   id: string;
   userId: string;
+  planCode: string;
   periodStart: Date;
+  periodEnd: Date;
   repliesUsed: number;
+  limit: number;
+  resetAt: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -55,8 +61,12 @@ export interface UsageCounter {
 export interface InsertUsageCounter {
   id: string;
   userId: string;
+  planCode: string;
   periodStart: Date;
+  periodEnd: Date;
   repliesUsed: number;
+  limit: number;
+  resetAt: Date;
   createdAt?: Date;
   updatedAt?: Date;
 }
