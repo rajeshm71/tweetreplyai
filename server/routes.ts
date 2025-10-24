@@ -15,6 +15,7 @@ import jwt from "jsonwebtoken";
 
 // JWT-based authentication for serverless environments
 const jwtIsAuthenticated = (req: any, res: any, next: any) => {
+  // CACHE BUST - v2.0
   const token = req.headers.authorization?.replace('Bearer ', '') || req.cookies?.token;
   
   if (!token) {
