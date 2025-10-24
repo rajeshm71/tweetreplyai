@@ -20,7 +20,7 @@ import type { IStorage } from "./storage.js";
 export class SupabaseStorage implements IStorage {
   // User operations
   async getUser(id: string): Promise<User | undefined> {
-    console.log('=== SUPABASE: getUser called ===');
+    console.log('=== SUPABASE: getUser called (line 23) ===');
     const { data, error } = await supabase
       .from('users')
       .select('id, email, password_hash, google_sub, replit_sub, auth_providers, created_at, updated_at')
@@ -28,7 +28,7 @@ export class SupabaseStorage implements IStorage {
       .single();
     
     if (error) {
-      console.error('Supabase getUser error:', error);
+      console.error('Supabase getUser error (line 31):', error);
       return undefined;
     }
     
@@ -46,7 +46,7 @@ export class SupabaseStorage implements IStorage {
   }
 
   async getUserByEmail(email: string): Promise<User | undefined> {
-    console.log('=== SUPABASE: getUserByEmail called ===');
+    console.log('=== SUPABASE: getUserByEmail called (line 49) ===');
     const { data, error } = await supabase
       .from('users')
       .select('id, email, password_hash, google_sub, replit_sub, auth_providers, created_at, updated_at')
@@ -55,7 +55,7 @@ export class SupabaseStorage implements IStorage {
     
     if (error) {
       if (error.code !== 'PGRST116') { // Not found error
-        console.error('Supabase getUserByEmail error:', error);
+        console.error('Supabase getUserByEmail error (line 58):', error);
       }
       return undefined;
     }
@@ -74,7 +74,7 @@ export class SupabaseStorage implements IStorage {
   }
 
   async getUserByGoogleSub(googleSub: string): Promise<User | undefined> {
-    console.log('=== SUPABASE: getUserByGoogleSub called ===');
+    console.log('=== SUPABASE: getUserByGoogleSub called (line 77) ===');
     const { data, error } = await supabase
       .from('users')
       .select('id, email, password_hash, google_sub, replit_sub, auth_providers, created_at, updated_at')
@@ -83,7 +83,7 @@ export class SupabaseStorage implements IStorage {
     
     if (error) {
       if (error.code !== 'PGRST116') { // Not found error
-        console.error('Supabase getUserByGoogleSub error:', error);
+        console.error('Supabase getUserByGoogleSub error (line 86):', error);
       }
       return undefined;
     }
@@ -110,7 +110,7 @@ export class SupabaseStorage implements IStorage {
     
     if (error) {
       if (error.code !== 'PGRST116') {
-        console.error('Supabase getUserByReplitSub error:', error);
+        console.error('Supabase getUserByReplitSub error (line 113):', error);
       }
       return undefined;
     }
@@ -129,7 +129,7 @@ export class SupabaseStorage implements IStorage {
   }
 
   async upsertUser(userData: UpsertUser): Promise<User> {
-    console.log('=== SUPABASE: upsertUser called ===');
+    console.log('=== SUPABASE: upsertUser called (line 132) ===');
     
     // Map our User interface fields to database fields
     const dbData = {
@@ -150,7 +150,7 @@ export class SupabaseStorage implements IStorage {
       .single();
     
     if (error) {
-      console.error('Supabase upsertUser error:', error);
+      console.error('Supabase upsertUser error (line 153):', error);
       throw error;
     }
     
@@ -187,7 +187,7 @@ export class SupabaseStorage implements IStorage {
       .single();
     
     if (error) {
-      console.error('Supabase updateUser error:', error);
+      console.error('Supabase updateUser error (line 190):', error);
       throw error;
     }
     
@@ -237,7 +237,7 @@ export class SupabaseStorage implements IStorage {
     
     if (error) {
       if (error.code !== 'PGRST116') {
-        console.error('Supabase getActiveSubscription error:', error);
+        console.error('Supabase getActiveSubscription error (line 240):', error);
       }
       return undefined;
     }
@@ -252,7 +252,7 @@ export class SupabaseStorage implements IStorage {
       .single();
     
     if (error) {
-      console.error('Supabase createSubscription error:', error);
+      console.error('Supabase createSubscription error (line 255):', error);
       throw error;
     }
     return data as Subscription;
@@ -265,7 +265,7 @@ export class SupabaseStorage implements IStorage {
       .eq('id', subscriptionId);
     
     if (error) {
-      console.error('Supabase updateSubscription error:', error);
+      console.error('Supabase updateSubscription error (line 268):', error);
       throw error;
     }
   }
@@ -279,7 +279,7 @@ export class SupabaseStorage implements IStorage {
     
     if (error) {
       if (error.code !== 'PGRST116') {
-        console.error('Supabase getSubscriptionByStripeId error:', error);
+        console.error('Supabase getSubscriptionByStripeId error (line 282):', error);
       }
       return undefined;
     }
@@ -297,7 +297,7 @@ export class SupabaseStorage implements IStorage {
     
     if (error) {
       if (error.code !== 'PGRST116') {
-        console.error('Supabase getUsageCounter error:', error);
+        console.error('Supabase getUsageCounter error (line 300):', error);
       }
       return undefined;
     }
@@ -312,7 +312,7 @@ export class SupabaseStorage implements IStorage {
       .single();
     
     if (error) {
-      console.error('Supabase createUsageCounter error:', error);
+      console.error('Supabase createUsageCounter error (line 315):', error);
       throw error;
     }
     return data as UsageCounter;
@@ -337,7 +337,7 @@ export class SupabaseStorage implements IStorage {
         .single();
       
       if (error) {
-        console.error('Supabase incrementUsage error:', error);
+        console.error('Supabase incrementUsage error (line 340):', error);
         throw error;
       }
       counter = data as UsageCounter;
@@ -355,7 +355,7 @@ export class SupabaseStorage implements IStorage {
       .single();
     
     if (error) {
-      console.error('Supabase createReplyEvent error:', error);
+      console.error('Supabase createReplyEvent error (line 358):', error);
       throw error;
     }
     return data as ReplyEvent;
@@ -370,7 +370,7 @@ export class SupabaseStorage implements IStorage {
       .single();
     
     if (error) {
-      console.error('Supabase createFeedback error:', error);
+      console.error('Supabase createFeedback error (line 373):', error);
       throw error;
     }
     return data as Feedback;
@@ -385,7 +385,7 @@ export class SupabaseStorage implements IStorage {
       .single();
     
     if (error) {
-      console.error('Supabase createReplyHistory error:', error);
+      console.error('Supabase createReplyHistory error (line 388):', error);
       throw error;
     }
     return data as ReplyHistory;
@@ -400,7 +400,7 @@ export class SupabaseStorage implements IStorage {
       .limit(limit);
     
     if (error) {
-      console.error('Supabase getReplyHistory error:', error);
+      console.error('Supabase getReplyHistory error (line 404):', error);
       return [];
     }
     return data as ReplyHistory[];
@@ -416,7 +416,7 @@ export class SupabaseStorage implements IStorage {
       .eq('id', replyHistoryId);
     
     if (error) {
-      console.error('Supabase markReplyAsUsed error:', error);
+      console.error('Supabase markReplyAsUsed error (line 420):', error);
       throw error;
     }
   }
@@ -428,7 +428,7 @@ export class SupabaseStorage implements IStorage {
       .eq('id', replyHistoryId);
     
     if (error) {
-      console.error('Supabase updateReplyPerformance error:', error);
+      console.error('Supabase updateReplyPerformance error (line 432):', error);
       throw error;
     }
   }
@@ -443,7 +443,7 @@ export class SupabaseStorage implements IStorage {
     
     if (error) {
       if (error.code !== 'PGRST116') {
-        console.error('Supabase getUserPreferences error:', error);
+        console.error('Supabase getUserPreferences error (line 446):', error);
       }
       return undefined;
     }
@@ -458,7 +458,7 @@ export class SupabaseStorage implements IStorage {
       .single();
     
     if (error) {
-      console.error('Supabase upsertUserPreferences error:', error);
+      console.error('Supabase upsertUserPreferences error (line 461):', error);
       throw error;
     }
     return data as UserPreferences;
