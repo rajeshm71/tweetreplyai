@@ -479,7 +479,7 @@ export class SupabaseStorage implements IStorage {
       original_tweet: replyHistory.originalTweet,
       generated_reply: replyHistory.generatedReply,
       model_key: replyHistory.modelKey,
-      prompt_variation: replyHistory.promptKey,
+      prompt_variation: replyHistory.promptKey || null,
       quality_score: replyHistory.qualityScore,
       was_used: replyHistory.wasUsed || false,
       used_at: replyHistory.usedAt ? replyHistory.usedAt.toISOString() : null,
