@@ -2,7 +2,7 @@ import passport from 'passport';
 import { Strategy as LocalStrategy } from 'passport-local';
 import { storage } from './storage.js';
 import { hashPassword, verifyPassword, validatePasswordStrength, validateEmail } from './utils/password.js';
-import type { User } from '../shared/schema.js';
+import type { User } from '../shared/types.js';
 
 export function setupLocalAuth() {
   passport.use('local-login', new LocalStrategy(

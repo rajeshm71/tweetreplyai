@@ -14,7 +14,7 @@ import type {
   InsertReplyHistory,
   UserPreferences,
   InsertUserPreferences,
-} from "../shared/schema.js";
+} from "../shared/types.js";
 import type { IStorage } from "./storage.js";
 
 export class SupabaseStorage implements IStorage {

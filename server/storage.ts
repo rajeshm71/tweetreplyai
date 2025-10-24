@@ -13,7 +13,7 @@ import type {
   InsertReplyHistory,
   UserPreferences,
   InsertUserPreferences,
-} from "../shared/schema.js";
+} from "../shared/types.js";
 
 export interface IStorage {
   // User operations (required for Replit Auth)
