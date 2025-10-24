@@ -41,16 +41,10 @@ export class AuthService {
   }
 
   private async createNewUser(profile: AuthProfile): Promise<User> {
-    const userData: any = {
+    const userData: UpsertUser = {
+      id: crypto.randomUUID(),
       email: profile.email,
-      emailVerified: profile.provider !== 'password',
-      firstName: profile.firstName,
-      lastName: profile.lastName,
-      profileImageUrl: profile.profileImageUrl,
-      handle: profile.handle,
       authProviders: [profile.provider],
-      primaryAuthProvider: profile.provider,
-      lastLoginAt: new Date(),
     };
 
     switch (profile.provider) {

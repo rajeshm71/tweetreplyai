@@ -58,14 +58,10 @@ export function setupLocalAuth() {
         const body = req.body as any;
         
         const user = await storage.upsertUser({
+          id: crypto.randomUUID(),
           email,
-          passwordHash,
-          firstName: body.firstName,
-          lastName: body.lastName,
-          emailVerified: false,
+          password: passwordHash,
           authProviders: ['password'],
-          primaryAuthProvider: 'password',
-          lastLoginAt: new Date(),
         });
 
         return done(null, user);
