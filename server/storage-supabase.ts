@@ -34,6 +34,17 @@ export class SupabaseStorage implements IStorage {
     
     if (error) {
       console.error('Supabase getUser error (line 31):', error);
+      console.error('Error details:', {
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint
+      });
+      return undefined;
+    }
+    
+    if (!data) {
+      console.log('Supabase query returned no data - user not found');
       return undefined;
     }
     

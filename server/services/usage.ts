@@ -74,9 +74,13 @@ export class UsageService {
     
     const user = await storage.getUser(userId);
     console.log('User lookup result:', user);
+    console.log('User lookup result type:', typeof user);
+    console.log('User lookup result is null:', user === null);
+    console.log('User lookup result is undefined:', user === undefined);
     
     if (!user) {
       console.log('User not found - returning null');
+      console.log('This will cause the API to return 404 or fallback response');
       return null;
     }
 
