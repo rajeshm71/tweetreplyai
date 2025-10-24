@@ -108,15 +108,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
   };
 
   // Force database session store in production if DATABASE_URL is available
-  console.log('DATABASE_URL:', process.env.DATABASE_URL);
   if (process.env.DATABASE_URL) {
     try {
+      // Convert DATABASE_URL to use pooled connection (port 6543) for serverless
+      let sessionDbUrl = process.env.DATABASE_URL;
+      
+      console.log('=== SESSION STORE DATABASE URL DEBUG ===');
+      console.log('Original DATABASE_URL:', sessionDbUrl.replace(/\/\/.*@/, '//***:***@'));
+      console.log('Contains :5432:', sessionDbUrl.includes(':5432'));
+      console.log('Contains :6543:', sessionDbUrl.includes(':6543'));
+      
+      // Convert port 5432 to 6543 for serverless
+      if (sessionDbUrl.includes(':5432')) {
+        sessionDbUrl = sessionDbUrl.replace(':5432', ':6543');
+        console.log('Converted session store URL to use pooled connection (port 6543)');
+        console.log('Converted URL:', sessionDbUrl.replace(/\/\/.*@/, '//***:***@'));
+      }
+      
       // Use database session store for production
       console.log('Using database session store for production');
       const connectPg = (await import('connect-pg-simple')).default;
       const pgStore = connectPg(session);
       const sessionStore = new pgStore({
-        conString: process.env.DATABASE_URL,
+        conString: sessionDbUrl,
         tableName: 'user_sessions',
         createTableIfMissing: true,
       });
