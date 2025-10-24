@@ -32,6 +32,17 @@ export class UsageService {
   async resolveActiveWindow(user: User): Promise<UsageWindow | null> {
     const now = new Date();
 
+    // Development mode - unlimited access
+    if (process.env.NODE_ENV === 'development') {
+      return {
+        planCode: 'development',
+        periodStart: this.getTodayStart(),
+        periodEnd: this.getTodayEnd(),
+        limit: 10000, // High limit for development
+        resetAt: this.getTodayEnd(),
+      };
+    }
+
     // Check for active paid subscription first
     const activeSubscription = await storage.getActiveSubscription(user.id);
     if (activeSubscription && activeSubscription.currentPeriodEnd > now) {
@@ -68,12 +79,12 @@ export class UsageService {
       return null;
     }
 
-    // In development mode, return unlimited usage
+    // In development mode, return high usage limit
     if (process.env.NODE_ENV === 'development') {
       return {
         planCode: 'development',
         used: 0,
-        limit: 999999,
+        limit: 10000, // Match the resolveActiveWindow limit
         resetAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
         status: 'active',
       };
