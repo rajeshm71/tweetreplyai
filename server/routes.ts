@@ -38,15 +38,30 @@ export const setupRoutes = registerRoutes;
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware - using local auth only
-  // For local development, set up session without Replit auth
-  // For local development, use memory store to avoid database session issues
-  console.log('Using memory store for sessions (local development)');
-  app.use(session({
+  // Use persistent session store for production, memory store for development
+  let sessionConfig: any = {
     secret: process.env.SESSION_SECRET || 'dev-secret',
     resave: false,
     saveUninitialized: false,
     cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 }, // 1 week
-  }));
+  };
+
+  if (process.env.NODE_ENV === 'production' && process.env.SUPABASE_URL) {
+    // Use database session store for production
+    console.log('Using database session store for production');
+    const connectPg = (await import('connect-pg-simple')).default;
+    const pgStore = connectPg(session);
+    const sessionStore = new pgStore({
+      conString: process.env.SUPABASE_URL,
+      tableName: 'user_sessions',
+      createTableIfMissing: true,
+    });
+    sessionConfig.store = sessionStore;
+  } else {
+    console.log('Using memory store for sessions (local development)');
+  }
+
+  app.use(session(sessionConfig));
     
   app.use(passport.initialize());
   app.use(passport.session());
