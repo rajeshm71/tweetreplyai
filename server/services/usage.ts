@@ -32,13 +32,13 @@ export class UsageService {
   async resolveActiveWindow(user: User): Promise<UsageWindow | null> {
     const now = new Date();
 
-    // Development mode - unlimited access
-    if (process.env.NODE_ENV === 'development') {
+    // Development mode or testing phase - high access
+    if (process.env.NODE_ENV === 'development' || process.env.TESTING_PHASE === 'true') {
       return {
         planCode: 'development',
         periodStart: this.getTodayStart(),
         periodEnd: this.getTodayEnd(),
-        limit: 10000, // High limit for development
+        limit: 10000, // High limit for development/testing
         resetAt: this.getTodayEnd(),
       };
     }
@@ -69,8 +69,14 @@ export class UsageService {
       };
     }
 
-    // No access
-    return null;
+    // For production users without trial, give a generous testing limit
+    return {
+      planCode: 'testing',
+      periodStart: this.getTodayStart(),
+      periodEnd: this.getTodayEnd(),
+      limit: 1000, // Generous limit for testing
+      resetAt: this.getTodayEnd(),
+    };
   }
 
   async getUsageStatus(userId: string): Promise<UsageStatus | null> {
@@ -79,8 +85,8 @@ export class UsageService {
       return null;
     }
 
-    // In development mode, return high usage limit
-    if (process.env.NODE_ENV === 'development') {
+    // In development mode or testing phase, return high usage limit
+    if (process.env.NODE_ENV === 'development' || process.env.TESTING_PHASE === 'true') {
       return {
         planCode: 'development',
         used: 0,
