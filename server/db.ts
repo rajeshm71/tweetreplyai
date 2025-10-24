@@ -7,6 +7,31 @@ let queryClient: any;
 let dbInstance: any;
 let isInitialized = false;
 
+function maskConnectionString(url: string): string {
+  try {
+    return url.replace(/\/\/.*@/, '//***:***@');
+  } catch (_) {
+    return url;
+  }
+}
+
+function normalizeDatabaseUrl(rawUrl: string): string {
+  let url = rawUrl;
+  // Ensure postgres scheme is consistent
+  if (url.startsWith('postgresql://')) {
+    url = 'postgres://' + url.slice('postgresql://'.length);
+  }
+  // Prefer pooled port 6543 over 5432 for serverless
+  if (url.includes(':5432')) {
+    url = url.replace(':5432', ':6543');
+  }
+  // Ensure sslmode=require is present
+  if (!/sslmode=/.test(url)) {
+    url += (url.includes('?') ? '&' : '?') + 'sslmode=require';
+  }
+  return url;
+}
+
 function initializeDatabase() {
   if (isInitialized) {
     return dbInstance;
@@ -25,24 +50,20 @@ function initializeDatabase() {
     throw new Error('DATABASE_URL environment variable is required but not set');
   }
 
-  // Convert direct connection URL to pooled connection URL for serverless
-  let connectionUrl = process.env.DATABASE_URL;
+  // Normalize connection URL for serverless
+  let connectionUrl = normalizeDatabaseUrl(process.env.DATABASE_URL);
   
   console.log('=== DATABASE_URL DEBUG ===');
-  console.log('Original DATABASE_URL:', connectionUrl.replace(/\/\/.*@/, '//***:***@')); // Hide credentials
+  console.log('Original DATABASE_URL:', maskConnectionString(process.env.DATABASE_URL));
   console.log('Contains port 5432:', connectionUrl.includes(':5432'));
   console.log('Contains port 6543:', connectionUrl.includes(':6543'));
   console.log('Contains pooler:', connectionUrl.includes('pooler'));
   console.log('Contains aws-0:', connectionUrl.includes('aws-0'));
   
   // If it's a direct connection (port 5432), convert to pooled (port 6543)
-  if (connectionUrl.includes(':5432')) {
-    connectionUrl = connectionUrl.replace(':5432', ':6543');
-    console.log('Converted to pooled connection URL for serverless');
-    console.log('Converted URL:', connectionUrl.replace(/\/\/.*@/, '//***:***@')); // Hide credentials
-  }
+  // Already normalized above
   
-  console.log('Final connection URL:', connectionUrl.replace(/\/\/.*@/, '//***:***@')); // Hide credentials in logs
+  console.log('Final connection URL:', maskConnectionString(connectionUrl)); // Hide credentials in logs
   
   queryClient = postgres(connectionUrl, {
     max: 5, // Reduce max connections for serverless
