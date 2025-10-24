@@ -90,10 +90,10 @@ export async function registerRoutes(app: Express): Promise<Express> {
   console.log('All env vars:', Object.keys(process.env).filter(key => key.includes('SESSION') || key.includes('DATABASE') || key.includes('SUPABASE') || key.includes('NODE')));
   
   let sessionConfig: any = {
-    secret: process.env.SESSION_SECRET || 'dev-secret',
-    resave: false,
-    saveUninitialized: false,
-    cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 }, // 1 week
+      secret: process.env.SESSION_SECRET || 'dev-secret',
+      resave: false,
+      saveUninitialized: false,
+      cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 }, // 1 week
   };
 
   // Use memory store for sessions since we're using JWT for serverless
@@ -101,25 +101,25 @@ export async function registerRoutes(app: Express): Promise<Express> {
 
   app.use(session(sessionConfig));
     
-  app.use(passport.initialize());
-  app.use(passport.session());
+    app.use(passport.initialize());
+    app.use(passport.session());
     
-  // Setup passport serialization for local development
-  passport.serializeUser((user: any, cb) => {
-    console.log('Serializing user:', user.id);
-    cb(null, { id: user.id, type: 'local' });
-  });
+    // Setup passport serialization for local development
+    passport.serializeUser((user: any, cb) => {
+      console.log('Serializing user:', user.id);
+      cb(null, { id: user.id, type: 'local' });
+    });
     
-  passport.deserializeUser(async (sessionUser: any, cb) => {
-    try {
-      console.log('Deserializing user:', sessionUser.id);
-      const user = await storage.getUser(sessionUser.id);
-      cb(null, user);
-    } catch (error) {
-      console.error('Deserialization error:', error);
-      cb(error, null);
-    }
-  });
+    passport.deserializeUser(async (sessionUser: any, cb) => {
+      try {
+        console.log('Deserializing user:', sessionUser.id);
+        const user = await storage.getUser(sessionUser.id);
+        cb(null, user);
+      } catch (error) {
+        console.error('Deserialization error:', error);
+        cb(error, null);
+      }
+    });
   
   setupLocalAuth();
   setupGoogleAuth();
@@ -207,7 +207,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
     console.log('Current callback URL from env:', process.env.GOOGLE_CALLBACK_URL);
     
     passport.authenticate('google', {
-      scope: ['profile', 'email']
+    scope: ['profile', 'email']
     })(req, res, next);
   });
 

@@ -58,13 +58,19 @@ export class UsageService {
   }
 
   async getUsageStatus(userId: string): Promise<UsageStatus | null> {
+    console.log('=== USAGE: getUsageStatus called ===');
     const user = await storage.getUser(userId);
     if (!user) {
+      console.log('User not found');
       return null;
     }
 
+    console.log('User found:', user.id);
     const window = await this.resolveActiveWindow(user);
+    console.log('Active window:', window);
+    
     if (!window) {
+      console.log('No active window - returning no access');
       return {
         planCode: 'none',
         used: 0,
@@ -88,13 +94,16 @@ export class UsageService {
       });
     }
 
-    return {
+    const result = {
       planCode: window.planCode,
       used: counter.repliesUsed,
       limit: counter.limit,
       resetAt: counter.resetAt,
       status: 'active',
     };
+    
+    console.log('Returning usage status:', result);
+    return result;
   }
 
   async canUseReply(userId: string): Promise<{ canUse: boolean; reason?: string }> {
