@@ -37,7 +37,12 @@ app.use((req, res, next) => {
   next();
 });
 
-(async () => {
+// Initialize the app
+let isInitialized = false;
+
+async function initializeApp() {
+  if (isInitialized) return;
+  
   console.log('=== SERVER STARTUP DEBUG ===');
   console.log('NODE_ENV:', process.env.NODE_ENV);
   console.log('PORT:', process.env.PORT);
@@ -51,9 +56,8 @@ app.use((req, res, next) => {
   console.log('All env vars with SUPABASE:', Object.keys(process.env).filter(key => key.includes('SUPABASE')));
   console.log('All env vars with SESSION:', Object.keys(process.env).filter(key => key.includes('SESSION')));
   
-  let server;
   try {
-    server = await registerRoutes(app);
+    await registerRoutes(app);
     console.log('Routes registered successfully');
   } catch (error) {
     console.error('Error registering routes:', error);
@@ -79,19 +83,12 @@ app.use((req, res, next) => {
 
   // Production mode - only serve static files, no Vite
   serveStatic(app);
-
-  // ALWAYS serve the app on the port specified in the environment variable PORT
-  // Other ports are firewalled. Default to 5000 if not specified.
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
-  const port = parseInt(process.env.PORT || '5000', 10);
-  const host = process.env.NODE_ENV === 'development' ? 'localhost' : '0.0.0.0';
   
-  server.listen({
-    port,
-    host,
-    reusePort: process.env.NODE_ENV !== 'development',
-  }, () => {
-    log(`serving on ${host}:${port}`);
-  });
-})();
+  isInitialized = true;
+}
+
+// Vercel serverless function export
+export default async function handler(req: any, res: any) {
+  await initializeApp();
+  return app(req, res);
+}
