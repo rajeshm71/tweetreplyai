@@ -53,7 +53,18 @@ export class UsageService {
         planCode: 'trial',
         periodStart: this.getTodayStart(),
         periodEnd: this.getTodayEnd(),
-        limit: 10,
+        limit: 1000, // Increased for testing phase
+        resetAt: this.getTodayEnd(),
+      };
+    }
+
+    // For testing phase, give generous access even without trial
+    if (process.env.NODE_ENV === 'production' && process.env.TESTING_PHASE === 'true') {
+      return {
+        planCode: 'testing',
+        periodStart: this.getTodayStart(),
+        periodEnd: this.getTodayEnd(),
+        limit: 500, // Generous limit for testing
         resetAt: this.getTodayEnd(),
       };
     }
@@ -188,7 +199,7 @@ export class UsageService {
     }
 
     const now = new Date();
-    const trialEnd = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 days
+    const trialEnd = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days for testing
 
     await storage.upsertUser({
       ...user,
