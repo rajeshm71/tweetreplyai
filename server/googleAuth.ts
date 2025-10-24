@@ -10,7 +10,11 @@ export function setupGoogleAuth() {
 
   const callbackURL = process.env.GOOGLE_CALLBACK_URL;
   
-  console.log('Google OAuth callbackURL:', callbackURL);
+  console.log('=== GOOGLE OAUTH CONFIGURATION ===');
+  console.log('GOOGLE_CLIENT_ID configured:', !!process.env.GOOGLE_CLIENT_ID);
+  console.log('GOOGLE_CLIENT_SECRET configured:', !!process.env.GOOGLE_CLIENT_SECRET);
+  console.log('GOOGLE_CALLBACK_URL:', callbackURL);
+  console.log('NODE_ENV:', process.env.NODE_ENV);
 
   passport.use(new GoogleStrategy(
     {

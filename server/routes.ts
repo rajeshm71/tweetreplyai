@@ -16,7 +16,13 @@ import jwt from "jsonwebtoken";
 
 // JWT-based authentication for serverless environments
 const jwtIsAuthenticated = (req: any, res: any, next: any) => {
+  console.log('=== AUTHENTICATION DEBUG ===');
+  console.log('Authorization header:', req.headers.authorization);
+  console.log('Cookies:', req.cookies);
+  console.log('Session:', req.session);
+  
   const token = req.headers.authorization?.replace('Bearer ', '') || req.cookies?.token;
+  console.log('Token found:', !!token);
   
   if (!token) {
     console.log('No token found, checking session auth');
