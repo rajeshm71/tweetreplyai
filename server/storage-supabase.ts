@@ -472,23 +472,54 @@ export class SupabaseStorage implements IStorage {
 
   // Reply history operations
   async createReplyHistory(replyHistory: InsertReplyHistory): Promise<ReplyHistory> {
+    // Map camelCase fields to snake_case database columns
+    const dbReplyHistory = {
+      id: replyHistory.id,
+      user_id: replyHistory.userId,
+      original_tweet: replyHistory.originalTweet,
+      generated_reply: replyHistory.generatedReply,
+      model_key: replyHistory.modelKey,
+      prompt_variation: replyHistory.promptKey,
+      quality_score: replyHistory.qualityScore,
+      was_used: replyHistory.wasUsed || false,
+      used_at: replyHistory.usedAt ? replyHistory.usedAt.toISOString() : null,
+      tweet_url: replyHistory.tweetUrl,
+      performance: replyHistory.performance,
+      created_at: replyHistory.createdAt ? replyHistory.createdAt.toISOString() : new Date().toISOString()
+    };
+
     const { data, error } = await supabase
       .from('reply_history')
-      .insert(replyHistory)
-      .select()
+      .insert(dbReplyHistory)
+      .select('id, user_id, original_tweet, generated_reply, model_key, prompt_variation, quality_score, was_used, used_at, tweet_url, performance, created_at')
       .single();
     
     if (error) {
       console.error('Supabase createReplyHistory error (line 388):', error);
       throw error;
     }
-    return data as ReplyHistory;
+
+    // Map database fields back to our ReplyHistory interface
+    return {
+      id: data.id,
+      userId: data.user_id,
+      originalTweet: data.original_tweet,
+      generatedReply: data.generated_reply,
+      modelKey: data.model_key,
+      promptKey: data.prompt_variation,
+      qualityScore: data.quality_score,
+      wasUsed: data.was_used,
+      usedAt: data.used_at ? new Date(data.used_at) : undefined,
+      tweetUrl: data.tweet_url,
+      performance: data.performance,
+      createdAt: new Date(data.created_at)
+    } as ReplyHistory;
   }
 
   async getReplyHistory(userId: string, limit: number = 50): Promise<ReplyHistory[]> {
     const { data, error } = await supabase
       .from('reply_history')
-      .select('*')
+      .select('id, user_id, original_tweet, generated_reply, model_key, prompt_variation, quality_score, was_used, used_at, tweet_url, performance, created_at')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .limit(limit);
@@ -497,7 +528,22 @@ export class SupabaseStorage implements IStorage {
       console.error('Supabase getReplyHistory error (line 404):', error);
       return [];
     }
-    return data as ReplyHistory[];
+
+    // Map database fields to our ReplyHistory interface
+    return data.map(item => ({
+      id: item.id,
+      userId: item.user_id,
+      originalTweet: item.original_tweet,
+      generatedReply: item.generated_reply,
+      modelKey: item.model_key,
+      promptKey: item.prompt_variation,
+      qualityScore: item.quality_score,
+      wasUsed: item.was_used,
+      usedAt: item.used_at ? new Date(item.used_at) : undefined,
+      tweetUrl: item.tweet_url,
+      performance: item.performance,
+      createdAt: new Date(item.created_at)
+    })) as ReplyHistory[];
   }
 
   async markReplyAsUsed(replyHistoryId: string, tweetUrl?: string): Promise<void> {
