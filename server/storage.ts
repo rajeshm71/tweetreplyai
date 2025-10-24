@@ -16,15 +16,12 @@ import type {
 } from "../shared/types.js";
 
 export interface IStorage {
-  // User operations (required for Replit Auth)
+  // User operations
   getUser(id: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
   getUserByGoogleSub(googleSub: string): Promise<User | undefined>;
-  getUserByReplitSub(replitSub: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
   updateUser(id: string, updates: Partial<User>): Promise<User>;
-  addAuthProvider(userId: string, provider: string): Promise<void>;
-  removeAuthProvider(userId: string, provider: string): Promise<void>;
   
   // Subscription operations
   getActiveSubscription(userId: string): Promise<Subscription | undefined>;
@@ -47,7 +44,6 @@ export interface IStorage {
   createReplyHistory(replyHistory: InsertReplyHistory): Promise<ReplyHistory>;
   getReplyHistory(userId: string, limit?: number): Promise<ReplyHistory[]>;
   markReplyAsUsed(replyHistoryId: string, tweetUrl?: string): Promise<void>;
-  updateReplyPerformance(replyHistoryId: string, performance: any): Promise<void>;
   
   // User preferences operations
   getUserPreferences(userId: string): Promise<UserPreferences | undefined>;
@@ -59,6 +55,3 @@ export interface IStorage {
 // Use Supabase JS client instead of raw Postgres for serverless compatibility
 import { storage as supabaseStorage } from './storage-supabase.js';
 export const storage = supabaseStorage;
-
-// Keep DatabaseStorage for reference but don't use it
-// export const storage = new DatabaseStorage();

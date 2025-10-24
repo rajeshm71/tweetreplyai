@@ -19,9 +19,6 @@ export class AuthService {
       case 'google':
         user = await storage.getUserByGoogleSub(profile.providerId);
         break;
-      case 'replit':
-        user = await storage.getUserByReplitSub(profile.providerId);
-        break;
     }
 
     if (user) {
@@ -50,10 +47,6 @@ export class AuthService {
     switch (profile.provider) {
       case 'google':
         userData.googleSub = profile.providerId;
-        break;
-      case 'replit':
-        userData.replitSub = profile.providerId;
-        userData.id = profile.providerId;
         break;
     }
 

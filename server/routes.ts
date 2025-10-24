@@ -1,6 +1,5 @@
 import type { Express } from "express";
 import { storage } from "./storage.js";
-// Replit auth removed - using local auth only
 import { setupLocalAuth } from "./localAuth.js";
 import { setupGoogleAuth } from "./googleAuth.js";
 import { aiRouter } from "./services/ai-router.js";
@@ -11,11 +10,9 @@ import { z, ZodError } from "zod";
 import passport from "passport";
 import session from "express-session";
 import jwt from "jsonwebtoken";
-// connect-pg-simple is only used in replitAuth.ts for Replit sessions
 
 // JWT-based authentication for serverless environments
 const jwtIsAuthenticated = (req: any, res: any, next: any) => {
-  // CACHE BUST - v2.0
   const token = req.headers.authorization?.replace('Bearer ', '') || req.cookies?.token;
   
   if (!token) {
@@ -35,18 +32,6 @@ const jwtIsAuthenticated = (req: any, res: any, next: any) => {
   }
 };
 
-// Local auth helpers for development
-const localIsAuthenticated = (req: any, res: any, next: any) => {
-  console.log('Auth check - isAuthenticated:', req.isAuthenticated());
-  console.log('Auth check - user:', req.user);
-  console.log('Auth check - session:', req.session);
-  
-  if (!req.isAuthenticated()) {
-    console.log('User not authenticated, returning 401');
-    return res.status(401).json({ message: "Unauthorized" });
-  }
-  return next();
-};
 
 const localGetUserId = (req: any): string => {
   const user = req.user;
@@ -66,12 +51,6 @@ export const setupRoutes = registerRoutes;
 export async function registerRoutes(app: Express): Promise<Express> {
   // Auth middleware - using local auth only
   // Use persistent session store for production, memory store for development
-  console.log('=== SESSION CONFIGURATION DEBUG ===');
-  console.log('Session secret configured:', !!process.env.SESSION_SECRET);
-  console.log('NODE_ENV:', process.env.NODE_ENV);
-  console.log('DATABASE_URL configured:', !!process.env.DATABASE_URL);
-  console.log('SUPABASE_URL configured:', !!process.env.SUPABASE_URL);
-  console.log('All env vars:', Object.keys(process.env).filter(key => key.includes('SESSION') || key.includes('DATABASE') || key.includes('SUPABASE') || key.includes('NODE')));
   
   let sessionConfig: any = {
       secret: process.env.SESSION_SECRET || 'dev-secret',
@@ -122,11 +101,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
       res.json({
         id: user.id,
         email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        profileImageUrl: user.profileImageUrl,
         authProviders: user.authProviders || [],
-        emailVerified: user.emailVerified,
       });
     } catch (error) {
       console.error("Error fetching user:", error);
@@ -185,7 +160,6 @@ export async function registerRoutes(app: Express): Promise<Express> {
 
   // Google OAuth routes
   app.get('/api/auth/google', (req, res, next) => {
-    console.log('=== GOOGLE OAUTH INITIATION ===');
     console.log('Request URL:', req.url);
     console.log('Request headers:', req.headers);
     console.log('Current callback URL from env:', process.env.GOOGLE_CALLBACK_URL);
@@ -197,7 +171,6 @@ export async function registerRoutes(app: Express): Promise<Express> {
 
   app.get('/api/auth/google/callback',
     (req, res, next) => {
-      console.log('=== GOOGLE OAUTH CALLBACK ===');
       console.log('Callback URL received:', req.url);
       
       passport.authenticate('google', { 
@@ -257,24 +230,16 @@ export async function registerRoutes(app: Express): Promise<Express> {
 
   // Usage and quota routes
   app.get('/api/usage', isAuthenticated, async (req: any, res) => {
-    console.log('=== USAGE API ENDPOINT CALLED ===');
     try {
       const userId = getUserId(req);
-      console.log('=== USAGE API: User ID extracted ===', userId);
-      
-      console.log('=== USAGE API: Calling usageService.getUsageStatus ===');
       const status = await usageService.getUsageStatus(userId);
-      console.log('=== USAGE API: getUsageStatus returned ===', status);
       
       if (!status) {
-        console.log('=== USAGE API: Status is null/undefined, returning 404 ===');
         return res.status(404).json({ message: "User not found" });
       }
 
-      console.log('=== USAGE API: Returning status ===', status);
       res.json(status);
     } catch (error) {
-      console.error("=== USAGE API: Error occurred ===", error);
       console.error("Error fetching usage:", error);
       res.status(500).json({ message: "Failed to fetch usage" });
     }
@@ -390,21 +355,23 @@ export async function registerRoutes(app: Express): Promise<Express> {
 
       // Log the reply event
       await storage.createReplyEvent({
+        id: crypto.randomUUID(),
         userId,
-        tweetId: tweet_id,
         modelKey: replyResponse.modelKey,
-        tokensIn: replyResponse.tokensIn,
-        tokensOut: replyResponse.tokensOut,
+        promptKey: 'default',
         latencyMs: replyResponse.latencyMs,
+        tokensUsed: (replyResponse.tokensIn || 0) + (replyResponse.tokensOut || 0),
+        cost: 0,
       });
 
       // Save to reply history
       const historyEntry = await storage.createReplyHistory({
+        id: crypto.randomUUID(),
         userId,
         originalTweet: tweet_text,
         generatedReply: replyResponse.reply,
         modelKey: replyResponse.modelKey,
-        promptVariation: prompt_variation || 'default',
+        promptKey: prompt_variation || 'default',
         qualityScore: qualityCheck.score,
       });
 
@@ -484,8 +451,8 @@ export async function registerRoutes(app: Express): Promise<Express> {
 
       const { plan_code } = schema.parse(req.body);
 
-      const domains = process.env.REPLIT_DOMAINS?.split(',') || ['localhost:5000'];
-      const domain = domains[0];
+      // Use environment variable for domain or default to localhost for development
+      const domain = process.env.DOMAIN || 'localhost:5000';
       const protocol = domain.includes('localhost') ? 'http' : 'https';
       
       const successUrl = `${protocol}://${domain}/app?session_id={CHECKOUT_SESSION_ID}`;
@@ -517,8 +484,8 @@ export async function registerRoutes(app: Express): Promise<Express> {
         return res.status(400).json({ message: "No billing account found" });
       }
 
-      const domains = process.env.REPLIT_DOMAINS?.split(',') || ['localhost:5000'];
-      const domain = domains[0];
+      // Use environment variable for domain or default to localhost for development
+      const domain = process.env.DOMAIN || 'localhost:5000';
       const protocol = domain.includes('localhost') ? 'http' : 'https';
       const returnUrl = `${protocol}://${domain}/app`;
 
@@ -610,6 +577,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
             const user = await storage.getUser(subscription.customer);
             if (user) {
               await storage.createSubscription({
+                id: crypto.randomUUID(),
                 userId: user.id,
                 planCode,
                 status: subscription.status,
@@ -622,6 +590,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
 
               // Create usage counter for new period
               await storage.createUsageCounter({
+                id: crypto.randomUUID(),
                 userId: user.id,
                 planCode,
                 periodStart,
@@ -674,8 +643,8 @@ export async function registerRoutes(app: Express): Promise<Express> {
       const { reply_event_id, rating, comment } = schema.parse(req.body);
 
       await storage.createFeedback({
-        userId,
-        replyEventId: reply_event_id,
+        id: crypto.randomUUID(),
+        replyEventId: String(reply_event_id),
         rating,
         comment,
       });
@@ -816,7 +785,7 @@ Make it more conversational, specific, and engaging while keeping it under 200 c
         analysis: {
           wordCount: draft_reply.split(/\s+/).length,
           length: draft_reply.length,
-          hasEmojis: /[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u.test(draft_reply),
+          hasEmojis: /[😀😁😂😃😄😅😆😇😈😉😊😋😌😍😎😏😐😑😒😓😔😕😖😗😘😙😚😛😜😝😞😟😠😡😢😣😤😥😦😧😨😩😪😫😬😭😮😯😰😱😲😳😴😵😶😷🙁🙂🙃🙄🙅🙆🙇🙈🙉🙊🙋🙌🙍🙎🙏]/.test(draft_reply),
         }
       });
     } catch (error) {

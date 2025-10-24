@@ -4,7 +4,7 @@ export interface User {
   email: string;
   password?: string;
   googleSub?: string;
-  replitSub?: string;
+  stripeCustomerId?: string;
   authProviders?: string[];
   createdAt: Date;
   updatedAt: Date;
@@ -15,7 +15,7 @@ export interface UpsertUser {
   email: string;
   password?: string;
   googleSub?: string;
-  replitSub?: string;
+  stripeCustomerId?: string;
   authProviders?: string[];
   createdAt?: Date;
   updatedAt?: Date;
@@ -29,6 +29,10 @@ export interface Subscription {
   status: 'active' | 'canceled' | 'past_due' | 'unpaid';
   currentPeriodStart: Date;
   currentPeriodEnd: Date;
+  amountPaid?: number;
+  currency?: string;
+  cancelAt?: Date;
+  cancelReason?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -41,6 +45,10 @@ export interface InsertSubscription {
   status: 'active' | 'canceled' | 'past_due' | 'unpaid';
   currentPeriodStart: Date;
   currentPeriodEnd: Date;
+  amountPaid?: number;
+  currency?: string;
+  cancelAt?: Date;
+  cancelReason?: string;
   createdAt?: Date;
   updatedAt?: Date;
 }

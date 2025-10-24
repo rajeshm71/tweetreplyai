@@ -45,16 +45,8 @@ async function initializeApp() {
   
   console.log('=== SERVER STARTUP DEBUG ===');
   console.log('NODE_ENV:', process.env.NODE_ENV);
-  console.log('PORT:', process.env.PORT);
-  console.log('GOOGLE_CALLBACK_URL:', process.env.GOOGLE_CALLBACK_URL);
   console.log('SESSION_SECRET configured:', !!process.env.SESSION_SECRET);
   console.log('SUPABASE_URL configured:', !!process.env.SUPABASE_URL);
-  console.log('SUPABASE_ANON_KEY configured:', !!process.env.SUPABASE_ANON_KEY);
-  
-  // Force environment variables debugging
-  console.log('=== FORCED ENVIRONMENT DEBUG ===');
-  console.log('All env vars with SUPABASE:', Object.keys(process.env).filter(key => key.includes('SUPABASE')));
-  console.log('All env vars with SESSION:', Object.keys(process.env).filter(key => key.includes('SESSION')));
   
   try {
     await registerRoutes(app);

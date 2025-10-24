@@ -1,5 +1,6 @@
 import "dotenv/config";
 import express, { type Request, Response, NextFunction } from "express";
+import { createServer } from "http";
 import { registerRoutes } from "./routes.js";
 import { serveStatic, log } from "./static.js";
 
@@ -38,7 +39,8 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  const server = await registerRoutes(app);
+  const appWithRoutes = await registerRoutes(app);
+  const server = createServer(appWithRoutes);
 
   app.use((err: any, req: Request, res: Response, next: NextFunction) => {
     // Ignore session store errors about existing indexes/tables or missing relations
@@ -75,11 +77,7 @@ app.use((req, res, next) => {
   const port = parseInt(process.env.PORT || '5000', 10);
   const host = process.env.NODE_ENV === 'development' ? 'localhost' : '0.0.0.0';
   
-  server.listen({
-    port,
-    host,
-    reusePort: process.env.NODE_ENV !== 'development',
-  }, () => {
+  server.listen(port, host, () => {
     log(`serving on ${host}:${port}`);
   });
 })();
