@@ -38,7 +38,19 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  const server = await registerRoutes(app);
+  console.log('=== SERVER STARTUP DEBUG ===');
+  console.log('NODE_ENV:', process.env.NODE_ENV);
+  console.log('PORT:', process.env.PORT);
+  console.log('GOOGLE_CALLBACK_URL:', process.env.GOOGLE_CALLBACK_URL);
+  console.log('SESSION_SECRET configured:', !!process.env.SESSION_SECRET);
+  
+  try {
+    const server = await registerRoutes(app);
+    console.log('Routes registered successfully');
+  } catch (error) {
+    console.error('Error registering routes:', error);
+    throw error;
+  }
 
   app.use((err: any, req: Request, res: Response, next: NextFunction) => {
     // Ignore session store errors about existing indexes/tables or missing relations
