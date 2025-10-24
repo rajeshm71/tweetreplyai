@@ -43,28 +43,17 @@ app.use((req, res, next) => {
   console.log('PORT:', process.env.PORT);
   console.log('GOOGLE_CALLBACK_URL:', process.env.GOOGLE_CALLBACK_URL);
   console.log('SESSION_SECRET configured:', !!process.env.SESSION_SECRET);
-  console.log('DATABASE_URL configured:', !!process.env.DATABASE_URL);
   console.log('SUPABASE_URL configured:', !!process.env.SUPABASE_URL);
+  console.log('SUPABASE_ANON_KEY configured:', !!process.env.SUPABASE_ANON_KEY);
   
   // Force environment variables debugging
   console.log('=== FORCED ENVIRONMENT DEBUG ===');
-  console.log('All env vars with DATABASE:', Object.keys(process.env).filter(key => key.includes('DATABASE')));
   console.log('All env vars with SUPABASE:', Object.keys(process.env).filter(key => key.includes('SUPABASE')));
   console.log('All env vars with SESSION:', Object.keys(process.env).filter(key => key.includes('SESSION')));
   
-  // Debug DATABASE_URL format
-  if (process.env.DATABASE_URL) {
-    console.log('DATABASE_URL format check:');
-    console.log('- Contains postgres://:', process.env.DATABASE_URL.includes('postgres://'));
-    console.log('- Contains :5432:', process.env.DATABASE_URL.includes(':5432'));
-    console.log('- Contains :6543:', process.env.DATABASE_URL.includes(':6543'));
-    console.log('- Contains pooler:', process.env.DATABASE_URL.includes('pooler'));
-    console.log('- Contains aws-0:', process.env.DATABASE_URL.includes('aws-0'));
-    console.log('- URL preview:', process.env.DATABASE_URL.replace(/\/\/.*@/, '//***:***@'));
-  }
-  
+  let server;
   try {
-    const server = await registerRoutes(app);
+    server = await registerRoutes(app);
     console.log('Routes registered successfully');
   } catch (error) {
     console.error('Error registering routes:', error);

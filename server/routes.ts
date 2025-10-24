@@ -23,20 +23,10 @@ const jwtIsAuthenticated = (req: any, res: any, next: any) => {
   
   // Debug environment variables
   console.log('=== ENVIRONMENT VARIABLES DEBUG ===');
-  console.log('DATABASE_URL configured:', !!process.env.DATABASE_URL);
   console.log('SUPABASE_URL configured:', !!process.env.SUPABASE_URL);
+  console.log('SUPABASE_ANON_KEY configured:', !!process.env.SUPABASE_ANON_KEY);
   console.log('SESSION_SECRET configured:', !!process.env.SESSION_SECRET);
   console.log('NODE_ENV:', process.env.NODE_ENV);
-  
-  if (process.env.DATABASE_URL) {
-    console.log('DATABASE_URL format check:');
-    console.log('- Contains postgres://:', process.env.DATABASE_URL.includes('postgres://'));
-    console.log('- Contains :5432:', process.env.DATABASE_URL.includes(':5432'));
-    console.log('- Contains :6543:', process.env.DATABASE_URL.includes(':6543'));
-    console.log('- Contains pooler:', process.env.DATABASE_URL.includes('pooler'));
-    console.log('- Contains aws-0:', process.env.DATABASE_URL.includes('aws-0'));
-    console.log('- URL preview:', process.env.DATABASE_URL.replace(/\/\/.*@/, '//***:***@'));
-  }
   
   const token = req.headers.authorization?.replace('Bearer ', '') || req.cookies?.token;
   console.log('Token found:', !!token);
@@ -232,20 +222,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Debug environment variables
       console.log('=== ENVIRONMENT VARIABLES DEBUG ===');
-      console.log('DATABASE_URL configured:', !!process.env.DATABASE_URL);
-      console.log('SUPABASE_URL configured:', !!process.env.SUPABASE_URL);
-      console.log('SESSION_SECRET configured:', !!process.env.SESSION_SECRET);
-      console.log('NODE_ENV:', process.env.NODE_ENV);
-      
-      if (process.env.DATABASE_URL) {
-        console.log('DATABASE_URL format check:');
-        console.log('- Contains postgres://:', process.env.DATABASE_URL.includes('postgres://'));
-        console.log('- Contains :5432:', process.env.DATABASE_URL.includes(':5432'));
-        console.log('- Contains :6543:', process.env.DATABASE_URL.includes(':6543'));
-        console.log('- Contains pooler:', process.env.DATABASE_URL.includes('pooler'));
-        console.log('- Contains aws-0:', process.env.DATABASE_URL.includes('aws-0'));
-        console.log('- URL preview:', process.env.DATABASE_URL.replace(/\/\/.*@/, '//***:***@'));
-      }
+  console.log('SUPABASE_URL configured:', !!process.env.SUPABASE_URL);
+  console.log('SUPABASE_ANON_KEY configured:', !!process.env.SUPABASE_ANON_KEY);
+  console.log('SESSION_SECRET configured:', !!process.env.SESSION_SECRET);
+  console.log('NODE_ENV:', process.env.NODE_ENV);
       
       passport.authenticate('google', { 
         failureRedirect: '/login',
