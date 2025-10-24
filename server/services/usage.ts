@@ -129,16 +129,23 @@ export class UsageService {
   }
 
   async canUseReply(userId: string): Promise<{ canUse: boolean; reason?: string }> {
+    console.log('=== USAGE: canUseReply called ===');
+    console.log('User ID:', userId);
+    
     const status = await this.getUsageStatus(userId);
+    console.log('canUseReply - getUsageStatus result:', status);
     
     if (!status || status.status === 'no_access') {
+      console.log('canUseReply - returning payment_required because status is:', status);
       return { canUse: false, reason: 'payment_required' };
     }
 
     if (status.used >= status.limit) {
+      console.log('canUseReply - returning quota_exceeded because used >= limit');
       return { canUse: false, reason: 'quota_exceeded' };
     }
 
+    console.log('canUseReply - returning canUse: true');
     return { canUse: true };
   }
 

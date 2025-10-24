@@ -15,26 +15,11 @@ import jwt from "jsonwebtoken";
 
 // JWT-based authentication for serverless environments
 const jwtIsAuthenticated = (req: any, res: any, next: any) => {
-  console.log('=== AUTHENTICATION DEBUG ===');
-  console.log('Authorization header:', req.headers.authorization);
-  console.log('Cookies:', req.cookies);
-  console.log('Session:', req.session);
-  
-  // Debug environment variables
-  console.log('=== ENVIRONMENT VARIABLES DEBUG ===');
-  console.log('SUPABASE_URL configured:', !!process.env.SUPABASE_URL);
-  console.log('SUPABASE_ANON_KEY configured:', !!process.env.SUPABASE_ANON_KEY);
-  console.log('SESSION_SECRET configured:', !!process.env.SESSION_SECRET);
-  console.log('NODE_ENV:', process.env.NODE_ENV);
-  
   const token = req.headers.authorization?.replace('Bearer ', '') || req.cookies?.token;
-  console.log('Token found:', !!token);
   
   if (!token) {
-    console.log('No token found, checking session auth');
     // Fallback to session-based auth
     if (!req.isAuthenticated()) {
-      console.log('User not authenticated, returning 401');
       return res.status(401).json({ message: "Unauthorized" });
     }
     return next();
@@ -43,10 +28,8 @@ const jwtIsAuthenticated = (req: any, res: any, next: any) => {
   try {
     const decoded = jwt.verify(token, process.env.SESSION_SECRET || 'dev-secret');
     req.user = decoded;
-    console.log('JWT authentication successful, user:', decoded);
     return next();
   } catch (error) {
-    console.log('JWT verification failed:', error.message);
     return res.status(401).json({ message: "Unauthorized" });
   }
 };
