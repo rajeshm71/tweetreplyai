@@ -32,17 +32,6 @@ export class UsageService {
   async resolveActiveWindow(user: User): Promise<UsageWindow | null> {
     const now = new Date();
 
-    // Development mode or testing phase - high access
-    if (process.env.NODE_ENV === 'development' || process.env.TESTING_PHASE === 'true') {
-      return {
-        planCode: 'development',
-        periodStart: this.getTodayStart(),
-        periodEnd: this.getTodayEnd(),
-        limit: 10000, // High limit for development/testing
-        resetAt: this.getTodayEnd(),
-      };
-    }
-
     // Check for active paid subscription first
     const activeSubscription = await storage.getActiveSubscription(user.id);
     if (activeSubscription && activeSubscription.currentPeriodEnd > now) {
@@ -58,23 +47,12 @@ export class UsageService {
       }
     }
 
-    // Check for active trial
-    if (user.trialEnd && user.trialEnd > now) {
-      return {
-        planCode: 'trial',
-        periodStart: this.getTodayStart(),
-        periodEnd: this.getTodayEnd(),
-        limit: 10,
-        resetAt: this.getTodayEnd(),
-      };
-    }
-
-    // For production users without trial, give a generous testing limit
+    // For all other users (trial, no trial, etc.), give a very high limit for testing
     return {
       planCode: 'testing',
       periodStart: this.getTodayStart(),
       periodEnd: this.getTodayEnd(),
-      limit: 1000, // Generous limit for testing
+      limit: 50000, // Very high limit for testing
       resetAt: this.getTodayEnd(),
     };
   }
@@ -83,17 +61,6 @@ export class UsageService {
     const user = await storage.getUser(userId);
     if (!user) {
       return null;
-    }
-
-    // In development mode or testing phase, return high usage limit
-    if (process.env.NODE_ENV === 'development' || process.env.TESTING_PHASE === 'true') {
-      return {
-        planCode: 'development',
-        used: 0,
-        limit: 10000, // Match the resolveActiveWindow limit
-        resetAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-        status: 'active',
-      };
     }
 
     const window = await this.resolveActiveWindow(user);
@@ -126,16 +93,11 @@ export class UsageService {
       used: counter.repliesUsed,
       limit: counter.limit,
       resetAt: counter.resetAt,
-      status: window.planCode === 'trial' ? 'trial' : 'active',
+      status: 'active',
     };
   }
 
   async canUseReply(userId: string): Promise<{ canUse: boolean; reason?: string }> {
-    // In development mode, allow unlimited usage for testing
-    if (process.env.NODE_ENV === 'development') {
-      return { canUse: true };
-    }
-
     const status = await this.getUsageStatus(userId);
     
     if (!status || status.status === 'no_access') {
@@ -150,21 +112,6 @@ export class UsageService {
   }
 
   async consumeReply(userId: string): Promise<UsageCounter> {
-    // In development mode, return a mock counter without actually tracking usage
-    if (process.env.NODE_ENV === 'development') {
-      return {
-        id: 'dev-counter',
-        userId,
-        planCode: 'development',
-        periodStart: new Date(),
-        periodEnd: new Date(Date.now() + 24 * 60 * 60 * 1000),
-        repliesUsed: 0,
-        limit: 999999,
-        resetAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-        createdAt: new Date(),
-      };
-    }
-
     const user = await storage.getUser(userId);
     if (!user) {
       throw new Error('User not found');
