@@ -23,7 +23,7 @@ export class SupabaseStorage implements IStorage {
     console.log('=== SUPABASE: getUser called ===');
     const { data, error } = await supabase
       .from('users')
-      .select('*')
+      .select('id, email, password_hash, google_sub, replit_sub, auth_providers, created_at, updated_at')
       .eq('id', id)
       .single();
     
@@ -31,14 +31,25 @@ export class SupabaseStorage implements IStorage {
       console.error('Supabase getUser error:', error);
       return undefined;
     }
-    return data as User;
+    
+    // Map database fields to our User interface
+    return {
+      id: data.id,
+      email: data.email,
+      password: data.password_hash,
+      googleSub: data.google_sub,
+      replitSub: data.replit_sub,
+      authProviders: data.auth_providers || [],
+      createdAt: new Date(data.created_at),
+      updatedAt: new Date(data.updated_at)
+    } as User;
   }
 
   async getUserByEmail(email: string): Promise<User | undefined> {
     console.log('=== SUPABASE: getUserByEmail called ===');
     const { data, error } = await supabase
       .from('users')
-      .select('*')
+      .select('id, email, password_hash, google_sub, replit_sub, auth_providers, created_at, updated_at')
       .eq('email', email)
       .single();
     
@@ -48,14 +59,25 @@ export class SupabaseStorage implements IStorage {
       }
       return undefined;
     }
-    return data as User;
+    
+    // Map database fields to our User interface
+    return {
+      id: data.id,
+      email: data.email,
+      password: data.password_hash,
+      googleSub: data.google_sub,
+      replitSub: data.replit_sub,
+      authProviders: data.auth_providers || [],
+      createdAt: new Date(data.created_at),
+      updatedAt: new Date(data.updated_at)
+    } as User;
   }
 
   async getUserByGoogleSub(googleSub: string): Promise<User | undefined> {
     console.log('=== SUPABASE: getUserByGoogleSub called ===');
     const { data, error } = await supabase
       .from('users')
-      .select('*')
+      .select('id, email, password_hash, google_sub, replit_sub, auth_providers, created_at, updated_at')
       .eq('google_sub', googleSub)
       .single();
     
@@ -65,7 +87,18 @@ export class SupabaseStorage implements IStorage {
       }
       return undefined;
     }
-    return data as User;
+    
+    // Map database fields to our User interface
+    return {
+      id: data.id,
+      email: data.email,
+      password: data.password_hash,
+      googleSub: data.google_sub,
+      replitSub: data.replit_sub,
+      authProviders: data.auth_providers || [],
+      createdAt: new Date(data.created_at),
+      updatedAt: new Date(data.updated_at)
+    } as User;
   }
 
   async getUserByReplitSub(replitSub: string): Promise<User | undefined> {
@@ -86,17 +119,41 @@ export class SupabaseStorage implements IStorage {
 
   async upsertUser(userData: UpsertUser): Promise<User> {
     console.log('=== SUPABASE: upsertUser called ===');
+    
+    // Map our User interface fields to database fields
+    const dbData = {
+      id: userData.id,
+      email: userData.email,
+      password_hash: userData.password,
+      google_sub: userData.googleSub,
+      replit_sub: userData.replitSub,
+      auth_providers: userData.authProviders || [],
+      created_at: userData.createdAt || new Date(),
+      updated_at: userData.updatedAt || new Date()
+    };
+    
     const { data, error } = await supabase
       .from('users')
-      .upsert(userData, { onConflict: 'id' })
-      .select()
+      .upsert(dbData, { onConflict: 'id' })
+      .select('id, email, password_hash, google_sub, replit_sub, auth_providers, created_at, updated_at')
       .single();
     
     if (error) {
       console.error('Supabase upsertUser error:', error);
       throw error;
     }
-    return data as User;
+    
+    // Map database fields back to our User interface
+    return {
+      id: data.id,
+      email: data.email,
+      password: data.password_hash,
+      googleSub: data.google_sub,
+      replitSub: data.replit_sub,
+      authProviders: data.auth_providers || [],
+      createdAt: new Date(data.created_at),
+      updatedAt: new Date(data.updated_at)
+    } as User;
   }
 
   async updateUser(id: string, updates: Partial<User>): Promise<User> {
