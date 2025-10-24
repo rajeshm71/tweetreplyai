@@ -26,7 +26,7 @@ export function getSession() {
   const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 1 week
   const pgStore = connectPg(session);
   const sessionStore = new pgStore({
-    conString: process.env.SUPABASE_URL, // Now points to Supabase
+    conString: process.env.DATABASE_URL, // Use DATABASE_URL for database connection
     createTableIfMissing: true, // Allow table creation for Supabase
     ttl: sessionTtl,
     tableName: "sessions",
