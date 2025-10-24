@@ -18,15 +18,11 @@ function initializeDatabase() {
   console.log('SESSION_SECRET configured:', !!process.env.SESSION_SECRET);
   console.log('NODE_ENV:', process.env.NODE_ENV);
   
+  // Force error if DATABASE_URL is not set
   if (!process.env.DATABASE_URL) {
-    if (process.env.NODE_ENV === 'test') {
-      console.log('Running in test mode - database operations will be mocked');
-    } else {
-      console.warn('DATABASE_URL not set - database operations will be unavailable');
-    }
-    dbInstance = null;
-    isInitialized = true;
-    return dbInstance;
+    console.error('CRITICAL ERROR: DATABASE_URL is not set!');
+    console.error('All environment variables:', Object.keys(process.env));
+    throw new Error('DATABASE_URL environment variable is required but not set');
   }
 
   // Convert direct connection URL to pooled connection URL for serverless

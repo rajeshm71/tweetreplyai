@@ -66,16 +66,41 @@ export interface IStorage {
 export class DatabaseStorage implements IStorage {
   // User operations
   async getUser(id: string): Promise<User | undefined> {
+    console.log('=== STORAGE: getUser called ===');
+    console.log('DATABASE_URL configured:', !!process.env.DATABASE_URL);
+    console.log('SUPABASE_URL configured:', !!process.env.SUPABASE_URL);
+    console.log('NODE_ENV:', process.env.NODE_ENV);
+    if (process.env.DATABASE_URL) {
+      console.log('DATABASE_URL preview:', process.env.DATABASE_URL.replace(/\/\/.*@/, '//***:***@'));
+      console.log('Contains :5432:', process.env.DATABASE_URL.includes(':5432'));
+      console.log('Contains :6543:', process.env.DATABASE_URL.includes(':6543'));
+    }
     const [user] = await db.select().from(users).where(eq(users.id, id));
     return user;
   }
 
   async getUserByEmail(email: string): Promise<User | undefined> {
+    console.log('=== STORAGE: getUserByEmail called ===');
+    console.log('DATABASE_URL configured:', !!process.env.DATABASE_URL);
+    if (process.env.DATABASE_URL) {
+      console.log('DATABASE_URL preview:', process.env.DATABASE_URL.replace(/\/\/.*@/, '//***:***@'));
+    }
     const [user] = await db.select().from(users).where(eq(users.email, email));
     return user;
   }
 
   async getUserByGoogleSub(googleSub: string): Promise<User | undefined> {
+    console.log('=== STORAGE: getUserByGoogleSub called ===');
+    console.log('DATABASE_URL configured:', !!process.env.DATABASE_URL);
+    console.log('SUPABASE_URL configured:', !!process.env.SUPABASE_URL);
+    console.log('NODE_ENV:', process.env.NODE_ENV);
+    if (process.env.DATABASE_URL) {
+      console.log('DATABASE_URL preview:', process.env.DATABASE_URL.replace(/\/\/.*@/, '//***:***@'));
+      console.log('Contains :5432:', process.env.DATABASE_URL.includes(':5432'));
+      console.log('Contains :6543:', process.env.DATABASE_URL.includes(':6543'));
+    } else {
+      console.log('DATABASE_URL is NOT SET!');
+    }
     const [user] = await db.select().from(users).where(eq(users.googleSub, googleSub));
     return user;
   }
