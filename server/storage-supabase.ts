@@ -20,7 +20,7 @@ import type { IStorage } from "./storage.js";
 export class SupabaseStorage implements IStorage {
   // User operations
   async getUser(id: string): Promise<User | undefined> {
-    //console.log('=== SUPABASE: getUser called (line 23) ===');
+    console.log('=== SUPABASE: getUser called (line 23) ===');
     console.log('User ID:', id);
     
     const { data, error } = await supabase
@@ -309,7 +309,7 @@ export class SupabaseStorage implements IStorage {
   async getUsageCounter(userId: string, periodStart: Date): Promise<UsageCounter | undefined> {
     const { data, error } = await supabase
       .from('usage_counters')
-      .select('*')
+      .select('id, user_id, plan_code, period_start, period_end, replies_used, limit, reset_at, created_at, updated_at')
       .eq('user_id', userId)
       .eq('period_start', periodStart.toISOString())
       .single();
@@ -320,46 +320,99 @@ export class SupabaseStorage implements IStorage {
       }
       return undefined;
     }
-    return data as UsageCounter;
+
+    // Map database fields to our UsageCounter interface
+    return {
+      id: data.id,
+      userId: data.user_id,
+      planCode: data.plan_code,
+      periodStart: new Date(data.period_start),
+      periodEnd: new Date(data.period_end),
+      repliesUsed: data.replies_used,
+      limit: data.limit,
+      resetAt: new Date(data.reset_at),
+      createdAt: new Date(data.created_at),
+      updatedAt: new Date(data.updated_at)
+    } as UsageCounter;
   }
 
   async createUsageCounter(usageCounter: InsertUsageCounter): Promise<UsageCounter> {
+    // Map camelCase fields to snake_case database columns
+    const dbUsageCounter = {
+      id: usageCounter.id,
+      user_id: usageCounter.userId,
+      plan_code: usageCounter.planCode,
+      period_start: usageCounter.periodStart.toISOString(),
+      period_end: usageCounter.periodEnd.toISOString(),
+      replies_used: usageCounter.repliesUsed,
+      limit: usageCounter.limit,
+      reset_at: usageCounter.resetAt.toISOString(),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
     const { data, error} = await supabase
       .from('usage_counters')
-      .insert(usageCounter)
-      .select()
+      .insert(dbUsageCounter)
+      .select('id, user_id, plan_code, period_start, period_end, replies_used, limit, reset_at, created_at, updated_at')
       .single();
     
     if (error) {
       console.error('Supabase createUsageCounter error (line 315):', error);
       throw error;
     }
-    return data as UsageCounter;
+
+    // Map database fields back to our UsageCounter interface
+    return {
+      id: data.id,
+      userId: data.user_id,
+      planCode: data.plan_code,
+      periodStart: new Date(data.period_start),
+      periodEnd: new Date(data.period_end),
+      repliesUsed: data.replies_used,
+      limit: data.limit,
+      resetAt: new Date(data.reset_at),
+      createdAt: new Date(data.created_at),
+      updatedAt: new Date(data.updated_at)
+    } as UsageCounter;
   }
 
   async incrementUsage(userId: string, periodStart: Date): Promise<UsageCounter> {
     let counter = await this.getUsageCounter(userId, periodStart);
     
     if (!counter) {
-      counter = await this.createUsageCounter({
-        userId,
-        periodStart,
-        repliesGenerated: 1,
-      });
+      // This should not happen as getUsageStatus creates the counter if it doesn't exist
+      throw new Error('Usage counter not found - this should be created by getUsageStatus first');
     } else {
       const { data, error } = await supabase
         .from('usage_counters')
-        .update({ replies_generated: counter.repliesGenerated + 1 })
+        .update({ 
+          replies_used: counter.repliesUsed + 1,
+          updated_at: new Date().toISOString()
+        })
         .eq('user_id', userId)
         .eq('period_start', periodStart.toISOString())
-        .select()
+        .select('id, user_id, plan_code, period_start, period_end, replies_used, limit, reset_at, created_at, updated_at')
         .single();
       
       if (error) {
         console.error('Supabase incrementUsage error (line 340):', error);
         throw error;
       }
-      counter = data as UsageCounter;
+
+      // Map database fields back to our UsageCounter interface
+      counter = {
+        id: data.id,
+        userId: data.user_id,
+        planCode: data.plan_code,
+        periodStart: new Date(data.period_start),
+        periodEnd: new Date(data.period_end),
+        repliesUsed: data.replies_used,
+        limit: data.limit,
+        resetAt: new Date(data.reset_at),
+        createdAt: new Date(data.created_at),
+        updatedAt: new Date(data.updated_at)
+      } as UsageCounter;
     }
     
     return counter;
