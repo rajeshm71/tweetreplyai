@@ -1,5 +1,4 @@
 import type { Express } from "express";
-import { createServer, type Server } from "http";
 import { storage } from "./storage.js";
 // Replit auth removed - using local auth only
 import { setupLocalAuth } from "./localAuth.js";
@@ -80,7 +79,7 @@ const getUserId = localGetUserId;
 // Export alias for tests
 export const setupRoutes = registerRoutes;
 
-export async function registerRoutes(app: Express): Promise<Server> {
+export async function registerRoutes(app: Express): Promise<Express> {
   // Auth middleware - using local auth only
   // Use persistent session store for production, memory store for development
   console.log('=== SESSION CONFIGURATION DEBUG ===');
@@ -903,6 +902,7 @@ Make it more conversational, specific, and engaging while keeping it under 200 c
     }
   });
 
-  const httpServer = createServer(app);
-  return httpServer;
+  // For Vercel serverless, just return the app
+  // No need to create an HTTP server
+  return app;
 }
