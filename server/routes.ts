@@ -107,42 +107,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 }, // 1 week
   };
 
-  // Force database session store in production if DATABASE_URL is available
-  if (process.env.DATABASE_URL) {
-    try {
-      // Convert DATABASE_URL to use pooled connection (port 6543) for serverless
-      let sessionDbUrl = process.env.DATABASE_URL;
-      
-      console.log('=== SESSION STORE DATABASE URL DEBUG ===');
-      console.log('Original DATABASE_URL:', sessionDbUrl.replace(/\/\/.*@/, '//***:***@'));
-      console.log('Contains :5432:', sessionDbUrl.includes(':5432'));
-      console.log('Contains :6543:', sessionDbUrl.includes(':6543'));
-      
-      // Convert port 5432 to 6543 for serverless
-      if (sessionDbUrl.includes(':5432')) {
-        sessionDbUrl = sessionDbUrl.replace(':5432', ':6543');
-        console.log('Converted session store URL to use pooled connection (port 6543)');
-        console.log('Converted URL:', sessionDbUrl.replace(/\/\/.*@/, '//***:***@'));
-      }
-      
-      // Use database session store for production
-      console.log('Using database session store for production');
-      const connectPg = (await import('connect-pg-simple')).default;
-      const pgStore = connectPg(session);
-      const sessionStore = new pgStore({
-        conString: sessionDbUrl,
-        tableName: 'user_sessions',
-        createTableIfMissing: true,
-      });
-      sessionConfig.store = sessionStore;
-      console.log('Database session store configured successfully');
-    } catch (error) {
-      console.error('Failed to configure database session store, falling back to memory store:', error);
-      console.log('Using memory store for sessions (fallback)');
-    }
-  } else {
-    console.log('Using memory store for sessions (no DATABASE_URL)');
-  }
+  // Use memory store for sessions since we're using JWT for serverless
+  console.log('Using memory store for sessions (JWT-based auth for serverless)');
 
   app.use(session(sessionConfig));
     

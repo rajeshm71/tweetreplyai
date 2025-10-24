@@ -323,4 +323,9 @@ export class DatabaseStorage implements IStorage {
   }
 }
 
-export const storage = new DatabaseStorage();
+// Use Supabase JS client instead of raw Postgres for serverless compatibility
+import { storage as supabaseStorage } from './storage-supabase.js';
+export const storage = supabaseStorage;
+
+// Keep DatabaseStorage for reference but don't use it
+// export const storage = new DatabaseStorage();
