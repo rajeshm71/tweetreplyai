@@ -309,7 +309,7 @@ export class SupabaseStorage implements IStorage {
   async getUsageCounter(userId: string, periodStart: Date): Promise<UsageCounter | undefined> {
     const { data, error } = await supabase
       .from('usage_counters')
-      .select('id, user_id, plan_code, period_start, period_end, replies_used, limit, reset_at, created_at')
+      .select('id, user_id, plan_code, period_start, period_end, replies_used, limit, reset_at, created_at, updated_at')
       .eq('user_id', userId)
       .eq('period_start', periodStart.toISOString())
       .single();
@@ -332,7 +332,7 @@ export class SupabaseStorage implements IStorage {
       limit: data.limit,
       resetAt: new Date(data.reset_at),
       createdAt: new Date(data.created_at),
-      updatedAt: new Date(data.created_at) // Use created_at as fallback since updated_at doesn't exist
+      updatedAt: new Date(data.updated_at)
     } as UsageCounter;
   }
 
@@ -347,13 +347,14 @@ export class SupabaseStorage implements IStorage {
       replies_used: usageCounter.repliesUsed,
       limit: usageCounter.limit,
       reset_at: usageCounter.resetAt.toISOString(),
-      created_at: new Date().toISOString()
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
     };
 
     const { data, error} = await supabase
       .from('usage_counters')
       .insert(dbUsageCounter)
-      .select('id, user_id, plan_code, period_start, period_end, replies_used, limit, reset_at, created_at')
+      .select('id, user_id, plan_code, period_start, period_end, replies_used, limit, reset_at, created_at, updated_at')
       .single();
     
     if (error) {
@@ -372,7 +373,7 @@ export class SupabaseStorage implements IStorage {
       limit: data.limit,
       resetAt: new Date(data.reset_at),
       createdAt: new Date(data.created_at),
-      updatedAt: new Date(data.created_at) // Use created_at as fallback since updated_at doesn't exist
+      updatedAt: new Date(data.updated_at)
     } as UsageCounter;
   }
 
@@ -386,11 +387,12 @@ export class SupabaseStorage implements IStorage {
       const { data, error } = await supabase
         .from('usage_counters')
         .update({ 
-          replies_used: counter.repliesUsed + 1
+          replies_used: counter.repliesUsed + 1,
+          updated_at: new Date().toISOString()
         })
         .eq('user_id', userId)
         .eq('period_start', periodStart.toISOString())
-        .select('id, user_id, plan_code, period_start, period_end, replies_used, limit, reset_at, created_at')
+        .select('id, user_id, plan_code, period_start, period_end, replies_used, limit, reset_at, created_at, updated_at')
         .single();
       
       if (error) {
@@ -409,7 +411,7 @@ export class SupabaseStorage implements IStorage {
         limit: data.limit,
         resetAt: new Date(data.reset_at),
         createdAt: new Date(data.created_at),
-        updatedAt: new Date(data.created_at) // Use created_at as fallback since updated_at doesn't exist
+        updatedAt: new Date(data.updated_at)
       } as UsageCounter;
     }
     
@@ -418,17 +420,39 @@ export class SupabaseStorage implements IStorage {
 
   // Reply event operations
   async createReplyEvent(replyEvent: InsertReplyEvent): Promise<ReplyEvent> {
+    // Map camelCase fields to snake_case database columns
+    const dbReplyEvent = {
+      user_id: replyEvent.userId,
+      model_key: replyEvent.modelKey,
+      prompt_key: replyEvent.promptKey,
+      latency_ms: replyEvent.latencyMs,
+      tokens_used: replyEvent.tokensUsed,
+      cost: replyEvent.cost,
+      created_at: replyEvent.createdAt ? replyEvent.createdAt.toISOString() : new Date().toISOString()
+    };
+
     const { data, error } = await supabase
       .from('reply_events')
-      .insert(replyEvent)
-      .select()
+      .insert(dbReplyEvent)
+      .select('id, user_id, model_key, prompt_key, latency_ms, tokens_used, cost, created_at')
       .single();
     
     if (error) {
       console.error('Supabase createReplyEvent error (line 358):', error);
       throw error;
     }
-    return data as ReplyEvent;
+
+    // Map database fields back to our ReplyEvent interface
+    return {
+      id: data.id.toString(), // Convert bigint to string
+      userId: data.user_id,
+      modelKey: data.model_key,
+      promptKey: data.prompt_key,
+      latencyMs: data.latency_ms,
+      tokensUsed: data.tokens_used,
+      cost: data.cost,
+      createdAt: new Date(data.created_at)
+    } as ReplyEvent;
   }
 
   // Feedback operations
