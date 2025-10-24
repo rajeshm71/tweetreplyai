@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "NODE_ENV=development tsx server/index.ts",
     "build": "vite build --mode production && esbuild server/prod.ts --platform=node --packages=external --bundle --format=esm --outdir=dist --external:vite --external:rollup --external:@rollup/*",
+    "build:extension": "esbuild extension/content/content.js --bundle --outfile=extension/content/content.bundle.js --format=iife --external:chrome",
+    "build:extension:popup": "esbuild extension/popup/popup.js --bundle --outfile=extension/popup/popup.bundle.js --format=iife --external:chrome",
     "start": "NODE_ENV=production node dist/prod.js",
     "check": "tsc",
     "test": "vitest",
