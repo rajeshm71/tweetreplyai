@@ -79,8 +79,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   console.log('=== SESSION CONFIGURATION DEBUG ===');
   console.log('Session secret configured:', !!process.env.SESSION_SECRET);
   console.log('NODE_ENV:', process.env.NODE_ENV);
+  console.log('DATABASE_URL configured:', !!process.env.DATABASE_URL);
   console.log('SUPABASE_URL configured:', !!process.env.SUPABASE_URL);
-  console.log('All env vars:', Object.keys(process.env).filter(key => key.includes('SESSION') || key.includes('SUPABASE') || key.includes('NODE')));
+  console.log('All env vars:', Object.keys(process.env).filter(key => key.includes('SESSION') || key.includes('DATABASE') || key.includes('SUPABASE') || key.includes('NODE')));
   
   let sessionConfig: any = {
     secret: process.env.SESSION_SECRET || 'dev-secret',
@@ -89,16 +90,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 }, // 1 week
   };
 
-  // Force database session store in production if SUPABASE_URL is available
-  console.log('SUPABASE_URL:', process.env.SUPABASE_URL);
-  if (process.env.SUPABASE_URL) {
+  // Force database session store in production if DATABASE_URL is available
+  console.log('DATABASE_URL:', process.env.DATABASE_URL);
+  if (process.env.DATABASE_URL) {
     try {
       // Use database session store for production
       console.log('Using database session store for production');
       const connectPg = (await import('connect-pg-simple')).default;
       const pgStore = connectPg(session);
       const sessionStore = new pgStore({
-        conString: process.env.SUPABASE_URL,
+        conString: process.env.DATABASE_URL,
         tableName: 'user_sessions',
         createTableIfMissing: true,
       });
@@ -109,7 +110,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log('Using memory store for sessions (fallback)');
     }
   } else {
-    console.log('Using memory store for sessions (no SUPABASE_URL)');
+    console.log('Using memory store for sessions (no DATABASE_URL)');
   }
 
   app.use(session(sessionConfig));

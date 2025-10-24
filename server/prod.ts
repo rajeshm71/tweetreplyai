@@ -43,6 +43,8 @@ app.use((req, res, next) => {
   console.log('PORT:', process.env.PORT);
   console.log('GOOGLE_CALLBACK_URL:', process.env.GOOGLE_CALLBACK_URL);
   console.log('SESSION_SECRET configured:', !!process.env.SESSION_SECRET);
+  console.log('DATABASE_URL configured:', !!process.env.DATABASE_URL);
+  console.log('SUPABASE_URL configured:', !!process.env.SUPABASE_URL);
   
   try {
     const server = await registerRoutes(app);

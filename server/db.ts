@@ -2,22 +2,33 @@ import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import * as schema from "../shared/schema.js";
 
-if (!process.env.SUPABASE_URL) {
+if (!process.env.DATABASE_URL) {
   if (process.env.NODE_ENV === 'test') {
     // For tests, we'll use mocked database operations
     console.log('Running in test mode - database operations will be mocked');
   } else {
-    console.warn('SUPABASE_URL not set - database operations will be unavailable');
+    console.warn('DATABASE_URL not set - database operations will be unavailable');
   }
 }
 
 // Create postgres connection for Supabase
-// Note: Supabase recommends using pooled connection (port 6543)
+// Note: Supabase recommends using pooled connection (port 6543) for serverless
 let queryClient: any;
 let db: any;
 
-if (process.env.SUPABASE_URL) {
-  queryClient = postgres(process.env.SUPABASE_URL, {
+if (process.env.DATABASE_URL) {
+  // Convert direct connection URL to pooled connection URL for serverless
+  let connectionUrl = process.env.DATABASE_URL;
+  
+  // If it's a direct connection (port 5432), convert to pooled (port 6543)
+  if (connectionUrl.includes(':5432')) {
+    connectionUrl = connectionUrl.replace(':5432', ':6543');
+    console.log('Converted to pooled connection URL for serverless');
+  }
+  
+  console.log('Using database connection URL:', connectionUrl.replace(/\/\/.*@/, '//***:***@')); // Hide credentials in logs
+  
+  queryClient = postgres(connectionUrl, {
     max: 5, // Reduce max connections for serverless
     idle_timeout: 30, // Keep connections alive longer
     connect_timeout: 30, // Increase connection timeout
@@ -26,7 +37,7 @@ if (process.env.SUPABASE_URL) {
   });
   db = drizzle(queryClient, { schema });
 } else {
-  // For test mode without SUPABASE_URL, create a mock db
+  // For test mode without DATABASE_URL, create a mock db
   db = null;
 }
 
