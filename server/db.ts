@@ -27,6 +27,13 @@ if (process.env.DATABASE_URL) {
   console.log('Contains pooler:', connectionUrl.includes('pooler'));
   console.log('Contains aws-0:', connectionUrl.includes('aws-0'));
   
+  // Additional environment debugging
+  console.log('=== ENVIRONMENT VARIABLES DEBUG ===');
+  console.log('DATABASE_URL configured:', !!process.env.DATABASE_URL);
+  console.log('SUPABASE_URL configured:', !!process.env.SUPABASE_URL);
+  console.log('SESSION_SECRET configured:', !!process.env.SESSION_SECRET);
+  console.log('NODE_ENV:', process.env.NODE_ENV);
+  
   // If it's a direct connection (port 5432), convert to pooled (port 6543)
   if (connectionUrl.includes(':5432')) {
     connectionUrl = connectionUrl.replace(':5432', ':6543');

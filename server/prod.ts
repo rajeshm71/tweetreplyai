@@ -46,6 +46,12 @@ app.use((req, res, next) => {
   console.log('DATABASE_URL configured:', !!process.env.DATABASE_URL);
   console.log('SUPABASE_URL configured:', !!process.env.SUPABASE_URL);
   
+  // Force environment variables debugging
+  console.log('=== FORCED ENVIRONMENT DEBUG ===');
+  console.log('All env vars with DATABASE:', Object.keys(process.env).filter(key => key.includes('DATABASE')));
+  console.log('All env vars with SUPABASE:', Object.keys(process.env).filter(key => key.includes('SUPABASE')));
+  console.log('All env vars with SESSION:', Object.keys(process.env).filter(key => key.includes('SESSION')));
+  
   // Debug DATABASE_URL format
   if (process.env.DATABASE_URL) {
     console.log('DATABASE_URL format check:');
