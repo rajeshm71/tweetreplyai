@@ -104,7 +104,7 @@ export class SupabaseStorage implements IStorage {
   async getUserByReplitSub(replitSub: string): Promise<User | undefined> {
     const { data, error } = await supabase
       .from('users')
-      .select('*')
+      .select('id, email, password_hash, google_sub, replit_sub, auth_providers, created_at, updated_at')
       .eq('replit_sub', replitSub)
       .single();
     
@@ -114,7 +114,18 @@ export class SupabaseStorage implements IStorage {
       }
       return undefined;
     }
-    return data as User;
+    
+    // Map database fields to our User interface
+    return {
+      id: data.id,
+      email: data.email,
+      password: data.password_hash,
+      googleSub: data.google_sub,
+      replitSub: data.replit_sub,
+      authProviders: data.auth_providers || [],
+      createdAt: new Date(data.created_at),
+      updatedAt: new Date(data.updated_at)
+    } as User;
   }
 
   async upsertUser(userData: UpsertUser): Promise<User> {
@@ -157,18 +168,40 @@ export class SupabaseStorage implements IStorage {
   }
 
   async updateUser(id: string, updates: Partial<User>): Promise<User> {
+    // Map our User interface fields to database fields
+    const dbUpdates: any = {
+      updated_at: new Date()
+    };
+    
+    if (updates.email !== undefined) dbUpdates.email = updates.email;
+    if (updates.password !== undefined) dbUpdates.password_hash = updates.password;
+    if (updates.googleSub !== undefined) dbUpdates.google_sub = updates.googleSub;
+    if (updates.replitSub !== undefined) dbUpdates.replit_sub = updates.replitSub;
+    if (updates.authProviders !== undefined) dbUpdates.auth_providers = updates.authProviders;
+    
     const { data, error } = await supabase
       .from('users')
-      .update({ ...updates, updated_at: new Date() })
+      .update(dbUpdates)
       .eq('id', id)
-      .select()
+      .select('id, email, password_hash, google_sub, replit_sub, auth_providers, created_at, updated_at')
       .single();
     
     if (error) {
       console.error('Supabase updateUser error:', error);
       throw error;
     }
-    return data as User;
+    
+    // Map database fields back to our User interface
+    return {
+      id: data.id,
+      email: data.email,
+      password: data.password_hash,
+      googleSub: data.google_sub,
+      replitSub: data.replit_sub,
+      authProviders: data.auth_providers || [],
+      createdAt: new Date(data.created_at),
+      updatedAt: new Date(data.updated_at)
+    } as User;
   }
 
   async addAuthProvider(userId: string, provider: string): Promise<void> {
