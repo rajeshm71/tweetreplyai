@@ -20,7 +20,7 @@ import type { IStorage } from "./storage.js";
 export class SupabaseStorage implements IStorage {
   // User operations
   async getUser(id: string): Promise<User | undefined> {
-    console.log('=== SUPABASE: getUser called (line 23) ===');
+    //console.log('=== SUPABASE: getUser called (line 23) ===');
     console.log('User ID:', id);
     
     const { data, error } = await supabase
