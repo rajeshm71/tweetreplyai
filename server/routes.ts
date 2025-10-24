@@ -37,7 +37,7 @@ const jwtIsAuthenticated = (req: any, res: any, next: any) => {
   try {
     const decoded = jwt.verify(token, process.env.SESSION_SECRET || 'dev-secret');
     req.user = decoded;
-    console.log('JWT authentication successful');
+    console.log('JWT authentication successful, user:', decoded);
     return next();
   } catch (error) {
     console.log('JWT verification failed:', error.message);

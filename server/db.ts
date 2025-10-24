@@ -18,9 +18,11 @@ let db: any;
 
 if (process.env.SUPABASE_URL) {
   queryClient = postgres(process.env.SUPABASE_URL, {
-    max: 10, // Maximum number of connections
-    idle_timeout: 20, // Close idle connections after 20s
-    connect_timeout: 10, // Connection timeout in seconds
+    max: 5, // Reduce max connections for serverless
+    idle_timeout: 30, // Keep connections alive longer
+    connect_timeout: 30, // Increase connection timeout
+    max_lifetime: 60 * 30, // 30 minutes max lifetime
+    prepare: false, // Disable prepared statements for serverless
   });
   db = drizzle(queryClient, { schema });
 } else {
