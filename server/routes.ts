@@ -15,7 +15,12 @@ import session from "express-session";
 
 // Local auth helpers for development
 const localIsAuthenticated = (req: any, res: any, next: any) => {
+  console.log('Auth check - isAuthenticated:', req.isAuthenticated());
+  console.log('Auth check - user:', req.user);
+  console.log('Auth check - session:', req.session);
+  
   if (!req.isAuthenticated()) {
+    console.log('User not authenticated, returning 401');
     return res.status(401).json({ message: "Unauthorized" });
   }
   return next();
@@ -39,6 +44,10 @@ export const setupRoutes = registerRoutes;
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware - using local auth only
   // Use persistent session store for production, memory store for development
+  console.log('Session secret configured:', !!process.env.SESSION_SECRET);
+  console.log('NODE_ENV:', process.env.NODE_ENV);
+  console.log('SUPABASE_URL configured:', !!process.env.SUPABASE_URL);
+  
   let sessionConfig: any = {
     secret: process.env.SESSION_SECRET || 'dev-secret',
     resave: false,
@@ -47,16 +56,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   };
 
   if (process.env.NODE_ENV === 'production' && process.env.SUPABASE_URL) {
-    // Use database session store for production
-    console.log('Using database session store for production');
-    const connectPg = (await import('connect-pg-simple')).default;
-    const pgStore = connectPg(session);
-    const sessionStore = new pgStore({
-      conString: process.env.SUPABASE_URL,
-      tableName: 'user_sessions',
-      createTableIfMissing: true,
-    });
-    sessionConfig.store = sessionStore;
+    try {
+      // Use database session store for production
+      console.log('Using database session store for production');
+      const connectPg = (await import('connect-pg-simple')).default;
+      const pgStore = connectPg(session);
+      const sessionStore = new pgStore({
+        conString: process.env.SUPABASE_URL,
+        tableName: 'user_sessions',
+        createTableIfMissing: true,
+      });
+      sessionConfig.store = sessionStore;
+      console.log('Database session store configured successfully');
+    } catch (error) {
+      console.error('Failed to configure database session store, falling back to memory store:', error);
+      console.log('Using memory store for sessions (fallback)');
+    }
   } else {
     console.log('Using memory store for sessions (local development)');
   }
