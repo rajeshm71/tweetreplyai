@@ -836,9 +836,11 @@ class TwitterReplyInjector {
 // Minimal, stable, and Draft-friendly.
 // No innerHTML, no synthetic clipboard events, no fake keypresses.
 // Replaces the composer text and makes it 100% editable (Backspace/Enter work)
+// Minimal, stable, and Draft-friendly.
+// No innerHTML, no synthetic clipboard events, no fake keypresses.
 async insertReplyIntoComposer(composer, replyData) {
   try {
-    // 1) Resolve target node
+    // 0) Resolve to the actual editable node
     if (!composer) return false;
     if (composer.contentEditable !== 'true') {
       const inner = composer.querySelector('div[role="textbox"][contenteditable="true"]');
@@ -846,40 +848,37 @@ async insertReplyIntoComposer(composer, replyData) {
       composer = inner;
     }
 
-    // 2) Resolve text
-    const text = String(typeof replyData === 'string' ? replyData : (replyData?.reply ?? ''));
+    // 1) Resolve text
+    const text = String(
+      typeof replyData === 'string' ? replyData : (replyData?.reply ?? '')
+    );
     if (!text.trim()) return false;
 
-    // 3) Focus + clear (true replace, Draft-aware)
+    // 2) Focus & clear using execCommand (trusted, no synthetic events)
     composer.focus();
-    if (typeof requestAnimationFrame === 'function') {
+    // Small yield so focus sticks
+    if (typeof window.requestAnimationFrame === 'function') {
       await new Promise(r => requestAnimationFrame(() => r()));
     }
+
+    // Select all + delete (Draft recognizes this)
     document.execCommand('selectAll', false, null);
     document.execCommand('delete', false, null);
 
-    // 4) Simulate real typing (character-by-character)
-    //    This makes the nodes fully user-editable (Backspace over inserted text works).
-    for (let i = 0; i < text.length; i++) {
-      const ch = text[i];
-      if (ch === '\r') continue; // ignore CR
-      if (ch === '\n') {
-        // Insert a real line break like pressing Enter
-        if (!document.execCommand('insertLineBreak', false, null)) {
-          document.execCommand('insertParagraph', false, null);
-        }
-      } else {
-        document.execCommand('insertText', false, ch);
-      }
-    }
+    // 3) Insert the whole text in one go
+    // (execCommand triggers real beforeinput/input internally)
+    document.execCommand('insertText', false, text);
 
-    // 5) Ensure caret is at the end (usually already is)
+    // 4) Ensure caret is at the end of a real text node
+    // (usually not needed after execCommand, but safe)
     const sel = window.getSelection();
     const range = document.createRange();
     range.selectNodeContents(composer);
     range.collapse(false);
     sel.removeAllRanges();
     sel.addRange(range);
+
+    // 5) Final focus (ensures typing works)
     composer.focus();
 
     return true;
@@ -888,6 +887,7 @@ async insertReplyIntoComposer(composer, replyData) {
     return false;
   }
 }
+
 
 
 
