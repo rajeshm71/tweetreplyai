@@ -844,13 +844,13 @@ class TwitterReplyInjector {
 // Works with Draft/React by mimicking a real paste and restoring a valid caret.
 async insertReplyIntoComposer(composer, replyData) {
   try {
-    // Resolve text & quick guards
+    // Resolve text
     const text = String(
       typeof replyData === 'string' ? replyData : (replyData?.reply ?? '')
-    );
-    if (!composer || !text.trim()) return false;
+    ).trim();
+    if (!composer || !text) return false;
 
-    // Get actual editable node
+    // Find the actual editable box
     if (composer.contentEditable !== 'true') {
       const inner = composer.querySelector('div[role="textbox"][contenteditable="true"]');
       if (!inner) return false;
@@ -861,34 +861,28 @@ async insertReplyIntoComposer(composer, replyData) {
     composer.focus();
     await this.sleep(20);
 
-    // --- STEP 1: Clear existing content (Draft-aware) ---
+    // 1️⃣ Clear existing text (Draft-aware)
     document.execCommand('selectAll', false, null);
     document.execCommand('delete', false, null);
-    await this.sleep(10);
+    await this.sleep(20);
 
-    // --- STEP 2: Fire Draft’s native paste event ---
-    const dt = new DataTransfer();
-    dt.setData('text/plain', text);
-    const pasteEvent = new ClipboardEvent('paste', {
-      clipboardData: dt,
-      bubbles: true,
-      cancelable: true
-    });
-    composer.dispatchEvent(pasteEvent);
+    // 2️⃣ Insert new text using trusted editing pipeline
+    document.execCommand('insertText', false, text);
 
-    // --- STEP 3: If Draft processed but didn’t render, make it visible ---
-    await this.sleep(40);
-    if (!composer.textContent || !composer.textContent.trim()) {
-      // Force a visible DOM mutation that Draft reconciles
-      document.execCommand('insertText', false, text);
-      composer.dispatchEvent(new Event('input', { bubbles: true }));
-    }
+    // 3️⃣ Let Draft update internal state (safe input nudge)
+    composer.dispatchEvent(new Event('input', { bubbles: true }));
 
-    // --- STEP 4: Restore caret at end and refocus ---
+    // 4️⃣ Reset caret inside Draft’s leaf text node
     const sel = window.getSelection();
     const range = document.createRange();
-    range.selectNodeContents(composer);
-    range.collapse(false);
+    const leaf = composer.querySelector('[data-text="true"]');
+    if (leaf && leaf.firstChild && leaf.firstChild.nodeType === Node.TEXT_NODE) {
+      range.setStart(leaf.firstChild, leaf.firstChild.length);
+      range.collapse(true);
+    } else {
+      range.selectNodeContents(composer);
+      range.collapse(false);
+    }
     sel.removeAllRanges();
     sel.addRange(range);
     composer.focus();
@@ -899,6 +893,7 @@ async insertReplyIntoComposer(composer, replyData) {
     return false;
   }
 }
+
 
 
 

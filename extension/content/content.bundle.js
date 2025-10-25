@@ -850,30 +850,34 @@
         );
         if (!composer || !text.trim()) return false;
         if (composer.contentEditable !== "true") {
-          const inner = composer.querySelector('div[contenteditable="true"][role="textbox"]');
-          if (inner) composer = inner;
+          const inner = composer.querySelector('div[role="textbox"][contenteditable="true"]');
+          if (!inner) return false;
+          composer = inner;
         }
         composer.focus();
         await this.sleep(20);
         document.execCommand("selectAll", false, null);
         document.execCommand("delete", false, null);
         await this.sleep(10);
-        const clipboardData = new DataTransfer();
-        clipboardData.setData("text/plain", text);
+        const dt = new DataTransfer();
+        dt.setData("text/plain", text);
         const pasteEvent = new ClipboardEvent("paste", {
-          clipboardData,
+          clipboardData: dt,
           bubbles: true,
           cancelable: true
         });
         composer.dispatchEvent(pasteEvent);
-        await this.sleep(50);
-        composer.dispatchEvent(new Event("input", { bubbles: true }));
+        await this.sleep(40);
+        if (!composer.textContent || !composer.textContent.trim()) {
+          document.execCommand("insertText", false, text);
+          composer.dispatchEvent(new Event("input", { bubbles: true }));
+        }
         const sel = window.getSelection();
-        const end = document.createRange();
-        end.selectNodeContents(composer);
-        end.collapse(false);
+        const range = document.createRange();
+        range.selectNodeContents(composer);
+        range.collapse(false);
         sel.removeAllRanges();
-        sel.addRange(end);
+        sel.addRange(range);
         composer.focus();
         return true;
       } catch (err) {
