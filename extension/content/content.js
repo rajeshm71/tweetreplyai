@@ -524,6 +524,14 @@ class TwitterReplyInjector {
       return;
     }
 
+    // Extract tweet ID with validation
+    const tweetId = this.extractTweetId();
+    if (!tweetId) {
+      console.error('[TweetReply] Failed to extract tweet ID');
+      this.showMessage(composer, 'Could not identify the tweet. Try refreshing the page.', 'error');
+      return;
+    }
+
     // Show loading state
     button.disabled = true;
     const originalText = button.innerHTML;
@@ -538,12 +546,21 @@ class TwitterReplyInjector {
       const conversationContext = this.extractConversationContext();
       const tweetMetadata = this.extractTweetMetadata();
 
+      // Log what we're sending for debugging
+      console.log('[TweetReply] Generating reply with data:', {
+        tweet_id: tweetId,
+        tweet_text: tweetText.substring(0, 50) + '...',
+        author_info: authorInfo,
+        model_key: options.modelKey || 'auto',
+        prompt_variation: options.promptVariation || 'default'
+      });
+
       const response = await this.apiClient.generateReply({
         tweet_text: tweetText,
-        tweet_id: this.extractTweetId(),
+        tweet_id: tweetId, // Now guaranteed to be non-null
         model_key: options.modelKey,
         prompt_variation: options.promptVariation,
-        author_info: authorInfo,
+        author_info: authorInfo, // Now guaranteed to have follower_count as number
         conversation_context: conversationContext,
         tweet_metadata: tweetMetadata
       });
@@ -571,16 +588,22 @@ class TwitterReplyInjector {
     } catch (error) {
       console.error('Failed to generate reply:', error);
       
-      if (error.message.includes('401')) {
+      // Parse error message
+      let errorMessage = 'Failed to generate reply';
+      if (error.message.includes('400')) {
+        errorMessage = 'Invalid request. Please try again or refresh the page.';
+      } else if (error.message.includes('401')) {
         this.isAuthenticated = false;
-        this.showMessage(composer, 'Please sign in again', 'error');
+        errorMessage = 'Please sign in again';
       } else if (error.message.includes('402')) {
-        this.showMessage(composer, 'Quota exceeded - upgrade your plan', 'error');
+        errorMessage = 'Quota exceeded - upgrade your plan';
       } else if (error.message.includes('Network error')) {
-        this.showMessage(composer, 'Network error - check your connection', 'error');
-      } else {
-        this.showMessage(composer, `Failed to generate reply: ${error.message}`, 'error');
+        errorMessage = 'Network error - check your connection';
+      } else if (error.message) {
+        errorMessage = `Failed to generate reply: ${error.message}`;
       }
+      
+      this.showMessage(composer, errorMessage, 'error');
     } finally {
       // Restore button
       button.innerHTML = originalText;
@@ -639,40 +662,128 @@ class TwitterReplyInjector {
   }
 
   extractTweetId() {
-    // Try to extract tweet ID from URL
+    // Method 1: From URL (works on /status/123 pages)
     const urlMatch = window.location.href.match(/status\/(\d+)/);
-    return urlMatch ? urlMatch[1] : null;
+    if (urlMatch) {
+      console.log('[TweetReply] Tweet ID extracted from URL:', urlMatch[1]);
+      return urlMatch[1];
+    }
+    
+    // Method 2: From tweet element data attributes
+    const tweetElements = document.querySelectorAll('[data-testid="tweet"]');
+    for (const tweet of tweetElements) {
+      // Check for data-tweet-id attribute
+      const tweetId = tweet.getAttribute('data-tweet-id');
+      if (tweetId) {
+        console.log('[TweetReply] Tweet ID extracted from data-tweet-id:', tweetId);
+        return tweetId;
+      }
+      
+      // Check aria-labelledby (format: "id__tweet-text-123456")
+      const ariaLabel = tweet.getAttribute('aria-labelledby');
+      if (ariaLabel) {
+        const match = ariaLabel.match(/(\d{15,})/); // Tweet IDs are 15+ digits
+        if (match) {
+          console.log('[TweetReply] Tweet ID extracted from aria-labelledby:', match[1]);
+          return match[1];
+        }
+      }
+      
+      // Check for links to the tweet
+      const tweetLink = tweet.querySelector('a[href*="/status/"]');
+      if (tweetLink) {
+        const linkMatch = tweetLink.href.match(/status\/(\d+)/);
+        if (linkMatch) {
+          console.log('[TweetReply] Tweet ID extracted from tweet link:', linkMatch[1]);
+          return linkMatch[1];
+        }
+      }
+    }
+    
+    // Method 3: From any status link on the page
+    const statusLinks = document.querySelectorAll('a[href*="/status/"]');
+    for (const link of statusLinks) {
+      const linkMatch = link.href.match(/status\/(\d+)/);
+      if (linkMatch) {
+        console.log('[TweetReply] Tweet ID extracted from status link:', linkMatch[1]);
+        return linkMatch[1];
+      }
+    }
+    
+    console.warn('[TweetReply] Failed to extract tweet ID from any source');
+    return null;
+  }
+
+  parseFollowerCount(countStr) {
+    if (!countStr) return 0;
+    
+    // Convert "1.2K" → 1200, "5M" → 5000000, etc.
+    const multipliers = { K: 1000, M: 1000000, B: 1000000000 };
+    const match = countStr.match(/^([\d.]+)([KMB])?$/i);
+    
+    if (!match) return 0;
+    
+    const num = parseFloat(match[1]);
+    const suffix = match[2]?.toUpperCase();
+    
+    return Math.round(num * (multipliers[suffix] || 1));
   }
 
   extractAuthorInfo() {
     try {
       const authorElement = document.querySelector('[data-testid="User-Name"]');
-      if (!authorElement) return null;
+      if (!authorElement) {
+        console.log('[TweetReply] No author element found, using defaults');
+        return {
+          username: 'unknown',
+          verified: false,
+          follower_count: 0 // Fallback value
+        };
+      }
 
-      const username = authorElement.textContent?.trim() || '';
-      
-      // Check if verified (blue checkmark)
+      const username = authorElement.textContent?.trim() || 'unknown';
       const verifiedIcon = authorElement.querySelector('[data-testid="icon-verified"]');
       const isVerified = !!verifiedIcon;
 
-      // Try to get follower count (this is tricky with Twitter's current structure)
-      let followerCount = null;
+      // Try to get follower count - use 0 as fallback
+      let followerCount = 0;
+      
+      // Method 1: From profile page bio
       const bioElement = document.querySelector('[data-testid="UserDescription"]');
       if (bioElement) {
         const followerMatch = bioElement.textContent?.match(/(\d+(?:\.\d+)?[KMB]?)\s*followers?/i);
         if (followerMatch) {
-          followerCount = followerMatch[1];
+          followerCount = this.parseFollowerCount(followerMatch[1]);
+          console.log('[TweetReply] Follower count extracted from bio:', followerCount);
         }
       }
+      
+      // Method 2: From hover card (if visible)
+      if (followerCount === 0) {
+        const hoverCard = document.querySelector('[data-testid="HoverCard"]');
+        if (hoverCard) {
+          const followerMatch = hoverCard.textContent?.match(/(\d+(?:\.\d+)?[KMB]?)\s*followers?/i);
+          if (followerMatch) {
+            followerCount = this.parseFollowerCount(followerMatch[1]);
+            console.log('[TweetReply] Follower count extracted from hover card:', followerCount);
+          }
+        }
+      }
+
+      console.log('[TweetReply] Author info extracted:', { username, verified: isVerified, follower_count: followerCount });
 
       return {
         username,
         verified: isVerified,
-        follower_count: followerCount
+        follower_count: followerCount // Always returns a number
       };
     } catch (error) {
-      console.error('Failed to extract author info:', error);
-      return null;
+      console.error('[TweetReply] Failed to extract author info:', error);
+      return {
+        username: 'unknown',
+        verified: false,
+        follower_count: 0
+      };
     }
   }
 

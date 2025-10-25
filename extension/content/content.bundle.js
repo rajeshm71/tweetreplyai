@@ -635,7 +635,7 @@
         this.showMessage(composer, "\u2713 Reply inserted", "success");
         this.updateAllButtonStates();
       } catch (error) {
-        console.error("[TweetReply] Failed to generate reply:", error);
+        console.error("Failed to generate reply:", error);
         let errorMessage = "Failed to generate reply";
         if (error.message.includes("400")) {
           errorMessage = "Invalid request. Please try again or refresh the page.";
@@ -646,6 +646,8 @@
           errorMessage = "Quota exceeded - upgrade your plan";
         } else if (error.message.includes("Network error")) {
           errorMessage = "Network error - check your connection";
+        } else if (error.message) {
+          errorMessage = `Failed to generate reply: ${error.message}`;
         }
         this.showMessage(composer, errorMessage, "error");
       } finally {
