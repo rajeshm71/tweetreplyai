@@ -546,11 +546,11 @@ class TwitterReplyInjector {
       const conversationContext = this.extractConversationContext();
       const tweetMetadata = this.extractTweetMetadata();
 
-      // Log what we're sending for debugging
+      // Log what we're sending for debugging (safely)
       console.log('[TweetReply] Generating reply with data:', {
         tweet_id: tweetId,
-        tweet_text: tweetText.substring(0, 50) + '...',
-        author_info: authorInfo,
+        tweet_text_length: tweetText.length,
+        author_info_username: authorInfo?.username || 'unknown',
         model_key: options.modelKey || 'auto',
         prompt_variation: options.promptVariation || 'default'
       });
@@ -832,94 +832,109 @@ class TwitterReplyInjector {
   }
 
   async insertReplyIntoComposer(composer, replyData) {
-    const replyText = typeof replyData === 'string' ? replyData : replyData.reply;
-    const qualityScore = typeof replyData === 'object' ? replyData.qualityScore : null;
-
-    if (composer.contentEditable === 'true') {
-      console.log('[TweetReply] Inserting text using execCommand + React events');
-      
-      // Step 1: Focus the composer
-      composer.focus();
-      await this.sleep(50);
-      
-      // Step 2: Clear any existing content
-      const selection = window.getSelection();
-      const range = document.createRange();
-      range.selectNodeContents(composer);
-      selection.removeAllRanges();
-      selection.addRange(range);
-      
-      // Delete existing content
-      document.execCommand('selectAll', false, null);
-      document.execCommand('delete', false, null);
-      await this.sleep(20);
-      
-      // Step 3: Place caret at start (after clearing)
-      composer.focus();
-      const emptyRange = document.createRange();
-      emptyRange.selectNodeContents(composer);
-      emptyRange.collapse(true);
-      selection.removeAllRanges();
-      selection.addRange(emptyRange);
-      
-      // Step 4: Insert text using execCommand (updates Draft.js state)
-      document.execCommand('insertText', false, replyText);
-      
-      // Step 5: Dispatch React events (notify React of changes)
-      composer.dispatchEvent(new InputEvent('input', {
-        bubbles: true,
-        cancelable: false,
-        inputType: 'insertText',
-        data: replyText
-      }));
-      
-      composer.dispatchEvent(new Event('change', { bubbles: true }));
-      
-      // Step 6: Simulate key events (nudge React to update)
-      composer.dispatchEvent(new KeyboardEvent('keydown', {
-        bubbles: true,
-        key: 'a',
-        code: 'KeyA'
-      }));
-      
-      composer.dispatchEvent(new KeyboardEvent('keyup', {
-        bubbles: true,
-        key: 'a',
-        code: 'KeyA'
-      }));
-      
-      // Step 7: Final focus and move cursor to end
-      composer.focus();
-      await this.sleep(100);
-      
-      const finalSelection = window.getSelection();
-      const finalRange = document.createRange();
-      finalRange.selectNodeContents(composer);
-      finalRange.collapse(false); // Collapse to end
-      finalSelection.removeAllRanges();
-      finalSelection.addRange(finalRange);
-      
-      console.log('[TweetReply] ✅ Text inserted successfully');
-      
-    } else if (composer.tagName === 'TEXTAREA') {
-      // For textarea composers (fallback)
-      composer.focus();
-      composer.value = replyText;
-      
-      const inputEvent = new Event('input', { bubbles: true });
-      composer.dispatchEvent(inputEvent);
-      
-    } else {
-      // Try to find nested input elements
-      const input = composer.querySelector('textarea, [contenteditable="true"]');
-      if (input) {
-        await this.insertReplyIntoComposer(input, replyData);
+    try {
+      // Safety checks
+      if (!composer || !replyData) {
+        console.error('[TweetReply] Invalid parameters for text insertion');
+        return;
       }
-    }
 
-    // Show quality score indicator
-    if (qualityScore) {
-      this.showQualityBadge(composer, qualityScore);
+      const replyText = typeof replyData === 'string' ? replyData : replyData.reply;
+      const qualityScore = typeof replyData === 'object' ? replyData.qualityScore : null;
+
+      if (!replyText || typeof replyText !== 'string') {
+        console.error('[TweetReply] Invalid reply text:', replyText);
+        return;
+      }
+
+      if (composer.contentEditable === 'true') {
+        console.log('[TweetReply] Inserting text using execCommand + React events');
+
+        // Step 1: Focus the composer
+        composer.focus();
+        await this.sleep(50);
+
+        // Step 2: Clear any existing content
+        const selection = window.getSelection();
+        const range = document.createRange();
+        range.selectNodeContents(composer);
+        selection.removeAllRanges();
+        selection.addRange(range);
+
+        // Delete existing content
+        document.execCommand('selectAll', false, null);
+        document.execCommand('delete', false, null);
+        await this.sleep(20);
+
+        // Step 3: Place caret at start (after clearing)
+        composer.focus();
+        const emptyRange = document.createRange();
+        emptyRange.selectNodeContents(composer);
+        emptyRange.collapse(true);
+        selection.removeAllRanges();
+        selection.addRange(emptyRange);
+
+        // Step 4: Insert text using execCommand (updates Draft.js state)
+        document.execCommand('insertText', false, replyText);
+
+        // Step 5: Dispatch React events (notify React of changes)
+        composer.dispatchEvent(new InputEvent('input', {
+          bubbles: true,
+          cancelable: false,
+          inputType: 'insertText',
+          data: replyText
+        }));
+
+        composer.dispatchEvent(new Event('change', { bubbles: true }));
+
+        // Step 6: Simulate key events (nudge React to update)
+        composer.dispatchEvent(new KeyboardEvent('keydown', {
+          bubbles: true,
+          key: 'a',
+          code: 'KeyA'
+        }));
+
+        composer.dispatchEvent(new KeyboardEvent('keyup', {
+          bubbles: true,
+          key: 'a',
+          code: 'KeyA'
+        }));
+
+        // Step 7: Final focus and move cursor to end
+        composer.focus();
+        await this.sleep(100);
+
+        const finalSelection = window.getSelection();
+        const finalRange = document.createRange();
+        finalRange.selectNodeContents(composer);
+        finalRange.collapse(false); // Collapse to end
+        finalSelection.removeAllRanges();
+        finalSelection.addRange(finalRange);
+
+        console.log('[TweetReply] ✅ Text inserted successfully');
+
+      } else if (composer.tagName === 'TEXTAREA') {
+        // For textarea composers (fallback)
+        composer.focus();
+        composer.value = replyText;
+
+        const inputEvent = new Event('input', { bubbles: true });
+        composer.dispatchEvent(inputEvent);
+
+      } else {
+        // Try to find nested input elements
+        const input = composer.querySelector('textarea, [contenteditable="true"]');
+        if (input) {
+          await this.insertReplyIntoComposer(input, replyData);
+        }
+      }
+
+      // Show quality score indicator
+      if (qualityScore && typeof qualityScore === 'number') {
+        this.showQualityBadge(composer, qualityScore);
+      }
+    } catch (error) {
+      console.error('[TweetReply] Error during text insertion:', error);
     }
   }
 
@@ -928,22 +943,32 @@ class TwitterReplyInjector {
   }
 
   showQualityBadge(composer, score) {
-    // Remove existing badge
-    const existingBadge = composer.parentElement?.querySelector('.tweetreply-quality-badge');
-    if (existingBadge) {
-      existingBadge.remove();
-    }
+    try {
+      // Safety check
+      if (!composer || !composer.parentElement) {
+        console.warn('[TweetReply] Cannot show quality badge: composer or parent not found');
+        return;
+      }
 
-    const badge = document.createElement('div');
-    badge.className = 'tweetreply-quality-badge';
-    badge.innerHTML = `
-      <span class="quality-label">Quality:</span>
-      <span class="quality-score quality-${this.getQualityClass(score)}">${score}</span>
-    `;
-    
-    const parent = composer.parentElement;
-    if (parent) {
-      parent.insertBefore(badge, composer.nextSibling);
+      // Remove existing badge
+      const existingBadge = composer.parentElement.querySelector('.tweetreply-quality-badge');
+      if (existingBadge) {
+        existingBadge.remove();
+      }
+
+      const badge = document.createElement('div');
+      badge.className = 'tweetreply-quality-badge';
+      badge.innerHTML = `
+        <span class="quality-label">Quality:</span>
+        <span class="quality-score quality-${this.getQualityClass(score)}">${score}</span>
+      `;
+
+      const parent = composer.parentElement;
+      if (parent) {
+        parent.insertBefore(badge, composer.nextSibling);
+      }
+    } catch (error) {
+      console.error('[TweetReply] Error showing quality badge:', error);
     }
   }
 

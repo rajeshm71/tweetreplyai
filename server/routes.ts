@@ -429,6 +429,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
       // Return response with updated usage
       res.json({
         reply: replyResponse.reply,
+        qualityScore: qualityCheck.score,
         used: updatedCounter.repliesUsed,
         limit: updatedCounter.limit,
         resetAt: updatedCounter.resetAt,
