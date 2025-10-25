@@ -833,10 +833,10 @@ class TwitterReplyInjector {
 
   // Replace whatever is in the Twitter reply composer with new text
 // Works with Draft/React by mimicking a real paste and restoring a valid caret.
-a// Minimal, stable, and Draft-friendly.
+// Minimal, stable, and Draft-friendly.
 // No innerHTML, no synthetic clipboard events, no fake keypresses.
 // Replaces the composer text and makes it 100% editable (Backspace/Enter work)
-async function insertReplyIntoComposer(composer, replyData) {
+async insertReplyIntoComposer(composer, replyData) {
   try {
     // 1) Resolve target node
     if (!composer) return false;
