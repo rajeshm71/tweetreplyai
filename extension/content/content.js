@@ -566,7 +566,7 @@ class TwitterReplyInjector {
       });
 
       // Insert the reply into the composer with quality score
-      this.insertReplyIntoComposer(composer, {
+      await this.insertReplyIntoComposer(composer, {
         reply: response.reply,
         qualityScore: response.qualityScore
       });
@@ -831,75 +831,45 @@ class TwitterReplyInjector {
     }
   }
 
-  insertReplyIntoComposer(composer, replyData) {
+  async insertReplyIntoComposer(composer, replyData) {
     const replyText = typeof replyData === 'string' ? replyData : replyData.reply;
     const qualityScore = typeof replyData === 'object' ? replyData.qualityScore : null;
 
     // Different approaches for different composer types
     if (composer.contentEditable === 'true') {
       // For contenteditable composers (Twitter/X uses Draft.js)
+      // Must simulate actual typing character-by-character
+      
       composer.focus();
       
-      // Method 1: Use execCommand (works with Draft.js)
-      // First, select all existing content
+      // Clear existing content first by selecting all and deleting
       const selection = window.getSelection();
       const range = document.createRange();
       range.selectNodeContents(composer);
       selection.removeAllRanges();
       selection.addRange(range);
       
-      // Delete existing content
-      document.execCommand('delete', false, null);
+      // Simulate backspace to delete existing content
+      this.dispatchKeyboardEvent(composer, 'keydown', 'Backspace', 8);
+      this.dispatchKeyboardEvent(composer, 'keyup', 'Backspace', 8);
       
-      // Insert new text using execCommand (preserves editor state)
-      document.execCommand('insertText', false, replyText);
+      // Small delay to let Draft.js process the deletion
+      await this.sleep(10);
       
-      // Fallback: If execCommand doesn't work, use Selection API
-      if (!composer.textContent || composer.textContent.trim() === '') {
-        // Clear and insert using Selection API
-        composer.innerHTML = '';
-        const textNode = document.createTextNode(replyText);
-        composer.appendChild(textNode);
+      // Type each character individually
+      for (let i = 0; i < replyText.length; i++) {
+        const char = replyText[i];
+        await this.typeCharacter(composer, char);
         
-        // Set cursor to end
-        range.selectNodeContents(composer);
-        range.collapse(false);
-        selection.removeAllRanges();
-        selection.addRange(range);
+        // Very small delay between characters (simulate realistic typing)
+        await this.sleep(1);
       }
       
-      // Trigger comprehensive event sequence for Draft.js
-      const events = [
-        new Event('beforeinput', { bubbles: true, cancelable: true }),
-        new InputEvent('input', { 
-          bubbles: true, 
-          cancelable: true,
-          inputType: 'insertText',
-          data: replyText
-        }),
-        new Event('change', { bubbles: true }),
-        new KeyboardEvent('keyup', { bubbles: true, key: ' ' })
-      ];
-      
-      events.forEach(event => composer.dispatchEvent(event));
-      
-      // Force a final focus to ensure editor is active
-      composer.blur();
-      setTimeout(() => {
-        composer.focus();
-        // Move cursor to end
-        const sel = window.getSelection();
-        if (sel && composer.lastChild) {
-          const rng = document.createRange();
-          rng.selectNodeContents(composer);
-          rng.collapse(false);
-          sel.removeAllRanges();
-          sel.addRange(rng);
-        }
-      }, 50);
+      // Final focus to ensure editor is active
+      composer.focus();
       
     } else if (composer.tagName === 'TEXTAREA') {
-      // For textarea composers
+      // For textarea composers (fallback)
       composer.focus();
       composer.value = replyText;
       
@@ -910,7 +880,7 @@ class TwitterReplyInjector {
       // Try to find nested input elements
       const input = composer.querySelector('textarea, [contenteditable="true"]');
       if (input) {
-        this.insertReplyIntoComposer(input, replyData);
+        await this.insertReplyIntoComposer(input, replyData);
       }
     }
 
@@ -918,6 +888,71 @@ class TwitterReplyInjector {
     if (qualityScore) {
       this.showQualityBadge(composer, qualityScore);
     }
+  }
+
+  async typeCharacter(element, char) {
+    // Simulate complete keyboard event sequence for one character
+    const charCode = char.charCodeAt(0);
+    
+    // 1. KeyDown event
+    this.dispatchKeyboardEvent(element, 'keydown', char, charCode);
+    
+    // 2. KeyPress event (for character input)
+    this.dispatchKeyboardEvent(element, 'keypress', char, charCode);
+    
+    // 3. BeforeInput event
+    const beforeInputEvent = new InputEvent('beforeinput', {
+      bubbles: true,
+      cancelable: true,
+      inputType: 'insertText',
+      data: char
+    });
+    element.dispatchEvent(beforeInputEvent);
+    
+    // 4. Actually insert the character into the DOM
+    const selection = window.getSelection();
+    if (selection.rangeCount > 0) {
+      const range = selection.getRangeAt(0);
+      range.deleteContents();
+      const textNode = document.createTextNode(char);
+      range.insertNode(textNode);
+      
+      // Move cursor after the inserted character
+      range.setStartAfter(textNode);
+      range.setEndAfter(textNode);
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
+    
+    // 5. Input event (most important for Draft.js)
+    const inputEvent = new InputEvent('input', {
+      bubbles: true,
+      cancelable: true,
+      inputType: 'insertText',
+      data: char
+    });
+    element.dispatchEvent(inputEvent);
+    
+    // 6. KeyUp event
+    this.dispatchKeyboardEvent(element, 'keyup', char, charCode);
+  }
+
+  dispatchKeyboardEvent(element, type, key, keyCode) {
+    const event = new KeyboardEvent(type, {
+      bubbles: true,
+      cancelable: true,
+      key: key,
+      code: key === ' ' ? 'Space' : `Key${key.toUpperCase()}`,
+      keyCode: keyCode,
+      charCode: type === 'keypress' ? keyCode : 0,
+      which: keyCode,
+      view: window
+    });
+    element.dispatchEvent(event);
+  }
+
+  sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   showQualityBadge(composer, score) {

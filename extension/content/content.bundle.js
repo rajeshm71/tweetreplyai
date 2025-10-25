@@ -622,7 +622,7 @@
           conversation_context: conversationContext,
           tweet_metadata: tweetMetadata
         });
-        this.insertReplyIntoComposer(composer, {
+        await this.insertReplyIntoComposer(composer, {
           reply: response.reply,
           qualityScore: response.qualityScore
         });
@@ -832,7 +832,7 @@
         return null;
       }
     }
-    insertReplyIntoComposer(composer, replyData) {
+    async insertReplyIntoComposer(composer, replyData) {
       const replyText = typeof replyData === "string" ? replyData : replyData.reply;
       const qualityScore = typeof replyData === "object" ? replyData.qualityScore : null;
       if (composer.contentEditable === "true") {
@@ -842,41 +842,15 @@
         range.selectNodeContents(composer);
         selection.removeAllRanges();
         selection.addRange(range);
-        document.execCommand("delete", false, null);
-        document.execCommand("insertText", false, replyText);
-        if (!composer.textContent || composer.textContent.trim() === "") {
-          composer.innerHTML = "";
-          const textNode = document.createTextNode(replyText);
-          composer.appendChild(textNode);
-          range.selectNodeContents(composer);
-          range.collapse(false);
-          selection.removeAllRanges();
-          selection.addRange(range);
+        this.dispatchKeyboardEvent(composer, "keydown", "Backspace", 8);
+        this.dispatchKeyboardEvent(composer, "keyup", "Backspace", 8);
+        await this.sleep(10);
+        for (let i = 0; i < replyText.length; i++) {
+          const char = replyText[i];
+          await this.typeCharacter(composer, char);
+          await this.sleep(1);
         }
-        const events = [
-          new Event("beforeinput", { bubbles: true, cancelable: true }),
-          new InputEvent("input", {
-            bubbles: true,
-            cancelable: true,
-            inputType: "insertText",
-            data: replyText
-          }),
-          new Event("change", { bubbles: true }),
-          new KeyboardEvent("keyup", { bubbles: true, key: " " })
-        ];
-        events.forEach((event) => composer.dispatchEvent(event));
-        composer.blur();
-        setTimeout(() => {
-          composer.focus();
-          const sel = window.getSelection();
-          if (sel && composer.lastChild) {
-            const rng = document.createRange();
-            rng.selectNodeContents(composer);
-            rng.collapse(false);
-            sel.removeAllRanges();
-            sel.addRange(rng);
-          }
-        }, 50);
+        composer.focus();
       } else if (composer.tagName === "TEXTAREA") {
         composer.focus();
         composer.value = replyText;
@@ -885,12 +859,59 @@
       } else {
         const input = composer.querySelector('textarea, [contenteditable="true"]');
         if (input) {
-          this.insertReplyIntoComposer(input, replyData);
+          await this.insertReplyIntoComposer(input, replyData);
         }
       }
       if (qualityScore) {
         this.showQualityBadge(composer, qualityScore);
       }
+    }
+    async typeCharacter(element, char) {
+      const charCode = char.charCodeAt(0);
+      this.dispatchKeyboardEvent(element, "keydown", char, charCode);
+      this.dispatchKeyboardEvent(element, "keypress", char, charCode);
+      const beforeInputEvent = new InputEvent("beforeinput", {
+        bubbles: true,
+        cancelable: true,
+        inputType: "insertText",
+        data: char
+      });
+      element.dispatchEvent(beforeInputEvent);
+      const selection = window.getSelection();
+      if (selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0);
+        range.deleteContents();
+        const textNode = document.createTextNode(char);
+        range.insertNode(textNode);
+        range.setStartAfter(textNode);
+        range.setEndAfter(textNode);
+        selection.removeAllRanges();
+        selection.addRange(range);
+      }
+      const inputEvent = new InputEvent("input", {
+        bubbles: true,
+        cancelable: true,
+        inputType: "insertText",
+        data: char
+      });
+      element.dispatchEvent(inputEvent);
+      this.dispatchKeyboardEvent(element, "keyup", char, charCode);
+    }
+    dispatchKeyboardEvent(element, type, key, keyCode) {
+      const event = new KeyboardEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        key,
+        code: key === " " ? "Space" : `Key${key.toUpperCase()}`,
+        keyCode,
+        charCode: type === "keypress" ? keyCode : 0,
+        which: keyCode,
+        view: window
+      });
+      element.dispatchEvent(event);
+    }
+    sleep(ms) {
+      return new Promise((resolve) => setTimeout(resolve, ms));
     }
     showQualityBadge(composer, score) {
       const existingBadge = composer.parentElement?.querySelector(".tweetreply-quality-badge");
