@@ -837,6 +837,8 @@
     // Minimal, stable, and Draft-friendly.
     // No innerHTML, no synthetic clipboard events, no fake keypresses.
     // Replaces the composer text and makes it 100% editable (Backspace/Enter work)
+    // Minimal, stable, and Draft-friendly.
+    // No innerHTML, no synthetic clipboard events, no fake keypresses.
     async insertReplyIntoComposer(composer, replyData) {
       try {
         if (!composer) return false;
@@ -845,25 +847,17 @@
           if (!inner) return false;
           composer = inner;
         }
-        const text = String(typeof replyData === "string" ? replyData : replyData?.reply ?? "");
+        const text = String(
+          typeof replyData === "string" ? replyData : replyData?.reply ?? ""
+        );
         if (!text.trim()) return false;
         composer.focus();
-        if (typeof requestAnimationFrame === "function") {
+        if (typeof window.requestAnimationFrame === "function") {
           await new Promise((r) => requestAnimationFrame(() => r()));
         }
         document.execCommand("selectAll", false, null);
         document.execCommand("delete", false, null);
-        for (let i = 0; i < text.length; i++) {
-          const ch = text[i];
-          if (ch === "\r") continue;
-          if (ch === "\n") {
-            if (!document.execCommand("insertLineBreak", false, null)) {
-              document.execCommand("insertParagraph", false, null);
-            }
-          } else {
-            document.execCommand("insertText", false, ch);
-          }
-        }
+        document.execCommand("insertText", false, text);
         const sel = window.getSelection();
         const range = document.createRange();
         range.selectNodeContents(composer);
