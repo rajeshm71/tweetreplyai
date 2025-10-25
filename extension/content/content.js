@@ -838,35 +838,59 @@ class TwitterReplyInjector {
     // Different approaches for different composer types
     if (composer.contentEditable === 'true') {
       // For contenteditable composers (Twitter/X uses Draft.js)
-      // Must simulate actual typing character-by-character
+      // Use Clipboard API + paste event - the ONLY reliable method
       
       composer.focus();
       
-      // Clear existing content first by selecting all and deleting
-      const selection = window.getSelection();
-      const range = document.createRange();
-      range.selectNodeContents(composer);
-      selection.removeAllRanges();
-      selection.addRange(range);
+      // Clear existing content first
+      composer.textContent = '';
+      await this.sleep(50);
+      composer.focus();
       
-      // Simulate backspace to delete existing content
-      this.dispatchKeyboardEvent(composer, 'keydown', 'Backspace', 8);
-      this.dispatchKeyboardEvent(composer, 'keyup', 'Backspace', 8);
-      
-      // Small delay to let Draft.js process the deletion
-      await this.sleep(10);
-      
-      // Type each character individually
-      for (let i = 0; i < replyText.length; i++) {
-        const char = replyText[i];
-        await this.typeCharacter(composer, char);
+      try {
+        // Method 1: Try Clipboard API (modern, most reliable)
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          // Write to clipboard
+          await navigator.clipboard.writeText(replyText);
+          
+          // Create DataTransfer for paste event
+          const dataTransfer = new DataTransfer();
+          dataTransfer.setData('text/plain', replyText);
+          dataTransfer.setData('text/html', replyText);
+          
+          // Trigger paste event
+          const pasteEvent = new ClipboardEvent('paste', {
+            bubbles: true,
+            cancelable: true,
+            clipboardData: dataTransfer
+          });
+          
+          // Dispatch paste event - Draft.js will handle everything
+          composer.dispatchEvent(pasteEvent);
+          
+          // Small delay for Draft.js to process
+          await this.sleep(100);
+          
+        } else {
+          // Fallback: execCommand paste (older browsers)
+          await this.fallbackPasteMethod(composer, replyText);
+        }
         
-        // Very small delay between characters (simulate realistic typing)
-        await this.sleep(1);
+        // Final focus to ensure editor is active
+        composer.focus();
+        
+        // Move cursor to end
+        const selection = window.getSelection();
+        const range = document.createRange();
+        range.selectNodeContents(composer);
+        range.collapse(false);
+        selection.removeAllRanges();
+        selection.addRange(range);
+        
+      } catch (error) {
+        console.error('[TweetReply] Clipboard paste failed, trying fallback:', error);
+        await this.fallbackPasteMethod(composer, replyText);
       }
-      
-      // Final focus to ensure editor is active
-      composer.focus();
       
     } else if (composer.tagName === 'TEXTAREA') {
       // For textarea composers (fallback)
@@ -890,65 +914,28 @@ class TwitterReplyInjector {
     }
   }
 
-  async typeCharacter(element, char) {
-    // Simulate complete keyboard event sequence for one character
-    const charCode = char.charCodeAt(0);
+  async fallbackPasteMethod(composer, text) {
+    // Create a temporary textarea with the text
+    const tempTextarea = document.createElement('textarea');
+    tempTextarea.value = text;
+    tempTextarea.style.position = 'fixed';
+    tempTextarea.style.left = '-9999px';
+    document.body.appendChild(tempTextarea);
     
-    // 1. KeyDown event
-    this.dispatchKeyboardEvent(element, 'keydown', char, charCode);
+    // Select and copy the text
+    tempTextarea.select();
+    document.execCommand('copy');
     
-    // 2. KeyPress event (for character input)
-    this.dispatchKeyboardEvent(element, 'keypress', char, charCode);
+    // Focus back on composer
+    composer.focus();
     
-    // 3. BeforeInput event
-    const beforeInputEvent = new InputEvent('beforeinput', {
-      bubbles: true,
-      cancelable: true,
-      inputType: 'insertText',
-      data: char
-    });
-    element.dispatchEvent(beforeInputEvent);
+    // Paste using execCommand
+    document.execCommand('paste');
     
-    // 4. Actually insert the character into the DOM
-    const selection = window.getSelection();
-    if (selection.rangeCount > 0) {
-      const range = selection.getRangeAt(0);
-      range.deleteContents();
-      const textNode = document.createTextNode(char);
-      range.insertNode(textNode);
-      
-      // Move cursor after the inserted character
-      range.setStartAfter(textNode);
-      range.setEndAfter(textNode);
-      selection.removeAllRanges();
-      selection.addRange(range);
-    }
+    // Cleanup
+    document.body.removeChild(tempTextarea);
     
-    // 5. Input event (most important for Draft.js)
-    const inputEvent = new InputEvent('input', {
-      bubbles: true,
-      cancelable: true,
-      inputType: 'insertText',
-      data: char
-    });
-    element.dispatchEvent(inputEvent);
-    
-    // 6. KeyUp event
-    this.dispatchKeyboardEvent(element, 'keyup', char, charCode);
-  }
-
-  dispatchKeyboardEvent(element, type, key, keyCode) {
-    const event = new KeyboardEvent(type, {
-      bubbles: true,
-      cancelable: true,
-      key: key,
-      code: key === ' ' ? 'Space' : `Key${key.toUpperCase()}`,
-      keyCode: keyCode,
-      charCode: type === 'keypress' ? keyCode : 0,
-      which: keyCode,
-      view: window
-    });
-    element.dispatchEvent(event);
+    await this.sleep(100);
   }
 
   sleep(ms) {

@@ -837,20 +837,36 @@
       const qualityScore = typeof replyData === "object" ? replyData.qualityScore : null;
       if (composer.contentEditable === "true") {
         composer.focus();
-        const selection = window.getSelection();
-        const range = document.createRange();
-        range.selectNodeContents(composer);
-        selection.removeAllRanges();
-        selection.addRange(range);
-        this.dispatchKeyboardEvent(composer, "keydown", "Backspace", 8);
-        this.dispatchKeyboardEvent(composer, "keyup", "Backspace", 8);
-        await this.sleep(10);
-        for (let i = 0; i < replyText.length; i++) {
-          const char = replyText[i];
-          await this.typeCharacter(composer, char);
-          await this.sleep(1);
-        }
+        composer.textContent = "";
+        await this.sleep(50);
         composer.focus();
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(replyText);
+            const dataTransfer = new DataTransfer();
+            dataTransfer.setData("text/plain", replyText);
+            dataTransfer.setData("text/html", replyText);
+            const pasteEvent = new ClipboardEvent("paste", {
+              bubbles: true,
+              cancelable: true,
+              clipboardData: dataTransfer
+            });
+            composer.dispatchEvent(pasteEvent);
+            await this.sleep(100);
+          } else {
+            await this.fallbackPasteMethod(composer, replyText);
+          }
+          composer.focus();
+          const selection = window.getSelection();
+          const range = document.createRange();
+          range.selectNodeContents(composer);
+          range.collapse(false);
+          selection.removeAllRanges();
+          selection.addRange(range);
+        } catch (error) {
+          console.error("[TweetReply] Clipboard paste failed, trying fallback:", error);
+          await this.fallbackPasteMethod(composer, replyText);
+        }
       } else if (composer.tagName === "TEXTAREA") {
         composer.focus();
         composer.value = replyText;
@@ -866,49 +882,18 @@
         this.showQualityBadge(composer, qualityScore);
       }
     }
-    async typeCharacter(element, char) {
-      const charCode = char.charCodeAt(0);
-      this.dispatchKeyboardEvent(element, "keydown", char, charCode);
-      this.dispatchKeyboardEvent(element, "keypress", char, charCode);
-      const beforeInputEvent = new InputEvent("beforeinput", {
-        bubbles: true,
-        cancelable: true,
-        inputType: "insertText",
-        data: char
-      });
-      element.dispatchEvent(beforeInputEvent);
-      const selection = window.getSelection();
-      if (selection.rangeCount > 0) {
-        const range = selection.getRangeAt(0);
-        range.deleteContents();
-        const textNode = document.createTextNode(char);
-        range.insertNode(textNode);
-        range.setStartAfter(textNode);
-        range.setEndAfter(textNode);
-        selection.removeAllRanges();
-        selection.addRange(range);
-      }
-      const inputEvent = new InputEvent("input", {
-        bubbles: true,
-        cancelable: true,
-        inputType: "insertText",
-        data: char
-      });
-      element.dispatchEvent(inputEvent);
-      this.dispatchKeyboardEvent(element, "keyup", char, charCode);
-    }
-    dispatchKeyboardEvent(element, type, key, keyCode) {
-      const event = new KeyboardEvent(type, {
-        bubbles: true,
-        cancelable: true,
-        key,
-        code: key === " " ? "Space" : `Key${key.toUpperCase()}`,
-        keyCode,
-        charCode: type === "keypress" ? keyCode : 0,
-        which: keyCode,
-        view: window
-      });
-      element.dispatchEvent(event);
+    async fallbackPasteMethod(composer, text) {
+      const tempTextarea = document.createElement("textarea");
+      tempTextarea.value = text;
+      tempTextarea.style.position = "fixed";
+      tempTextarea.style.left = "-9999px";
+      document.body.appendChild(tempTextarea);
+      tempTextarea.select();
+      document.execCommand("copy");
+      composer.focus();
+      document.execCommand("paste");
+      document.body.removeChild(tempTextarea);
+      await this.sleep(100);
     }
     sleep(ms) {
       return new Promise((resolve) => setTimeout(resolve, ms));
