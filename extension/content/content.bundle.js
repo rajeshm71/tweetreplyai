@@ -845,50 +845,38 @@
           return;
         }
         if (composer.contentEditable === "true") {
-          console.log("[TweetReply] Inserting text using execCommand + React events");
+          console.log("[TweetReply] Inserting text using paste event (Draft.js compatible)");
           composer.focus();
           await this.sleep(50);
-          const selection = window.getSelection();
-          const range = document.createRange();
-          range.selectNodeContents(composer);
-          selection.removeAllRanges();
-          selection.addRange(range);
-          document.execCommand("selectAll", false, null);
+          const sel = window.getSelection();
+          const rng = document.createRange();
+          rng.selectNodeContents(composer);
+          sel.removeAllRanges();
+          sel.addRange(rng);
           document.execCommand("delete", false, null);
           await this.sleep(20);
           composer.focus();
-          const emptyRange = document.createRange();
-          emptyRange.selectNodeContents(composer);
-          emptyRange.collapse(true);
-          selection.removeAllRanges();
-          selection.addRange(emptyRange);
-          document.execCommand("insertText", false, replyText);
+          await this.sleep(20);
+          const clipboardData = new DataTransfer();
+          clipboardData.setData("text/plain", replyText);
+          clipboardData.setData("text/html", replyText);
+          const pasteEvent = new ClipboardEvent("paste", {
+            bubbles: true,
+            cancelable: true,
+            clipboardData
+          });
+          const pasteNotPrevented = composer.dispatchEvent(pasteEvent);
+          console.log("[TweetReply] Paste event dispatched, prevented:", !pasteNotPrevented);
+          await this.sleep(100);
           composer.dispatchEvent(new InputEvent("input", {
             bubbles: true,
             cancelable: false,
-            inputType: "insertText",
+            inputType: "insertFromPaste",
             data: replyText
           }));
           composer.dispatchEvent(new Event("change", { bubbles: true }));
-          composer.dispatchEvent(new KeyboardEvent("keydown", {
-            bubbles: true,
-            key: "a",
-            code: "KeyA"
-          }));
-          composer.dispatchEvent(new KeyboardEvent("keyup", {
-            bubbles: true,
-            key: "a",
-            code: "KeyA"
-          }));
           composer.focus();
-          await this.sleep(100);
-          const finalSelection = window.getSelection();
-          const finalRange = document.createRange();
-          finalRange.selectNodeContents(composer);
-          finalRange.collapse(false);
-          finalSelection.removeAllRanges();
-          finalSelection.addRange(finalRange);
-          console.log("[TweetReply] \u2705 Text inserted successfully");
+          console.log("[TweetReply] \u2705 Text inserted successfully via paste");
         } else if (composer.tagName === "TEXTAREA") {
           composer.focus();
           composer.value = replyText;

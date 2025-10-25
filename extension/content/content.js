@@ -848,70 +848,59 @@ class TwitterReplyInjector {
       }
 
       if (composer.contentEditable === 'true') {
-        console.log('[TweetReply] Inserting text using execCommand + React events');
+        console.log('[TweetReply] Inserting text using paste event (Draft.js compatible)');
 
-        // Step 1: Focus the composer
+        // Step 1: Focus composer
         composer.focus();
         await this.sleep(50);
 
-        // Step 2: Clear any existing content
-        const selection = window.getSelection();
-        const range = document.createRange();
-        range.selectNodeContents(composer);
-        selection.removeAllRanges();
-        selection.addRange(range);
-
-        // Delete existing content
-        document.execCommand('selectAll', false, null);
+        // Step 2: Clear existing content via selection + delete
+        const sel = window.getSelection();
+        const rng = document.createRange();
+        rng.selectNodeContents(composer);
+        sel.removeAllRanges();
+        sel.addRange(rng);
+        
         document.execCommand('delete', false, null);
         await this.sleep(20);
 
-        // Step 3: Place caret at start (after clearing)
+        // Step 3: Focus again and clear selection
         composer.focus();
-        const emptyRange = document.createRange();
-        emptyRange.selectNodeContents(composer);
-        emptyRange.collapse(true);
-        selection.removeAllRanges();
-        selection.addRange(emptyRange);
+        await this.sleep(20);
 
-        // Step 4: Insert text using execCommand (updates Draft.js state)
-        document.execCommand('insertText', false, replyText);
+        // Step 4: Use paste event - Twitter's Draft.js has a proper paste handler
+        // This is the ONLY reliable way to insert text without breaking Draft.js state
+        const clipboardData = new DataTransfer();
+        clipboardData.setData('text/plain', replyText);
+        clipboardData.setData('text/html', replyText);
 
-        // Step 5: Dispatch React events (notify React of changes)
+        const pasteEvent = new ClipboardEvent('paste', {
+          bubbles: true,
+          cancelable: true,
+          clipboardData: clipboardData
+        });
+
+        const pasteNotPrevented = composer.dispatchEvent(pasteEvent);
+        console.log('[TweetReply] Paste event dispatched, prevented:', !pasteNotPrevented);
+
+        // Step 5: Wait for Draft.js to process
+        await this.sleep(100);
+
+        // Step 6: Also dispatch input event as fallback
         composer.dispatchEvent(new InputEvent('input', {
           bubbles: true,
           cancelable: false,
-          inputType: 'insertText',
+          inputType: 'insertFromPaste',
           data: replyText
         }));
 
+        // Step 7: Trigger change event
         composer.dispatchEvent(new Event('change', { bubbles: true }));
 
-        // Step 6: Simulate key events (nudge React to update)
-        composer.dispatchEvent(new KeyboardEvent('keydown', {
-          bubbles: true,
-          key: 'a',
-          code: 'KeyA'
-        }));
-
-        composer.dispatchEvent(new KeyboardEvent('keyup', {
-          bubbles: true,
-          key: 'a',
-          code: 'KeyA'
-        }));
-
-        // Step 7: Final focus and move cursor to end
+        // Step 8: Final focus
         composer.focus();
-        await this.sleep(100);
 
-        const finalSelection = window.getSelection();
-        const finalRange = document.createRange();
-        finalRange.selectNodeContents(composer);
-        finalRange.collapse(false); // Collapse to end
-        finalSelection.removeAllRanges();
-        finalSelection.addRange(finalRange);
-
-        console.log('[TweetReply] ✅ Text inserted successfully');
+        console.log('[TweetReply] ✅ Text inserted successfully via paste');
 
       } else if (composer.tagName === 'TEXTAREA') {
         // For textarea composers (fallback)
