@@ -834,72 +834,35 @@
     }
     // Replace whatever is in the Twitter reply composer with new text
     // Works with Draft/React by mimicking a real paste and restoring a valid caret.
+    a;
+    // Minimal, stable, and Draft-friendly.
+    // No innerHTML, no synthetic clipboard events, no fake keypresses.
     async insertReplyIntoComposer(composer, replyData) {
       try {
+        if (!composer) return false;
+        if (composer.contentEditable !== "true") {
+          const inner = composer.querySelector('div[role="textbox"][contenteditable="true"]');
+          if (!inner) return false;
+          composer = inner;
+        }
         const text = String(
           typeof replyData === "string" ? replyData : replyData?.reply ?? ""
         );
-        if (!composer || !text.trim()) return false;
-        if (composer.contentEditable !== "true") {
-          const inner = composer.querySelector('div[contenteditable="true"][role="textbox"]');
-          if (inner) composer = inner;
-        }
+        if (!text.trim()) return false;
         composer.focus();
-        if (typeof this?.sleep === "function") await this.sleep(20);
+        if (typeof window.requestAnimationFrame === "function") {
+          await new Promise((r) => requestAnimationFrame(() => r()));
+        }
+        document.execCommand("selectAll", false, null);
+        document.execCommand("delete", false, null);
+        document.execCommand("insertText", false, text);
         const sel = window.getSelection();
-        const clearRange = document.createRange();
-        clearRange.selectNodeContents(composer);
+        const range = document.createRange();
+        range.selectNodeContents(composer);
+        range.collapse(false);
         sel.removeAllRanges();
-        sel.addRange(clearRange);
-        document.execCommand("delete");
-        const dt = new DataTransfer();
-        dt.setData("text/plain", text);
-        try {
-          composer.dispatchEvent(new InputEvent("beforeinput", {
-            bubbles: true,
-            cancelable: true,
-            inputType: "insertFromPaste",
-            data: text,
-            dataTransfer: dt
-          }));
-        } catch {
-        }
-        try {
-          composer.dispatchEvent(new ClipboardEvent("paste", {
-            bubbles: true,
-            cancelable: true,
-            clipboardData: dt
-          }));
-        } catch {
-        }
-        try {
-          document.execCommand("insertText", false, text);
-        } catch {
-        }
-        try {
-          composer.dispatchEvent(new InputEvent("input", {
-            bubbles: true,
-            cancelable: true,
-            inputType: "insertText",
-            data: text
-          }));
-        } catch {
-        }
-        if (typeof this?.sleep === "function") await this.sleep(20);
-        composer.normalize();
-        const leaf = composer.querySelector('[data-text="true"]');
-        const tn = leaf && leaf.firstChild && leaf.firstChild.nodeType === Node.TEXT_NODE ? leaf.firstChild : null;
-        if (tn) {
-          const end = document.createRange();
-          end.setStart(tn, tn.length);
-          end.collapse(true);
-          sel.removeAllRanges();
-          sel.addRange(end);
-        } else {
-          composer.blur();
-          if (typeof this?.sleep === "function") await this.sleep(10);
-          composer.focus();
-        }
+        sel.addRange(range);
+        composer.focus();
         return true;
       } catch (err) {
         console.error("[TweetReply] insertReplyIntoComposer error:", err);
