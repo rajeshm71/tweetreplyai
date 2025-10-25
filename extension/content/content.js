@@ -906,7 +906,8 @@ async insertReplyIntoComposer(composer, replyData) {
     } catch {}
 
     // Ensure caret is inside a real Draft leaf text node (so Backspace/Enter work)
-    if (typeof this?.sleep === 'function') await this.sleep(20);
+    // Give React/Draft time to reconcile the DOM changes
+    if (typeof this?.sleep === 'function') await this.sleep(50);
     composer.normalize(); // tidy any split nodes
 
     const leaf = composer.querySelector('[data-text="true"]');
@@ -915,15 +916,35 @@ async insertReplyIntoComposer(composer, replyData) {
     if (tn) {
       const end = document.createRange();
       end.setStart(tn, tn.length);
-      end.collapse(true);
+      end.collapse(false);  // FIX: collapse to END, not START
       sel.removeAllRanges();
       sel.addRange(end);
     } else {
-      // Fallback: let Draft rebuild a sane caret
-      composer.blur();
-      if (typeof this?.sleep === 'function') await this.sleep(10);
+      // Fallback: use contentEditable end positioning
+      const range = document.createRange();
+      range.selectNodeContents(composer);
+      range.collapse(false);  // End of composer
+      sel.removeAllRanges();
+      sel.addRange(range);
       composer.focus();
+      if (typeof this?.sleep === 'function') await this.sleep(10);
     }
+
+    // Force Draft.js to recognize the cursor position
+    composer.focus();
+    if (typeof this?.sleep === 'function') await this.sleep(10);
+
+    // Trigger a final input event to sync Draft's EditorState
+    try {
+      composer.dispatchEvent(new InputEvent('input', {
+        bubbles: true,
+        cancelable: false,
+        inputType: 'insertText'
+      }));
+    } catch {}
+
+    // Notify Draft.js that selection changed
+    document.dispatchEvent(new Event('selectionchange', { bubbles: true }));
 
     return true;
   } catch (err) {
