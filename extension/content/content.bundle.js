@@ -834,79 +834,72 @@
     }
     async insertReplyIntoComposer(composer, replyData) {
       try {
-        if (!composer || !replyData) {
-          console.error("[TweetReply] Invalid parameters");
-          return;
-        }
-        const replyText = typeof replyData === "string" ? replyData : replyData.reply;
+        if (!composer || !replyData) return false;
+        const text = String(
+          typeof replyData === "string" ? replyData : replyData?.reply ?? ""
+        ).trim();
         const qualityScore = typeof replyData === "object" ? replyData.qualityScore : null;
-        if (!replyText) {
-          console.error("[TweetReply] Invalid reply text");
-          return;
+        if (!text) return false;
+        composer.focus();
+        await this?.sleep?.(20);
+        const sel = window.getSelection();
+        const clearRange = document.createRange();
+        clearRange.selectNodeContents(composer);
+        sel.removeAllRanges();
+        sel.addRange(clearRange);
+        document.execCommand("delete");
+        const dt = new DataTransfer();
+        dt.setData("text/plain", text);
+        try {
+          composer.dispatchEvent(new InputEvent("beforeinput", {
+            bubbles: true,
+            cancelable: true,
+            inputType: "insertFromPaste",
+            data: text,
+            dataTransfer: dt
+          }));
+        } catch {
         }
-        if (composer.contentEditable === "true") {
-          console.log("[TweetReply] Replace mode: clear + paste-like pipeline");
-          composer.focus();
-          await this.sleep?.(20);
-          const sel = window.getSelection();
-          const range = document.createRange();
-          range.selectNodeContents(composer);
+        try {
+          composer.dispatchEvent(new ClipboardEvent("paste", {
+            bubbles: true,
+            cancelable: true,
+            clipboardData: dt
+          }));
+        } catch {
+        }
+        try {
+          document.execCommand("insertText", false, text);
+        } catch {
+          composer.textContent = text;
+        }
+        try {
+          composer.dispatchEvent(new InputEvent("input", {
+            bubbles: true,
+            cancelable: true,
+            inputType: "insertText",
+            data: text
+          }));
+        } catch {
+        }
+        try {
+          composer.normalize();
+          const endRange = document.createRange();
+          endRange.selectNodeContents(composer);
+          endRange.collapse(false);
           sel.removeAllRanges();
-          sel.addRange(range);
-          document.execCommand("delete");
-          const text = String(replyText);
-          const dt = new DataTransfer();
-          dt.setData("text/plain", text);
-          try {
-            composer.dispatchEvent(new InputEvent("beforeinput", {
-              bubbles: true,
-              cancelable: true,
-              inputType: "insertFromPaste",
-              data: text,
-              dataTransfer: dt
-            }));
-          } catch {
-          }
-          try {
-            composer.dispatchEvent(new ClipboardEvent("paste", {
-              bubbles: true,
-              cancelable: true,
-              clipboardData: dt
-            }));
-          } catch {
-          }
-          try {
-            document.execCommand("insertText", false, text);
-          } catch {
-            composer.textContent = text;
-          }
-          try {
-            composer.dispatchEvent(new InputEvent("input", {
-              bubbles: true,
-              cancelable: true,
-              inputType: "insertText",
-              data: text
-            }));
-          } catch {
-          }
-          composer.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true }));
-          composer.dispatchEvent(new KeyboardEvent("keyup", { key: " ", bubbles: true }));
-          await this.sleep?.(50);
-          composer.focus();
-          console.log("[TweetReply] \u2705 Replaced text via paste pipeline");
-        } else if (composer.tagName === "TEXTAREA") {
-          composer.focus();
-          composer.value = replyText;
-          composer.dispatchEvent(new Event("input", { bubbles: true }));
-        } else {
-          const input = composer.querySelector('textarea, [contenteditable="true"]');
-          if (input) await this.insertReplyIntoComposer(input, replyData);
+          sel.addRange(endRange);
+        } catch {
         }
+        await this?.sleep?.(20);
+        composer.focus();
         if (typeof qualityScore === "number") {
-          this.showQualityBadge?.(composer, qualityScore);
+          this?.showQualityBadge?.(composer, qualityScore);
         }
+        return true;
       } catch (error) {
-        console.error("[TweetReply] Error during text insertion:", error);
+        console.error("[TweetReply] Error during text insertion (replace):", error);
+        return false;
       }
     }
     sleep(ms) {

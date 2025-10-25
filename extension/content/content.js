@@ -831,95 +831,98 @@ class TwitterReplyInjector {
     }
   }
 
-  async insertReplyIntoComposer(composer, replyData) {
-    try {
-      if (!composer || !replyData) return false;
-  
-      const text = String(
-        typeof replyData === 'string' ? replyData : (replyData?.reply ?? '')
-      ).trim();
-      const qualityScore =
-        typeof replyData === 'object' ? replyData.qualityScore : null;
-  
-      if (!text) return false;
-  
-      // 1) Focus + CLEAR (true replace)
-      composer.focus();
-      await this?.sleep?.(20);
-  
-      const sel = window.getSelection();
-      const clearRange = document.createRange();
-      clearRange.selectNodeContents(composer);
-      sel.removeAllRanges();
-      sel.addRange(clearRange);
-      document.execCommand('delete');
-  
-      // 2) Paste-like pipeline so Draft/React update correctly
-      const dt = new DataTransfer();
-      dt.setData('text/plain', text);
-  
-      try {
-        composer.dispatchEvent(new InputEvent('beforeinput', {
-          bubbles: true,
-          cancelable: true,
-          inputType: 'insertFromPaste',
-          data: text,
-          dataTransfer: dt
-        }));
-      } catch {}
-  
-      try {
-        composer.dispatchEvent(new ClipboardEvent('paste', {
-          bubbles: true,
-          cancelable: true,
-          clipboardData: dt
-        }));
-      } catch {}
-  
-      try {
-        document.execCommand('insertText', false, text);
-      } catch {
-        composer.textContent = text; // last resort
-      }
-  
-      try {
-        composer.dispatchEvent(new InputEvent('input', {
-          bubbles: true,
-          cancelable: true,
-          inputType: 'insertText',
-          data: text
-        }));
-      } catch {}
-  
-      // 3) 🛠️ Critical: normalize + set caret at end in a TEXT position
-      //    This fixes "can't type / backspace" after programmatic insert.
-      try {
-        composer.normalize(); // merge adjacent text nodes, tidy DOM
-  
-        const endRange = document.createRange();
-        endRange.selectNodeContents(composer);
-        endRange.collapse(false); // caret to the end
-  
-        sel.removeAllRanges();
-        sel.addRange(endRange);
-      } catch {}
-  
-      // 4) Refocus to ensure keyboard goes to the editor
-      await this?.sleep?.(20);
-      composer.focus();
-  
-      // ✅ Do NOT dispatch synthetic keydown/keyup here.
-      // Those can confuse composition state on some builds.
-  
-      if (typeof qualityScore === 'number') {
-        this?.showQualityBadge?.(composer, qualityScore);
-      }
-      return true;
-    } catch (error) {
-      console.error('[TweetReply] Error during text insertion (replace):', error);
-      return false;
+  // Replace whatever is in the Twitter reply composer with new text
+// Works with Draft/React by mimicking a real paste and restoring a valid caret.
+async function insertReplyIntoComposer(composer, replyData) {
+  try {
+    // Resolve text & quick guards
+    const text = String(
+      typeof replyData === 'string' ? replyData : (replyData?.reply ?? '')
+    );
+    if (!composer || !text.trim()) return false;
+
+    // If a wrapper was passed, descend to the actual editable
+    if (composer.contentEditable !== 'true') {
+      const inner = composer.querySelector('div[contenteditable="true"][role="textbox"]');
+      if (inner) composer = inner;
     }
+
+    // Focus + CLEAR (true replace that Draft recognizes)
+    composer.focus();
+    if (typeof this?.sleep === 'function') await this.sleep(20);
+
+    const sel = window.getSelection();
+    const clearRange = document.createRange();
+    clearRange.selectNodeContents(composer);
+    sel.removeAllRanges();
+    sel.addRange(clearRange);
+    document.execCommand('delete'); // Clears Draft internal state
+
+    // Build clipboard payload for a real paste pipeline
+    const dt = new DataTransfer();
+    dt.setData('text/plain', text);
+
+    // beforeinput → paste (don’t throw if blocked)
+    try {
+      composer.dispatchEvent(new InputEvent('beforeinput', {
+        bubbles: true,
+        cancelable: true,
+        inputType: 'insertFromPaste',
+        data: text,
+        dataTransfer: dt
+      }));
+    } catch {}
+
+    try {
+      composer.dispatchEvent(new ClipboardEvent('paste', {
+        bubbles: true,
+        cancelable: true,
+        clipboardData: dt
+      }));
+    } catch {}
+
+    // Insert text (no textContent fallback — let Draft own nodes)
+    try {
+      document.execCommand('insertText', false, text);
+    } catch {}
+
+    // Final input so React/Draft recompute length/state
+    try {
+      composer.dispatchEvent(new InputEvent('input', {
+        bubbles: true,
+        cancelable: true,
+        inputType: 'insertText',
+        data: text
+      }));
+    } catch {}
+
+    // Ensure caret is inside a real Draft leaf text node (so Backspace/Enter work)
+    if (typeof this?.sleep === 'function') await this.sleep(20);
+    composer.normalize(); // tidy any split nodes
+
+    const leaf = composer.querySelector('[data-text="true"]');
+    const tn = leaf && leaf.firstChild && leaf.firstChild.nodeType === Node.TEXT_NODE ? leaf.firstChild : null;
+
+    if (tn) {
+      const end = document.createRange();
+      end.setStart(tn, tn.length);
+      end.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(end);
+    } else {
+      // Fallback: let Draft rebuild a sane caret
+      composer.blur();
+      if (typeof this?.sleep === 'function') await this.sleep(10);
+      composer.focus();
+    }
+
+    return true;
+  } catch (err) {
+    console.error('[TweetReply] insertReplyIntoComposer error:', err);
+    return false;
   }
+}
+
   
   
 
