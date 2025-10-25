@@ -227,6 +227,7 @@
       this.settingsBtn = document.getElementById("settings-btn");
       this.signoutBtn = document.getElementById("signout-btn");
       this.closeSettingsBtn = document.getElementById("close-settings");
+      this.upgradeCta = document.getElementById("upgrade-cta");
       this.closeHistoryBtn = document.getElementById("close-history");
       this.closeImproveBtn = document.getElementById("close-improve");
       this.closeAnalyticsBtn = document.getElementById("close-analytics");
@@ -239,6 +240,12 @@
       this.resetText = document.getElementById("reset-text");
       this.quotaResetText = document.getElementById("quota-reset-text");
       this.statusMessage = document.getElementById("status-message");
+      this.userName = document.getElementById("user-name");
+      this.planBadge = document.getElementById("plan-badge");
+      this.usagePercentage = document.getElementById("usage-percentage");
+      this.todayReplies = document.getElementById("today-replies");
+      this.successRate = document.getElementById("success-rate");
+      this.timeSaved = document.getElementById("time-saved");
       this.settingsPanel = document.getElementById("settings-panel");
       this.userEmail = document.getElementById("user-email");
       this.historyPanel = document.getElementById("history-panel");
@@ -254,6 +261,7 @@
       this.webAppBtn?.addEventListener("click", () => this.handleOpenWebApp());
       this.billingBtn?.addEventListener("click", () => this.handleManageBilling());
       this.upgradeBtn?.addEventListener("click", () => this.handleUpgrade());
+      this.upgradeCta?.addEventListener("click", () => this.handleUpgrade());
       this.settingsBtn?.addEventListener("click", () => this.showSettings());
       this.signoutBtn?.addEventListener("click", () => this.handleSignOut());
       this.closeSettingsBtn?.addEventListener("click", () => this.hideSettings());
@@ -264,6 +272,7 @@
     }
     async initialize() {
       try {
+        this.setState("loading");
         const isAuthenticated = await this.authManager.isAuthenticated();
         if (!isAuthenticated) {
           this.setState("not-authenticated");
@@ -285,8 +294,12 @@
     async loadUserData() {
       try {
         const user = await this.apiClient.getCurrentUser();
-        if (user && this.userEmail) {
-          this.userEmail.textContent = user.email || "Unknown";
+        if (user) {
+          if (this.userEmail) {
+            this.userEmail.textContent = user.email || "Unknown";
+          }
+          this.updateWelcomeMessage(user);
+          this.updatePlanBadge(user);
         }
       } catch (error) {
         console.error("Failed to load user data:", error);
@@ -305,6 +318,14 @@
       this.notAuthenticatedState?.classList.add("hidden");
       this.authenticatedState?.classList.add("hidden");
       this.quotaExceededState?.classList.add("hidden");
+      this.settingsPanel?.classList.add("hidden");
+      this.historyPanel?.classList.add("hidden");
+      this.improvePanel?.classList.add("hidden");
+      this.analyticsPanel?.classList.add("hidden");
+      if (this.settingsPanel) this.settingsPanel.style.display = "none";
+      if (this.historyPanel) this.historyPanel.style.display = "none";
+      if (this.improvePanel) this.improvePanel.style.display = "none";
+      if (this.analyticsPanel) this.analyticsPanel.style.display = "none";
       this.currentState = state;
       switch (state) {
         case "loading":
@@ -331,7 +352,10 @@
         this.progressFill.classList.toggle("exceeded", isExceeded);
       }
       if (this.usageText) {
-        this.usageText.textContent = `${used} / ${limit}`;
+        this.usageText.textContent = `${used} / ${limit} replies`;
+      }
+      if (this.usagePercentage) {
+        this.usagePercentage.textContent = `${Math.round(percentage)}%`;
       }
       if (this.statusDot && this.statusText) {
         this.statusDot.classList.toggle("active", !isExceeded);
@@ -346,6 +370,22 @@
       }
       if (this.suggestBtn) {
         this.suggestBtn.disabled = isExceeded;
+        if (isExceeded) {
+          this.suggestBtn.innerHTML = `
+          <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
+            <path d="M12 2L13.09 8.26L19 7.27L14.18 12.09L20 17.91L13.09 15.74L12 22L10.91 15.74L4 17.91L8.82 12.09L3 7.27L8.91 8.26L12 2Z"/>
+          </svg>
+          <span>Daily limit reached</span>
+        `;
+        } else {
+          this.suggestBtn.innerHTML = `
+          <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
+            <path d="M12 2L13.09 8.26L19 7.27L14.18 12.09L20 17.91L13.09 15.74L12 22L10.91 15.74L4 17.91L8.82 12.09L3 7.27L8.91 8.26L12 2Z"/>
+          </svg>
+          <span>Generate Reply</span>
+          <span class="shortcut-hint">\u2318K</span>
+        `;
+        }
       }
       if (this.statusMessage) {
         if (isExceeded) {
@@ -354,6 +394,7 @@
           this.statusMessage.textContent = 'Click "Reply" on any X post to generate suggestions';
         }
       }
+      this.updateQuickStats();
     }
     formatTimeDistance(date) {
       const now = /* @__PURE__ */ new Date();
@@ -372,7 +413,7 @@
         const domains = await this.getDomains();
         const domain = domains[0] || "tweetreplyai.vercel.app";
         const protocol = domain.includes("localhost") ? "http" : "https";
-        const loginUrl = `${protocol}://${domain}/api/login`;
+        const loginUrl = `${protocol}://${domain}/login`;
         chrome.tabs.create({ url: loginUrl });
         window.close();
       } catch (error) {
@@ -618,6 +659,52 @@
       } catch (error) {
         console.error("Failed to get domains:", error);
         return ["tweetreplyai.vercel.app"];
+      }
+    }
+    // New methods for enhanced UI
+    updateWelcomeMessage(user) {
+      if (this.userName) {
+        const name = user.name || user.email?.split("@")[0] || "there";
+        this.userName.textContent = name;
+      }
+    }
+    updatePlanBadge(user) {
+      if (this.planBadge) {
+        const plan = user.subscription?.plan || "free";
+        const planLabels = {
+          "free": "Free Plan",
+          "pro": "Pro Plan",
+          "premium": "Premium Plan"
+        };
+        this.planBadge.textContent = planLabels[plan] || "Free Plan";
+        this.planBadge.className = "plan-badge";
+        if (plan === "pro") {
+          this.planBadge.style.background = "linear-gradient(135deg, #10B981, #059669)";
+        } else if (plan === "premium") {
+          this.planBadge.style.background = "linear-gradient(135deg, #8B5CF6, #7C3AED)";
+        }
+      }
+    }
+    updateQuickStats() {
+      if (!this.usageData) return;
+      const { used } = this.usageData;
+      if (this.todayReplies) {
+        this.todayReplies.textContent = used;
+      }
+      if (this.successRate) {
+        this.successRate.textContent = "--";
+      }
+      if (this.timeSaved) {
+        this.timeSaved.textContent = "--";
+      }
+    }
+    formatTimeSaved(minutes) {
+      if (minutes < 60) {
+        return `${minutes}m`;
+      } else {
+        const hours = Math.floor(minutes / 60);
+        const remainingMinutes = minutes % 60;
+        return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
       }
     }
   };

@@ -228,19 +228,45 @@ export async function registerRoutes(app: Express): Promise<Express> {
     }
   });
 
-  // Extension authentication endpoint
-  app.get('/api/extension/auth', isAuthenticated, async (req: any, res) => {
+  // Extension authentication endpoint (no auth required - extension calls from web app page)
+  app.get('/api/extension/auth', async (req: any, res) => {
     try {
-      const user = await storage.getUser(getUserId(req));
-      if (!user) {
-        return res.status(404).json({ message: "User not found" });
+      // Check if user is authenticated via session or JWT
+      let user = null;
+      
+      // Try to get user from session (Passport)
+      if (req.user) {
+        user = await storage.getUser(req.user.id);
+      } else {
+        // Try to get user from JWT token in cookie
+        const token = req.cookies?.token;
+        if (token) {
+          try {
+            const decoded = jwt.verify(token, process.env.SESSION_SECRET || 'dev-secret') as any;
+            user = await storage.getUser(decoded.id);
+          } catch (error) {
+            // Token invalid or expired
+          }
+        }
       }
       
-      // Return token for extension use
-      const token = req.headers.authorization?.replace('Bearer ', '') || req.cookies?.token;
+      if (!user) {
+        return res.status(401).json({ 
+          authenticated: false,
+          message: "Not authenticated" 
+        });
+      }
+      
+      // Generate a fresh JWT token for extension use
+      const extensionToken = jwt.sign(
+        { id: user.id, email: user.email },
+        process.env.SESSION_SECRET || 'dev-secret',
+        { expiresIn: '7d' }
+      );
+      
       res.json({ 
         authenticated: true,
-        token: token,
+        token: extensionToken,
         user: {
           id: user.id,
           email: user.email,
