@@ -845,75 +845,110 @@ class TwitterReplyInjector {
 // Stable replace: visible text, Reply active, Backspace/Enter work
 async insertReplyIntoComposer(composer, replyData) {
   try {
-    // Safety checks
     if (!composer || !replyData) return;
-
     const replyText = typeof replyData === 'string' ? replyData : replyData.reply;
     const qualityScore = typeof replyData === 'object' ? replyData.qualityScore : null;
-    if (!replyText && replyText !== "") return;
+    if (!replyText) return;
 
-    // 1) Ensure we are on the actual editable node
-    if (composer.contentEditable !== 'true') {
-      const inner = composer.querySelector('div[contenteditable="true"][role="textbox"]');
-      if (!inner) return;
-      composer = inner;
-    }
+    if (composer.contentEditable === 'true') {
+      console.log('[TweetReply] Using Qura AI method: innerHTML + data-text span');
 
-    // 2) Focus and CLEAR the existing Draft content (Draft-aware clear)
-    composer.focus();
-    await this.sleep?.(20);
-    document.execCommand('selectAll', false, null);
-    document.execCommand('delete',    false, null);
-    await this.sleep?.(16); // one frame
+      const dataTextSpan = composer.querySelector('[data-text="true"]');
+      const targetElement = dataTextSpan ? dataTextSpan.parentElement : composer;
 
-    // 3) Find or create a target leaf span with data-text="true"
-    // Prefer an existing leaf if present
-    let dataTextSpan = composer.querySelector('[data-text="true"]');
+      // Focus first to ensure selection events are honored
+      composer.focus();
+      await this.sleep(30);
 
-    if (!dataTextSpan) {
-      // Create a minimal Draft-like leaf structure inside composer
-      const wrapper = document.createElement('div'); // acts like a block container
-      dataTextSpan = document.createElement('span');
-      dataTextSpan.setAttribute('data-text', 'true');
-      wrapper.appendChild(dataTextSpan);
-
-      // Remove any stray nodes left by the delete (defensive)
-      while (composer.firstChild) composer.removeChild(composer.firstChild);
-      composer.appendChild(wrapper);
-    }
-
-    // 4) **Replace** text safely (avoid HTML injection)
-    dataTextSpan.textContent = replyText ?? "";
-
-    // 5) Notify React/Draft lightly (no synthetic beforeinput/paste)
-    composer.dispatchEvent(new Event('input', { bubbles: true }));
-
-    // 6) Place caret at end inside the leaf so Backspace/Enter work
-    const sel = window.getSelection();
-    const tn = dataTextSpan.firstChild; // text node we just set
-    if (tn && tn.nodeType === Node.TEXT_NODE) {
+      // --- NEW: Robust "replace existing text" sequence ---
+      // 1) Select all existing content inside targetElement
+      const sel = window.getSelection();
       const range = document.createRange();
-      range.setStart(tn, tn.length);
-      range.collapse(true);
+      range.selectNodeContents(targetElement);
       sel.removeAllRanges();
       sel.addRange(range);
+
+      // 2) Tell React/Draft-like editor we're deleting the selection
+      //    (both beforeinput + input events help certain editors sync state)
+      const beforeDel = new InputEvent('beforeinput', {
+        bubbles: true,
+        cancelable: true,
+        inputType: 'deleteByCut', // delete selection
+        data: null
+      });
+      targetElement.dispatchEvent(beforeDel);
+
+      const delEvt = new InputEvent('input', {
+        bubbles: true,
+        cancelable: true,
+        inputType: 'deleteContentBackward',
+        data: null
+      });
+      targetElement.dispatchEvent(delEvt);
+
+      // 3) Also clear DOM to match internal state (keeps things in lockstep)
+      targetElement.innerHTML = ''; // ensure no leftover nodes
+      await this.sleep(20);
+
+      // 4) Insert new content in the structure Twitter expects
+      targetElement.innerHTML = `<span data-text="true">${replyText}</span>`;
+
+      // 5) Fire insert event so React updates editorState with the new text
+      const insEvt = new InputEvent('input', {
+        bubbles: true,
+        cancelable: true,
+        inputType: 'insertText',
+        data: replyText
+      });
+      targetElement.dispatchEvent(insEvt);
+
+      // 6) Some timelines need the outer composer notified too
+      if (targetElement !== composer) {
+        composer.dispatchEvent(new InputEvent('input', {
+          bubbles: true,
+          cancelable: true,
+          inputType: 'insertText',
+          data: replyText
+        }));
+      }
+
+      await this.sleep(60);
+      composer.focus();
+      console.log('[TweetReply] ✅ Text replaced using Qura AI method');
+
+    } else if (composer.tagName === 'TEXTAREA') {
+      composer.focus();
+      composer.setSelectionRange(0, composer.value.length);
+      // Replace via "delete then insert" to keep frameworks happy
+      composer.dispatchEvent(new InputEvent('beforeinput', {
+        bubbles: true,
+        cancelable: true,
+        inputType: 'deleteByCut'
+      }));
+      composer.value = '';
+      composer.dispatchEvent(new InputEvent('input', {
+        bubbles: true,
+        cancelable: true,
+        inputType: 'deleteContentBackward'
+      }));
+      composer.value = replyText;
+      composer.dispatchEvent(new Event('input', { bubbles: true }));
+
     } else {
-      const range = document.createRange();
-      range.selectNodeContents(composer);
-      range.collapse(false);
-      sel.removeAllRanges();
-      sel.addRange(range);
+      const input = composer.querySelector('textarea, [contenteditable="true"]');
+      if (input) {
+        await this.insertReplyIntoComposer(input, replyData);
+      }
     }
-    composer.focus();
 
-    // 7) Optional: quality badge
     if (typeof qualityScore === 'number') {
-      this.showQualityBadge?.(composer, qualityScore);
+      this.showQualityBadge(composer, qualityScore);
     }
   } catch (error) {
     console.error('[TweetReply] Error during text insertion:', error);
   }
 }
+
 
 
 
