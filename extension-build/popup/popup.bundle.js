@@ -209,7 +209,15 @@
       this.usageData = null;
       this.initializeElements();
       this.attachEventListeners();
+      this.setupAuthListener();
       this.initialize();
+    }
+    setupAuthListener() {
+      chrome.runtime.onMessage.addListener((message) => {
+        if (message.action === "authUpdated") {
+          this.initialize();
+        }
+      });
     }
     initializeElements() {
       this.loadingState = document.getElementById("loading");
@@ -273,7 +281,11 @@
     async initialize() {
       try {
         this.setState("loading");
-        const isAuthenticated = await this.authManager.isAuthenticated();
+        let isAuthenticated = await this.authManager.isAuthenticated();
+        if (!isAuthenticated) {
+          await this.tryAuthSync();
+          isAuthenticated = await this.authManager.isAuthenticated();
+        }
         if (!isAuthenticated) {
           this.setState("not-authenticated");
           return;
@@ -289,6 +301,20 @@
       } catch (error) {
         console.error("Failed to initialize popup:", error);
         this.setState("not-authenticated");
+      }
+    }
+    async tryAuthSync() {
+      try {
+        const tabs = await chrome.tabs.query({ url: "https://tweetreplyai.vercel.app/*" });
+        if (tabs.length > 0) {
+          chrome.runtime.sendMessage({
+            action: "syncAuthFromTab",
+            tabId: tabs[0].id
+          });
+          await new Promise((resolve) => setTimeout(resolve, 1e3));
+        }
+      } catch (error) {
+        console.error("Failed to sync auth:", error);
       }
     }
     async loadUserData() {
@@ -470,6 +496,17 @@
     }
     async handleSignOut() {
       try {
+        try {
+          const domains = await this.getDomains();
+          const domain = domains[0] || "tweetreplyai.vercel.app";
+          const protocol = domain.includes("localhost") ? "http" : "https";
+          await fetch(`${protocol}://${domain}/api/auth/logout`, {
+            method: "POST",
+            credentials: "include"
+          });
+        } catch (error) {
+          console.error("Failed to logout from web app:", error);
+        }
         await this.authManager.signOut();
         this.setState("not-authenticated");
         this.hideSettings();

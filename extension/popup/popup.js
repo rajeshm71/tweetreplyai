@@ -10,7 +10,17 @@ class PopupManager {
     
     this.initializeElements();
     this.attachEventListeners();
+    this.setupAuthListener();
     this.initialize();
+  }
+
+  setupAuthListener() {
+    // Listen for auth updates from background script
+    chrome.runtime.onMessage.addListener((message) => {
+      if (message.action === 'authUpdated') {
+        this.initialize(); // Refresh UI when auth syncs
+      }
+    });
   }
 
   initializeElements() {
@@ -98,7 +108,14 @@ class PopupManager {
       // Start with loading state
       this.setState('loading');
       
-      const isAuthenticated = await this.authManager.isAuthenticated();
+      let isAuthenticated = await this.authManager.isAuthenticated();
+      
+      // If not authenticated, try to sync from web app
+      if (!isAuthenticated) {
+        await this.tryAuthSync();
+        // Check auth again after sync attempt
+        isAuthenticated = await this.authManager.isAuthenticated();
+      }
       
       if (!isAuthenticated) {
         this.setState('not-authenticated');
@@ -121,6 +138,24 @@ class PopupManager {
     } catch (error) {
       console.error('Failed to initialize popup:', error);
       this.setState('not-authenticated');
+    }
+  }
+
+  async tryAuthSync() {
+    try {
+      // Try to get auth from any open tweetreplyai.vercel.app tab
+      const tabs = await chrome.tabs.query({ url: 'https://tweetreplyai.vercel.app/*' });
+      if (tabs.length > 0) {
+        // Request auth sync from background script
+        chrome.runtime.sendMessage({ 
+          action: 'syncAuthFromTab', 
+          tabId: tabs[0].id 
+        });
+        // Wait for sync to complete
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+    } catch (error) {
+      console.error('Failed to sync auth:', error);
     }
   }
 
@@ -358,6 +393,20 @@ class PopupManager {
 
   async handleSignOut() {
     try {
+      // Call API to logout from web app as well
+      try {
+        const domains = await this.getDomains();
+        const domain = domains[0] || 'tweetreplyai.vercel.app';
+        const protocol = domain.includes('localhost') ? 'http' : 'https';
+        await fetch(`${protocol}://${domain}/api/auth/logout`, {
+          method: 'POST',
+          credentials: 'include'
+        });
+      } catch (error) {
+        console.error('Failed to logout from web app:', error);
+      }
+      
+      // Clear extension token
       await this.authManager.signOut();
       this.setState('not-authenticated');
       this.hideSettings();

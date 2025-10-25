@@ -50,33 +50,56 @@ class BackgroundManager {
           this.handleGetApiDomain(sendResponse);
           return true;
           
+        case 'syncAuthFromTab':
+          this.handleSyncAuthFromTab(message.tabId, sendResponse);
+          return true;
+          
         default:
           this.log('Unknown message action:', message.action);
       }
     });
   }
 
+  async handleSyncAuthFromTab(tabId, sendResponse) {
+    try {
+      await this.requestAuthFromWebApp(tabId);
+      sendResponse({ success: true });
+    } catch (error) {
+      console.error('Failed to sync auth from tab:', error);
+      sendResponse({ success: false });
+    }
+  }
+
   setupAuthHandlers() {
-    // Listen for auth completion from web app
+    // Listen for auth completion from web app - monitor ALL tweetreplyai.vercel.app tabs
     chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
       if (changeInfo.status === 'complete' && tab.url) {
-        this.checkForAuthCompletion(tab.url, tabId);
+        // Only monitor our web app domain
+        if (tab.url.includes('tweetreplyai.vercel.app')) {
+          this.checkForAuthCompletion(tab.url, tabId);
+        }
       }
     });
   }
 
   async checkForAuthCompletion(url, tabId) {
-    // Check if this is a successful auth redirect
+    // Check if this is a successful auth redirect - updated patterns
     const authSuccessPatterns = [
-      /\/app\?/,
-      /\/\?session_id=/,
-      /auth.*success/i
+      /tweetreplyai\.vercel\.app\/$/,           // Redirected to home after login
+      /tweetreplyai\.vercel\.app\/app/,         // Redirected to app after login
+      /tweetreplyai\.vercel\.app\/\?.*success/, // Success query param
+      /\/app\?/,                                 // Old pattern (backward compatibility)
+      /\/\?session_id=/,                         // Session ID param
+      /auth.*success/i                          // Generic success
     ];
     
     const isAuthSuccess = authSuccessPatterns.some(pattern => pattern.test(url));
     
     if (isAuthSuccess) {
       try {
+        // Add delay to ensure cookies are set
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
         // Try to get auth token from the tab's context
         const results = await chrome.scripting.executeScript({
           target: { tabId },
@@ -90,7 +113,10 @@ class BackgroundManager {
             authTime: Date.now()
           });
           
-               this.log('Auth token stored from successful login');
+          // Broadcast auth update to all extension contexts
+          chrome.runtime.sendMessage({ action: 'authUpdated' }).catch(() => {});
+          
+          this.log('Auth token stored from successful login');
         } else {
           // If we can't extract token directly, try to get it via API
           await this.requestAuthFromWebApp(tabId);
@@ -109,7 +135,7 @@ class BackgroundManager {
         function: async () => {
           try {
             const response = await fetch('/api/extension/auth', {
-              credentials: 'include'
+              credentials: 'include' // Include httpOnly cookies
             });
             if (response.ok) {
               const data = await response.json();
@@ -127,7 +153,11 @@ class BackgroundManager {
           authToken: results[0].result.token,
           authTime: Date.now()
         });
-             this.log('Auth token obtained from web app API');
+        
+        // Broadcast auth update to all extension contexts
+        chrome.runtime.sendMessage({ action: 'authUpdated' }).catch(() => {});
+        
+        this.log('Auth token obtained from web app API');
       }
     } catch (error) {
       console.error('Failed to request auth from web app:', error);
