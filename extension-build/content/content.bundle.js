@@ -843,6 +843,7 @@
     // No innerHTML, no synthetic clipboard events, no fake keypresses.
     // Replace whatever is in the Twitter reply composer with new text
     // Works with Draft/React by mimicking a real paste and restoring a valid caret.
+    // Stable replace: visible text, Reply active, Backspace/Enter work
     async insertReplyIntoComposer(composer, replyData) {
       try {
         const text = String(
@@ -854,31 +855,26 @@
           if (!inner) return false;
           composer = inner;
         }
+        const raf = () => new Promise((r) => requestAnimationFrame(r));
         composer.focus();
-        await this.sleep(20);
+        await raf();
         document.execCommand("selectAll", false, null);
         document.execCommand("delete", false, null);
-        await this.sleep(20);
+        await raf();
         document.execCommand("insertText", false, text);
         composer.dispatchEvent(new Event("input", { bubbles: true }));
         const sel = window.getSelection();
-        const range = document.createRange();
-        const leaf = composer.querySelector('[data-text="true"]');
-        if (leaf && leaf.firstChild && leaf.firstChild.nodeType === Node.TEXT_NODE) {
-          range.setStart(leaf.firstChild, leaf.firstChild.length);
-          range.collapse(true);
-        } else {
-          range.selectNodeContents(composer);
-          range.collapse(false);
-        }
+        const end = document.createRange();
+        end.selectNodeContents(composer);
+        end.collapse(false);
         sel.removeAllRanges();
-        sel.addRange(range);
+        sel.addRange(end);
         composer.focus();
-        await new Promise((r) => requestAnimationFrame(r));
+        await raf();
         const replyBtn = document.querySelector('div[role="dialog"] [data-testid="tweetButton"]') || document.querySelector('[data-testid="tweetButtonInline"]');
         const disabled = replyBtn && (replyBtn.hasAttribute("disabled") || replyBtn.getAttribute("aria-disabled") === "true");
         if (disabled) {
-          document.execCommand("insertText", false, " ");
+          document.execCommand("insertText", false, "\u200B");
           document.execCommand("delete", false, null);
           composer.dispatchEvent(new Event("input", { bubbles: true }));
           const sel2 = window.getSelection();

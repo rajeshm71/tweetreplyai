@@ -845,74 +845,85 @@ class TwitterReplyInjector {
 // Stable replace: visible text, Reply active, Backspace/Enter work
 async insertReplyIntoComposer(composer, replyData) {
   try {
-    // 1) Resolve target CE node + text
-    const text = String(
-      typeof replyData === 'string' ? replyData : (replyData?.reply ?? '')
-    ).trim();
-    if (!composer || !text) return false;
-
-    if (composer.contentEditable !== 'true') {
-      const inner = composer.querySelector('div[role="textbox"][contenteditable="true"]');
-      if (!inner) return false;
-      composer = inner;
+    // Safety checks
+    if (!composer || !replyData) {
+      console.error('[TweetReply] Invalid parameters');
+      return;
     }
 
-    const raf = () => new Promise(r => requestAnimationFrame(r));
+    const replyText = typeof replyData === 'string' ? replyData : replyData.reply;
+    const qualityScore = typeof replyData === 'object' ? replyData.qualityScore : null;
 
-    // 2) Focus & clear (Draft-aware)
-    composer.focus();
-    await raf();
-    document.execCommand('selectAll', false, null);
-    document.execCommand('delete',    false, null);
-    await raf();
+    if (!replyText) {
+      console.error('[TweetReply] Invalid reply text');
+      return;
+    }
 
-    // 3) Insert full text (trusted path; no synthetic paste/innerHTML)
-    document.execCommand('insertText', false, text);
+    if (composer.contentEditable === 'true') {
+      console.log('[TweetReply] Using Qura AI method: innerHTML + data-text span');
 
-    // 4) Gentle state nudge (safe input)
-    composer.dispatchEvent(new Event('input', { bubbles: true }));
+      // Step 1: Find the [data-text="true"] span's parent element
+      // This is Twitter's expected DOM structure
+      const dataTextSpan = composer.querySelector('[data-text="true"]');
+      const targetElement = dataTextSpan ? dataTextSpan.parentElement : composer;
 
-    // 5) Caret at end inside Draft
-    const sel = window.getSelection();
-    const end = document.createRange();
-    end.selectNodeContents(composer);
-    end.collapse(false);
-    sel.removeAllRanges();
-    sel.addRange(end);
-    composer.focus();
+      console.log('[TweetReply] Found data-text span:', !!dataTextSpan);
+      console.log('[TweetReply] Target element:', targetElement === composer ? 'composer' : 'parent');
 
-    // 6) If Reply is still disabled, use an **invisible nudge** (U+200B) then remove it
-    await raf();
-    const replyBtn =
-      document.querySelector('div[role="dialog"] [data-testid="tweetButton"]') ||
-      document.querySelector('[data-testid="tweetButtonInline"]');
+      // Step 2: Focus composer
+      composer.focus();
+      await this.sleep(50);
 
-    const disabled = replyBtn && (
-      replyBtn.hasAttribute('disabled') || replyBtn.getAttribute('aria-disabled') === 'true'
-    );
+      // Step 3: Set innerHTML with Twitter's expected structure
+      // This bypasses Draft.js entirely and works at the React component level
+      targetElement.innerHTML = `<span data-text="true">${replyText}</span>`;
 
-    if (disabled) {
-      // Insert zero-width space (invisible) then immediately delete it
-      document.execCommand('insertText', false, '\u200B'); // U+200B zero-width space
-      document.execCommand('delete',     false, null);
+      // Step 4: Dispatch InputEvent to notify React
+      targetElement.dispatchEvent(new InputEvent('input', {
+        bubbles: true,
+        cancelable: true,
+        inputType: 'insertText',
+        data: replyText
+      }));
 
-      // Light input again to finalize length recompute
+      // Step 5: Also dispatch on composer if different from targetElement
+      if (targetElement !== composer) {
+        composer.dispatchEvent(new InputEvent('input', {
+          bubbles: true,
+          cancelable: true,
+          inputType: 'insertText',
+          data: replyText
+        }));
+      }
+
+      // Step 6: Wait for React to process
+      await this.sleep(100);
+
+      // Step 7: Final focus
+      composer.focus();
+
+      console.log('[TweetReply] ✅ Text inserted using Qura AI method');
+
+    } else if (composer.tagName === 'TEXTAREA') {
+      // For textarea composers (fallback)
+      composer.focus();
+      composer.value = replyText;
       composer.dispatchEvent(new Event('input', { bubbles: true }));
 
-      // Keep caret sane
-      const sel2 = window.getSelection();
-      const end2 = document.createRange();
-      end2.selectNodeContents(composer);
-      end2.collapse(false);
-      sel2.removeAllRanges();
-      sel2.addRange(end2);
-      composer.focus();
+    } else {
+      // Try to find nested input elements
+      const input = composer.querySelector('textarea, [contenteditable="true"]');
+      if (input) {
+        await this.insertReplyIntoComposer(input, replyData);
+      }
     }
 
-    return true;
-  } catch (err) {
-    console.error('[TweetReply] insertReplyIntoComposer error:', err);
-    return false;
+    // Show quality score indicator
+    if (qualityScore && typeof qualityScore === 'number') {
+      this.showQualityBadge(composer, qualityScore);
+    }
+  } catch (error) {
+    console.error('[TweetReply] Error during text insertion:', error);
   }
 }
 
