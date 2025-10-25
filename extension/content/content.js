@@ -8,6 +8,7 @@ class TwitterReplyInjector {
     this.isAuthenticated = false;
     this.usageData = null;
     this.injectedButtons = new Set();
+    this.injectedContainers = new Set(); // Track injected container IDs
     
     this.initialize();
   }
@@ -29,6 +30,13 @@ class TwitterReplyInjector {
         this.handleSuggestReplyFromPopup();
       } else if (message.action === 'authUpdated') {
         // Refresh auth state when background detects login
+        this.refreshAuthState();
+      }
+    });
+    
+    // Listen for storage changes (auth state updates)
+    chrome.storage.onChanged.addListener((changes, areaName) => {
+      if (areaName === 'local' && changes.token) {
         this.refreshAuthState();
       }
     });
@@ -64,15 +72,29 @@ class TwitterReplyInjector {
   }
 
   startObserving() {
-    // Observer for new reply composers
+    // Debounced observer to reduce redundant checks
+    let debounceTimer = null;
+    const addedNodes = new Set();
+    
     const observer = new MutationObserver((mutations) => {
+      clearTimeout(debounceTimer);
+      
+      // Collect all added nodes
       mutations.forEach((mutation) => {
         mutation.addedNodes.forEach((node) => {
           if (node.nodeType === Node.ELEMENT_NODE) {
-            this.checkForReplyComposers(node);
+            addedNodes.add(node);
           }
         });
       });
+      
+      // Debounce: Wait 100ms for DOM to settle before processing
+      debounceTimer = setTimeout(() => {
+        addedNodes.forEach((node) => {
+          this.checkForReplyComposers(node);
+        });
+        addedNodes.clear();
+      }, 100);
     });
 
     observer.observe(document.body, {
@@ -85,75 +107,101 @@ class TwitterReplyInjector {
   }
 
   checkForReplyComposers(container) {
-    // Twitter/X reply composer selectors (may need updates as platform evolves)
-    const composerSelectors = [
+    // Separate specific vs generic selectors to avoid duplicate matches
+    const specificSelectors = [
       '[data-testid="tweetTextarea_0"]',
       '[data-testid="tweetTextarea_1"]',
       '[data-testid="tweetTextarea_2"]',
+    ];
+
+    const genericSelectors = [
       '[aria-label*="reply" i][contenteditable="true"]',
       '[aria-label*="post" i][contenteditable="true"]',
       '[aria-label*="tweet" i][contenteditable="true"]',
       '.public-DraftEditor-content',
       '.DraftEditor-editorContainer',
       '[data-testid="toolBar"] ~ div [contenteditable="true"]',
-      // Fallback selectors for different Twitter layouts
       'div[contenteditable="true"][role="textbox"]',
       'div[contenteditable="true"][data-testid]',
     ];
 
-    composerSelectors.forEach(selector => {
+    // Try specific selectors first
+    let found = false;
+    for (const selector of specificSelectors) {
       try {
         const composers = container.querySelectorAll ? container.querySelectorAll(selector) : [];
-        composers.forEach(composer => this.injectSuggestButton(composer));
+        if (composers.length > 0) {
+          composers.forEach(composer => this.injectSuggestButton(composer));
+          found = true;
+        }
       } catch (error) {
-        console.error('Error checking selectors:', selector, error);
+        console.error('Error checking selector:', selector, error);
       }
-    });
+    }
+
+    // Only use generic selectors if specific ones didn't match
+    if (!found) {
+      for (const selector of genericSelectors) {
+        try {
+          const composers = container.querySelectorAll ? container.querySelectorAll(selector) : [];
+          composers.forEach(composer => this.injectSuggestButton(composer));
+        } catch (error) {
+          console.error('Error checking selector:', selector, error);
+        }
+      }
+    }
   }
 
   injectSuggestButton(composer) {
     if (!composer || this.injectedButtons.has(composer)) return;
 
-    // Check if our button already exists anywhere in the document to prevent duplicates
-    if (document.querySelector('.tweetreply-button-container')) {
-      // Button already exists somewhere, skip
+    // Find the composer's unique container
+    const composerContainer = composer.closest('[data-testid="tweetComposer"]') || 
+                              composer.closest('[role="dialog"]') ||
+                              composer.closest('div[data-testid]');
+    
+    if (!composerContainer) return;
+
+    // Create a unique ID for this container
+    let containerId = composerContainer.dataset.tweetreplyContainerId;
+    if (!containerId) {
+      containerId = `tweetreply-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      composerContainer.dataset.tweetreplyContainerId = containerId;
+    }
+
+    // Check if button already exists IN THIS CONTAINER (not entire document)
+    if (composerContainer.querySelector('.tweetreply-button-container') || 
+        this.injectedContainers.has(containerId)) {
       this.injectedButtons.add(composer);
       return;
     }
 
+    // Mark this container as injected
+    this.injectedContainers.add(containerId);
+
     // Find the composer's toolbar area
-    const parent = composer.closest('[data-testid="tweetComposer"]') || 
-                  composer.closest('.tweet-composer') || 
-                  composer.closest('[role="dialog"]') ||
-                  composer.parentElement;
+    let toolbar = composerContainer.querySelector('[data-testid="toolBar"]') ||
+                  composerContainer.querySelector('.toolbar') ||
+                  composerContainer.querySelector('[role="toolbar"]');
 
-    let toolbar = null;
-
-    if (parent) {
-      // Look for existing toolbars
-      toolbar = parent.querySelector('[data-testid="toolBar"]') ||
-                parent.querySelector('.toolbar') ||
-                parent.querySelector('[role="toolbar"]');
-      
-      // If no toolbar found, look for button containers
-      if (!toolbar) {
-        const buttonContainers = parent.querySelectorAll('div');
-        for (const container of buttonContainers) {
-          if (container.querySelectorAll('button').length >= 2) {
-            toolbar = container;
-            break;
-          }
+    if (!toolbar) {
+      // Look for button containers with 2+ buttons (Twitter's native toolbar)
+      const buttonContainers = composerContainer.querySelectorAll('div');
+      for (const container of buttonContainers) {
+        if (container.querySelectorAll('button').length >= 2) {
+          toolbar = container;
+          break;
         }
       }
     }
 
+    // If still no toolbar, create our own
     if (!toolbar) {
-      // Create our own toolbar if none exists
       toolbar = this.createToolbar(composer);
     }
 
     if (toolbar && !toolbar.querySelector('.tweetreply-button-container')) {
-      const button = this.createSuggestButton(composer);
+      const button = this.createSuggestButton(composer, containerId);
       this.insertButtonInToolbar(toolbar, button);
       this.injectedButtons.add(composer);
     }
@@ -179,9 +227,10 @@ class TwitterReplyInjector {
     return toolbar;
   }
 
-  createSuggestButton(composer) {
+  createSuggestButton(composer, containerId) {
     const container = document.createElement('div');
     container.className = 'tweetreply-button-container';
+    container.dataset.containerId = containerId;
     
     // Model dropdown
     const modelSelect = this.createModelSelect();
@@ -194,15 +243,23 @@ class TwitterReplyInjector {
     // Suggest button
     const button = document.createElement('button');
     button.className = 'tweetreply-suggest-btn';
+    button.dataset.authPending = 'true'; // Mark as pending initialization
+
+    // Set initial loading state
+    button.disabled = true;
     button.innerHTML = `
       <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" style="margin-right: 4px;">
-        <path d="M12 2L13.09 8.26L19 7.27L14.18 12.09L20 17.91L13.09 15.74L12 22L10.91 15.74L4 17.91L8.82 12.09L3 7.27L8.91 8.26L12 2Z"/>
+        <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="31.416" stroke-dashoffset="31.416">
+          <animate attributeName="stroke-dasharray" dur="2s" values="0 31.416;15.708 15.708;0 31.416;0 31.416" repeatCount="indefinite"/>
+          <animate attributeName="stroke-dashoffset" dur="2s" values="0;-15.708;-31.416;-31.416" repeatCount="indefinite"/>
+        </circle>
       </svg>
-      <span>Suggest reply</span>
+      <span>Checking...</span>
     `;
+    button.title = 'Checking authentication...';
 
-    // Update button state based on authentication and usage
-    this.updateButtonState(button);
+    // Async button state initialization
+    this.updateButtonStateAsync(button);
 
     button.addEventListener('click', (e) => {
       e.preventDefault();
@@ -215,6 +272,22 @@ class TwitterReplyInjector {
 
     container.appendChild(button);
     return container;
+  }
+
+  async updateButtonStateAsync(button) {
+    // Re-check auth if needed
+    if (!this.isAuthenticated) {
+      this.isAuthenticated = await this.authManager.isAuthenticated();
+    }
+    
+    // Load usage if authenticated but missing
+    if (this.isAuthenticated && !this.usageData) {
+      await this.loadUsageData();
+    }
+    
+    // Now update with real state
+    delete button.dataset.authPending;
+    this.updateButtonState(button);
   }
 
   createModelSelect() {
@@ -300,19 +373,66 @@ class TwitterReplyInjector {
   }
 
   updateButtonState(button) {
-    const canUse = this.isAuthenticated && 
-                   this.usageData && 
-                   this.usageData.used < this.usageData.limit;
-
-    button.disabled = !canUse;
-    
-    if (!this.isAuthenticated) {
-      button.title = 'Sign in to use TweetReply';
-    } else if (this.usageData && this.usageData.used >= this.usageData.limit) {
-      button.title = `Quota exceeded. Resets ${this.formatTimeDistance(new Date(this.usageData.resetAt))}`;
-    } else {
-      button.title = 'Generate an AI reply suggestion';
+    // Don't update if still pending
+    if (button.dataset.authPending === 'true') {
+      return;
     }
+
+    // Unauthenticated state
+    if (!this.isAuthenticated) {
+      button.disabled = true;
+      button.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" style="margin-right: 4px;">
+          <path d="M12 2L13.09 8.26L19 7.27L14.18 12.09L20 17.91L13.09 15.74L12 22L10.91 15.74L4 17.91L8.82 12.09L3 7.27L8.91 8.26L12 2Z" opacity="0.6"/>
+        </svg>
+        <span>🔒 Sign in to use</span>
+      `;
+      button.title = 'Click to sign in to TweetReply';
+      button.style.opacity = '0.6';
+      return;
+    }
+
+    // Loading state (authenticated but usage data not loaded)
+    if (!this.usageData) {
+      button.disabled = true;
+      button.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" style="margin-right: 4px;">
+          <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="31.416" stroke-dashoffset="31.416">
+            <animate attributeName="stroke-dasharray" dur="2s" values="0 31.416;15.708 15.708;0 31.416;0 31.416" repeatCount="indefinite"/>
+            <animate attributeName="stroke-dashoffset" dur="2s" values="0;-15.708;-31.416;-31.416" repeatCount="indefinite"/>
+          </circle>
+        </svg>
+        <span>⏳ Loading...</span>
+      `;
+      button.title = 'Loading usage data...';
+      button.style.opacity = '1';
+      return;
+    }
+
+    // Quota exceeded state
+    if (this.usageData.used >= this.usageData.limit) {
+      button.disabled = true;
+      button.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" style="margin-right: 4px;">
+          <path d="M12 2L13.09 8.26L19 7.27L14.18 12.09L20 17.91L13.09 15.74L12 22L10.91 15.74L4 17.91L8.82 12.09L3 7.27L8.91 8.26L12 2Z" opacity="0.6"/>
+        </svg>
+        <span>⚠️ Quota exceeded</span>
+      `;
+      button.title = `Quota exceeded. Resets ${this.formatTimeDistance(new Date(this.usageData.resetAt))}`;
+      button.style.opacity = '0.6';
+      return;
+    }
+
+    // Active state
+    button.disabled = false;
+    button.innerHTML = `
+      <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" style="margin-right: 4px;">
+        <path d="M12 2L13.09 8.26L19 7.27L14.18 12.09L20 17.91L13.09 15.74L12 22L10.91 15.74L4 17.91L8.82 12.09L3 7.27L8.91 8.26L12 2Z"/>
+      </svg>
+      <span>Suggest reply</span>
+    `;
+    button.title = 'Generate an AI reply suggestion';
+    button.style.opacity = '1';
   }
 
   insertButtonInToolbar(toolbar, button) {

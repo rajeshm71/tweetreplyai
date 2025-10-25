@@ -208,6 +208,7 @@
       this.isAuthenticated = false;
       this.usageData = null;
       this.injectedButtons = /* @__PURE__ */ new Set();
+      this.injectedContainers = /* @__PURE__ */ new Set();
       this.initialize();
     }
     async initialize() {
@@ -220,6 +221,11 @@
         if (message.action === "suggestReply") {
           this.handleSuggestReplyFromPopup();
         } else if (message.action === "authUpdated") {
+          this.refreshAuthState();
+        }
+      });
+      chrome.storage.onChanged.addListener((changes, areaName) => {
+        if (areaName === "local" && changes.token) {
           this.refreshAuthState();
         }
       });
@@ -246,14 +252,23 @@
       }
     }
     startObserving() {
+      let debounceTimer = null;
+      const addedNodes = /* @__PURE__ */ new Set();
       const observer = new MutationObserver((mutations) => {
+        clearTimeout(debounceTimer);
         mutations.forEach((mutation) => {
           mutation.addedNodes.forEach((node) => {
             if (node.nodeType === Node.ELEMENT_NODE) {
-              this.checkForReplyComposers(node);
+              addedNodes.add(node);
             }
           });
         });
+        debounceTimer = setTimeout(() => {
+          addedNodes.forEach((node) => {
+            this.checkForReplyComposers(node);
+          });
+          addedNodes.clear();
+        }, 100);
       });
       observer.observe(document.body, {
         childList: true,
@@ -262,46 +277,65 @@
       this.checkForReplyComposers(document.body);
     }
     checkForReplyComposers(container) {
-      const composerSelectors = [
+      const specificSelectors = [
         '[data-testid="tweetTextarea_0"]',
         '[data-testid="tweetTextarea_1"]',
-        '[data-testid="tweetTextarea_2"]',
+        '[data-testid="tweetTextarea_2"]'
+      ];
+      const genericSelectors = [
         '[aria-label*="reply" i][contenteditable="true"]',
         '[aria-label*="post" i][contenteditable="true"]',
         '[aria-label*="tweet" i][contenteditable="true"]',
         ".public-DraftEditor-content",
         ".DraftEditor-editorContainer",
         '[data-testid="toolBar"] ~ div [contenteditable="true"]',
-        // Fallback selectors for different Twitter layouts
         'div[contenteditable="true"][role="textbox"]',
         'div[contenteditable="true"][data-testid]'
       ];
-      composerSelectors.forEach((selector) => {
+      let found = false;
+      for (const selector of specificSelectors) {
         try {
           const composers = container.querySelectorAll ? container.querySelectorAll(selector) : [];
-          composers.forEach((composer) => this.injectSuggestButton(composer));
+          if (composers.length > 0) {
+            composers.forEach((composer) => this.injectSuggestButton(composer));
+            found = true;
+          }
         } catch (error) {
-          console.error("Error checking selectors:", selector, error);
+          console.error("Error checking selector:", selector, error);
         }
-      });
+      }
+      if (!found) {
+        for (const selector of genericSelectors) {
+          try {
+            const composers = container.querySelectorAll ? container.querySelectorAll(selector) : [];
+            composers.forEach((composer) => this.injectSuggestButton(composer));
+          } catch (error) {
+            console.error("Error checking selector:", selector, error);
+          }
+        }
+      }
     }
     injectSuggestButton(composer) {
       if (!composer || this.injectedButtons.has(composer)) return;
-      if (document.querySelector(".tweetreply-button-container")) {
+      const composerContainer = composer.closest('[data-testid="tweetComposer"]') || composer.closest('[role="dialog"]') || composer.closest("div[data-testid]");
+      if (!composerContainer) return;
+      let containerId = composerContainer.dataset.tweetreplyContainerId;
+      if (!containerId) {
+        containerId = `tweetreply-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        composerContainer.dataset.tweetreplyContainerId = containerId;
+      }
+      if (composerContainer.querySelector(".tweetreply-button-container") || this.injectedContainers.has(containerId)) {
         this.injectedButtons.add(composer);
         return;
       }
-      const parent = composer.closest('[data-testid="tweetComposer"]') || composer.closest(".tweet-composer") || composer.closest('[role="dialog"]') || composer.parentElement;
-      let toolbar = null;
-      if (parent) {
-        toolbar = parent.querySelector('[data-testid="toolBar"]') || parent.querySelector(".toolbar") || parent.querySelector('[role="toolbar"]');
-        if (!toolbar) {
-          const buttonContainers = parent.querySelectorAll("div");
-          for (const container of buttonContainers) {
-            if (container.querySelectorAll("button").length >= 2) {
-              toolbar = container;
-              break;
-            }
+      this.injectedContainers.add(containerId);
+      let toolbar = composerContainer.querySelector('[data-testid="toolBar"]') || composerContainer.querySelector(".toolbar") || composerContainer.querySelector('[role="toolbar"]');
+      if (!toolbar) {
+        const buttonContainers = composerContainer.querySelectorAll("div");
+        for (const container of buttonContainers) {
+          if (container.querySelectorAll("button").length >= 2) {
+            toolbar = container;
+            break;
           }
         }
       }
@@ -309,7 +343,7 @@
         toolbar = this.createToolbar(composer);
       }
       if (toolbar && !toolbar.querySelector(".tweetreply-button-container")) {
-        const button = this.createSuggestButton(composer);
+        const button = this.createSuggestButton(composer, containerId);
         this.insertButtonInToolbar(toolbar, button);
         this.injectedButtons.add(composer);
       }
@@ -330,22 +364,29 @@
       }
       return toolbar;
     }
-    createSuggestButton(composer) {
+    createSuggestButton(composer, containerId) {
       const container = document.createElement("div");
       container.className = "tweetreply-button-container";
+      container.dataset.containerId = containerId;
       const modelSelect = this.createModelSelect();
       container.appendChild(modelSelect);
       const promptSelect = this.createPromptSelect();
       container.appendChild(promptSelect);
       const button = document.createElement("button");
       button.className = "tweetreply-suggest-btn";
+      button.dataset.authPending = "true";
+      button.disabled = true;
       button.innerHTML = `
       <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" style="margin-right: 4px;">
-        <path d="M12 2L13.09 8.26L19 7.27L14.18 12.09L20 17.91L13.09 15.74L12 22L10.91 15.74L4 17.91L8.82 12.09L3 7.27L8.91 8.26L12 2Z"/>
+        <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="31.416" stroke-dashoffset="31.416">
+          <animate attributeName="stroke-dasharray" dur="2s" values="0 31.416;15.708 15.708;0 31.416;0 31.416" repeatCount="indefinite"/>
+          <animate attributeName="stroke-dashoffset" dur="2s" values="0;-15.708;-31.416;-31.416" repeatCount="indefinite"/>
+        </circle>
       </svg>
-      <span>Suggest reply</span>
+      <span>Checking...</span>
     `;
-      this.updateButtonState(button);
+      button.title = "Checking authentication...";
+      this.updateButtonStateAsync(button);
       button.addEventListener("click", (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -356,6 +397,16 @@
       });
       container.appendChild(button);
       return container;
+    }
+    async updateButtonStateAsync(button) {
+      if (!this.isAuthenticated) {
+        this.isAuthenticated = await this.authManager.isAuthenticated();
+      }
+      if (this.isAuthenticated && !this.usageData) {
+        await this.loadUsageData();
+      }
+      delete button.dataset.authPending;
+      this.updateButtonState(button);
     }
     createModelSelect() {
       const select = document.createElement("select");
@@ -426,15 +477,57 @@
       }
     }
     updateButtonState(button) {
-      const canUse = this.isAuthenticated && this.usageData && this.usageData.used < this.usageData.limit;
-      button.disabled = !canUse;
-      if (!this.isAuthenticated) {
-        button.title = "Sign in to use TweetReply";
-      } else if (this.usageData && this.usageData.used >= this.usageData.limit) {
-        button.title = `Quota exceeded. Resets ${this.formatTimeDistance(new Date(this.usageData.resetAt))}`;
-      } else {
-        button.title = "Generate an AI reply suggestion";
+      if (button.dataset.authPending === "true") {
+        return;
       }
+      if (!this.isAuthenticated) {
+        button.disabled = true;
+        button.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" style="margin-right: 4px;">
+          <path d="M12 2L13.09 8.26L19 7.27L14.18 12.09L20 17.91L13.09 15.74L12 22L10.91 15.74L4 17.91L8.82 12.09L3 7.27L8.91 8.26L12 2Z" opacity="0.6"/>
+        </svg>
+        <span>\u{1F512} Sign in to use</span>
+      `;
+        button.title = "Click to sign in to TweetReply";
+        button.style.opacity = "0.6";
+        return;
+      }
+      if (!this.usageData) {
+        button.disabled = true;
+        button.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" style="margin-right: 4px;">
+          <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="31.416" stroke-dashoffset="31.416">
+            <animate attributeName="stroke-dasharray" dur="2s" values="0 31.416;15.708 15.708;0 31.416;0 31.416" repeatCount="indefinite"/>
+            <animate attributeName="stroke-dashoffset" dur="2s" values="0;-15.708;-31.416;-31.416" repeatCount="indefinite"/>
+          </circle>
+        </svg>
+        <span>\u23F3 Loading...</span>
+      `;
+        button.title = "Loading usage data...";
+        button.style.opacity = "1";
+        return;
+      }
+      if (this.usageData.used >= this.usageData.limit) {
+        button.disabled = true;
+        button.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" style="margin-right: 4px;">
+          <path d="M12 2L13.09 8.26L19 7.27L14.18 12.09L20 17.91L13.09 15.74L12 22L10.91 15.74L4 17.91L8.82 12.09L3 7.27L8.91 8.26L12 2Z" opacity="0.6"/>
+        </svg>
+        <span>\u26A0\uFE0F Quota exceeded</span>
+      `;
+        button.title = `Quota exceeded. Resets ${this.formatTimeDistance(new Date(this.usageData.resetAt))}`;
+        button.style.opacity = "0.6";
+        return;
+      }
+      button.disabled = false;
+      button.innerHTML = `
+      <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" style="margin-right: 4px;">
+        <path d="M12 2L13.09 8.26L19 7.27L14.18 12.09L20 17.91L13.09 15.74L12 22L10.91 15.74L4 17.91L8.82 12.09L3 7.27L8.91 8.26L12 2Z"/>
+      </svg>
+      <span>Suggest reply</span>
+    `;
+      button.title = "Generate an AI reply suggestion";
+      button.style.opacity = "1";
     }
     insertButtonInToolbar(toolbar, button) {
       if (toolbar.firstChild) {
