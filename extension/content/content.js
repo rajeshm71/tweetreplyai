@@ -859,39 +859,43 @@ async insertReplyIntoComposer(composer, replyData) {
     // Focus the composer
     composer.focus();
     await this.sleep(20);
-    
-    // Select all existing content
-    const sel = window.getSelection();
-    const range = document.createRange();
-    range.selectNodeContents(composer);
-    sel.removeAllRanges();
-    sel.addRange(range);
-    
-    // Use clipboard paste - Draft.js handles this perfectly
+
+    // ✅ Clear via trusted editing API so Draft updates its selection/state
+    document.execCommand('selectAll', false, null);
+    document.execCommand('delete',    false, null);
+    await this.sleep(10);
+
+    // Your existing synthetic paste (works fine once selection is truly cleared)
     const clipboardData = new DataTransfer();
     clipboardData.setData('text/plain', text);
-    
-    // Fire paste event (this is what Draft.js listens for)
+
     const pasteEvent = new ClipboardEvent('paste', {
-      clipboardData: clipboardData,
+      clipboardData,
       bubbles: true,
       cancelable: true
     });
-    
     composer.dispatchEvent(pasteEvent);
-    
+
     // Small delay for Draft.js to process
     await this.sleep(50);
-    
-    // Ensure focus
-    composer.focus();
 
+    // Optional light nudge + caret to end (keeps Reply active & editing smooth)
+    composer.dispatchEvent(new Event('input', { bubbles: true }));
+    const sel = window.getSelection();
+    const end = document.createRange();
+    end.selectNodeContents(composer);
+    end.collapse(false);
+    sel.removeAllRanges();
+    sel.addRange(end);
+
+    composer.focus();
     return true;
   } catch (err) {
     console.error('[TweetReply] insertReplyIntoComposer error:', err);
     return false;
   }
 }
+
 
 
 

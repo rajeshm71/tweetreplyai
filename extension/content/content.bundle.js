@@ -855,10 +855,19 @@
         }
         composer.focus();
         await this.sleep(20);
-        document.execCommand("selectAll", false, null);
-        document.execCommand("delete", false, null);
-        await this.sleep(10);
-        document.execCommand("insertText", false, text);
+        const sel = window.getSelection();
+        const range = document.createRange();
+        range.selectNodeContents(composer);
+        sel.removeAllRanges();
+        sel.addRange(range);
+        const clipboardData = new DataTransfer();
+        clipboardData.setData("text/plain", text);
+        const pasteEvent = new ClipboardEvent("paste", {
+          clipboardData,
+          bubbles: true,
+          cancelable: true
+        });
+        composer.dispatchEvent(pasteEvent);
         await this.sleep(50);
         composer.focus();
         return true;
