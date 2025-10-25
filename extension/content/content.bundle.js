@@ -849,46 +849,78 @@
         if (!composer || !replyData) return;
         const replyText = typeof replyData === "string" ? replyData : replyData.reply;
         const qualityScore = typeof replyData === "object" ? replyData.qualityScore : null;
-        if (!replyText && replyText !== "") return;
-        if (composer.contentEditable !== "true") {
-          const inner = composer.querySelector('div[contenteditable="true"][role="textbox"]');
-          if (!inner) return;
-          composer = inner;
-        }
-        composer.focus();
-        await this.sleep?.(20);
-        document.execCommand("selectAll", false, null);
-        document.execCommand("delete", false, null);
-        await this.sleep?.(16);
-        let dataTextSpan = composer.querySelector('[data-text="true"]');
-        if (!dataTextSpan) {
-          const wrapper = document.createElement("div");
-          dataTextSpan = document.createElement("span");
-          dataTextSpan.setAttribute("data-text", "true");
-          wrapper.appendChild(dataTextSpan);
-          while (composer.firstChild) composer.removeChild(composer.firstChild);
-          composer.appendChild(wrapper);
-        }
-        dataTextSpan.textContent = replyText ?? "";
-        composer.dispatchEvent(new Event("input", { bubbles: true }));
-        const sel = window.getSelection();
-        const tn = dataTextSpan.firstChild;
-        if (tn && tn.nodeType === Node.TEXT_NODE) {
+        if (!replyText) return;
+        if (composer.contentEditable === "true") {
+          console.log("[TweetReply] Using Qura AI method: innerHTML + data-text span");
+          const dataTextSpan = composer.querySelector('[data-text="true"]');
+          const targetElement = dataTextSpan ? dataTextSpan.parentElement : composer;
+          composer.focus();
+          await this.sleep(30);
+          const sel = window.getSelection();
           const range = document.createRange();
-          range.setStart(tn, tn.length);
-          range.collapse(true);
+          range.selectNodeContents(targetElement);
           sel.removeAllRanges();
           sel.addRange(range);
+          const beforeDel = new InputEvent("beforeinput", {
+            bubbles: true,
+            cancelable: true,
+            inputType: "deleteByCut",
+            // delete selection
+            data: null
+          });
+          targetElement.dispatchEvent(beforeDel);
+          const delEvt = new InputEvent("input", {
+            bubbles: true,
+            cancelable: true,
+            inputType: "deleteContentBackward",
+            data: null
+          });
+          targetElement.dispatchEvent(delEvt);
+          targetElement.innerHTML = "";
+          await this.sleep(20);
+          targetElement.innerHTML = `<span data-text="true">${replyText}</span>`;
+          const insEvt = new InputEvent("input", {
+            bubbles: true,
+            cancelable: true,
+            inputType: "insertText",
+            data: replyText
+          });
+          targetElement.dispatchEvent(insEvt);
+          if (targetElement !== composer) {
+            composer.dispatchEvent(new InputEvent("input", {
+              bubbles: true,
+              cancelable: true,
+              inputType: "insertText",
+              data: replyText
+            }));
+          }
+          await this.sleep(60);
+          composer.focus();
+          console.log("[TweetReply] \u2705 Text replaced using Qura AI method");
+        } else if (composer.tagName === "TEXTAREA") {
+          composer.focus();
+          composer.setSelectionRange(0, composer.value.length);
+          composer.dispatchEvent(new InputEvent("beforeinput", {
+            bubbles: true,
+            cancelable: true,
+            inputType: "deleteByCut"
+          }));
+          composer.value = "";
+          composer.dispatchEvent(new InputEvent("input", {
+            bubbles: true,
+            cancelable: true,
+            inputType: "deleteContentBackward"
+          }));
+          composer.value = replyText;
+          composer.dispatchEvent(new Event("input", { bubbles: true }));
         } else {
-          const range = document.createRange();
-          range.selectNodeContents(composer);
-          range.collapse(false);
-          sel.removeAllRanges();
-          sel.addRange(range);
+          const input = composer.querySelector('textarea, [contenteditable="true"]');
+          if (input) {
+            await this.insertReplyIntoComposer(input, replyData);
+          }
         }
-        composer.focus();
         if (typeof qualityScore === "number") {
-          this.showQualityBadge?.(composer, qualityScore);
+          this.showQualityBadge(composer, qualityScore);
         }
       } catch (error) {
         console.error("[TweetReply] Error during text insertion:", error);
