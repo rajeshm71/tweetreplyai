@@ -856,24 +856,34 @@ async insertReplyIntoComposer(composer, replyData) {
       if (inner) composer = inner;
     }
 
-    // Focus the composer first
+    // Focus the composer
     composer.focus();
     await this.sleep(20);
     
-    // Select all existing content and delete it
-    document.execCommand('selectAll', false, null);
-    document.execCommand('delete', false, null);
+    // Select all existing content
+    const sel = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(composer);
+    sel.removeAllRanges();
+    sel.addRange(range);
     
-    // Small delay to let Draft.js process the deletion
-    await this.sleep(10);
+    // Use clipboard paste - Draft.js handles this perfectly
+    const clipboardData = new DataTransfer();
+    clipboardData.setData('text/plain', text);
     
-    // Insert the new text using execCommand which Draft.js handles properly
-    document.execCommand('insertText', false, text);
+    // Fire paste event (this is what Draft.js listens for)
+    const pasteEvent = new ClipboardEvent('paste', {
+      clipboardData: clipboardData,
+      bubbles: true,
+      cancelable: true
+    });
     
-    // Wait for Draft.js to update
+    composer.dispatchEvent(pasteEvent);
+    
+    // Small delay for Draft.js to process
     await this.sleep(50);
     
-    // Ensure composer stays focused
+    // Ensure focus
     composer.focus();
 
     return true;

@@ -854,78 +854,13 @@
           if (inner) composer = inner;
         }
         composer.focus();
-        if (typeof this?.sleep === "function") await this.sleep(20);
-        const sel = window.getSelection();
-        const clearRange = document.createRange();
-        clearRange.selectNodeContents(composer);
-        sel.removeAllRanges();
-        sel.addRange(clearRange);
-        document.execCommand("delete");
-        for (let i = 0; i < text.length; i++) {
-          const char = text[i];
-          if (char === "\r") continue;
-          if (char === "\n") {
-            try {
-              composer.dispatchEvent(new InputEvent("beforeinput", {
-                bubbles: true,
-                cancelable: true,
-                inputType: "insertLineBreak"
-              }));
-            } catch {
-            }
-            document.execCommand("insertLineBreak", false, null) || document.execCommand("insertParagraph", false, null);
-            try {
-              composer.dispatchEvent(new InputEvent("input", {
-                bubbles: true,
-                cancelable: false,
-                inputType: "insertLineBreak"
-              }));
-            } catch {
-            }
-          } else {
-            try {
-              composer.dispatchEvent(new InputEvent("beforeinput", {
-                bubbles: true,
-                cancelable: true,
-                inputType: "insertText",
-                data: char
-              }));
-            } catch {
-            }
-            document.execCommand("insertText", false, char);
-            try {
-              composer.dispatchEvent(new InputEvent("input", {
-                bubbles: true,
-                cancelable: false,
-                inputType: "insertText",
-                data: char
-              }));
-            } catch {
-            }
-          }
-          if (i % 50 === 0 && i > 0) {
-            if (typeof this?.sleep === "function") await this.sleep(10);
-          }
-        }
-        if (typeof this?.sleep === "function") await this.sleep(100);
+        await this.sleep(20);
+        document.execCommand("selectAll", false, null);
+        document.execCommand("delete", false, null);
+        await this.sleep(10);
+        document.execCommand("insertText", false, text);
+        await this.sleep(50);
         composer.focus();
-        const leaf = composer.querySelector('[data-text="true"]:last-of-type');
-        if (leaf) {
-          const textNode = leaf.firstChild;
-          if (textNode && textNode.nodeType === Node.TEXT_NODE) {
-            const range = document.createRange();
-            range.setStart(textNode, textNode.length);
-            range.collapse(true);
-            sel.removeAllRanges();
-            sel.addRange(range);
-          }
-        }
-        composer.focus();
-        if (typeof this?.sleep === "function") await this.sleep(20);
-        try {
-          document.dispatchEvent(new Event("selectionchange", { bubbles: true }));
-        } catch {
-        }
         return true;
       } catch (err) {
         console.error("[TweetReply] insertReplyIntoComposer error:", err);
