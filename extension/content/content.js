@@ -848,33 +848,34 @@ class TwitterReplyInjector {
       composer.focus();
       
       try {
-        // Method 1: Try Clipboard API (modern, most reliable)
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          // Write to clipboard
-          await navigator.clipboard.writeText(replyText);
-          
-          // Create DataTransfer for paste event
-          const dataTransfer = new DataTransfer();
-          dataTransfer.setData('text/plain', replyText);
-          dataTransfer.setData('text/html', replyText);
-          
-          // Trigger paste event
-          const pasteEvent = new ClipboardEvent('paste', {
-            bubbles: true,
-            cancelable: true,
-            clipboardData: dataTransfer
-          });
-          
-          // Dispatch paste event - Draft.js will handle everything
-          composer.dispatchEvent(pasteEvent);
-          
-          // Small delay for Draft.js to process
-          await this.sleep(100);
-          
-        } else {
-          // Fallback: execCommand paste (older browsers)
-          await this.fallbackPasteMethod(composer, replyText);
+        // Get React fiber to trigger proper React/Draft.js update
+        const reactFiber = composer[Object.keys(composer).find(key => key.startsWith('__react'))];
+        
+        // Set text content directly
+        composer.textContent = replyText;
+        
+        // Trigger React synthetic event for input
+        const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+          window.HTMLDivElement.prototype,
+          'textContent'
+        ).set;
+        nativeInputValueSetter.call(composer, replyText);
+        
+        // Dispatch input event that React listens to
+        const inputEvent = new Event('input', { bubbles: true });
+        composer.dispatchEvent(inputEvent);
+        
+        // Also dispatch change event for Draft.js
+        const changeEvent = new Event('change', { bubbles: true });
+        composer.dispatchEvent(changeEvent);
+        
+        // Set innerHTML as fallback to ensure content is visible
+        if (!composer.textContent || composer.textContent.trim() === '') {
+          composer.innerHTML = replyText.replace(/\n/g, '<br>');
         }
+        
+        // Small delay for React to process
+        await this.sleep(100);
         
         // Final focus to ensure editor is active
         composer.focus();
@@ -882,14 +883,25 @@ class TwitterReplyInjector {
         // Move cursor to end
         const selection = window.getSelection();
         const range = document.createRange();
-        range.selectNodeContents(composer);
-        range.collapse(false);
+        
+        // Select all content and collapse to end
+        if (composer.childNodes.length > 0) {
+          const lastNode = composer.childNodes[composer.childNodes.length - 1];
+          range.setStart(lastNode, lastNode.length || lastNode.childNodes.length || 0);
+          range.setEnd(lastNode, lastNode.length || lastNode.childNodes.length || 0);
+        } else {
+          range.selectNodeContents(composer);
+          range.collapse(false);
+        }
+        
         selection.removeAllRanges();
         selection.addRange(range);
         
       } catch (error) {
-        console.error('[TweetReply] Clipboard paste failed, trying fallback:', error);
-        await this.fallbackPasteMethod(composer, replyText);
+        console.error('[TweetReply] Insert failed:', error);
+        // Last resort fallback
+        composer.innerHTML = replyText.replace(/\n/g, '<br>');
+        composer.focus();
       }
       
     } else if (composer.tagName === 'TEXTAREA') {
@@ -912,30 +924,6 @@ class TwitterReplyInjector {
     if (qualityScore) {
       this.showQualityBadge(composer, qualityScore);
     }
-  }
-
-  async fallbackPasteMethod(composer, text) {
-    // Create a temporary textarea with the text
-    const tempTextarea = document.createElement('textarea');
-    tempTextarea.value = text;
-    tempTextarea.style.position = 'fixed';
-    tempTextarea.style.left = '-9999px';
-    document.body.appendChild(tempTextarea);
-    
-    // Select and copy the text
-    tempTextarea.select();
-    document.execCommand('copy');
-    
-    // Focus back on composer
-    composer.focus();
-    
-    // Paste using execCommand
-    document.execCommand('paste');
-    
-    // Cleanup
-    document.body.removeChild(tempTextarea);
-    
-    await this.sleep(100);
   }
 
   sleep(ms) {

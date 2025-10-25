@@ -841,31 +841,38 @@
         await this.sleep(50);
         composer.focus();
         try {
-          if (navigator.clipboard && navigator.clipboard.writeText) {
-            await navigator.clipboard.writeText(replyText);
-            const dataTransfer = new DataTransfer();
-            dataTransfer.setData("text/plain", replyText);
-            dataTransfer.setData("text/html", replyText);
-            const pasteEvent = new ClipboardEvent("paste", {
-              bubbles: true,
-              cancelable: true,
-              clipboardData: dataTransfer
-            });
-            composer.dispatchEvent(pasteEvent);
-            await this.sleep(100);
-          } else {
-            await this.fallbackPasteMethod(composer, replyText);
+          const reactFiber = composer[Object.keys(composer).find((key) => key.startsWith("__react"))];
+          composer.textContent = replyText;
+          const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+            window.HTMLDivElement.prototype,
+            "textContent"
+          ).set;
+          nativeInputValueSetter.call(composer, replyText);
+          const inputEvent = new Event("input", { bubbles: true });
+          composer.dispatchEvent(inputEvent);
+          const changeEvent = new Event("change", { bubbles: true });
+          composer.dispatchEvent(changeEvent);
+          if (!composer.textContent || composer.textContent.trim() === "") {
+            composer.innerHTML = replyText.replace(/\n/g, "<br>");
           }
+          await this.sleep(100);
           composer.focus();
           const selection = window.getSelection();
           const range = document.createRange();
-          range.selectNodeContents(composer);
-          range.collapse(false);
+          if (composer.childNodes.length > 0) {
+            const lastNode = composer.childNodes[composer.childNodes.length - 1];
+            range.setStart(lastNode, lastNode.length || lastNode.childNodes.length || 0);
+            range.setEnd(lastNode, lastNode.length || lastNode.childNodes.length || 0);
+          } else {
+            range.selectNodeContents(composer);
+            range.collapse(false);
+          }
           selection.removeAllRanges();
           selection.addRange(range);
         } catch (error) {
-          console.error("[TweetReply] Clipboard paste failed, trying fallback:", error);
-          await this.fallbackPasteMethod(composer, replyText);
+          console.error("[TweetReply] Insert failed:", error);
+          composer.innerHTML = replyText.replace(/\n/g, "<br>");
+          composer.focus();
         }
       } else if (composer.tagName === "TEXTAREA") {
         composer.focus();
@@ -881,19 +888,6 @@
       if (qualityScore) {
         this.showQualityBadge(composer, qualityScore);
       }
-    }
-    async fallbackPasteMethod(composer, text) {
-      const tempTextarea = document.createElement("textarea");
-      tempTextarea.value = text;
-      tempTextarea.style.position = "fixed";
-      tempTextarea.style.left = "-9999px";
-      document.body.appendChild(tempTextarea);
-      tempTextarea.select();
-      document.execCommand("copy");
-      composer.focus();
-      document.execCommand("paste");
-      document.body.removeChild(tempTextarea);
-      await this.sleep(100);
     }
     sleep(ms) {
       return new Promise((resolve) => setTimeout(resolve, ms));
