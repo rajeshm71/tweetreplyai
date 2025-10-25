@@ -9,6 +9,7 @@ class TwitterReplyInjector {
     this.usageData = null;
     this.injectedButtons = new Set();
     this.injectedContainers = new Set(); // Track injected container IDs
+    this.pendingRegenerations = new WeakMap(); // Track composers waiting for regeneration confirmation
     
     this.initialize();
   }
@@ -516,6 +517,37 @@ class TwitterReplyInjector {
       return;
     }
 
+    // Check if there's existing content and ask for confirmation
+    const existingText = composer.textContent?.trim();
+    const hasExistingContent = existingText && existingText.length > 0;
+    
+    if (hasExistingContent && !this.pendingRegenerations.has(composer)) {
+      // Mark this composer as pending regeneration
+      this.pendingRegenerations.set(composer, true);
+      
+      // Change button to show regenerate state
+      const originalText = button.innerHTML;
+      button.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" style="margin-right: 4px;">
+          <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+        </svg>
+        <span>Regenerate reply</span>
+      `;
+      
+      // Wait 3 seconds, then restore original text if not clicked again
+      setTimeout(() => {
+        if (button.innerHTML.includes('Regenerate')) {
+          button.innerHTML = originalText;
+          this.pendingRegenerations.delete(composer);
+        }
+      }, 3000);
+      
+      return;
+    }
+    
+    // Clear regeneration flag
+    this.pendingRegenerations.delete(composer);
+
     // Get the tweet text being replied to
     const tweetText = this.extractTweetText();
     
@@ -537,7 +569,7 @@ class TwitterReplyInjector {
     const originalText = button.innerHTML;
     button.innerHTML = `
       <div class="tweetreply-spinner" style="width: 14px; height: 14px; border: 2px solid #1d9bf0; border-top: 2px solid transparent; border-radius: 50%; animation: spin 1s linear infinite; margin-right: 4px;"></div>
-      <span>Generating...</span>
+      <span>${hasExistingContent ? 'Regenerating...' : 'Generating...'}</span>
     `;
 
     try {
@@ -835,80 +867,68 @@ class TwitterReplyInjector {
     try {
       // Safety checks
       if (!composer || !replyData) {
-        console.error('[TweetReply] Invalid parameters for text insertion');
+        console.error('[TweetReply] Invalid parameters');
         return;
       }
 
       const replyText = typeof replyData === 'string' ? replyData : replyData.reply;
       const qualityScore = typeof replyData === 'object' ? replyData.qualityScore : null;
 
-      if (!replyText || typeof replyText !== 'string') {
-        console.error('[TweetReply] Invalid reply text:', replyText);
+      if (!replyText) {
+        console.error('[TweetReply] Invalid reply text');
         return;
       }
 
       if (composer.contentEditable === 'true') {
-        console.log('[TweetReply] Inserting text using paste event (Draft.js compatible)');
+        console.log('[TweetReply] Using Qura AI method: innerHTML + data-text span');
 
-        // Step 1: Focus composer
+        // Step 1: Find the [data-text="true"] span's parent element
+        // This is Twitter's expected DOM structure
+        const dataTextSpan = composer.querySelector('[data-text="true"]');
+        const targetElement = dataTextSpan ? dataTextSpan.parentElement : composer;
+
+        console.log('[TweetReply] Found data-text span:', !!dataTextSpan);
+        console.log('[TweetReply] Target element:', targetElement === composer ? 'composer' : 'parent');
+
+        // Step 2: Focus composer
         composer.focus();
         await this.sleep(50);
 
-        // Step 2: Clear existing content via selection + delete
-        const sel = window.getSelection();
-        const rng = document.createRange();
-        rng.selectNodeContents(composer);
-        sel.removeAllRanges();
-        sel.addRange(rng);
-        
-        document.execCommand('delete', false, null);
-        await this.sleep(20);
+        // Step 3: Set innerHTML with Twitter's expected structure
+        // This bypasses Draft.js entirely and works at the React component level
+        targetElement.innerHTML = `<span data-text="true">${replyText}</span>`;
 
-        // Step 3: Focus again and clear selection
-        composer.focus();
-        await this.sleep(20);
-
-        // Step 4: Use paste event - Twitter's Draft.js has a proper paste handler
-        // This is the ONLY reliable way to insert text without breaking Draft.js state
-        const clipboardData = new DataTransfer();
-        clipboardData.setData('text/plain', replyText);
-        clipboardData.setData('text/html', replyText);
-
-        const pasteEvent = new ClipboardEvent('paste', {
+        // Step 4: Dispatch InputEvent to notify React
+        targetElement.dispatchEvent(new InputEvent('input', {
           bubbles: true,
           cancelable: true,
-          clipboardData: clipboardData
-        });
-
-        const pasteNotPrevented = composer.dispatchEvent(pasteEvent);
-        console.log('[TweetReply] Paste event dispatched, prevented:', !pasteNotPrevented);
-
-        // Step 5: Wait for Draft.js to process
-        await this.sleep(100);
-
-        // Step 6: Also dispatch input event as fallback
-        composer.dispatchEvent(new InputEvent('input', {
-          bubbles: true,
-          cancelable: false,
-          inputType: 'insertFromPaste',
+          inputType: 'insertText',
           data: replyText
         }));
 
-        // Step 7: Trigger change event
-        composer.dispatchEvent(new Event('change', { bubbles: true }));
+        // Step 5: Also dispatch on composer if different from targetElement
+        if (targetElement !== composer) {
+          composer.dispatchEvent(new InputEvent('input', {
+            bubbles: true,
+            cancelable: true,
+            inputType: 'insertText',
+            data: replyText
+          }));
+        }
 
-        // Step 8: Final focus
+        // Step 6: Wait for React to process
+        await this.sleep(100);
+
+        // Step 7: Final focus
         composer.focus();
 
-        console.log('[TweetReply] ✅ Text inserted successfully via paste');
+        console.log('[TweetReply] ✅ Text inserted using Qura AI method');
 
       } else if (composer.tagName === 'TEXTAREA') {
         // For textarea composers (fallback)
         composer.focus();
         composer.value = replyText;
-
-        const inputEvent = new Event('input', { bubbles: true });
-        composer.dispatchEvent(inputEvent);
+        composer.dispatchEvent(new Event('input', { bubbles: true }));
 
       } else {
         // Try to find nested input elements

@@ -200,6 +200,7 @@
       this.usageData = null;
       this.injectedButtons = /* @__PURE__ */ new Set();
       this.injectedContainers = /* @__PURE__ */ new Set();
+      this.pendingRegenerations = /* @__PURE__ */ new WeakMap();
       this.initialize();
     }
     async initialize() {
@@ -583,6 +584,26 @@
         this.showMessage(composer, "Quota exceeded. Upgrade your plan to continue.", "error");
         return;
       }
+      const existingText = composer.textContent?.trim();
+      const hasExistingContent = existingText && existingText.length > 0;
+      if (hasExistingContent && !this.pendingRegenerations.has(composer)) {
+        this.pendingRegenerations.set(composer, true);
+        const originalText2 = button.innerHTML;
+        button.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" style="margin-right: 4px;">
+          <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+        </svg>
+        <span>Regenerate reply</span>
+      `;
+        setTimeout(() => {
+          if (button.innerHTML.includes("Regenerate")) {
+            button.innerHTML = originalText2;
+            this.pendingRegenerations.delete(composer);
+          }
+        }, 3e3);
+        return;
+      }
+      this.pendingRegenerations.delete(composer);
       const tweetText = this.extractTweetText();
       if (!tweetText) {
         this.showMessage(composer, "Could not find the tweet to reply to", "error");
@@ -598,7 +619,7 @@
       const originalText = button.innerHTML;
       button.innerHTML = `
       <div class="tweetreply-spinner" style="width: 14px; height: 14px; border: 2px solid #1d9bf0; border-top: 2px solid transparent; border-radius: 50%; animation: spin 1s linear infinite; margin-right: 4px;"></div>
-      <span>Generating...</span>
+      <span>${hasExistingContent ? "Regenerating..." : "Generating..."}</span>
     `;
       try {
         const authorInfo = this.extractAuthorInfo();
@@ -835,53 +856,45 @@
     async insertReplyIntoComposer(composer, replyData) {
       try {
         if (!composer || !replyData) {
-          console.error("[TweetReply] Invalid parameters for text insertion");
+          console.error("[TweetReply] Invalid parameters");
           return;
         }
         const replyText = typeof replyData === "string" ? replyData : replyData.reply;
         const qualityScore = typeof replyData === "object" ? replyData.qualityScore : null;
-        if (!replyText || typeof replyText !== "string") {
-          console.error("[TweetReply] Invalid reply text:", replyText);
+        if (!replyText) {
+          console.error("[TweetReply] Invalid reply text");
           return;
         }
         if (composer.contentEditable === "true") {
-          console.log("[TweetReply] Inserting text using paste event (Draft.js compatible)");
+          console.log("[TweetReply] Using Qura AI method: innerHTML + data-text span");
+          const dataTextSpan = composer.querySelector('[data-text="true"]');
+          const targetElement = dataTextSpan ? dataTextSpan.parentElement : composer;
+          console.log("[TweetReply] Found data-text span:", !!dataTextSpan);
+          console.log("[TweetReply] Target element:", targetElement === composer ? "composer" : "parent");
           composer.focus();
           await this.sleep(50);
-          const sel = window.getSelection();
-          const rng = document.createRange();
-          rng.selectNodeContents(composer);
-          sel.removeAllRanges();
-          sel.addRange(rng);
-          document.execCommand("delete", false, null);
-          await this.sleep(20);
-          composer.focus();
-          await this.sleep(20);
-          const clipboardData = new DataTransfer();
-          clipboardData.setData("text/plain", replyText);
-          clipboardData.setData("text/html", replyText);
-          const pasteEvent = new ClipboardEvent("paste", {
+          targetElement.innerHTML = `<span data-text="true">${replyText}</span>`;
+          targetElement.dispatchEvent(new InputEvent("input", {
             bubbles: true,
             cancelable: true,
-            clipboardData
-          });
-          const pasteNotPrevented = composer.dispatchEvent(pasteEvent);
-          console.log("[TweetReply] Paste event dispatched, prevented:", !pasteNotPrevented);
-          await this.sleep(100);
-          composer.dispatchEvent(new InputEvent("input", {
-            bubbles: true,
-            cancelable: false,
-            inputType: "insertFromPaste",
+            inputType: "insertText",
             data: replyText
           }));
-          composer.dispatchEvent(new Event("change", { bubbles: true }));
+          if (targetElement !== composer) {
+            composer.dispatchEvent(new InputEvent("input", {
+              bubbles: true,
+              cancelable: true,
+              inputType: "insertText",
+              data: replyText
+            }));
+          }
+          await this.sleep(100);
           composer.focus();
-          console.log("[TweetReply] \u2705 Text inserted successfully via paste");
+          console.log("[TweetReply] \u2705 Text inserted using Qura AI method");
         } else if (composer.tagName === "TEXTAREA") {
           composer.focus();
           composer.value = replyText;
-          const inputEvent = new Event("input", { bubbles: true });
-          composer.dispatchEvent(inputEvent);
+          composer.dispatchEvent(new Event("input", { bubbles: true }));
         } else {
           const input = composer.querySelector('textarea, [contenteditable="true"]');
           if (input) {

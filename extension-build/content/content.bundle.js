@@ -200,6 +200,7 @@
       this.usageData = null;
       this.injectedButtons = /* @__PURE__ */ new Set();
       this.injectedContainers = /* @__PURE__ */ new Set();
+      this.pendingRegenerations = /* @__PURE__ */ new WeakMap();
       this.initialize();
     }
     async initialize() {
@@ -583,6 +584,26 @@
         this.showMessage(composer, "Quota exceeded. Upgrade your plan to continue.", "error");
         return;
       }
+      const existingText = composer.textContent?.trim();
+      const hasExistingContent = existingText && existingText.length > 0;
+      if (hasExistingContent && !this.pendingRegenerations.has(composer)) {
+        this.pendingRegenerations.set(composer, true);
+        const originalText2 = button.innerHTML;
+        button.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" style="margin-right: 4px;">
+          <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+        </svg>
+        <span>Regenerate reply</span>
+      `;
+        setTimeout(() => {
+          if (button.innerHTML.includes("Regenerate")) {
+            button.innerHTML = originalText2;
+            this.pendingRegenerations.delete(composer);
+          }
+        }, 3e3);
+        return;
+      }
+      this.pendingRegenerations.delete(composer);
       const tweetText = this.extractTweetText();
       if (!tweetText) {
         this.showMessage(composer, "Could not find the tweet to reply to", "error");
@@ -598,7 +619,7 @@
       const originalText = button.innerHTML;
       button.innerHTML = `
       <div class="tweetreply-spinner" style="width: 14px; height: 14px; border: 2px solid #1d9bf0; border-top: 2px solid transparent; border-radius: 50%; animation: spin 1s linear infinite; margin-right: 4px;"></div>
-      <span>Generating...</span>
+      <span>${hasExistingContent ? "Regenerating..." : "Generating..."}</span>
     `;
       try {
         const authorInfo = this.extractAuthorInfo();
@@ -606,8 +627,8 @@
         const tweetMetadata = this.extractTweetMetadata();
         console.log("[TweetReply] Generating reply with data:", {
           tweet_id: tweetId,
-          tweet_text: tweetText.substring(0, 50) + "...",
-          author_info: authorInfo,
+          tweet_text_length: tweetText.length,
+          author_info_username: authorInfo?.username || "unknown",
           model_key: options.modelKey || "auto",
           prompt_variation: options.promptVariation || "default"
         });
@@ -833,122 +854,85 @@
       }
     }
     async insertReplyIntoComposer(composer, replyData) {
-      const replyText = typeof replyData === "string" ? replyData : replyData.reply;
-      const qualityScore = typeof replyData === "object" ? replyData.qualityScore : null;
-      if (composer.contentEditable === "true") {
-        const mousedownEvent = new MouseEvent("mousedown", {
-          bubbles: true,
-          cancelable: true,
-          view: window,
-          detail: 1,
-          clientX: 100,
-          clientY: 100
-        });
-        composer.dispatchEvent(mousedownEvent);
-        const clickEvent = new MouseEvent("click", {
-          bubbles: true,
-          cancelable: true,
-          view: window,
-          detail: 1,
-          clientX: 100,
-          clientY: 100
-        });
-        composer.dispatchEvent(clickEvent);
-        composer.focus();
-        await this.sleep(50);
-        const selection = window.getSelection();
-        const range = document.createRange();
-        composer.textContent = "";
-        await this.sleep(20);
-        range.setStart(composer, 0);
-        range.collapse(true);
-        selection.removeAllRanges();
-        selection.addRange(range);
-        const success = document.execCommand("insertText", false, replyText);
-        if (!success || !composer.textContent || composer.textContent.trim() === "") {
-          console.log("[TweetReply] execCommand failed, using fallback");
-          composer.textContent = replyText;
-          const inputEvent = new InputEvent("input", {
-            bubbles: true,
-            cancelable: false,
-            composed: true,
-            inputType: "insertText",
-            data: replyText,
-            dataTransfer: null,
-            isComposing: false,
-            detail: 0,
-            view: window
-          });
-          composer.dispatchEvent(inputEvent);
-          const beforeInputEvent = new InputEvent("beforeinput", {
+      try {
+        if (!composer || !replyData) {
+          console.error("[TweetReply] Invalid parameters");
+          return;
+        }
+        const replyText = typeof replyData === "string" ? replyData : replyData.reply;
+        const qualityScore = typeof replyData === "object" ? replyData.qualityScore : null;
+        if (!replyText) {
+          console.error("[TweetReply] Invalid reply text");
+          return;
+        }
+        if (composer.contentEditable === "true") {
+          console.log("[TweetReply] Using Qura AI method: innerHTML + data-text span");
+          const dataTextSpan = composer.querySelector('[data-text="true"]');
+          const targetElement = dataTextSpan ? dataTextSpan.parentElement : composer;
+          console.log("[TweetReply] Found data-text span:", !!dataTextSpan);
+          console.log("[TweetReply] Target element:", targetElement === composer ? "composer" : "parent");
+          composer.focus();
+          await this.sleep(50);
+          targetElement.innerHTML = `<span data-text="true">${replyText}</span>`;
+          targetElement.dispatchEvent(new InputEvent("input", {
             bubbles: true,
             cancelable: true,
-            composed: true,
             inputType: "insertText",
-            data: replyText,
-            dataTransfer: null,
-            isComposing: false,
-            view: window
-          });
-          composer.dispatchEvent(beforeInputEvent);
-          try {
-            const textInputEvent = new TextEvent("textInput", {
+            data: replyText
+          }));
+          if (targetElement !== composer) {
+            composer.dispatchEvent(new InputEvent("input", {
               bubbles: true,
               cancelable: true,
-              data: replyText,
-              view: window
-            });
-            composer.dispatchEvent(textInputEvent);
-          } catch (e) {
+              inputType: "insertText",
+              data: replyText
+            }));
+          }
+          await this.sleep(100);
+          composer.focus();
+          console.log("[TweetReply] \u2705 Text inserted using Qura AI method");
+        } else if (composer.tagName === "TEXTAREA") {
+          composer.focus();
+          composer.value = replyText;
+          composer.dispatchEvent(new Event("input", { bubbles: true }));
+        } else {
+          const input = composer.querySelector('textarea, [contenteditable="true"]');
+          if (input) {
+            await this.insertReplyIntoComposer(input, replyData);
           }
         }
-        await this.sleep(100);
-        composer.focus();
-        const finalSelection = window.getSelection();
-        const finalRange = document.createRange();
-        if (composer.childNodes.length > 0) {
-          const lastNode = composer.childNodes[composer.childNodes.length - 1];
-          const offset = lastNode.nodeType === Node.TEXT_NODE ? lastNode.length : lastNode.childNodes.length;
-          finalRange.setStart(lastNode, offset);
-          finalRange.setEnd(lastNode, offset);
-        } else {
-          finalRange.selectNodeContents(composer);
-          finalRange.collapse(false);
+        if (qualityScore && typeof qualityScore === "number") {
+          this.showQualityBadge(composer, qualityScore);
         }
-        finalSelection.removeAllRanges();
-        finalSelection.addRange(finalRange);
-      } else if (composer.tagName === "TEXTAREA") {
-        composer.focus();
-        composer.value = replyText;
-        const inputEvent = new Event("input", { bubbles: true });
-        composer.dispatchEvent(inputEvent);
-      } else {
-        const input = composer.querySelector('textarea, [contenteditable="true"]');
-        if (input) {
-          await this.insertReplyIntoComposer(input, replyData);
-        }
-      }
-      if (qualityScore) {
-        this.showQualityBadge(composer, qualityScore);
+      } catch (error) {
+        console.error("[TweetReply] Error during text insertion:", error);
       }
     }
     sleep(ms) {
       return new Promise((resolve) => setTimeout(resolve, ms));
     }
     showQualityBadge(composer, score) {
-      const existingBadge = composer.parentElement?.querySelector(".tweetreply-quality-badge");
-      if (existingBadge) {
-        existingBadge.remove();
-      }
-      const badge = document.createElement("div");
-      badge.className = "tweetreply-quality-badge";
-      badge.innerHTML = `
-      <span class="quality-label">Quality:</span>
-      <span class="quality-score quality-${this.getQualityClass(score)}">${score}</span>
-    `;
-      const parent = composer.parentElement;
-      if (parent) {
-        parent.insertBefore(badge, composer.nextSibling);
+      try {
+        if (!composer || !composer.parentElement) {
+          console.warn("[TweetReply] Cannot show quality badge: composer or parent not found");
+          return;
+        }
+        const existingBadge = composer.parentElement.querySelector(".tweetreply-quality-badge");
+        if (existingBadge) {
+          existingBadge.remove();
+        }
+        const badge = document.createElement("div");
+        badge.className = "tweetreply-quality-badge";
+        badge.innerHTML = `
+        <span class="quality-label">Quality:</span>
+        <span class="quality-score quality-${this.getQualityClass(score)}">${score}</span>
+      `;
+        const parent = composer.parentElement;
+        if (parent) {
+          parent.insertBefore(badge, composer.nextSibling);
+        }
+      } catch (error) {
+        console.error("[TweetReply] Error showing quality badge:", error);
       }
     }
     getQualityClass(score) {
