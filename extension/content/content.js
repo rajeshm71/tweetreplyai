@@ -833,106 +833,94 @@ class TwitterReplyInjector {
 
   async insertReplyIntoComposer(composer, replyData) {
     try {
-      // Safety checks
-      if (!composer || !replyData) {
-        console.error('[TweetReply] Invalid parameters');
-        return;
+      if (!composer || !replyData) return false;
+  
+      const text = String(
+        typeof replyData === 'string' ? replyData : (replyData?.reply ?? '')
+      ).trim();
+      const qualityScore =
+        typeof replyData === 'object' ? replyData.qualityScore : null;
+  
+      if (!text) return false;
+  
+      // 1) Focus + CLEAR (true replace)
+      composer.focus();
+      await this?.sleep?.(20);
+  
+      const sel = window.getSelection();
+      const clearRange = document.createRange();
+      clearRange.selectNodeContents(composer);
+      sel.removeAllRanges();
+      sel.addRange(clearRange);
+      document.execCommand('delete');
+  
+      // 2) Paste-like pipeline so Draft/React update correctly
+      const dt = new DataTransfer();
+      dt.setData('text/plain', text);
+  
+      try {
+        composer.dispatchEvent(new InputEvent('beforeinput', {
+          bubbles: true,
+          cancelable: true,
+          inputType: 'insertFromPaste',
+          data: text,
+          dataTransfer: dt
+        }));
+      } catch {}
+  
+      try {
+        composer.dispatchEvent(new ClipboardEvent('paste', {
+          bubbles: true,
+          cancelable: true,
+          clipboardData: dt
+        }));
+      } catch {}
+  
+      try {
+        document.execCommand('insertText', false, text);
+      } catch {
+        composer.textContent = text; // last resort
       }
   
-      const replyText = typeof replyData === 'string' ? replyData : replyData.reply;
-      const qualityScore = typeof replyData === 'object' ? replyData.qualityScore : null;
+      try {
+        composer.dispatchEvent(new InputEvent('input', {
+          bubbles: true,
+          cancelable: true,
+          inputType: 'insertText',
+          data: text
+        }));
+      } catch {}
   
-      if (!replyText) {
-        console.error('[TweetReply] Invalid reply text');
-        return;
-      }
+      // 3) 🛠️ Critical: normalize + set caret at end in a TEXT position
+      //    This fixes "can't type / backspace" after programmatic insert.
+      try {
+        composer.normalize(); // merge adjacent text nodes, tidy DOM
   
-      // We only handle contenteditable (Twitter composer) here
-      if (composer.contentEditable === 'true') {
-        console.log('[TweetReply] Replace mode: clear + paste-like pipeline');
+        const endRange = document.createRange();
+        endRange.selectNodeContents(composer);
+        endRange.collapse(false); // caret to the end
   
-        // --- 1) Focus + CLEAR EXISTING CONTENT (this is the "replace") ---
-        composer.focus();
-        await this.sleep?.(20);
-  
-        const sel = window.getSelection();
-        const range = document.createRange();
-        range.selectNodeContents(composer);
         sel.removeAllRanges();
-        sel.addRange(range);
-        document.execCommand('delete'); // clears Draft's internal state too
+        sel.addRange(endRange);
+      } catch {}
   
-        // --- 2) Build a clipboard payload with the new text ---
-        const text = String(replyText);
-        const dt = new DataTransfer();
-        dt.setData('text/plain', text);
+      // 4) Refocus to ensure keyboard goes to the editor
+      await this?.sleep?.(20);
+      composer.focus();
   
-        // --- 3) Fire the sequence Draft/React expect (paste pipeline) ---
-        try {
-          composer.dispatchEvent(new InputEvent('beforeinput', {
-            bubbles: true,
-            cancelable: true,
-            inputType: 'insertFromPaste',
-            data: text,
-            dataTransfer: dt
-          }));
-        } catch {}
+      // ✅ Do NOT dispatch synthetic keydown/keyup here.
+      // Those can confuse composition state on some builds.
   
-        try {
-          composer.dispatchEvent(new ClipboardEvent('paste', {
-            bubbles: true,
-            cancelable: true,
-            clipboardData: dt
-          }));
-        } catch {}
-  
-        // Fallback actual DOM insertion (still important for some builds)
-        try {
-          document.execCommand('insertText', false, text);
-        } catch {
-          composer.textContent = text; // last resort so user still sees text
-        }
-  
-        // Final input so React updates length & enables Reply
-        try {
-          composer.dispatchEvent(new InputEvent('input', {
-            bubbles: true,
-            cancelable: true,
-            inputType: 'insertText',
-            data: text
-          }));
-        } catch {}
-  
-        // Small key nudge flips "dirty" state in some versions
-        composer.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
-        composer.dispatchEvent(new KeyboardEvent('keyup',   { key: ' ', bubbles: true }));
-  
-        // Optional: refocus for immediate editing
-        await this.sleep?.(50);
-        composer.focus();
-  
-        console.log('[TweetReply] ✅ Replaced text via paste pipeline');
-  
-      } else if (composer.tagName === 'TEXTAREA') {
-        // Fallback for textarea editors
-        composer.focus();
-        composer.value = replyText;
-        composer.dispatchEvent(new Event('input', { bubbles: true }));
-  
-      } else {
-        // Nested input fallback
-        const input = composer.querySelector('textarea, [contenteditable="true"]');
-        if (input) await this.insertReplyIntoComposer(input, replyData);
-      }
-  
-      // Quality badge unchanged
       if (typeof qualityScore === 'number') {
-        this.showQualityBadge?.(composer, qualityScore);
+        this?.showQualityBadge?.(composer, qualityScore);
       }
+      return true;
     } catch (error) {
-      console.error('[TweetReply] Error during text insertion:', error);
+      console.error('[TweetReply] Error during text insertion (replace):', error);
+      return false;
     }
   }
+  
   
 
   sleep(ms) {

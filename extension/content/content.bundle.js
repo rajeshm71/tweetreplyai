@@ -845,43 +845,65 @@
           return;
         }
         if (composer.contentEditable === "true") {
-          console.log("[TweetReply] Using Qura AI method: innerHTML + data-text span");
-          const dataTextSpan = composer.querySelector('[data-text="true"]');
-          const targetElement = dataTextSpan ? dataTextSpan.parentElement : composer;
-          console.log("[TweetReply] Found data-text span:", !!dataTextSpan);
-          console.log("[TweetReply] Target element:", targetElement === composer ? "composer" : "parent");
+          console.log("[TweetReply] Replace mode: clear + paste-like pipeline");
           composer.focus();
-          await this.sleep(50);
-          targetElement.innerHTML = `<span data-text="true">${replyText}</span>`;
-          targetElement.dispatchEvent(new InputEvent("input", {
-            bubbles: true,
-            cancelable: true,
-            inputType: "insertText",
-            data: replyText
-          }));
-          if (targetElement !== composer) {
+          await this.sleep?.(20);
+          const sel = window.getSelection();
+          const range = document.createRange();
+          range.selectNodeContents(composer);
+          sel.removeAllRanges();
+          sel.addRange(range);
+          document.execCommand("delete");
+          const text = String(replyText);
+          const dt = new DataTransfer();
+          dt.setData("text/plain", text);
+          try {
+            composer.dispatchEvent(new InputEvent("beforeinput", {
+              bubbles: true,
+              cancelable: true,
+              inputType: "insertFromPaste",
+              data: text,
+              dataTransfer: dt
+            }));
+          } catch {
+          }
+          try {
+            composer.dispatchEvent(new ClipboardEvent("paste", {
+              bubbles: true,
+              cancelable: true,
+              clipboardData: dt
+            }));
+          } catch {
+          }
+          try {
+            document.execCommand("insertText", false, text);
+          } catch {
+            composer.textContent = text;
+          }
+          try {
             composer.dispatchEvent(new InputEvent("input", {
               bubbles: true,
               cancelable: true,
               inputType: "insertText",
-              data: replyText
+              data: text
             }));
+          } catch {
           }
-          await this.sleep(100);
+          composer.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true }));
+          composer.dispatchEvent(new KeyboardEvent("keyup", { key: " ", bubbles: true }));
+          await this.sleep?.(50);
           composer.focus();
-          console.log("[TweetReply] \u2705 Text inserted using Qura AI method");
+          console.log("[TweetReply] \u2705 Replaced text via paste pipeline");
         } else if (composer.tagName === "TEXTAREA") {
           composer.focus();
           composer.value = replyText;
           composer.dispatchEvent(new Event("input", { bubbles: true }));
         } else {
           const input = composer.querySelector('textarea, [contenteditable="true"]');
-          if (input) {
-            await this.insertReplyIntoComposer(input, replyData);
-          }
+          if (input) await this.insertReplyIntoComposer(input, replyData);
         }
-        if (qualityScore && typeof qualityScore === "number") {
-          this.showQualityBadge(composer, qualityScore);
+        if (typeof qualityScore === "number") {
+          this.showQualityBadge?.(composer, qualityScore);
         }
       } catch (error) {
         console.error("[TweetReply] Error during text insertion:", error);
