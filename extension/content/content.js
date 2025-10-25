@@ -838,82 +838,102 @@ class TwitterReplyInjector {
         console.error('[TweetReply] Invalid parameters');
         return;
       }
-
+  
       const replyText = typeof replyData === 'string' ? replyData : replyData.reply;
       const qualityScore = typeof replyData === 'object' ? replyData.qualityScore : null;
-
+  
       if (!replyText) {
         console.error('[TweetReply] Invalid reply text');
         return;
       }
-
+  
+      // We only handle contenteditable (Twitter composer) here
       if (composer.contentEditable === 'true') {
-        console.log('[TweetReply] Using Qura AI method: innerHTML + data-text span');
-
-        // Step 1: Find the [data-text="true"] span's parent element
-        // This is Twitter's expected DOM structure
-        const dataTextSpan = composer.querySelector('[data-text="true"]');
-        const targetElement = dataTextSpan ? dataTextSpan.parentElement : composer;
-
-        console.log('[TweetReply] Found data-text span:', !!dataTextSpan);
-        console.log('[TweetReply] Target element:', targetElement === composer ? 'composer' : 'parent');
-
-        // Step 2: Focus composer
+        console.log('[TweetReply] Replace mode: clear + paste-like pipeline');
+  
+        // --- 1) Focus + CLEAR EXISTING CONTENT (this is the "replace") ---
         composer.focus();
-        await this.sleep(50);
-
-        // Step 3: Set innerHTML with Twitter's expected structure
-        // This bypasses Draft.js entirely and works at the React component level
-        targetElement.innerHTML = `<span data-text="true">${replyText}</span>`;
-
-        // Step 4: Dispatch InputEvent to notify React
-        targetElement.dispatchEvent(new InputEvent('input', {
-          bubbles: true,
-          cancelable: true,
-          inputType: 'insertText',
-          data: replyText
-        }));
-
-        // Step 5: Also dispatch on composer if different from targetElement
-        if (targetElement !== composer) {
+        await this.sleep?.(20);
+  
+        const sel = window.getSelection();
+        const range = document.createRange();
+        range.selectNodeContents(composer);
+        sel.removeAllRanges();
+        sel.addRange(range);
+        document.execCommand('delete'); // clears Draft's internal state too
+  
+        // --- 2) Build a clipboard payload with the new text ---
+        const text = String(replyText);
+        const dt = new DataTransfer();
+        dt.setData('text/plain', text);
+  
+        // --- 3) Fire the sequence Draft/React expect (paste pipeline) ---
+        try {
+          composer.dispatchEvent(new InputEvent('beforeinput', {
+            bubbles: true,
+            cancelable: true,
+            inputType: 'insertFromPaste',
+            data: text,
+            dataTransfer: dt
+          }));
+        } catch {}
+  
+        try {
+          composer.dispatchEvent(new ClipboardEvent('paste', {
+            bubbles: true,
+            cancelable: true,
+            clipboardData: dt
+          }));
+        } catch {}
+  
+        // Fallback actual DOM insertion (still important for some builds)
+        try {
+          document.execCommand('insertText', false, text);
+        } catch {
+          composer.textContent = text; // last resort so user still sees text
+        }
+  
+        // Final input so React updates length & enables Reply
+        try {
           composer.dispatchEvent(new InputEvent('input', {
             bubbles: true,
             cancelable: true,
             inputType: 'insertText',
-            data: replyText
+            data: text
           }));
-        }
-
-        // Step 6: Wait for React to process
-        await this.sleep(100);
-
-        // Step 7: Final focus
+        } catch {}
+  
+        // Small key nudge flips "dirty" state in some versions
+        composer.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
+        composer.dispatchEvent(new KeyboardEvent('keyup',   { key: ' ', bubbles: true }));
+  
+        // Optional: refocus for immediate editing
+        await this.sleep?.(50);
         composer.focus();
-
-        console.log('[TweetReply] ✅ Text inserted using Qura AI method');
-
+  
+        console.log('[TweetReply] ✅ Replaced text via paste pipeline');
+  
       } else if (composer.tagName === 'TEXTAREA') {
-        // For textarea composers (fallback)
+        // Fallback for textarea editors
         composer.focus();
         composer.value = replyText;
         composer.dispatchEvent(new Event('input', { bubbles: true }));
-
+  
       } else {
-        // Try to find nested input elements
+        // Nested input fallback
         const input = composer.querySelector('textarea, [contenteditable="true"]');
-        if (input) {
-          await this.insertReplyIntoComposer(input, replyData);
-        }
+        if (input) await this.insertReplyIntoComposer(input, replyData);
       }
-
-      // Show quality score indicator
-      if (qualityScore && typeof qualityScore === 'number') {
-        this.showQualityBadge(composer, qualityScore);
+  
+      // Quality badge unchanged
+      if (typeof qualityScore === 'number') {
+        this.showQualityBadge?.(composer, qualityScore);
       }
     } catch (error) {
       console.error('[TweetReply] Error during text insertion:', error);
     }
   }
+  
 
   sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
