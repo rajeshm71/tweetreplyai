@@ -832,16 +832,20 @@
         return null;
       }
     }
+    // Replace whatever is in the Twitter reply composer with new text
+    // Works with Draft/React by mimicking a real paste and restoring a valid caret.
     async insertReplyIntoComposer(composer, replyData) {
       try {
-        if (!composer || !replyData) return false;
         const text = String(
           typeof replyData === "string" ? replyData : replyData?.reply ?? ""
-        ).trim();
-        const qualityScore = typeof replyData === "object" ? replyData.qualityScore : null;
-        if (!text) return false;
+        );
+        if (!composer || !text.trim()) return false;
+        if (composer.contentEditable !== "true") {
+          const inner = composer.querySelector('div[contenteditable="true"][role="textbox"]');
+          if (inner) composer = inner;
+        }
         composer.focus();
-        await this?.sleep?.(20);
+        if (typeof this?.sleep === "function") await this.sleep(20);
         const sel = window.getSelection();
         const clearRange = document.createRange();
         clearRange.selectNodeContents(composer);
@@ -871,7 +875,6 @@
         try {
           document.execCommand("insertText", false, text);
         } catch {
-          composer.textContent = text;
         }
         try {
           composer.dispatchEvent(new InputEvent("input", {
@@ -882,23 +885,24 @@
           }));
         } catch {
         }
-        try {
-          composer.normalize();
-          const endRange = document.createRange();
-          endRange.selectNodeContents(composer);
-          endRange.collapse(false);
+        if (typeof this?.sleep === "function") await this.sleep(20);
+        composer.normalize();
+        const leaf = composer.querySelector('[data-text="true"]');
+        const tn = leaf && leaf.firstChild && leaf.firstChild.nodeType === Node.TEXT_NODE ? leaf.firstChild : null;
+        if (tn) {
+          const end = document.createRange();
+          end.setStart(tn, tn.length);
+          end.collapse(true);
           sel.removeAllRanges();
-          sel.addRange(endRange);
-        } catch {
-        }
-        await this?.sleep?.(20);
-        composer.focus();
-        if (typeof qualityScore === "number") {
-          this?.showQualityBadge?.(composer, qualityScore);
+          sel.addRange(end);
+        } else {
+          composer.blur();
+          if (typeof this?.sleep === "function") await this.sleep(10);
+          composer.focus();
         }
         return true;
-      } catch (error) {
-        console.error("[TweetReply] Error during text insertion (replace):", error);
+      } catch (err) {
+        console.error("[TweetReply] insertReplyIntoComposer error:", err);
         return false;
       }
     }

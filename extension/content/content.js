@@ -833,7 +833,7 @@ class TwitterReplyInjector {
 
   // Replace whatever is in the Twitter reply composer with new text
 // Works with Draft/React by mimicking a real paste and restoring a valid caret.
-async function insertReplyIntoComposer(composer, replyData) {
+async insertReplyIntoComposer(composer, replyData) {
   try {
     // Resolve text & quick guards
     const text = String(
