@@ -858,16 +858,26 @@
         await this.sleep(50);
         const selection = window.getSelection();
         const range = document.createRange();
-        composer.textContent = "";
-        await this.sleep(20);
-        range.setStart(composer, 0);
-        range.collapse(true);
+        range.selectNodeContents(composer);
         selection.removeAllRanges();
         selection.addRange(range);
-        const success = document.execCommand("insertText", false, replyText);
-        if (!success || !composer.textContent || composer.textContent.trim() === "") {
-          console.log("[TweetReply] execCommand failed, using fallback");
-          composer.textContent = replyText;
+        const beforeInputEvent = new InputEvent("beforeinput", {
+          bubbles: true,
+          cancelable: true,
+          composed: true,
+          inputType: "insertText",
+          data: replyText,
+          dataTransfer: null,
+          isComposing: false,
+          view: window
+        });
+        const beforeInputNotCancelled = composer.dispatchEvent(beforeInputEvent);
+        if (beforeInputNotCancelled) {
+          const success = document.execCommand("insertText", false, replyText);
+          if (!success || !composer.textContent || composer.textContent.trim() === "") {
+            console.log("[TweetReply] execCommand failed, using direct insertion");
+            composer.textContent = replyText;
+          }
           const inputEvent = new InputEvent("input", {
             bubbles: true,
             cancelable: false,
@@ -880,17 +890,6 @@
             view: window
           });
           composer.dispatchEvent(inputEvent);
-          const beforeInputEvent = new InputEvent("beforeinput", {
-            bubbles: true,
-            cancelable: true,
-            composed: true,
-            inputType: "insertText",
-            data: replyText,
-            dataTransfer: null,
-            isComposing: false,
-            view: window
-          });
-          composer.dispatchEvent(beforeInputEvent);
           try {
             const textInputEvent = new TextEvent("textInput", {
               bubbles: true,

@@ -838,7 +838,7 @@ class TwitterReplyInjector {
     // Different approaches for different composer types
     if (composer.contentEditable === 'true') {
       // For contenteditable composers (Twitter/X uses Draft.js)
-      // Simulate real user interaction to properly initialize Draft.js
+      // CRITICAL: Event order matters! beforeinput → DOM change → input
       
       // Step 1: Simulate mousedown event (starts user interaction)
       const mousedownEvent = new MouseEvent('mousedown', {
@@ -866,30 +866,38 @@ class TwitterReplyInjector {
       composer.focus();
       await this.sleep(50);
       
-      // Step 4: Create proper selection at start of element
+      // Step 4: Select all existing content (DON'T clear yet - this breaks Draft.js state)
       const selection = window.getSelection();
       const range = document.createRange();
-      
-      // Clear any existing content first
-      composer.textContent = '';
-      await this.sleep(20);
-      
-      // Set selection at the start
-      range.setStart(composer, 0);
-      range.collapse(true);
+      range.selectNodeContents(composer);
       selection.removeAllRanges();
       selection.addRange(range);
       
-      // Step 5: Try execCommand insertText (most reliable when properly focused)
-      const success = document.execCommand('insertText', false, replyText);
+      // Step 5: Dispatch beforeinput BEFORE modifying DOM (critical for Draft.js)
+      const beforeInputEvent = new InputEvent('beforeinput', {
+        bubbles: true,
+        cancelable: true,
+        composed: true,
+        inputType: 'insertText',
+        data: replyText,
+        dataTransfer: null,
+        isComposing: false,
+        view: window
+      });
+      const beforeInputNotCancelled = composer.dispatchEvent(beforeInputEvent);
       
-      if (!success || !composer.textContent || composer.textContent.trim() === '') {
-        console.log('[TweetReply] execCommand failed, using fallback');
+      // Step 6: Only proceed if beforeinput wasn't cancelled
+      if (beforeInputNotCancelled) {
+        // Try execCommand first (most compatible with Draft.js)
+        const success = document.execCommand('insertText', false, replyText);
         
-        // Fallback: Direct manipulation with proper InputEvent
-        composer.textContent = replyText;
+        if (!success || !composer.textContent || composer.textContent.trim() === '') {
+          console.log('[TweetReply] execCommand failed, using direct insertion');
+          // Fallback: Direct text insertion
+          composer.textContent = replyText;
+        }
         
-        // Dispatch comprehensive InputEvent with all required properties
+        // Step 7: Dispatch input AFTER DOM is modified (critical for Draft.js)
         const inputEvent = new InputEvent('input', {
           bubbles: true,
           cancelable: false,
@@ -903,20 +911,7 @@ class TwitterReplyInjector {
         });
         composer.dispatchEvent(inputEvent);
         
-        // Also dispatch beforeinput for Draft.js
-        const beforeInputEvent = new InputEvent('beforeinput', {
-          bubbles: true,
-          cancelable: true,
-          composed: true,
-          inputType: 'insertText',
-          data: replyText,
-          dataTransfer: null,
-          isComposing: false,
-          view: window
-        });
-        composer.dispatchEvent(beforeInputEvent);
-        
-        // Dispatch textInput event (legacy, but some editors check it)
+        // Step 8: Dispatch textInput for legacy support
         try {
           const textInputEvent = new TextEvent('textInput', {
             bubbles: true,
@@ -930,10 +925,10 @@ class TwitterReplyInjector {
         }
       }
       
-      // Wait for Draft.js to process
+      // Step 9: Wait for Draft.js to process
       await this.sleep(100);
       
-      // Final focus and cursor positioning
+      // Step 10: Final focus and cursor positioning
       composer.focus();
       
       // Move cursor to end of text
