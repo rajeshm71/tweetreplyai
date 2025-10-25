@@ -850,51 +850,56 @@ async insertReplyIntoComposer(composer, replyData) {
     );
     if (!composer || !text.trim()) return false;
 
-    // If a wrapper was passed, descend to the actual editable
+    // Get actual editable node
     if (composer.contentEditable !== 'true') {
-      const inner = composer.querySelector('div[contenteditable="true"][role="textbox"]');
-      if (inner) composer = inner;
+      const inner = composer.querySelector('div[role="textbox"][contenteditable="true"]');
+      if (!inner) return false;
+      composer = inner;
     }
 
-    // Focus the composer
+    // Focus composer
     composer.focus();
     await this.sleep(20);
 
-    // ✅ Clear via trusted editing API so Draft updates its selection/state
+    // --- STEP 1: Clear existing content (Draft-aware) ---
     document.execCommand('selectAll', false, null);
-    document.execCommand('delete',    false, null);
+    document.execCommand('delete', false, null);
     await this.sleep(10);
 
-    // Your existing synthetic paste (works fine once selection is truly cleared)
-    const clipboardData = new DataTransfer();
-    clipboardData.setData('text/plain', text);
-
+    // --- STEP 2: Fire Draft’s native paste event ---
+    const dt = new DataTransfer();
+    dt.setData('text/plain', text);
     const pasteEvent = new ClipboardEvent('paste', {
-      clipboardData,
+      clipboardData: dt,
       bubbles: true,
       cancelable: true
     });
     composer.dispatchEvent(pasteEvent);
 
-    // Small delay for Draft.js to process
-    await this.sleep(50);
+    // --- STEP 3: If Draft processed but didn’t render, make it visible ---
+    await this.sleep(40);
+    if (!composer.textContent || !composer.textContent.trim()) {
+      // Force a visible DOM mutation that Draft reconciles
+      document.execCommand('insertText', false, text);
+      composer.dispatchEvent(new Event('input', { bubbles: true }));
+    }
 
-    // Optional light nudge + caret to end (keeps Reply active & editing smooth)
-    composer.dispatchEvent(new Event('input', { bubbles: true }));
+    // --- STEP 4: Restore caret at end and refocus ---
     const sel = window.getSelection();
-    const end = document.createRange();
-    end.selectNodeContents(composer);
-    end.collapse(false);
+    const range = document.createRange();
+    range.selectNodeContents(composer);
+    range.collapse(false);
     sel.removeAllRanges();
-    sel.addRange(end);
-
+    sel.addRange(range);
     composer.focus();
+
     return true;
   } catch (err) {
     console.error('[TweetReply] insertReplyIntoComposer error:', err);
     return false;
   }
 }
+
 
 
 

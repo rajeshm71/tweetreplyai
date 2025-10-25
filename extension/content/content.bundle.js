@@ -855,11 +855,9 @@
         }
         composer.focus();
         await this.sleep(20);
-        const sel = window.getSelection();
-        const range = document.createRange();
-        range.selectNodeContents(composer);
-        sel.removeAllRanges();
-        sel.addRange(range);
+        document.execCommand("selectAll", false, null);
+        document.execCommand("delete", false, null);
+        await this.sleep(10);
         const clipboardData = new DataTransfer();
         clipboardData.setData("text/plain", text);
         const pasteEvent = new ClipboardEvent("paste", {
@@ -869,6 +867,13 @@
         });
         composer.dispatchEvent(pasteEvent);
         await this.sleep(50);
+        composer.dispatchEvent(new Event("input", { bubbles: true }));
+        const sel = window.getSelection();
+        const end = document.createRange();
+        end.selectNodeContents(composer);
+        end.collapse(false);
+        sel.removeAllRanges();
+        sel.addRange(end);
         composer.focus();
         return true;
       } catch (err) {
