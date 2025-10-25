@@ -836,44 +836,87 @@
       const replyText = typeof replyData === "string" ? replyData : replyData.reply;
       const qualityScore = typeof replyData === "object" ? replyData.qualityScore : null;
       if (composer.contentEditable === "true") {
+        const mousedownEvent = new MouseEvent("mousedown", {
+          bubbles: true,
+          cancelable: true,
+          view: window,
+          detail: 1,
+          clientX: 100,
+          clientY: 100
+        });
+        composer.dispatchEvent(mousedownEvent);
+        const clickEvent = new MouseEvent("click", {
+          bubbles: true,
+          cancelable: true,
+          view: window,
+          detail: 1,
+          clientX: 100,
+          clientY: 100
+        });
+        composer.dispatchEvent(clickEvent);
         composer.focus();
-        composer.textContent = "";
         await this.sleep(50);
-        composer.focus();
-        try {
-          const reactFiber = composer[Object.keys(composer).find((key) => key.startsWith("__react"))];
+        const selection = window.getSelection();
+        const range = document.createRange();
+        composer.textContent = "";
+        await this.sleep(20);
+        range.setStart(composer, 0);
+        range.collapse(true);
+        selection.removeAllRanges();
+        selection.addRange(range);
+        const success = document.execCommand("insertText", false, replyText);
+        if (!success || !composer.textContent || composer.textContent.trim() === "") {
+          console.log("[TweetReply] execCommand failed, using fallback");
           composer.textContent = replyText;
-          const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-            window.HTMLDivElement.prototype,
-            "textContent"
-          ).set;
-          nativeInputValueSetter.call(composer, replyText);
-          const inputEvent = new Event("input", { bubbles: true });
+          const inputEvent = new InputEvent("input", {
+            bubbles: true,
+            cancelable: false,
+            composed: true,
+            inputType: "insertText",
+            data: replyText,
+            dataTransfer: null,
+            isComposing: false,
+            detail: 0,
+            view: window
+          });
           composer.dispatchEvent(inputEvent);
-          const changeEvent = new Event("change", { bubbles: true });
-          composer.dispatchEvent(changeEvent);
-          if (!composer.textContent || composer.textContent.trim() === "") {
-            composer.innerHTML = replyText.replace(/\n/g, "<br>");
+          const beforeInputEvent = new InputEvent("beforeinput", {
+            bubbles: true,
+            cancelable: true,
+            composed: true,
+            inputType: "insertText",
+            data: replyText,
+            dataTransfer: null,
+            isComposing: false,
+            view: window
+          });
+          composer.dispatchEvent(beforeInputEvent);
+          try {
+            const textInputEvent = new TextEvent("textInput", {
+              bubbles: true,
+              cancelable: true,
+              data: replyText,
+              view: window
+            });
+            composer.dispatchEvent(textInputEvent);
+          } catch (e) {
           }
-          await this.sleep(100);
-          composer.focus();
-          const selection = window.getSelection();
-          const range = document.createRange();
-          if (composer.childNodes.length > 0) {
-            const lastNode = composer.childNodes[composer.childNodes.length - 1];
-            range.setStart(lastNode, lastNode.length || lastNode.childNodes.length || 0);
-            range.setEnd(lastNode, lastNode.length || lastNode.childNodes.length || 0);
-          } else {
-            range.selectNodeContents(composer);
-            range.collapse(false);
-          }
-          selection.removeAllRanges();
-          selection.addRange(range);
-        } catch (error) {
-          console.error("[TweetReply] Insert failed:", error);
-          composer.innerHTML = replyText.replace(/\n/g, "<br>");
-          composer.focus();
         }
+        await this.sleep(100);
+        composer.focus();
+        const finalSelection = window.getSelection();
+        const finalRange = document.createRange();
+        if (composer.childNodes.length > 0) {
+          const lastNode = composer.childNodes[composer.childNodes.length - 1];
+          const offset = lastNode.nodeType === Node.TEXT_NODE ? lastNode.length : lastNode.childNodes.length;
+          finalRange.setStart(lastNode, offset);
+          finalRange.setEnd(lastNode, offset);
+        } else {
+          finalRange.selectNodeContents(composer);
+          finalRange.collapse(false);
+        }
+        finalSelection.removeAllRanges();
+        finalSelection.addRange(finalRange);
       } else if (composer.tagName === "TEXTAREA") {
         composer.focus();
         composer.value = replyText;

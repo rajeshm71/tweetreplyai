@@ -838,71 +838,123 @@ class TwitterReplyInjector {
     // Different approaches for different composer types
     if (composer.contentEditable === 'true') {
       // For contenteditable composers (Twitter/X uses Draft.js)
-      // Use Clipboard API + paste event - the ONLY reliable method
+      // Simulate real user interaction to properly initialize Draft.js
       
+      // Step 1: Simulate mousedown event (starts user interaction)
+      const mousedownEvent = new MouseEvent('mousedown', {
+        bubbles: true,
+        cancelable: true,
+        view: window,
+        detail: 1,
+        clientX: 100,
+        clientY: 100
+      });
+      composer.dispatchEvent(mousedownEvent);
+      
+      // Step 2: Simulate click event (focuses element)
+      const clickEvent = new MouseEvent('click', {
+        bubbles: true,
+        cancelable: true,
+        view: window,
+        detail: 1,
+        clientX: 100,
+        clientY: 100
+      });
+      composer.dispatchEvent(clickEvent);
+      
+      // Step 3: Focus with proper timing
       composer.focus();
-      
-      // Clear existing content first
-      composer.textContent = '';
       await this.sleep(50);
-      composer.focus();
       
-      try {
-        // Get React fiber to trigger proper React/Draft.js update
-        const reactFiber = composer[Object.keys(composer).find(key => key.startsWith('__react'))];
+      // Step 4: Create proper selection at start of element
+      const selection = window.getSelection();
+      const range = document.createRange();
+      
+      // Clear any existing content first
+      composer.textContent = '';
+      await this.sleep(20);
+      
+      // Set selection at the start
+      range.setStart(composer, 0);
+      range.collapse(true);
+      selection.removeAllRanges();
+      selection.addRange(range);
+      
+      // Step 5: Try execCommand insertText (most reliable when properly focused)
+      const success = document.execCommand('insertText', false, replyText);
+      
+      if (!success || !composer.textContent || composer.textContent.trim() === '') {
+        console.log('[TweetReply] execCommand failed, using fallback');
         
-        // Set text content directly
+        // Fallback: Direct manipulation with proper InputEvent
         composer.textContent = replyText;
         
-        // Trigger React synthetic event for input
-        const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-          window.HTMLDivElement.prototype,
-          'textContent'
-        ).set;
-        nativeInputValueSetter.call(composer, replyText);
-        
-        // Dispatch input event that React listens to
-        const inputEvent = new Event('input', { bubbles: true });
+        // Dispatch comprehensive InputEvent with all required properties
+        const inputEvent = new InputEvent('input', {
+          bubbles: true,
+          cancelable: false,
+          composed: true,
+          inputType: 'insertText',
+          data: replyText,
+          dataTransfer: null,
+          isComposing: false,
+          detail: 0,
+          view: window
+        });
         composer.dispatchEvent(inputEvent);
         
-        // Also dispatch change event for Draft.js
-        const changeEvent = new Event('change', { bubbles: true });
-        composer.dispatchEvent(changeEvent);
+        // Also dispatch beforeinput for Draft.js
+        const beforeInputEvent = new InputEvent('beforeinput', {
+          bubbles: true,
+          cancelable: true,
+          composed: true,
+          inputType: 'insertText',
+          data: replyText,
+          dataTransfer: null,
+          isComposing: false,
+          view: window
+        });
+        composer.dispatchEvent(beforeInputEvent);
         
-        // Set innerHTML as fallback to ensure content is visible
-        if (!composer.textContent || composer.textContent.trim() === '') {
-          composer.innerHTML = replyText.replace(/\n/g, '<br>');
+        // Dispatch textInput event (legacy, but some editors check it)
+        try {
+          const textInputEvent = new TextEvent('textInput', {
+            bubbles: true,
+            cancelable: true,
+            data: replyText,
+            view: window
+          });
+          composer.dispatchEvent(textInputEvent);
+        } catch (e) {
+          // TextEvent not supported in all browsers
         }
-        
-        // Small delay for React to process
-        await this.sleep(100);
-        
-        // Final focus to ensure editor is active
-        composer.focus();
-        
-        // Move cursor to end
-        const selection = window.getSelection();
-        const range = document.createRange();
-        
-        // Select all content and collapse to end
-        if (composer.childNodes.length > 0) {
-          const lastNode = composer.childNodes[composer.childNodes.length - 1];
-          range.setStart(lastNode, lastNode.length || lastNode.childNodes.length || 0);
-          range.setEnd(lastNode, lastNode.length || lastNode.childNodes.length || 0);
-        } else {
-          range.selectNodeContents(composer);
-          range.collapse(false);
-        }
-        
-        selection.removeAllRanges();
-        selection.addRange(range);
-        
-      } catch (error) {
-        console.error('[TweetReply] Insert failed:', error);
-        // Last resort fallback
-        composer.innerHTML = replyText.replace(/\n/g, '<br>');
-        composer.focus();
       }
+      
+      // Wait for Draft.js to process
+      await this.sleep(100);
+      
+      // Final focus and cursor positioning
+      composer.focus();
+      
+      // Move cursor to end of text
+      const finalSelection = window.getSelection();
+      const finalRange = document.createRange();
+      
+      if (composer.childNodes.length > 0) {
+        const lastNode = composer.childNodes[composer.childNodes.length - 1];
+        const offset = lastNode.nodeType === Node.TEXT_NODE 
+          ? lastNode.length 
+          : lastNode.childNodes.length;
+        
+        finalRange.setStart(lastNode, offset);
+        finalRange.setEnd(lastNode, offset);
+      } else {
+        finalRange.selectNodeContents(composer);
+        finalRange.collapse(false);
+      }
+      
+      finalSelection.removeAllRanges();
+      finalSelection.addRange(finalRange);
       
     } else if (composer.tagName === 'TEXTAREA') {
       // For textarea composers (fallback)
