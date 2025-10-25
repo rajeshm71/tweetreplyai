@@ -887,12 +887,41 @@ async insertReplyIntoComposer(composer, replyData) {
     sel.addRange(range);
     composer.focus();
 
+    // 🔔 5️⃣ NUDGE: if Reply still disabled, flip Draft’s length calc with a micro edit
+    await new Promise(r => requestAnimationFrame(r)); // next frame
+    const replyBtn =
+      document.querySelector('div[role="dialog"] [data-testid="tweetButton"]') ||
+      document.querySelector('[data-testid="tweetButtonInline"]');
+
+    const disabled = replyBtn && (
+      replyBtn.hasAttribute('disabled') || replyBtn.getAttribute('aria-disabled') === 'true'
+    );
+
+    if (disabled) {
+      // Insert a space then immediately delete it → forces legit re-count
+      document.execCommand('insertText', false, ' ');
+      document.execCommand('delete', false, null);
+
+      // light input nudge again (safe)
+      composer.dispatchEvent(new Event('input', { bubbles: true }));
+
+      // keep caret sane
+      const sel2 = window.getSelection();
+      const end2 = document.createRange();
+      end2.selectNodeContents(composer);
+      end2.collapse(false);
+      sel2.removeAllRanges();
+      sel2.addRange(end2);
+      composer.focus();
+    }
+
     return true;
   } catch (err) {
     console.error('[TweetReply] insertReplyIntoComposer error:', err);
     return false;
   }
 }
+
 
 
 

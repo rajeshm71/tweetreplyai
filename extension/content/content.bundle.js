@@ -847,8 +847,8 @@
       try {
         const text = String(
           typeof replyData === "string" ? replyData : replyData?.reply ?? ""
-        );
-        if (!composer || !text.trim()) return false;
+        ).trim();
+        if (!composer || !text) return false;
         if (composer.contentEditable !== "true") {
           const inner = composer.querySelector('div[role="textbox"][contenteditable="true"]');
           if (!inner) return false;
@@ -858,24 +858,19 @@
         await this.sleep(20);
         document.execCommand("selectAll", false, null);
         document.execCommand("delete", false, null);
-        await this.sleep(10);
-        const dt = new DataTransfer();
-        dt.setData("text/plain", text);
-        const pasteEvent = new ClipboardEvent("paste", {
-          clipboardData: dt,
-          bubbles: true,
-          cancelable: true
-        });
-        composer.dispatchEvent(pasteEvent);
-        await this.sleep(40);
-        if (!composer.textContent || !composer.textContent.trim()) {
-          document.execCommand("insertText", false, text);
-          composer.dispatchEvent(new Event("input", { bubbles: true }));
-        }
+        await this.sleep(20);
+        document.execCommand("insertText", false, text);
+        composer.dispatchEvent(new Event("input", { bubbles: true }));
         const sel = window.getSelection();
         const range = document.createRange();
-        range.selectNodeContents(composer);
-        range.collapse(false);
+        const leaf = composer.querySelector('[data-text="true"]');
+        if (leaf && leaf.firstChild && leaf.firstChild.nodeType === Node.TEXT_NODE) {
+          range.setStart(leaf.firstChild, leaf.firstChild.length);
+          range.collapse(true);
+        } else {
+          range.selectNodeContents(composer);
+          range.collapse(false);
+        }
         sel.removeAllRanges();
         sel.addRange(range);
         composer.focus();
