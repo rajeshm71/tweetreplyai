@@ -588,6 +588,12 @@
         this.showMessage(composer, "Could not find the tweet to reply to", "error");
         return;
       }
+      const tweetId = this.extractTweetId();
+      if (!tweetId) {
+        console.error("[TweetReply] Failed to extract tweet ID");
+        this.showMessage(composer, "Could not identify the tweet. Try refreshing the page.", "error");
+        return;
+      }
       button.disabled = true;
       const originalText = button.innerHTML;
       button.innerHTML = `
@@ -598,12 +604,21 @@
         const authorInfo = this.extractAuthorInfo();
         const conversationContext = this.extractConversationContext();
         const tweetMetadata = this.extractTweetMetadata();
+        console.log("[TweetReply] Generating reply with data:", {
+          tweet_id: tweetId,
+          tweet_text: tweetText.substring(0, 50) + "...",
+          author_info: authorInfo,
+          model_key: options.modelKey || "auto",
+          prompt_variation: options.promptVariation || "default"
+        });
         const response = await this.apiClient.generateReply({
           tweet_text: tweetText,
-          tweet_id: this.extractTweetId(),
+          tweet_id: tweetId,
+          // Now guaranteed to be non-null
           model_key: options.modelKey,
           prompt_variation: options.promptVariation,
           author_info: authorInfo,
+          // Now guaranteed to have follower_count as number
           conversation_context: conversationContext,
           tweet_metadata: tweetMetadata
         });
@@ -620,17 +635,19 @@
         this.showMessage(composer, "\u2713 Reply inserted", "success");
         this.updateAllButtonStates();
       } catch (error) {
-        console.error("Failed to generate reply:", error);
-        if (error.message.includes("401")) {
+        console.error("[TweetReply] Failed to generate reply:", error);
+        let errorMessage = "Failed to generate reply";
+        if (error.message.includes("400")) {
+          errorMessage = "Invalid request. Please try again or refresh the page.";
+        } else if (error.message.includes("401")) {
           this.isAuthenticated = false;
-          this.showMessage(composer, "Please sign in again", "error");
+          errorMessage = "Please sign in again";
         } else if (error.message.includes("402")) {
-          this.showMessage(composer, "Quota exceeded - upgrade your plan", "error");
+          errorMessage = "Quota exceeded - upgrade your plan";
         } else if (error.message.includes("Network error")) {
-          this.showMessage(composer, "Network error - check your connection", "error");
-        } else {
-          this.showMessage(composer, `Failed to generate reply: ${error.message}`, "error");
+          errorMessage = "Network error - check your connection";
         }
+        this.showMessage(composer, errorMessage, "error");
       } finally {
         button.innerHTML = originalText;
         button.disabled = false;
@@ -679,31 +696,102 @@
     }
     extractTweetId() {
       const urlMatch = window.location.href.match(/status\/(\d+)/);
-      return urlMatch ? urlMatch[1] : null;
+      if (urlMatch) {
+        console.log("[TweetReply] Tweet ID extracted from URL:", urlMatch[1]);
+        return urlMatch[1];
+      }
+      const tweetElements = document.querySelectorAll('[data-testid="tweet"]');
+      for (const tweet of tweetElements) {
+        const tweetId = tweet.getAttribute("data-tweet-id");
+        if (tweetId) {
+          console.log("[TweetReply] Tweet ID extracted from data-tweet-id:", tweetId);
+          return tweetId;
+        }
+        const ariaLabel = tweet.getAttribute("aria-labelledby");
+        if (ariaLabel) {
+          const match = ariaLabel.match(/(\d{15,})/);
+          if (match) {
+            console.log("[TweetReply] Tweet ID extracted from aria-labelledby:", match[1]);
+            return match[1];
+          }
+        }
+        const tweetLink = tweet.querySelector('a[href*="/status/"]');
+        if (tweetLink) {
+          const linkMatch = tweetLink.href.match(/status\/(\d+)/);
+          if (linkMatch) {
+            console.log("[TweetReply] Tweet ID extracted from tweet link:", linkMatch[1]);
+            return linkMatch[1];
+          }
+        }
+      }
+      const statusLinks = document.querySelectorAll('a[href*="/status/"]');
+      for (const link of statusLinks) {
+        const linkMatch = link.href.match(/status\/(\d+)/);
+        if (linkMatch) {
+          console.log("[TweetReply] Tweet ID extracted from status link:", linkMatch[1]);
+          return linkMatch[1];
+        }
+      }
+      console.warn("[TweetReply] Failed to extract tweet ID from any source");
+      return null;
+    }
+    parseFollowerCount(countStr) {
+      if (!countStr) return 0;
+      const multipliers = { K: 1e3, M: 1e6, B: 1e9 };
+      const match = countStr.match(/^([\d.]+)([KMB])?$/i);
+      if (!match) return 0;
+      const num = parseFloat(match[1]);
+      const suffix = match[2]?.toUpperCase();
+      return Math.round(num * (multipliers[suffix] || 1));
     }
     extractAuthorInfo() {
       try {
         const authorElement = document.querySelector('[data-testid="User-Name"]');
-        if (!authorElement) return null;
-        const username = authorElement.textContent?.trim() || "";
+        if (!authorElement) {
+          console.log("[TweetReply] No author element found, using defaults");
+          return {
+            username: "unknown",
+            verified: false,
+            follower_count: 0
+            // Fallback value
+          };
+        }
+        const username = authorElement.textContent?.trim() || "unknown";
         const verifiedIcon = authorElement.querySelector('[data-testid="icon-verified"]');
         const isVerified = !!verifiedIcon;
-        let followerCount = null;
+        let followerCount = 0;
         const bioElement = document.querySelector('[data-testid="UserDescription"]');
         if (bioElement) {
           const followerMatch = bioElement.textContent?.match(/(\d+(?:\.\d+)?[KMB]?)\s*followers?/i);
           if (followerMatch) {
-            followerCount = followerMatch[1];
+            followerCount = this.parseFollowerCount(followerMatch[1]);
+            console.log("[TweetReply] Follower count extracted from bio:", followerCount);
           }
         }
+        if (followerCount === 0) {
+          const hoverCard = document.querySelector('[data-testid="HoverCard"]');
+          if (hoverCard) {
+            const followerMatch = hoverCard.textContent?.match(/(\d+(?:\.\d+)?[KMB]?)\s*followers?/i);
+            if (followerMatch) {
+              followerCount = this.parseFollowerCount(followerMatch[1]);
+              console.log("[TweetReply] Follower count extracted from hover card:", followerCount);
+            }
+          }
+        }
+        console.log("[TweetReply] Author info extracted:", { username, verified: isVerified, follower_count: followerCount });
         return {
           username,
           verified: isVerified,
           follower_count: followerCount
+          // Always returns a number
         };
       } catch (error) {
-        console.error("Failed to extract author info:", error);
-        return null;
+        console.error("[TweetReply] Failed to extract author info:", error);
+        return {
+          username: "unknown",
+          verified: false,
+          follower_count: 0
+        };
       }
     }
     extractConversationContext() {
