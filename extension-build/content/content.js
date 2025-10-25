@@ -66,8 +66,9 @@ class TwitterReplyInjector {
     try {
       this.usageData = await this.apiClient.getUsage();
     } catch (error) {
-      console.error('Failed to load usage data:', error);
+      console.error('[TweetReply] Failed to load usage data:', error);
       this.usageData = null;
+      throw error; // Re-throw so caller can handle
     }
   }
 
@@ -261,9 +262,21 @@ class TwitterReplyInjector {
     // Async button state initialization
     this.updateButtonStateAsync(button);
 
-    button.addEventListener('click', (e) => {
+    button.addEventListener('click', async (e) => {
       e.preventDefault();
       e.stopPropagation();
+      
+      // Check if in error state - retry loading
+      if (button.dataset.loadError === 'true') {
+        console.log('[TweetReply] Retrying button initialization...');
+        delete button.dataset.loadError;
+        button.dataset.authPending = 'true';
+        this.updateButtonState(button); // Show loading
+        await this.updateButtonStateAsync(button); // Retry
+        return;
+      }
+      
+      // Normal suggest reply flow
       this.handleSuggestReply(composer, button, {
         modelKey: modelSelect.value,
         promptVariation: promptSelect.value
@@ -275,19 +288,53 @@ class TwitterReplyInjector {
   }
 
   async updateButtonStateAsync(button) {
-    // Re-check auth if needed
-    if (!this.isAuthenticated) {
-      this.isAuthenticated = await this.authManager.isAuthenticated();
+    try {
+      console.log('[TweetReply] Initializing button state...');
+      
+      // Re-check auth if needed
+      if (!this.isAuthenticated) {
+        this.isAuthenticated = await this.authManager.isAuthenticated();
+        console.log('[TweetReply] Auth status:', this.isAuthenticated);
+      }
+      
+      // Load usage with timeout
+      if (this.isAuthenticated && !this.usageData) {
+        console.log('[TweetReply] Loading usage data...');
+        
+        try {
+          await Promise.race([
+            this.loadUsageData(),
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Timeout after 10 seconds')), 10000)
+            )
+          ]);
+          
+          console.log('[TweetReply] Usage data loaded:', this.usageData);
+        } catch (error) {
+          console.warn('[TweetReply] Failed to load usage data, using fallback:', error);
+          
+          // Graceful degradation: assume user has quota, let backend validate
+          this.usageData = { 
+            used: 0, 
+            limit: 999, 
+            resetAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+          };
+        }
+      }
+      
+      // Success: remove pending flag
+      delete button.dataset.authPending;
+      delete button.dataset.loadError;
+      this.updateButtonState(button);
+      
+    } catch (error) {
+      console.error('[TweetReply] Critical error initializing button:', error);
+      
+      // Set error state
+      delete button.dataset.authPending;
+      button.dataset.loadError = 'true';
+      this.updateButtonState(button);
     }
-    
-    // Load usage if authenticated but missing
-    if (this.isAuthenticated && !this.usageData) {
-      await this.loadUsageData();
-    }
-    
-    // Now update with real state
-    delete button.dataset.authPending;
-    this.updateButtonState(button);
   }
 
   createModelSelect() {
@@ -375,6 +422,20 @@ class TwitterReplyInjector {
   updateButtonState(button) {
     // Don't update if still pending
     if (button.dataset.authPending === 'true') {
+      return;
+    }
+
+    // Error state (failed to load)
+    if (button.dataset.loadError === 'true') {
+      button.disabled = false; // Allow retry
+      button.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" style="margin-right: 4px;">
+          <path d="M12 2L13.09 8.26L19 7.27L14.18 12.09L20 17.91L13.09 15.74L12 22L10.91 15.74L4 17.91L8.82 12.09L3 7.27L8.91 8.26L12 2Z" opacity="0.8"/>
+        </svg>
+        <span>⚠️ Retry</span>
+      `;
+      button.title = 'Failed to load. Click to retry.';
+      button.style.opacity = '0.8';
       return;
     }
 

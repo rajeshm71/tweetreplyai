@@ -21,65 +21,48 @@ export class ApiClient {
   }
 
   async makeRequest(endpoint, options = {}) {
-    const baseUrl = await this.getBaseUrl();
-    const url = `${baseUrl}${endpoint}`;
-    
-    const token = await this.authManager.getToken();
-    
-    const defaultHeaders = {
-      'Content-Type': 'application/json',
-    };
-
-    if (token) {
-      defaultHeaders['Authorization'] = `Bearer ${token}`;
-    }
-
-    const requestOptions = {
-      method: options.method || 'GET',
-      headers: { ...defaultHeaders, ...options.headers },
-      credentials: 'include',
-      ...options
-    };
-
-    if (options.body && requestOptions.method !== 'GET') {
-      requestOptions.body = JSON.stringify(options.body);
-    }
-
-    try {
-      const response = await fetch(url, requestOptions);
-      
-      // Handle auth errors
-      if (response.status === 401) {
-        this.authManager.clearCache();
-        throw new Error('401: Unauthorized');
-      }
-      
-      if (response.status === 402) {
-        throw new Error('402: Payment required - quota exceeded');
-      }
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`${response.status}: ${errorText || response.statusText}`);
-      }
-
-      // Handle empty responses
-      const contentType = response.headers.get('content-type');
-      if (contentType && contentType.includes('application/json')) {
-        return await response.json();
-      } else {
-        return await response.text();
-      }
-    } catch (error) {
-      console.error(`API request failed: ${endpoint}`, error);
-      
-      // Add retry logic for network errors
-      if (error.name === 'TypeError' && error.message.includes('fetch')) {
-        throw new Error('Network error - please check your connection');
-      }
-      
-      throw error;
-    }
+    // Send request through background script to avoid CORS
+    return new Promise((resolve, reject) => {
+      chrome.runtime.sendMessage(
+        {
+          action: 'apiRequest',
+          endpoint: endpoint,
+          method: options.method || 'GET',
+          body: options.body,
+          headers: options.headers || {}
+        },
+        (response) => {
+          if (chrome.runtime.lastError) {
+            reject(new Error(chrome.runtime.lastError.message));
+            return;
+          }
+          
+          if (!response) {
+            reject(new Error('No response from background script'));
+            return;
+          }
+          
+          if (!response.success) {
+            // Handle specific error codes
+            if (response.status === 401) {
+              this.authManager.clearCache();
+              reject(new Error('401: Unauthorized'));
+              return;
+            }
+            
+            if (response.status === 402) {
+              reject(new Error('402: Payment required - quota exceeded'));
+              return;
+            }
+            
+            reject(new Error(`${response.status}: ${response.error}`));
+            return;
+          }
+          
+          resolve(response.data);
+        }
+      );
+    });
   }
 
   async getCurrentUser() {

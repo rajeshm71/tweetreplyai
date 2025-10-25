@@ -54,6 +54,10 @@ class BackgroundManager {
           this.handleSyncAuthFromTab(message.tabId, sendResponse);
           return true;
           
+        case 'apiRequest':
+          this.handleApiRequest(message, sendResponse);
+          return true; // Keep channel open for async response
+          
         default:
           this.log('Unknown message action:', message.action);
       }
@@ -266,6 +270,79 @@ class BackgroundManager {
       console.error('Failed to get API domain:', error);
       sendResponse({ domain: 'tweetreplyai.vercel.app' });
     }
+  }
+
+  async handleApiRequest(message, sendResponse) {
+    try {
+      const { endpoint, method, body, headers } = message;
+      const domain = await this.getApiDomain();
+      const protocol = domain.includes('localhost') ? 'http' : 'https';
+      const url = `${protocol}://${domain}${endpoint}`;
+      
+      // Get token from storage
+      const result = await chrome.storage.local.get(['authToken']);
+      const token = result.authToken;
+      
+      const requestHeaders = {
+        'Content-Type': 'application/json',
+        ...headers
+      };
+      
+      if (token) {
+        requestHeaders['Authorization'] = `Bearer ${token}`;
+      }
+      
+      const requestOptions = {
+        method: method || 'GET',
+        headers: requestHeaders,
+        credentials: 'include'
+      };
+      
+      if (body && method !== 'GET') {
+        requestOptions.body = JSON.stringify(body);
+      }
+      
+      const response = await fetch(url, requestOptions);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        sendResponse({
+          success: false,
+          status: response.status,
+          error: errorText || response.statusText
+        });
+        return;
+      }
+      
+      const contentType = response.headers.get('content-type');
+      let data;
+      if (contentType && contentType.includes('application/json')) {
+        data = await response.json();
+      } else {
+        data = await response.text();
+      }
+      
+      sendResponse({
+        success: true,
+        status: response.status,
+        data: data
+      });
+      
+    } catch (error) {
+      if (this.debug) {
+        console.error('Background API request failed:', error);
+      }
+      sendResponse({
+        success: false,
+        error: error.message
+      });
+    }
+  }
+
+  async getApiDomain() {
+    return new Promise((resolve) => {
+      this.handleGetApiDomain((response) => resolve(response.domain));
+    });
   }
 
   async openWelcomePage() {
