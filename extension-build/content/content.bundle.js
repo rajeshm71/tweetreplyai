@@ -861,69 +861,71 @@
         sel.removeAllRanges();
         sel.addRange(clearRange);
         document.execCommand("delete");
-        const dt = new DataTransfer();
-        dt.setData("text/plain", text);
-        try {
-          composer.dispatchEvent(new InputEvent("beforeinput", {
-            bubbles: true,
-            cancelable: true,
-            inputType: "insertFromPaste",
-            data: text,
-            dataTransfer: dt
-          }));
-        } catch {
+        for (let i = 0; i < text.length; i++) {
+          const char = text[i];
+          if (char === "\r") continue;
+          if (char === "\n") {
+            try {
+              composer.dispatchEvent(new InputEvent("beforeinput", {
+                bubbles: true,
+                cancelable: true,
+                inputType: "insertLineBreak"
+              }));
+            } catch {
+            }
+            document.execCommand("insertLineBreak", false, null) || document.execCommand("insertParagraph", false, null);
+            try {
+              composer.dispatchEvent(new InputEvent("input", {
+                bubbles: true,
+                cancelable: false,
+                inputType: "insertLineBreak"
+              }));
+            } catch {
+            }
+          } else {
+            try {
+              composer.dispatchEvent(new InputEvent("beforeinput", {
+                bubbles: true,
+                cancelable: true,
+                inputType: "insertText",
+                data: char
+              }));
+            } catch {
+            }
+            document.execCommand("insertText", false, char);
+            try {
+              composer.dispatchEvent(new InputEvent("input", {
+                bubbles: true,
+                cancelable: false,
+                inputType: "insertText",
+                data: char
+              }));
+            } catch {
+            }
+          }
+          if (i % 50 === 0 && i > 0) {
+            if (typeof this?.sleep === "function") await this.sleep(10);
+          }
         }
-        try {
-          composer.dispatchEvent(new ClipboardEvent("paste", {
-            bubbles: true,
-            cancelable: true,
-            clipboardData: dt
-          }));
-        } catch {
-        }
-        try {
-          document.execCommand("insertText", false, text);
-        } catch {
-        }
-        try {
-          composer.dispatchEvent(new InputEvent("input", {
-            bubbles: true,
-            cancelable: true,
-            inputType: "insertText",
-            data: text
-          }));
-        } catch {
-        }
-        if (typeof this?.sleep === "function") await this.sleep(50);
-        composer.normalize();
-        const leaf = composer.querySelector('[data-text="true"]');
-        const tn = leaf && leaf.firstChild && leaf.firstChild.nodeType === Node.TEXT_NODE ? leaf.firstChild : null;
-        if (tn) {
-          const end = document.createRange();
-          end.setStart(tn, tn.length);
-          end.collapse(false);
-          sel.removeAllRanges();
-          sel.addRange(end);
-        } else {
-          const range = document.createRange();
-          range.selectNodeContents(composer);
-          range.collapse(false);
-          sel.removeAllRanges();
-          sel.addRange(range);
-          composer.focus();
-          if (typeof this?.sleep === "function") await this.sleep(10);
+        if (typeof this?.sleep === "function") await this.sleep(100);
+        composer.focus();
+        const leaf = composer.querySelector('[data-text="true"]:last-of-type');
+        if (leaf) {
+          const textNode = leaf.firstChild;
+          if (textNode && textNode.nodeType === Node.TEXT_NODE) {
+            const range = document.createRange();
+            range.setStart(textNode, textNode.length);
+            range.collapse(true);
+            sel.removeAllRanges();
+            sel.addRange(range);
+          }
         }
         composer.focus();
-        if (typeof this?.sleep === "function") await this.sleep(10);
+        if (typeof this?.sleep === "function") await this.sleep(20);
         try {
-          composer.dispatchEvent(new InputEvent("input", {
-            bubbles: true,
-            cancelable: false,
-            inputType: "insertText"
-          }));
+          document.dispatchEvent(new Event("selectionchange", { bubbles: true }));
         } catch {
         }
-        document.dispatchEvent(new Event("selectionchange", { bubbles: true }));
         return true;
       } catch (err) {
         console.error("[TweetReply] insertReplyIntoComposer error:", err);
