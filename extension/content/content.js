@@ -950,11 +950,59 @@ async insertReplyIntoComposer(composer, replyData) {
       console.log('[TweetReply] ⏳ Waiting for React to process...');
       await this.sleep(60);
       
+      // 7) FORCE DRAFT.JS TO RECOGNIZE THE CHANGE - Multiple approaches
+      console.log('[TweetReply] 🔄 Step 7: Forcing Draft.js to recognize changes...');
+      
+      // Approach 1: Blur and refocus to trigger re-render
+      console.log('[TweetReply] 🔄 Blur/refocus approach...');
+      composer.blur();
+      await this.sleep(20);
+      composer.focus();
+      await this.sleep(20);
+      
+      // Approach 2: Trigger selection change to force Draft.js update
+      console.log('[TweetReply] 🔄 Selection change approach...');
+      const sel = window.getSelection();
+      const range = document.createRange();
+      range.selectNodeContents(targetElement);
+      range.collapse(false);
+      sel.removeAllRanges();
+      sel.addRange(range);
+      
+      // Approach 3: Dispatch additional events to nudge Draft.js
+      console.log('[TweetReply] 🔄 Additional event nudging...');
+      composer.dispatchEvent(new Event('selectionchange', { bubbles: true }));
+      composer.dispatchEvent(new Event('change', { bubbles: true }));
+      
+      // Approach 4: If still not visible, try a micro-edit to force re-render
+      console.log('[TweetReply] 🔄 Checking if content is visible...');
+      const isVisible = targetElement.textContent && targetElement.textContent.trim() === replyText.trim();
+      console.log('[TweetReply] Content visible check:', isVisible);
+      
+      if (!isVisible) {
+        console.log('[TweetReply] 🔄 Content not visible, trying micro-edit approach...');
+        // Insert a space, then delete it to force Draft.js to recalculate
+        document.execCommand('insertText', false, ' ');
+        await this.sleep(10);
+        document.execCommand('delete', false, null);
+        await this.sleep(10);
+        
+        // Re-insert our content
+        targetElement.innerHTML = `<span data-text="true">${replyText}</span>`;
+        composer.dispatchEvent(new InputEvent('input', {
+          bubbles: true,
+          cancelable: true,
+          inputType: 'insertText',
+          data: replyText
+        }));
+      }
+      
       console.log('[TweetReply] 🎯 Final focus...');
       composer.focus();
       
       console.log('[TweetReply] ✅ Text replaced using Qura AI method');
       console.log('[TweetReply] Final content:', targetElement.innerHTML);
+      console.log('[TweetReply] Final text content:', targetElement.textContent);
 
     } else if (composer.tagName === 'TEXTAREA') {
       console.log('[TweetReply] 📝 Using TEXTAREA method');

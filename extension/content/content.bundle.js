@@ -846,21 +846,39 @@
     // Stable replace: visible text, Reply active, Backspace/Enter work
     async insertReplyIntoComposer(composer, replyData) {
       try {
-        if (!composer || !replyData) return;
+        console.log("[TweetReply] \u{1F680} Starting insertReplyIntoComposer");
+        console.log("[TweetReply] Composer:", composer);
+        console.log("[TweetReply] ReplyData:", replyData);
+        if (!composer || !replyData) {
+          console.log("[TweetReply] \u274C Invalid parameters - composer or replyData missing");
+          return;
+        }
         const replyText = typeof replyData === "string" ? replyData : replyData.reply;
         const qualityScore = typeof replyData === "object" ? replyData.qualityScore : null;
-        if (!replyText) return;
+        console.log("[TweetReply] Reply text:", replyText);
+        console.log("[TweetReply] Quality score:", qualityScore);
+        if (!replyText) {
+          console.log("[TweetReply] \u274C No reply text to insert");
+          return;
+        }
         if (composer.contentEditable === "true") {
-          console.log("[TweetReply] Using Qura AI method: innerHTML + data-text span");
+          console.log("[TweetReply] \u2705 Using Qura AI method: innerHTML + data-text span");
           const dataTextSpan = composer.querySelector('[data-text="true"]');
           const targetElement = dataTextSpan ? dataTextSpan.parentElement : composer;
+          console.log("[TweetReply] Data-text span found:", !!dataTextSpan);
+          console.log("[TweetReply] Target element:", targetElement === composer ? "composer" : "parent");
+          console.log("[TweetReply] Target element content before:", targetElement.innerHTML);
+          console.log("[TweetReply] \u{1F3AF} Focusing composer...");
           composer.focus();
           await this.sleep(30);
+          console.log("[TweetReply] \u{1F4DD} Step 1: Selecting all existing content...");
           const sel = window.getSelection();
           const range = document.createRange();
           range.selectNodeContents(targetElement);
           sel.removeAllRanges();
           sel.addRange(range);
+          console.log("[TweetReply] Selection range:", sel.toString());
+          console.log("[TweetReply] \u{1F5D1}\uFE0F Step 2: Dispatching delete events...");
           const beforeDel = new InputEvent("beforeinput", {
             bubbles: true,
             cancelable: true,
@@ -869,6 +887,7 @@
             data: null
           });
           targetElement.dispatchEvent(beforeDel);
+          console.log("[TweetReply] Dispatched beforeinput deleteByCut");
           const delEvt = new InputEvent("input", {
             bubbles: true,
             cancelable: true,
@@ -876,9 +895,15 @@
             data: null
           });
           targetElement.dispatchEvent(delEvt);
+          console.log("[TweetReply] Dispatched input deleteContentBackward");
+          console.log("[TweetReply] \u{1F9F9} Step 3: Clearing DOM to match internal state...");
           targetElement.innerHTML = "";
+          console.log("[TweetReply] DOM cleared, content now:", targetElement.innerHTML);
           await this.sleep(20);
+          console.log("[TweetReply] \u270F\uFE0F Step 4: Inserting new content...");
           targetElement.innerHTML = `<span data-text="true">${replyText}</span>`;
+          console.log("[TweetReply] New content inserted:", targetElement.innerHTML);
+          console.log("[TweetReply] \u{1F4E4} Step 5: Dispatching insert events...");
           const insEvt = new InputEvent("input", {
             bubbles: true,
             cancelable: true,
@@ -886,44 +911,66 @@
             data: replyText
           });
           targetElement.dispatchEvent(insEvt);
+          console.log("[TweetReply] Dispatched input insertText to target element");
           if (targetElement !== composer) {
+            console.log("[TweetReply] \u{1F4E4} Step 6: Notifying outer composer...");
             composer.dispatchEvent(new InputEvent("input", {
               bubbles: true,
               cancelable: true,
               inputType: "insertText",
               data: replyText
             }));
+            console.log("[TweetReply] Dispatched input insertText to composer");
+          } else {
+            console.log("[TweetReply] \u23ED\uFE0F Step 6: Skipping composer notification (same as target)");
           }
+          console.log("[TweetReply] \u23F3 Waiting for React to process...");
           await this.sleep(60);
+          console.log("[TweetReply] \u{1F3AF} Final focus...");
           composer.focus();
           console.log("[TweetReply] \u2705 Text replaced using Qura AI method");
+          console.log("[TweetReply] Final content:", targetElement.innerHTML);
         } else if (composer.tagName === "TEXTAREA") {
+          console.log("[TweetReply] \u{1F4DD} Using TEXTAREA method");
+          console.log("[TweetReply] Textarea value before:", composer.value);
           composer.focus();
           composer.setSelectionRange(0, composer.value.length);
+          console.log("[TweetReply] Selected all text in textarea");
+          console.log("[TweetReply] \u{1F5D1}\uFE0F Dispatching delete events for textarea...");
           composer.dispatchEvent(new InputEvent("beforeinput", {
             bubbles: true,
             cancelable: true,
             inputType: "deleteByCut"
           }));
           composer.value = "";
+          console.log("[TweetReply] Cleared textarea value");
           composer.dispatchEvent(new InputEvent("input", {
             bubbles: true,
             cancelable: true,
             inputType: "deleteContentBackward"
           }));
           composer.value = replyText;
+          console.log("[TweetReply] Set new textarea value:", replyText);
           composer.dispatchEvent(new Event("input", { bubbles: true }));
+          console.log("[TweetReply] \u2705 Textarea text replaced");
         } else {
+          console.log("[TweetReply] \u{1F50D} Looking for nested input elements...");
           const input = composer.querySelector('textarea, [contenteditable="true"]');
           if (input) {
+            console.log("[TweetReply] Found nested input, recursing...");
             await this.insertReplyIntoComposer(input, replyData);
+          } else {
+            console.log("[TweetReply] \u274C No suitable input element found");
           }
         }
         if (typeof qualityScore === "number") {
+          console.log("[TweetReply] \u{1F3C6} Showing quality badge:", qualityScore);
           this.showQualityBadge(composer, qualityScore);
         }
+        console.log("[TweetReply] \u{1F389} insertReplyIntoComposer completed successfully");
       } catch (error) {
-        console.error("[TweetReply] Error during text insertion:", error);
+        console.error("[TweetReply] \u274C Error during text insertion:", error);
+        console.error("[TweetReply] Error stack:", error.stack);
       }
     }
     sleep(ms) {
