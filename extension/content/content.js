@@ -842,53 +842,47 @@ class TwitterReplyInjector {
 // No innerHTML, no synthetic clipboard events, no fake keypresses.
 // Replace whatever is in the Twitter reply composer with new text
 // Works with Draft/React by mimicking a real paste and restoring a valid caret.
+// Stable replace: visible text, Reply active, Backspace/Enter work
 async insertReplyIntoComposer(composer, replyData) {
   try {
-    // Resolve text
+    // 1) Resolve target CE node + text
     const text = String(
       typeof replyData === 'string' ? replyData : (replyData?.reply ?? '')
     ).trim();
     if (!composer || !text) return false;
 
-    // Find the actual editable box
     if (composer.contentEditable !== 'true') {
       const inner = composer.querySelector('div[role="textbox"][contenteditable="true"]');
       if (!inner) return false;
       composer = inner;
     }
 
-    // Focus composer
+    const raf = () => new Promise(r => requestAnimationFrame(r));
+
+    // 2) Focus & clear (Draft-aware)
     composer.focus();
-    await this.sleep(20);
-
-    // 1️⃣ Clear existing text (Draft-aware)
+    await raf();
     document.execCommand('selectAll', false, null);
-    document.execCommand('delete', false, null);
-    await this.sleep(20);
+    document.execCommand('delete',    false, null);
+    await raf();
 
-    // 2️⃣ Insert new text using trusted editing pipeline
+    // 3) Insert full text (trusted path; no synthetic paste/innerHTML)
     document.execCommand('insertText', false, text);
 
-    // 3️⃣ Let Draft update internal state (safe input nudge)
+    // 4) Gentle state nudge (safe input)
     composer.dispatchEvent(new Event('input', { bubbles: true }));
 
-    // 4️⃣ Reset caret inside Draft’s leaf text node
+    // 5) Caret at end inside Draft
     const sel = window.getSelection();
-    const range = document.createRange();
-    const leaf = composer.querySelector('[data-text="true"]');
-    if (leaf && leaf.firstChild && leaf.firstChild.nodeType === Node.TEXT_NODE) {
-      range.setStart(leaf.firstChild, leaf.firstChild.length);
-      range.collapse(true);
-    } else {
-      range.selectNodeContents(composer);
-      range.collapse(false);
-    }
+    const end = document.createRange();
+    end.selectNodeContents(composer);
+    end.collapse(false);
     sel.removeAllRanges();
-    sel.addRange(range);
+    sel.addRange(end);
     composer.focus();
 
-    // 🔔 5️⃣ NUDGE: if Reply still disabled, flip Draft’s length calc with a micro edit
-    await new Promise(r => requestAnimationFrame(r)); // next frame
+    // 6) If Reply is still disabled, use an **invisible nudge** (U+200B) then remove it
+    await raf();
     const replyBtn =
       document.querySelector('div[role="dialog"] [data-testid="tweetButton"]') ||
       document.querySelector('[data-testid="tweetButtonInline"]');
@@ -898,14 +892,14 @@ async insertReplyIntoComposer(composer, replyData) {
     );
 
     if (disabled) {
-      // Insert a space then immediately delete it → forces legit re-count
-      document.execCommand('insertText', false, ' ');
-      document.execCommand('delete', false, null);
+      // Insert zero-width space (invisible) then immediately delete it
+      document.execCommand('insertText', false, '\u200B'); // U+200B zero-width space
+      document.execCommand('delete',     false, null);
 
-      // light input nudge again (safe)
+      // Light input again to finalize length recompute
       composer.dispatchEvent(new Event('input', { bubbles: true }));
 
-      // keep caret sane
+      // Keep caret sane
       const sel2 = window.getSelection();
       const end2 = document.createRange();
       end2.selectNodeContents(composer);
@@ -921,6 +915,7 @@ async insertReplyIntoComposer(composer, replyData) {
     return false;
   }
 }
+
 
 
 

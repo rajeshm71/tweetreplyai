@@ -874,6 +874,21 @@
         sel.removeAllRanges();
         sel.addRange(range);
         composer.focus();
+        await new Promise((r) => requestAnimationFrame(r));
+        const replyBtn = document.querySelector('div[role="dialog"] [data-testid="tweetButton"]') || document.querySelector('[data-testid="tweetButtonInline"]');
+        const disabled = replyBtn && (replyBtn.hasAttribute("disabled") || replyBtn.getAttribute("aria-disabled") === "true");
+        if (disabled) {
+          document.execCommand("insertText", false, " ");
+          document.execCommand("delete", false, null);
+          composer.dispatchEvent(new Event("input", { bubbles: true }));
+          const sel2 = window.getSelection();
+          const end2 = document.createRange();
+          end2.selectNodeContents(composer);
+          end2.collapse(false);
+          sel2.removeAllRanges();
+          sel2.addRange(end2);
+          composer.focus();
+        }
         return true;
       } catch (err) {
         console.error("[TweetReply] insertReplyIntoComposer error:", err);
