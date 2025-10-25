@@ -837,119 +837,217 @@ class TwitterReplyInjector {
 
     // Different approaches for different composer types
     if (composer.contentEditable === 'true') {
-      // For contenteditable composers (Twitter/X uses Draft.js)
-      // CRITICAL: Event order matters! beforeinput → DOM change → input
+      // NEW APPROACH: Inject into page context to access Twitter's Draft.js API
+      // This is the ONLY way to properly update Draft.js EditorState
       
-      // Step 1: Simulate mousedown event (starts user interaction)
-      const mousedownEvent = new MouseEvent('mousedown', {
-        bubbles: true,
-        cancelable: true,
-        view: window,
-        detail: 1,
-        clientX: 100,
-        clientY: 100
-      });
-      composer.dispatchEvent(mousedownEvent);
+      console.log('[TweetReply] Using page context injection to access Draft.js API');
       
-      // Step 2: Simulate click event (focuses element)
-      const clickEvent = new MouseEvent('click', {
-        bubbles: true,
-        cancelable: true,
-        view: window,
-        detail: 1,
-        clientX: 100,
-        clientY: 100
-      });
-      composer.dispatchEvent(clickEvent);
+      const injectedScript = document.createElement('script');
+      injectedScript.textContent = `
+        (function() {
+          try {
+            console.log('[TweetReply] Page context script executing...');
+            
+            // Find the composer element
+            const composer = document.querySelector('[data-testid="tweetTextarea_0"]') || 
+                            document.querySelector('[data-testid="tweetTextarea_1"]') ||
+                            document.querySelector('[contenteditable="true"][role="textbox"]');
+            
+            if (!composer) {
+              console.error('[TweetReply] Composer not found in page context');
+              return;
+            }
+            
+            console.log('[TweetReply] Composer found:', composer);
+            
+            // Get React fiber from composer
+            const fiberKey = Object.keys(composer).find(key => 
+              key.startsWith('__reactFiber') || 
+              key.startsWith('__reactInternalInstance') ||
+              key.startsWith('__reactProps')
+            );
+            
+            if (!fiberKey) {
+              console.error('[TweetReply] React fiber not found. Keys:', Object.keys(composer).filter(k => k.startsWith('__')));
+              return;
+            }
+            
+            console.log('[TweetReply] React fiber key found:', fiberKey);
+            
+            let fiber = composer[fiberKey];
+            let editorState = null;
+            let setEditorState = null;
+            let attemptCount = 0;
+            const maxAttempts = 50; // Walk up max 50 levels
+            
+            // Walk up the fiber tree to find Draft.js editor
+            while (fiber && attemptCount < maxAttempts) {
+              attemptCount++;
+              const state = fiber.memoizedState;
+              const props = fiber.memoizedProps;
+              
+              // Look for EditorState in props (most common for Draft.js)
+              if (props && props.editorState && typeof props.editorState.getCurrentContent === 'function') {
+                editorState = props.editorState;
+                setEditorState = props.onChange;
+                console.log('[TweetReply] Found EditorState in props at level', attemptCount);
+                break;
+              }
+              
+              // Look for EditorState in state
+              if (state && state.editorState && typeof state.editorState.getCurrentContent === 'function') {
+                editorState = state.editorState;
+                // Find setState function
+                if (fiber.stateNode && typeof fiber.stateNode.setState === 'function') {
+                  setEditorState = (newState) => {
+                    fiber.stateNode.setState({ editorState: newState });
+                  };
+                  console.log('[TweetReply] Found EditorState in state at level', attemptCount);
+                  break;
+                }
+              }
+              
+              // Also check for hooks (useState pattern)
+              if (state && state.memoizedState && typeof state.memoizedState.getCurrentContent === 'function') {
+                editorState = state.memoizedState;
+                // For hooks, we need to find the dispatcher
+                if (state.queue && state.queue.dispatch) {
+                  const dispatch = state.queue.dispatch;
+                  setEditorState = (newState) => dispatch({ type: 'useState', value: newState });
+                  console.log('[TweetReply] Found EditorState in hooks at level', attemptCount);
+                  break;
+                }
+              }
+              
+              fiber = fiber.return;
+            }
+            
+            if (!editorState || !setEditorState) {
+              console.error('[TweetReply] Draft.js EditorState not found after', attemptCount, 'attempts');
+              return;
+            }
+            
+            console.log('[TweetReply] EditorState found, attempting text insertion...');
+            
+            // Try to get Draft.js from the EditorState's prototype
+            const EditorStateProto = Object.getPrototypeOf(editorState);
+            const ContentStateProto = Object.getPrototypeOf(editorState.getCurrentContent());
+            
+            // Get the text to insert
+            const textToInsert = ${JSON.stringify(replyText)};
+            
+            try {
+              // METHOD 1: Try using the EditorState's own methods
+              const currentContent = editorState.getCurrentContent();
+              const currentSelection = editorState.getSelection();
+              
+              // Select all content (start to end)
+              const firstBlock = currentContent.getFirstBlock();
+              const lastBlock = currentContent.getLastBlock();
+              const allSelectedSelection = currentSelection.merge({
+                anchorKey: firstBlock.getKey(),
+                anchorOffset: 0,
+                focusKey: lastBlock.getKey(),
+                focusOffset: lastBlock.getLength(),
+                isBackward: false
+              });
+              
+              // Try to find Modifier in the content state's methods
+              // Twitter's bundled Draft.js might expose Modifier through the content state
+              let newContentState;
+              
+              if (currentContent.replaceText && typeof currentContent.replaceText === 'function') {
+                // If replaceText exists on content state
+                console.log('[TweetReply] Using ContentState.replaceText');
+                newContentState = currentContent.replaceText(allSelectedSelection, textToInsert);
+              } else {
+                // Fallback: Create new content by merging
+                console.log('[TweetReply] Using manual content creation');
+                
+                // Get all blocks and replace the first one with our text
+                const blockMap = currentContent.getBlockMap();
+                const firstBlockKey = firstBlock.getKey();
+                
+                // Create new block with our text
+                const newBlock = firstBlock.merge({
+                  text: textToInsert,
+                  characterList: firstBlock.getCharacterList().slice(0, textToInsert.length)
+                });
+                
+                // Create new block map with only our block (removes all other blocks)
+                const newBlockMap = blockMap.set(firstBlockKey, newBlock).filter((block, key) => key === firstBlockKey);
+                
+                newContentState = currentContent.merge({
+                  blockMap: newBlockMap,
+                  selectionAfter: allSelectedSelection.merge({
+                    anchorOffset: textToInsert.length,
+                    focusOffset: textToInsert.length
+                  })
+                });
+              }
+              
+              // Create new editor state with the new content
+              let newEditorState;
+              
+              if (editorState.push && typeof editorState.push === 'function') {
+                console.log('[TweetReply] Using EditorState.push');
+                newEditorState = editorState.push(newContentState, 'insert-characters');
+              } else if (EditorStateProto.push && typeof EditorStateProto.push === 'function') {
+                console.log('[TweetReply] Using EditorState prototype push');
+                newEditorState = EditorStateProto.push.call(editorState, newContentState, 'insert-characters');
+              } else {
+                // Last resort: Force the editor state to update
+                console.log('[TweetReply] Using forced state update');
+                newEditorState = Object.assign(Object.create(EditorStateProto), editorState, {
+                  _immutable: {
+                    ...editorState._immutable,
+                    currentContent: newContentState
+                  }
+                });
+              }
+              
+              // Move selection to end
+              if (newEditorState.moveSelectionToEnd && typeof newEditorState.moveSelectionToEnd === 'function') {
+                newEditorState = newEditorState.moveSelectionToEnd();
+              } else {
+                // Manually set selection to end
+                const endSelection = newEditorState.getSelection().merge({
+                  anchorOffset: textToInsert.length,
+                  focusOffset: textToInsert.length
+                });
+                if (newEditorState.forceSelection && typeof newEditorState.forceSelection === 'function') {
+                  newEditorState = newEditorState.forceSelection(endSelection);
+                }
+              }
+              
+              // Update the editor state
+              console.log('[TweetReply] Calling setEditorState with new state');
+              setEditorState(newEditorState);
+              
+              // Focus the composer
+              composer.focus();
+              
+              console.log('[TweetReply] ✅ Text inserted successfully via Draft.js API');
+              
+            } catch (innerError) {
+              console.error('[TweetReply] Error during Draft.js manipulation:', innerError);
+            }
+            
+          } catch (error) {
+            console.error('[TweetReply] Fatal error in page context script:', error);
+          }
+        })();
+      `;
       
-      // Step 3: Focus with proper timing
-      composer.focus();
-      await this.sleep(50);
+      // Inject and execute in page context
+      (document.head || document.documentElement).appendChild(injectedScript);
       
-      // Step 4: Select all existing content (DON'T clear yet - this breaks Draft.js state)
-      const selection = window.getSelection();
-      const range = document.createRange();
-      range.selectNodeContents(composer);
-      selection.removeAllRanges();
-      selection.addRange(range);
+      // Small delay then remove the script element
+      await this.sleep(10);
+      injectedScript.remove();
       
-      // Step 5: Dispatch beforeinput BEFORE modifying DOM (critical for Draft.js)
-      const beforeInputEvent = new InputEvent('beforeinput', {
-        bubbles: true,
-        cancelable: true,
-        composed: true,
-        inputType: 'insertText',
-        data: replyText,
-        dataTransfer: null,
-        isComposing: false,
-        view: window
-      });
-      const beforeInputNotCancelled = composer.dispatchEvent(beforeInputEvent);
-      
-      // Step 6: Only proceed if beforeinput wasn't cancelled
-      if (beforeInputNotCancelled) {
-        // Try execCommand first (most compatible with Draft.js)
-        const success = document.execCommand('insertText', false, replyText);
-        
-        if (!success || !composer.textContent || composer.textContent.trim() === '') {
-          console.log('[TweetReply] execCommand failed, using direct insertion');
-          // Fallback: Direct text insertion
-          composer.textContent = replyText;
-        }
-        
-        // Step 7: Dispatch input AFTER DOM is modified (critical for Draft.js)
-        const inputEvent = new InputEvent('input', {
-          bubbles: true,
-          cancelable: false,
-          composed: true,
-          inputType: 'insertText',
-          data: replyText,
-          dataTransfer: null,
-          isComposing: false,
-          detail: 0,
-          view: window
-        });
-        composer.dispatchEvent(inputEvent);
-        
-        // Step 8: Dispatch textInput for legacy support
-        try {
-          const textInputEvent = new TextEvent('textInput', {
-            bubbles: true,
-            cancelable: true,
-            data: replyText,
-            view: window
-          });
-          composer.dispatchEvent(textInputEvent);
-        } catch (e) {
-          // TextEvent not supported in all browsers
-        }
-      }
-      
-      // Step 9: Wait for Draft.js to process
-      await this.sleep(100);
-      
-      // Step 10: Final focus and cursor positioning
-      composer.focus();
-      
-      // Move cursor to end of text
-      const finalSelection = window.getSelection();
-      const finalRange = document.createRange();
-      
-      if (composer.childNodes.length > 0) {
-        const lastNode = composer.childNodes[composer.childNodes.length - 1];
-        const offset = lastNode.nodeType === Node.TEXT_NODE 
-          ? lastNode.length 
-          : lastNode.childNodes.length;
-        
-        finalRange.setStart(lastNode, offset);
-        finalRange.setEnd(lastNode, offset);
-      } else {
-        finalRange.selectNodeContents(composer);
-        finalRange.collapse(false);
-      }
-      
-      finalSelection.removeAllRanges();
-      finalSelection.addRange(finalRange);
+      // Wait for execution to complete
+      await this.sleep(300);
       
     } else if (composer.tagName === 'TEXTAREA') {
       // For textarea composers (fallback)
