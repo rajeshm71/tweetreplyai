@@ -846,49 +846,57 @@
     // Stable replace: visible text, Reply active, Backspace/Enter work
     async insertReplyIntoComposer(composer, replyData) {
       try {
-        const text = String(
-          typeof replyData === "string" ? replyData : replyData?.reply ?? ""
-        ).trim();
-        if (!composer || !text) return false;
-        if (composer.contentEditable !== "true") {
-          const inner = composer.querySelector('div[role="textbox"][contenteditable="true"]');
-          if (!inner) return false;
-          composer = inner;
+        if (!composer || !replyData) {
+          console.error("[TweetReply] Invalid parameters");
+          return;
         }
-        const raf = () => new Promise((r) => requestAnimationFrame(r));
-        composer.focus();
-        await raf();
-        document.execCommand("selectAll", false, null);
-        document.execCommand("delete", false, null);
-        await raf();
-        document.execCommand("insertText", false, text);
-        composer.dispatchEvent(new Event("input", { bubbles: true }));
-        const sel = window.getSelection();
-        const end = document.createRange();
-        end.selectNodeContents(composer);
-        end.collapse(false);
-        sel.removeAllRanges();
-        sel.addRange(end);
-        composer.focus();
-        await raf();
-        const replyBtn = document.querySelector('div[role="dialog"] [data-testid="tweetButton"]') || document.querySelector('[data-testid="tweetButtonInline"]');
-        const disabled = replyBtn && (replyBtn.hasAttribute("disabled") || replyBtn.getAttribute("aria-disabled") === "true");
-        if (disabled) {
-          document.execCommand("insertText", false, "\u200B");
-          document.execCommand("delete", false, null);
-          composer.dispatchEvent(new Event("input", { bubbles: true }));
-          const sel2 = window.getSelection();
-          const end2 = document.createRange();
-          end2.selectNodeContents(composer);
-          end2.collapse(false);
-          sel2.removeAllRanges();
-          sel2.addRange(end2);
+        const replyText = typeof replyData === "string" ? replyData : replyData.reply;
+        const qualityScore = typeof replyData === "object" ? replyData.qualityScore : null;
+        if (!replyText) {
+          console.error("[TweetReply] Invalid reply text");
+          return;
+        }
+        if (composer.contentEditable === "true") {
+          console.log("[TweetReply] Using Qura AI method: innerHTML + data-text span");
+          const dataTextSpan = composer.querySelector('[data-text="true"]');
+          const targetElement = dataTextSpan ? dataTextSpan.parentElement : composer;
+          console.log("[TweetReply] Found data-text span:", !!dataTextSpan);
+          console.log("[TweetReply] Target element:", targetElement === composer ? "composer" : "parent");
           composer.focus();
+          await this.sleep(50);
+          targetElement.innerHTML = `<span data-text="true">${replyText}</span>`;
+          targetElement.dispatchEvent(new InputEvent("input", {
+            bubbles: true,
+            cancelable: true,
+            inputType: "insertText",
+            data: replyText
+          }));
+          if (targetElement !== composer) {
+            composer.dispatchEvent(new InputEvent("input", {
+              bubbles: true,
+              cancelable: true,
+              inputType: "insertText",
+              data: replyText
+            }));
+          }
+          await this.sleep(100);
+          composer.focus();
+          console.log("[TweetReply] \u2705 Text inserted using Qura AI method");
+        } else if (composer.tagName === "TEXTAREA") {
+          composer.focus();
+          composer.value = replyText;
+          composer.dispatchEvent(new Event("input", { bubbles: true }));
+        } else {
+          const input = composer.querySelector('textarea, [contenteditable="true"]');
+          if (input) {
+            await this.insertReplyIntoComposer(input, replyData);
+          }
         }
-        return true;
-      } catch (err) {
-        console.error("[TweetReply] insertReplyIntoComposer error:", err);
-        return false;
+        if (qualityScore && typeof qualityScore === "number") {
+          this.showQualityBadge(composer, qualityScore);
+        }
+      } catch (error) {
+        console.error("[TweetReply] Error during text insertion:", error);
       }
     }
     sleep(ms) {

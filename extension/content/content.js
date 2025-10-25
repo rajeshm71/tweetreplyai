@@ -846,86 +846,75 @@ class TwitterReplyInjector {
 async insertReplyIntoComposer(composer, replyData) {
   try {
     // Safety checks
-    if (!composer || !replyData) {
-      console.error('[TweetReply] Invalid parameters');
-      return;
-    }
+    if (!composer || !replyData) return;
 
     const replyText = typeof replyData === 'string' ? replyData : replyData.reply;
     const qualityScore = typeof replyData === 'object' ? replyData.qualityScore : null;
+    if (!replyText && replyText !== "") return;
 
-    if (!replyText) {
-      console.error('[TweetReply] Invalid reply text');
-      return;
+    // 1) Ensure we are on the actual editable node
+    if (composer.contentEditable !== 'true') {
+      const inner = composer.querySelector('div[contenteditable="true"][role="textbox"]');
+      if (!inner) return;
+      composer = inner;
     }
 
-    if (composer.contentEditable === 'true') {
-      console.log('[TweetReply] Using Qura AI method: innerHTML + data-text span');
+    // 2) Focus and CLEAR the existing Draft content (Draft-aware clear)
+    composer.focus();
+    await this.sleep?.(20);
+    document.execCommand('selectAll', false, null);
+    document.execCommand('delete',    false, null);
+    await this.sleep?.(16); // one frame
 
-      // Step 1: Find the [data-text="true"] span's parent element
-      // This is Twitter's expected DOM structure
-      const dataTextSpan = composer.querySelector('[data-text="true"]');
-      const targetElement = dataTextSpan ? dataTextSpan.parentElement : composer;
+    // 3) Find or create a target leaf span with data-text="true"
+    // Prefer an existing leaf if present
+    let dataTextSpan = composer.querySelector('[data-text="true"]');
 
-      console.log('[TweetReply] Found data-text span:', !!dataTextSpan);
-      console.log('[TweetReply] Target element:', targetElement === composer ? 'composer' : 'parent');
+    if (!dataTextSpan) {
+      // Create a minimal Draft-like leaf structure inside composer
+      const wrapper = document.createElement('div'); // acts like a block container
+      dataTextSpan = document.createElement('span');
+      dataTextSpan.setAttribute('data-text', 'true');
+      wrapper.appendChild(dataTextSpan);
 
-      // Step 2: Focus composer
-      composer.focus();
-      await this.sleep(50);
+      // Remove any stray nodes left by the delete (defensive)
+      while (composer.firstChild) composer.removeChild(composer.firstChild);
+      composer.appendChild(wrapper);
+    }
 
-      // Step 3: Set innerHTML with Twitter's expected structure
-      // This bypasses Draft.js entirely and works at the React component level
-      targetElement.innerHTML = `<span data-text="true">${replyText}</span>`;
+    // 4) **Replace** text safely (avoid HTML injection)
+    dataTextSpan.textContent = replyText ?? "";
 
-      // Step 4: Dispatch InputEvent to notify React
-      targetElement.dispatchEvent(new InputEvent('input', {
-        bubbles: true,
-        cancelable: true,
-        inputType: 'insertText',
-        data: replyText
-      }));
+    // 5) Notify React/Draft lightly (no synthetic beforeinput/paste)
+    composer.dispatchEvent(new Event('input', { bubbles: true }));
 
-      // Step 5: Also dispatch on composer if different from targetElement
-      if (targetElement !== composer) {
-        composer.dispatchEvent(new InputEvent('input', {
-          bubbles: true,
-          cancelable: true,
-          inputType: 'insertText',
-          data: replyText
-        }));
-      }
-
-      // Step 6: Wait for React to process
-      await this.sleep(100);
-
-      // Step 7: Final focus
-      composer.focus();
-
-      console.log('[TweetReply] ✅ Text inserted using Qura AI method');
-
-    } else if (composer.tagName === 'TEXTAREA') {
-      // For textarea composers (fallback)
-      composer.focus();
-      composer.value = replyText;
-      composer.dispatchEvent(new Event('input', { bubbles: true }));
-
+    // 6) Place caret at end inside the leaf so Backspace/Enter work
+    const sel = window.getSelection();
+    const tn = dataTextSpan.firstChild; // text node we just set
+    if (tn && tn.nodeType === Node.TEXT_NODE) {
+      const range = document.createRange();
+      range.setStart(tn, tn.length);
+      range.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(range);
     } else {
-      // Try to find nested input elements
-      const input = composer.querySelector('textarea, [contenteditable="true"]');
-      if (input) {
-        await this.insertReplyIntoComposer(input, replyData);
-      }
+      const range = document.createRange();
+      range.selectNodeContents(composer);
+      range.collapse(false);
+      sel.removeAllRanges();
+      sel.addRange(range);
     }
+    composer.focus();
 
-    // Show quality score indicator
-    if (qualityScore && typeof qualityScore === 'number') {
-      this.showQualityBadge(composer, qualityScore);
+    // 7) Optional: quality badge
+    if (typeof qualityScore === 'number') {
+      this.showQualityBadge?.(composer, qualityScore);
     }
   } catch (error) {
     console.error('[TweetReply] Error during text insertion:', error);
   }
 }
+
 
 
 
