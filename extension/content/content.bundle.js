@@ -836,53 +836,50 @@
       const replyText = typeof replyData === "string" ? replyData : replyData.reply;
       const qualityScore = typeof replyData === "object" ? replyData.qualityScore : null;
       if (composer.contentEditable === "true") {
-        console.log("[TweetReply] Using page context injection to access Draft.js API");
-        const injectedScript = document.createElement("script");
-        injectedScript.textContent = `
-        (function insertWithDraft(replyText){
-          try {
-            // Find composer
-            const composer = document.querySelector('[data-testid="tweetTextarea_0"], [data-testid="tweetTextarea_1"], [contenteditable="true"][role="textbox"]');
-            if (!composer) return console.error('[TweetReply] Composer not found');
-
-            // Locate React fiber to access props.editorState / props.onChange
-            const fiberKey = Object.keys(composer).find(k => k.startsWith('__reactFiber') || k.startsWith('__reactInternalInstance') || k.startsWith('__reactProps'));
-            if (!fiberKey) return console.error('[TweetReply] React fiber not found');
-
-            let fiber = composer[fiberKey];
-            let editorState = null;
-            let onChange = null;
-            let hops = 0;
-            while (fiber && hops++ < 60) {
-              const p = fiber.memoizedProps;
-              if (p && p.editorState && p.onChange && typeof p.editorState.getCurrentContent === 'function') {
-                editorState = p.editorState;
-                onChange = p.onChange;
-                break;
-              }
-              fiber = fiber.return;
-            }
-            if (!editorState || !onChange) return console.error('[TweetReply] EditorState/onChange not found');
-
-            // Use constructors from the live instances (same realm)
-            const EditorState = editorState.constructor;
-            const ContentState = editorState.getCurrentContent().constructor;
-
-            // Build fresh content and push via EditorState API
-            const newContent = ContentState.createFromText(replyText);
-            let next = EditorState.push(editorState, newContent, 'insert-characters');
-            next = EditorState.moveSelectionToEnd(next);
-            onChange(next);
-            composer.focus();
-          } catch (e) {
-            console.error('[TweetReply] Draft.js injection failed:', e);
-          }
-        })(${JSON.stringify(replyText)});
-      `;
-        (document.head || document.documentElement).appendChild(injectedScript);
-        await this.sleep(10);
-        injectedScript.remove();
-        await this.sleep(300);
+        console.log("[TweetReply] Inserting text using execCommand + React events");
+        composer.focus();
+        await this.sleep(50);
+        const selection = window.getSelection();
+        const range = document.createRange();
+        range.selectNodeContents(composer);
+        selection.removeAllRanges();
+        selection.addRange(range);
+        document.execCommand("selectAll", false, null);
+        document.execCommand("delete", false, null);
+        await this.sleep(20);
+        composer.focus();
+        const emptyRange = document.createRange();
+        emptyRange.selectNodeContents(composer);
+        emptyRange.collapse(true);
+        selection.removeAllRanges();
+        selection.addRange(emptyRange);
+        document.execCommand("insertText", false, replyText);
+        composer.dispatchEvent(new InputEvent("input", {
+          bubbles: true,
+          cancelable: false,
+          inputType: "insertText",
+          data: replyText
+        }));
+        composer.dispatchEvent(new Event("change", { bubbles: true }));
+        composer.dispatchEvent(new KeyboardEvent("keydown", {
+          bubbles: true,
+          key: "a",
+          code: "KeyA"
+        }));
+        composer.dispatchEvent(new KeyboardEvent("keyup", {
+          bubbles: true,
+          key: "a",
+          code: "KeyA"
+        }));
+        composer.focus();
+        await this.sleep(100);
+        const finalSelection = window.getSelection();
+        const finalRange = document.createRange();
+        finalRange.selectNodeContents(composer);
+        finalRange.collapse(false);
+        finalSelection.removeAllRanges();
+        finalSelection.addRange(finalRange);
+        console.log("[TweetReply] \u2705 Text inserted successfully");
       } else if (composer.tagName === "TEXTAREA") {
         composer.focus();
         composer.value = replyText;

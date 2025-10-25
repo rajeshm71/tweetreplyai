@@ -835,65 +835,71 @@ class TwitterReplyInjector {
     const replyText = typeof replyData === 'string' ? replyData : replyData.reply;
     const qualityScore = typeof replyData === 'object' ? replyData.qualityScore : null;
 
-    // Different approaches for different composer types
     if (composer.contentEditable === 'true') {
-      // NEW APPROACH: Inject into page context to access Twitter's Draft.js API
-      // This is the ONLY way to properly update Draft.js EditorState
+      console.log('[TweetReply] Inserting text using execCommand + React events');
       
-      console.log('[TweetReply] Using page context injection to access Draft.js API');
+      // Step 1: Focus the composer
+      composer.focus();
+      await this.sleep(50);
       
-      const injectedScript = document.createElement('script');
-      injectedScript.textContent = `
-        (function insertWithDraft(replyText){
-          try {
-            // Find composer
-            const composer = document.querySelector('[data-testid="tweetTextarea_0"], [data-testid="tweetTextarea_1"], [contenteditable="true"][role="textbox"]');
-            if (!composer) return console.error('[TweetReply] Composer not found');
-
-            // Locate React fiber to access props.editorState / props.onChange
-            const fiberKey = Object.keys(composer).find(k => k.startsWith('__reactFiber') || k.startsWith('__reactInternalInstance') || k.startsWith('__reactProps'));
-            if (!fiberKey) return console.error('[TweetReply] React fiber not found');
-
-            let fiber = composer[fiberKey];
-            let editorState = null;
-            let onChange = null;
-            let hops = 0;
-            while (fiber && hops++ < 60) {
-              const p = fiber.memoizedProps;
-              if (p && p.editorState && p.onChange && typeof p.editorState.getCurrentContent === 'function') {
-                editorState = p.editorState;
-                onChange = p.onChange;
-                break;
-              }
-              fiber = fiber.return;
-            }
-            if (!editorState || !onChange) return console.error('[TweetReply] EditorState/onChange not found');
-
-            // Use constructors from the live instances (same realm)
-            const EditorState = editorState.constructor;
-            const ContentState = editorState.getCurrentContent().constructor;
-
-            // Build fresh content and push via EditorState API
-            const newContent = ContentState.createFromText(replyText);
-            let next = EditorState.push(editorState, newContent, 'insert-characters');
-            next = EditorState.moveSelectionToEnd(next);
-            onChange(next);
-            composer.focus();
-          } catch (e) {
-            console.error('[TweetReply] Draft.js injection failed:', e);
-          }
-        })(${JSON.stringify(replyText)});
-      `;
+      // Step 2: Clear any existing content
+      const selection = window.getSelection();
+      const range = document.createRange();
+      range.selectNodeContents(composer);
+      selection.removeAllRanges();
+      selection.addRange(range);
       
-      // Inject and execute in page context
-      (document.head || document.documentElement).appendChild(injectedScript);
+      // Delete existing content
+      document.execCommand('selectAll', false, null);
+      document.execCommand('delete', false, null);
+      await this.sleep(20);
       
-      // Small delay then remove the script element
-      await this.sleep(10);
-      injectedScript.remove();
+      // Step 3: Place caret at start (after clearing)
+      composer.focus();
+      const emptyRange = document.createRange();
+      emptyRange.selectNodeContents(composer);
+      emptyRange.collapse(true);
+      selection.removeAllRanges();
+      selection.addRange(emptyRange);
       
-      // Wait for execution to complete
-      await this.sleep(300);
+      // Step 4: Insert text using execCommand (updates Draft.js state)
+      document.execCommand('insertText', false, replyText);
+      
+      // Step 5: Dispatch React events (notify React of changes)
+      composer.dispatchEvent(new InputEvent('input', {
+        bubbles: true,
+        cancelable: false,
+        inputType: 'insertText',
+        data: replyText
+      }));
+      
+      composer.dispatchEvent(new Event('change', { bubbles: true }));
+      
+      // Step 6: Simulate key events (nudge React to update)
+      composer.dispatchEvent(new KeyboardEvent('keydown', {
+        bubbles: true,
+        key: 'a',
+        code: 'KeyA'
+      }));
+      
+      composer.dispatchEvent(new KeyboardEvent('keyup', {
+        bubbles: true,
+        key: 'a',
+        code: 'KeyA'
+      }));
+      
+      // Step 7: Final focus and move cursor to end
+      composer.focus();
+      await this.sleep(100);
+      
+      const finalSelection = window.getSelection();
+      const finalRange = document.createRange();
+      finalRange.selectNodeContents(composer);
+      finalRange.collapse(false); // Collapse to end
+      finalSelection.removeAllRanges();
+      finalSelection.addRange(finalRange);
+      
+      console.log('[TweetReply] ✅ Text inserted successfully');
       
     } else if (composer.tagName === 'TEXTAREA') {
       // For textarea composers (fallback)
