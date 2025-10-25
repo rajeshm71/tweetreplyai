@@ -23,10 +23,13 @@ class TwitterReplyInjector {
     // Start observing for reply composers
     this.startObserving();
     
-    // Listen for messages from popup
+    // Listen for messages from popup and background
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (message.action === 'suggestReply') {
         this.handleSuggestReplyFromPopup();
+      } else if (message.action === 'authUpdated') {
+        // Refresh auth state when background detects login
+        this.refreshAuthState();
       }
     });
     
@@ -36,6 +39,19 @@ class TwitterReplyInjector {
         this.loadUsageData();
       }
     }, 30000);
+  }
+
+  async refreshAuthState() {
+    const wasAuthenticated = this.isAuthenticated;
+    this.isAuthenticated = await this.authManager.isAuthenticated();
+    
+    if (this.isAuthenticated && !wasAuthenticated) {
+      // Just logged in, reload usage data
+      await this.loadUsageData();
+    }
+    
+    // Update all button states
+    this.updateAllButtonStates();
   }
 
   async loadUsageData() {
@@ -98,19 +114,19 @@ class TwitterReplyInjector {
   injectSuggestButton(composer) {
     if (!composer || this.injectedButtons.has(composer)) return;
 
-    // Check if our button already exists in the parent to prevent duplicates
-    const parent = composer.closest('[data-testid="tweetComposer"]') || 
-                  composer.closest('.tweet-composer') || 
-                  composer.closest('[role="dialog"]') ||
-                  composer.parentElement;
-
-    if (parent && parent.querySelector('.tweetreply-button-container')) {
-      // Button already exists, mark composer as injected
+    // Check if our button already exists anywhere in the document to prevent duplicates
+    if (document.querySelector('.tweetreply-button-container')) {
+      // Button already exists somewhere, skip
       this.injectedButtons.add(composer);
       return;
     }
 
     // Find the composer's toolbar area
+    const parent = composer.closest('[data-testid="tweetComposer"]') || 
+                  composer.closest('.tweet-composer') || 
+                  composer.closest('[role="dialog"]') ||
+                  composer.parentElement;
+
     let toolbar = null;
 
     if (parent) {
@@ -136,7 +152,7 @@ class TwitterReplyInjector {
       toolbar = this.createToolbar(composer);
     }
 
-    if (toolbar) {
+    if (toolbar && !toolbar.querySelector('.tweetreply-button-container')) {
       const button = this.createSuggestButton(composer);
       this.insertButtonInToolbar(toolbar, button);
       this.injectedButtons.add(composer);

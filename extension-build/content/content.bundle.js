@@ -219,6 +219,8 @@
       chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         if (message.action === "suggestReply") {
           this.handleSuggestReplyFromPopup();
+        } else if (message.action === "authUpdated") {
+          this.refreshAuthState();
         }
       });
       setInterval(() => {
@@ -226,6 +228,14 @@
           this.loadUsageData();
         }
       }, 3e4);
+    }
+    async refreshAuthState() {
+      const wasAuthenticated = this.isAuthenticated;
+      this.isAuthenticated = await this.authManager.isAuthenticated();
+      if (this.isAuthenticated && !wasAuthenticated) {
+        await this.loadUsageData();
+      }
+      this.updateAllButtonStates();
     }
     async loadUsageData() {
       try {
@@ -277,11 +287,11 @@
     }
     injectSuggestButton(composer) {
       if (!composer || this.injectedButtons.has(composer)) return;
-      const parent = composer.closest('[data-testid="tweetComposer"]') || composer.closest(".tweet-composer") || composer.closest('[role="dialog"]') || composer.parentElement;
-      if (parent && parent.querySelector(".tweetreply-button-container")) {
+      if (document.querySelector(".tweetreply-button-container")) {
         this.injectedButtons.add(composer);
         return;
       }
+      const parent = composer.closest('[data-testid="tweetComposer"]') || composer.closest(".tweet-composer") || composer.closest('[role="dialog"]') || composer.parentElement;
       let toolbar = null;
       if (parent) {
         toolbar = parent.querySelector('[data-testid="toolBar"]') || parent.querySelector(".toolbar") || parent.querySelector('[role="toolbar"]');
@@ -298,7 +308,7 @@
       if (!toolbar) {
         toolbar = this.createToolbar(composer);
       }
-      if (toolbar) {
+      if (toolbar && !toolbar.querySelector(".tweetreply-button-container")) {
         const button = this.createSuggestButton(composer);
         this.insertButtonInToolbar(toolbar, button);
         this.injectedButtons.add(composer);
