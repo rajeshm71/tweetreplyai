@@ -867,84 +867,90 @@ async insertReplyIntoComposer(composer, replyData) {
     sel.addRange(clearRange);
     document.execCommand('delete'); // Clears Draft internal state
 
-    // Build clipboard payload for a real paste pipeline
-    const dt = new DataTransfer();
-    dt.setData('text/plain', text);
-
-    // beforeinput → paste (don’t throw if blocked)
-    try {
-      composer.dispatchEvent(new InputEvent('beforeinput', {
-        bubbles: true,
-        cancelable: true,
-        inputType: 'insertFromPaste',
-        data: text,
-        dataTransfer: dt
-      }));
-    } catch {}
-
-    try {
-      composer.dispatchEvent(new ClipboardEvent('paste', {
-        bubbles: true,
-        cancelable: true,
-        clipboardData: dt
-      }));
-    } catch {}
-
-    // Insert text (no textContent fallback — let Draft own nodes)
-    try {
-      document.execCommand('insertText', false, text);
-    } catch {}
-
-    // Final input so React/Draft recompute length/state
-    try {
-      composer.dispatchEvent(new InputEvent('input', {
-        bubbles: true,
-        cancelable: true,
-        inputType: 'insertText',
-        data: text
-      }));
-    } catch {}
-
-    // Ensure caret is inside a real Draft leaf text node (so Backspace/Enter work)
-    // Give React/Draft time to reconcile the DOM changes
-    if (typeof this?.sleep === 'function') await this.sleep(50);
-    composer.normalize(); // tidy any split nodes
-
-    const leaf = composer.querySelector('[data-text="true"]');
-    const tn = leaf && leaf.firstChild && leaf.firstChild.nodeType === Node.TEXT_NODE ? leaf.firstChild : null;
-
-    if (tn) {
-      const end = document.createRange();
-      end.setStart(tn, tn.length);
-      end.collapse(false);  // FIX: collapse to END, not START
-      sel.removeAllRanges();
-      sel.addRange(end);
-    } else {
-      // Fallback: use contentEditable end positioning
-      const range = document.createRange();
-      range.selectNodeContents(composer);
-      range.collapse(false);  // End of composer
-      sel.removeAllRanges();
-      sel.addRange(range);
-      composer.focus();
-      if (typeof this?.sleep === 'function') await this.sleep(10);
+    // Insert text character-by-character to keep Draft.js EditorState in sync
+    // This ensures Enter/Backspace work correctly after insertion
+    for (let i = 0; i < text.length; i++) {
+      const char = text[i];
+      
+      // Skip carriage returns
+      if (char === '\r') continue;
+      
+      // Handle newlines specially
+      if (char === '\n') {
+        try {
+          composer.dispatchEvent(new InputEvent('beforeinput', {
+            bubbles: true,
+            cancelable: true,
+            inputType: 'insertLineBreak'
+          }));
+        } catch {}
+        
+        document.execCommand('insertLineBreak', false, null) || 
+        document.execCommand('insertParagraph', false, null);
+        
+        try {
+          composer.dispatchEvent(new InputEvent('input', {
+            bubbles: true,
+            cancelable: false,
+            inputType: 'insertLineBreak'
+          }));
+        } catch {}
+      } else {
+        // Regular character insertion
+        try {
+          composer.dispatchEvent(new InputEvent('beforeinput', {
+            bubbles: true,
+            cancelable: true,
+            inputType: 'insertText',
+            data: char
+          }));
+        } catch {}
+        
+        document.execCommand('insertText', false, char);
+        
+        try {
+          composer.dispatchEvent(new InputEvent('input', {
+            bubbles: true,
+            cancelable: false,
+            inputType: 'insertText',
+            data: char
+          }));
+        } catch {}
+      }
+      
+      // Small delay every 50 characters to let React process updates
+      if (i % 50 === 0 && i > 0) {
+        if (typeof this?.sleep === 'function') await this.sleep(10);
+      }
     }
 
-    // Force Draft.js to recognize the cursor position
+    // Give Draft.js/React time to fully process all character insertions
+    if (typeof this?.sleep === 'function') await this.sleep(100);
+    
+    // Ensure cursor is positioned at the end
     composer.focus();
-    if (typeof this?.sleep === 'function') await this.sleep(10);
-
-    // Trigger a final input event to sync Draft's EditorState
+    
+    // Try to position cursor in the last Draft.js text node
+    const leaf = composer.querySelector('[data-text="true"]:last-of-type');
+    if (leaf) {
+      const textNode = leaf.firstChild;
+      if (textNode && textNode.nodeType === Node.TEXT_NODE) {
+        const range = document.createRange();
+        range.setStart(textNode, textNode.length);
+        range.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
+    }
+    
+    // Final focus and small delay to ensure Draft.js is ready
+    composer.focus();
+    if (typeof this?.sleep === 'function') await this.sleep(20);
+    
+    // Dispatch final events to ensure Draft.js recognizes the state
     try {
-      composer.dispatchEvent(new InputEvent('input', {
-        bubbles: true,
-        cancelable: false,
-        inputType: 'insertText'
-      }));
+      document.dispatchEvent(new Event('selectionchange', { bubbles: true }));
     } catch {}
-
-    // Notify Draft.js that selection changed
-    document.dispatchEvent(new Event('selectionchange', { bubbles: true }));
 
     return true;
   } catch (err) {

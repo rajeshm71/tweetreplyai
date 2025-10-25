@@ -894,21 +894,36 @@
           }));
         } catch {
         }
-        if (typeof this?.sleep === "function") await this.sleep(20);
+        if (typeof this?.sleep === "function") await this.sleep(50);
         composer.normalize();
         const leaf = composer.querySelector('[data-text="true"]');
         const tn = leaf && leaf.firstChild && leaf.firstChild.nodeType === Node.TEXT_NODE ? leaf.firstChild : null;
         if (tn) {
           const end = document.createRange();
           end.setStart(tn, tn.length);
-          end.collapse(true);
+          end.collapse(false);
           sel.removeAllRanges();
           sel.addRange(end);
         } else {
-          composer.blur();
-          if (typeof this?.sleep === "function") await this.sleep(10);
+          const range = document.createRange();
+          range.selectNodeContents(composer);
+          range.collapse(false);
+          sel.removeAllRanges();
+          sel.addRange(range);
           composer.focus();
+          if (typeof this?.sleep === "function") await this.sleep(10);
         }
+        composer.focus();
+        if (typeof this?.sleep === "function") await this.sleep(10);
+        try {
+          composer.dispatchEvent(new InputEvent("input", {
+            bubbles: true,
+            cancelable: false,
+            inputType: "insertText"
+          }));
+        } catch {
+        }
+        document.dispatchEvent(new Event("selectionchange", { bubbles: true }));
         return true;
       } catch (err) {
         console.error("[TweetReply] insertReplyIntoComposer error:", err);
