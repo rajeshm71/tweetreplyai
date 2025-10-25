@@ -277,8 +277,12 @@
     }
     injectSuggestButton(composer) {
       if (!composer || this.injectedButtons.has(composer)) return;
-      let toolbar = null;
       const parent = composer.closest('[data-testid="tweetComposer"]') || composer.closest(".tweet-composer") || composer.closest('[role="dialog"]') || composer.parentElement;
+      if (parent && parent.querySelector(".tweetreply-button-container")) {
+        this.injectedButtons.add(composer);
+        return;
+      }
+      let toolbar = null;
       if (parent) {
         toolbar = parent.querySelector('[data-testid="toolBar"]') || parent.querySelector(".toolbar") || parent.querySelector('[role="toolbar"]');
         if (!toolbar) {

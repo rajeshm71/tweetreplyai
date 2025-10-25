@@ -98,14 +98,20 @@ class TwitterReplyInjector {
   injectSuggestButton(composer) {
     if (!composer || this.injectedButtons.has(composer)) return;
 
-    // Find the composer's toolbar area
-    let toolbar = null;
-    
-    // Try different approaches to find the toolbar
+    // Check if our button already exists in the parent to prevent duplicates
     const parent = composer.closest('[data-testid="tweetComposer"]') || 
                   composer.closest('.tweet-composer') || 
                   composer.closest('[role="dialog"]') ||
                   composer.parentElement;
+
+    if (parent && parent.querySelector('.tweetreply-button-container')) {
+      // Button already exists, mark composer as injected
+      this.injectedButtons.add(composer);
+      return;
+    }
+
+    // Find the composer's toolbar area
+    let toolbar = null;
 
     if (parent) {
       // Look for existing toolbars
