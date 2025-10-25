@@ -837,17 +837,66 @@ class TwitterReplyInjector {
 
     // Different approaches for different composer types
     if (composer.contentEditable === 'true') {
-      // For contenteditable composers
+      // For contenteditable composers (Twitter/X uses Draft.js)
       composer.focus();
-      composer.textContent = replyText;
       
-      // Trigger input event to notify Twitter
-      const inputEvent = new InputEvent('input', {
-        bubbles: true,
-        cancelable: true,
-        data: replyText
-      });
-      composer.dispatchEvent(inputEvent);
+      // Method 1: Use execCommand (works with Draft.js)
+      // First, select all existing content
+      const selection = window.getSelection();
+      const range = document.createRange();
+      range.selectNodeContents(composer);
+      selection.removeAllRanges();
+      selection.addRange(range);
+      
+      // Delete existing content
+      document.execCommand('delete', false, null);
+      
+      // Insert new text using execCommand (preserves editor state)
+      document.execCommand('insertText', false, replyText);
+      
+      // Fallback: If execCommand doesn't work, use Selection API
+      if (!composer.textContent || composer.textContent.trim() === '') {
+        // Clear and insert using Selection API
+        composer.innerHTML = '';
+        const textNode = document.createTextNode(replyText);
+        composer.appendChild(textNode);
+        
+        // Set cursor to end
+        range.selectNodeContents(composer);
+        range.collapse(false);
+        selection.removeAllRanges();
+        selection.addRange(range);
+      }
+      
+      // Trigger comprehensive event sequence for Draft.js
+      const events = [
+        new Event('beforeinput', { bubbles: true, cancelable: true }),
+        new InputEvent('input', { 
+          bubbles: true, 
+          cancelable: true,
+          inputType: 'insertText',
+          data: replyText
+        }),
+        new Event('change', { bubbles: true }),
+        new KeyboardEvent('keyup', { bubbles: true, key: ' ' })
+      ];
+      
+      events.forEach(event => composer.dispatchEvent(event));
+      
+      // Force a final focus to ensure editor is active
+      composer.blur();
+      setTimeout(() => {
+        composer.focus();
+        // Move cursor to end
+        const sel = window.getSelection();
+        if (sel && composer.lastChild) {
+          const rng = document.createRange();
+          rng.selectNodeContents(composer);
+          rng.collapse(false);
+          sel.removeAllRanges();
+          sel.addRange(rng);
+        }
+      }, 50);
       
     } else if (composer.tagName === 'TEXTAREA') {
       // For textarea composers

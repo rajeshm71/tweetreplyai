@@ -837,13 +837,46 @@
       const qualityScore = typeof replyData === "object" ? replyData.qualityScore : null;
       if (composer.contentEditable === "true") {
         composer.focus();
-        composer.textContent = replyText;
-        const inputEvent = new InputEvent("input", {
-          bubbles: true,
-          cancelable: true,
-          data: replyText
-        });
-        composer.dispatchEvent(inputEvent);
+        const selection = window.getSelection();
+        const range = document.createRange();
+        range.selectNodeContents(composer);
+        selection.removeAllRanges();
+        selection.addRange(range);
+        document.execCommand("delete", false, null);
+        document.execCommand("insertText", false, replyText);
+        if (!composer.textContent || composer.textContent.trim() === "") {
+          composer.innerHTML = "";
+          const textNode = document.createTextNode(replyText);
+          composer.appendChild(textNode);
+          range.selectNodeContents(composer);
+          range.collapse(false);
+          selection.removeAllRanges();
+          selection.addRange(range);
+        }
+        const events = [
+          new Event("beforeinput", { bubbles: true, cancelable: true }),
+          new InputEvent("input", {
+            bubbles: true,
+            cancelable: true,
+            inputType: "insertText",
+            data: replyText
+          }),
+          new Event("change", { bubbles: true }),
+          new KeyboardEvent("keyup", { bubbles: true, key: " " })
+        ];
+        events.forEach((event) => composer.dispatchEvent(event));
+        composer.blur();
+        setTimeout(() => {
+          composer.focus();
+          const sel = window.getSelection();
+          if (sel && composer.lastChild) {
+            const rng = document.createRange();
+            rng.selectNodeContents(composer);
+            rng.collapse(false);
+            sel.removeAllRanges();
+            sel.addRange(rng);
+          }
+        }, 50);
       } else if (composer.tagName === "TEXTAREA") {
         composer.focus();
         composer.value = replyText;
