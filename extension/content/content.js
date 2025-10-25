@@ -833,88 +833,50 @@ class TwitterReplyInjector {
 
   // Replace whatever is in the Twitter reply composer with new text
 // Works with Draft/React by mimicking a real paste and restoring a valid caret.
+a// Minimal, stable, and Draft-friendly.
+// No innerHTML, no synthetic clipboard events, no fake keypresses.
 async insertReplyIntoComposer(composer, replyData) {
   try {
-    // Resolve text & quick guards
+    // 0) Resolve to the actual editable node
+    if (!composer) return false;
+    if (composer.contentEditable !== 'true') {
+      const inner = composer.querySelector('div[role="textbox"][contenteditable="true"]');
+      if (!inner) return false;
+      composer = inner;
+    }
+
+    // 1) Resolve text
     const text = String(
       typeof replyData === 'string' ? replyData : (replyData?.reply ?? '')
     );
-    if (!composer || !text.trim()) return false;
+    if (!text.trim()) return false;
 
-    // If a wrapper was passed, descend to the actual editable
-    if (composer.contentEditable !== 'true') {
-      const inner = composer.querySelector('div[contenteditable="true"][role="textbox"]');
-      if (inner) composer = inner;
-    }
-
-    // Focus + CLEAR (true replace that Draft recognizes)
+    // 2) Focus & clear using execCommand (trusted, no synthetic events)
     composer.focus();
-    if (typeof this?.sleep === 'function') await this.sleep(20);
-
-    const sel = window.getSelection();
-    const clearRange = document.createRange();
-    clearRange.selectNodeContents(composer);
-    sel.removeAllRanges();
-    sel.addRange(clearRange);
-    document.execCommand('delete'); // Clears Draft internal state
-
-    // Build clipboard payload for a real paste pipeline
-    const dt = new DataTransfer();
-    dt.setData('text/plain', text);
-
-    // beforeinput → paste (don’t throw if blocked)
-    try {
-      composer.dispatchEvent(new InputEvent('beforeinput', {
-        bubbles: true,
-        cancelable: true,
-        inputType: 'insertFromPaste',
-        data: text,
-        dataTransfer: dt
-      }));
-    } catch {}
-
-    try {
-      composer.dispatchEvent(new ClipboardEvent('paste', {
-        bubbles: true,
-        cancelable: true,
-        clipboardData: dt
-      }));
-    } catch {}
-
-    // Insert text (no textContent fallback — let Draft own nodes)
-    try {
-      document.execCommand('insertText', false, text);
-    } catch {}
-
-    // Final input so React/Draft recompute length/state
-    try {
-      composer.dispatchEvent(new InputEvent('input', {
-        bubbles: true,
-        cancelable: true,
-        inputType: 'insertText',
-        data: text
-      }));
-    } catch {}
-
-    // Ensure caret is inside a real Draft leaf text node (so Backspace/Enter work)
-    if (typeof this?.sleep === 'function') await this.sleep(20);
-    composer.normalize(); // tidy any split nodes
-
-    const leaf = composer.querySelector('[data-text="true"]');
-    const tn = leaf && leaf.firstChild && leaf.firstChild.nodeType === Node.TEXT_NODE ? leaf.firstChild : null;
-
-    if (tn) {
-      const end = document.createRange();
-      end.setStart(tn, tn.length);
-      end.collapse(true);
-      sel.removeAllRanges();
-      sel.addRange(end);
-    } else {
-      // Fallback: let Draft rebuild a sane caret
-      composer.blur();
-      if (typeof this?.sleep === 'function') await this.sleep(10);
-      composer.focus();
+    // Small yield so focus sticks
+    if (typeof window.requestAnimationFrame === 'function') {
+      await new Promise(r => requestAnimationFrame(() => r()));
     }
+
+    // Select all + delete (Draft recognizes this)
+    document.execCommand('selectAll', false, null);
+    document.execCommand('delete', false, null);
+
+    // 3) Insert the whole text in one go
+    // (execCommand triggers real beforeinput/input internally)
+    document.execCommand('insertText', false, text);
+
+    // 4) Ensure caret is at the end of a real text node
+    // (usually not needed after execCommand, but safe)
+    const sel = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(composer);
+    range.collapse(false);
+    sel.removeAllRanges();
+    sel.addRange(range);
+
+    // 5) Final focus (ensures typing works)
+    composer.focus();
 
     return true;
   } catch (err) {
@@ -922,6 +884,7 @@ async insertReplyIntoComposer(composer, replyData) {
     return false;
   }
 }
+
 
   
   
