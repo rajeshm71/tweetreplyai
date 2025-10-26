@@ -1098,12 +1098,19 @@ class TwitterReplyInjector {
         console.log('[TweetReply] 📝 Using Quora AI Twitter method');
         
         try {
-          // Step 1: Find the text area using Quora's approach
-          const textArea = this.findTwitterTextArea(composer);
-          if (textArea) {
-            await this.insertTextQuoraMethod(textArea, composer, cleanText);
-            console.log('[TweetReply] ✅ Quora AI method successful');
-            return;
+          // Step 1: Find the toolbar element (like Quora AI does)
+          const toolbar = composer.closest('[data-testid="toolBar"]') || 
+                         composer.closest('[role="toolbar"]') ||
+                         composer.parentElement;
+          
+          if (toolbar) {
+            // Step 2: Use Quora AI's exact approach - pass toolbar element
+            const textArea = this.findTwitterTextArea(toolbar);
+            if (textArea) {
+              await this.insertTextQuoraMethod(textArea, composer, cleanText);
+              console.log('[TweetReply] ✅ Quora AI method successful');
+              return;
+            }
           }
         } catch (error) {
           console.warn('[TweetReply] Quora AI method failed:', error);

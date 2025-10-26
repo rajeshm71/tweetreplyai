@@ -292,30 +292,21 @@
       const textArea = element.querySelector('div[data-testid^="tweetTextarea_"][role="textbox"]');
       return textArea || (element.parentElement ? this.findTwitterTextArea(element.parentElement) : null);
     }
-    // Quora AI Method: Insert text using Quora's proven approach
+    // Quora AI Method: Insert text using Quora's EXACT proven approach
     async insertTextQuoraMethod(textArea, composer, text) {
-      console.log("[TweetReply] \u{1F4DD} Executing Quora AI text insertion");
+      console.log("[TweetReply] \u{1F4DD} Executing Quora AI text insertion (EXACT METHOD)");
       composer.click();
-      let targetElement = textArea;
-      const draftContent = textArea.querySelector('[data-contents="true"]') || textArea.querySelector(".public-DraftEditor-content") || textArea.querySelector('[role="textbox"]');
-      if (draftContent) {
-        targetElement = draftContent;
-      }
+      const dataTextSpan = textArea.querySelector('[data-text="true"]');
+      const targetElement = dataTextSpan ? dataTextSpan.parentElement : textArea;
+      console.log("[TweetReply] Found data-text span:", !!dataTextSpan);
       console.log("[TweetReply] Target element:", targetElement.tagName, targetElement.className);
-      console.log("[TweetReply] Target element data attributes:", {
-        "data-contents": targetElement.getAttribute("data-contents"),
-        "data-testid": targetElement.getAttribute("data-testid"),
-        "role": targetElement.getAttribute("role")
-      });
       if (targetElement) {
-        console.log("[TweetReply] Setting innerHTML directly");
         targetElement.innerHTML = `<span data-text="true">${text}</span>`;
-        console.log("[TweetReply] innerHTML set, content:", targetElement.innerHTML);
         targetElement.dispatchEvent(new InputEvent("input", {
           bubbles: true,
           cancelable: true
         }));
-        console.log("[TweetReply] \u2705 Text inserted using Quora AI method");
+        console.log("[TweetReply] \u2705 Text inserted using EXACT Quora AI method");
       }
     }
     async initialize() {
