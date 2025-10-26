@@ -126,17 +126,11 @@ class TwitterReplyInjector {
     return textArea || (element.parentElement ? this.findTwitterTextArea(element.parentElement) : null);
   }
 
-  // Quora AI Method: Insert text using Quora's EXACT proven approach
+  // Quora AI Method: Insert text using Quora's proven approach
   async insertTextQuoraMethod(textArea, composer, text) {
-    console.log('[TweetReply] 📝 Executing Quora AI text insertion (EXACT METHOD)');
-    
-    // EXACT Quora AI approach - no modifications
     composer.click();
     const dataTextSpan = textArea.querySelector('[data-text="true"]');
     const targetElement = dataTextSpan ? dataTextSpan.parentElement : textArea;
-    
-    console.log('[TweetReply] Found data-text span:', !!dataTextSpan);
-    console.log('[TweetReply] Target element:', targetElement.tagName, targetElement.className);
     
     if (targetElement) {
       targetElement.innerHTML = `<span data-text="true">${text}</span>`;
@@ -144,7 +138,6 @@ class TwitterReplyInjector {
         bubbles: true,
         cancelable: true
       }));
-      console.log('[TweetReply] ✅ Text inserted using EXACT Quora AI method');
     }
   }
 
@@ -1081,41 +1074,27 @@ class TwitterReplyInjector {
       const qualityScore = typeof replyData === 'object' ? replyData.qualityScore : null;
 
       if (!replyText) {
-        console.log('[TweetReply] ❌ No reply text to insert');
         return;
       }
 
       // Clean the text (remove HTML tags and strip prefixes)
       const cleanText = this.stripReplyPrefix(replyText.replace(/<[^>]*>/g, ""));
-      console.log('[TweetReply] Clean text:', cleanText);
 
       // Strategy 1: Quora AI Method for Twitter/X (PRIMARY METHOD)
-      // This is the proven approach from Quora AI extension
       if (composer.contentEditable === 'true' || 
           composer.getAttribute('data-testid')?.startsWith('tweetTextarea_') ||
           composer.getAttribute('role') === 'textbox') {
         
-        console.log('[TweetReply] 📝 Using Quora AI Twitter method');
-        
         try {
-          // Step 1: Find the actual Twitter toolbar (like Quora AI does)
+          // Find the actual Twitter toolbar (like Quora AI does)
           const toolbar = document.querySelector('[data-testid="toolBar"]');
           
           if (toolbar) {
-            console.log('[TweetReply] Found Twitter toolbar:', toolbar.tagName, toolbar.className);
-            
-            // Step 2: Use Quora AI's exact approach - pass toolbar element as composer
             const textArea = this.findTwitterTextArea(toolbar);
             if (textArea) {
-              console.log('[TweetReply] Found text area from toolbar:', textArea.tagName, textArea.className);
               await this.insertTextQuoraMethod(textArea, toolbar, cleanText);
-              console.log('[TweetReply] ✅ Quora AI method successful');
               return;
-            } else {
-              console.warn('[TweetReply] No text area found in toolbar');
             }
-          } else {
-            console.warn('[TweetReply] No Twitter toolbar found');
           }
         } catch (error) {
           console.warn('[TweetReply] Quora AI method failed:', error);
@@ -1123,11 +1102,9 @@ class TwitterReplyInjector {
       }
 
       // Strategy 2: Fallback to inject.js multi-strategy approach
-      console.log('[TweetReply] 📝 Falling back to inject.js multi-strategy approach');
 
       // Strategy 2a: Handle Quill editor
       if (composer.classList && composer.classList.contains("ql-editor")) {
-        console.log('[TweetReply] 📝 Using Quill editor method');
         try {
           composer.innerHTML = "";
           cleanText.split("\n").forEach(line => {
@@ -1149,7 +1126,6 @@ class TwitterReplyInjector {
           }
           
           composer.dispatchEvent(new Event("input", {bubbles: true}));
-          console.log('[TweetReply] ✅ Quill editor text inserted');
           return;
         } catch (error) {
           console.warn('[TweetReply] Quill editor method failed:', error);
@@ -1160,12 +1136,10 @@ class TwitterReplyInjector {
       if (composer.getAttribute("data-testid") === "dmComposerTextInput" ||
           composer.classList.contains("public-DraftEditor-content") ||
           composer.classList.contains("DraftEditor-editorContainer")) {
-        console.log('[TweetReply] 📝 Using Twitter Draft.js method');
         
         // Try execCommand first
         try {
           document.execCommand("insertText", false, cleanText);
-          console.log('[TweetReply] ✅ Draft.js execCommand successful');
           return;
         } catch (error) {
           console.warn('[TweetReply] execCommand failed:', error);
@@ -1184,7 +1158,6 @@ class TwitterReplyInjector {
           bubbles: true,
                   cancelable: true
                 }));
-                console.log('[TweetReply] ✅ Draft.js DOM manipulation successful');
                 return;
               }
             }
@@ -1205,7 +1178,6 @@ class TwitterReplyInjector {
             bubbles: true,
             cancelable: true
           }));
-          console.log('[TweetReply] ✅ Draft.js input events dispatched');
           return;
         } catch (error) {
           console.warn('[TweetReply] Draft.js input events failed:', error);
@@ -1214,16 +1186,13 @@ class TwitterReplyInjector {
 
       // Strategy 2c: Handle regular textarea
       if (composer.tagName === 'TEXTAREA') {
-        console.log('[TweetReply] 📝 Using TEXTAREA method');
         composer.value = cleanText;
         composer.dispatchEvent(new Event('input', { bubbles: true }));
-        console.log('[TweetReply] ✅ Textarea text replaced');
         return;
       }
 
       // Strategy 2d: Handle regular contentEditable (fallback)
       if (composer.contentEditable === 'true') {
-        console.log('[TweetReply] 📝 Using contentEditable method (fallback)');
         
         // Try to find existing text spans
         const dataTextSpan = composer.querySelector('[data-text="true"]');
@@ -1241,12 +1210,10 @@ class TwitterReplyInjector {
           bubbles: true,
           cancelable: true
         }));
-        console.log('[TweetReply] ✅ contentEditable text inserted');
         return;
       }
 
       // Strategy 2e: Look for nested input elements
-      console.log('[TweetReply] 🔍 Looking for nested input elements...');
       const nestedInput = composer.querySelector('textarea, [contenteditable="true"]');
       if (nestedInput) {
         await this.insertReplyIntoComposer(nestedInput, replyData);
@@ -1257,11 +1224,9 @@ class TwitterReplyInjector {
       if (composer.value !== undefined) {
         composer.value = cleanText;
         composer.dispatchEvent(new Event('input', { bubbles: true }));
-        console.log('[TweetReply] ✅ Direct value assignment successful');
       } else if (composer.textContent !== undefined) {
         composer.textContent = cleanText;
         composer.dispatchEvent(new Event('input', { bubbles: true }));
-        console.log('[TweetReply] ✅ Direct textContent assignment successful');
       }
 
       // Ensure focus

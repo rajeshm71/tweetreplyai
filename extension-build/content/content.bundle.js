@@ -1031,14 +1031,20 @@
         if (composer.contentEditable === "true" || composer.getAttribute("data-testid")?.startsWith("tweetTextarea_") || composer.getAttribute("role") === "textbox") {
           console.log("[TweetReply] \u{1F4DD} Using Quora AI Twitter method");
           try {
-            const toolbar = composer.closest('[data-testid="toolBar"]') || composer.closest('[role="toolbar"]') || composer.parentElement;
+            const toolbar = document.querySelector('[data-testid="toolBar"]');
             if (toolbar) {
+              console.log("[TweetReply] Found Twitter toolbar:", toolbar.tagName, toolbar.className);
               const textArea = this.findTwitterTextArea(toolbar);
               if (textArea) {
-                await this.insertTextQuoraMethod(textArea, composer, cleanText);
+                console.log("[TweetReply] Found text area from toolbar:", textArea.tagName, textArea.className);
+                await this.insertTextQuoraMethod(textArea, toolbar, cleanText);
                 console.log("[TweetReply] \u2705 Quora AI method successful");
                 return;
+              } else {
+                console.warn("[TweetReply] No text area found in toolbar");
               }
+            } else {
+              console.warn("[TweetReply] No Twitter toolbar found");
             }
           } catch (error) {
             console.warn("[TweetReply] Quora AI method failed:", error);
