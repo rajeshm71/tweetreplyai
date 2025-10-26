@@ -296,24 +296,18 @@
     async insertTextQuoraMethod(textArea, composer, text) {
       console.log("[TweetReply] \u{1F4DD} Executing Quora AI text insertion");
       composer.click();
-      await this.sleep(20);
       const dataTextSpan = textArea.querySelector('[data-text="true"]');
       const targetElement = dataTextSpan ? dataTextSpan.parentElement : textArea;
       console.log("[TweetReply] Found data-text span:", !!dataTextSpan);
       console.log("[TweetReply] Target element:", targetElement.tagName, targetElement.className);
       if (targetElement) {
-        console.log("[TweetReply] Inserting empty text");
-        console.log("[TweetReply] Target element html:", targetElement.innerHTML);
-        targetElement.innerHTML = `<span data-text="true">''</span>`;
-        console.log("[TweetReply] Target element html after:", targetElement.innerHTML);
-        await this.sleep(10);
+        console.log("[TweetReply] Setting innerHTML directly");
         targetElement.innerHTML = `<span data-text="true">${text}</span>`;
-        console.log("[TweetReply] Target element html after:", targetElement.innerHTML);
+        console.log("[TweetReply] innerHTML set, content:", targetElement.textContent.substring(0, 50));
         targetElement.dispatchEvent(new InputEvent("input", {
           bubbles: true,
           cancelable: true
         }));
-        console.log("[TweetReply] Target element html after:", targetElement.innerHTML);
         console.log("[TweetReply] \u2705 Text inserted using Quora AI method");
       }
     }

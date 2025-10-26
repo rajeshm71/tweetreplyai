@@ -133,12 +133,25 @@ class TwitterReplyInjector {
     // Step 1: Click composer to ensure focus (NO await/sleep - immediate)
     composer.click();
     
-    // Step 2: Find [data-text="true"] span's parent (Twitter's Draft.js structure)
-    const dataTextSpan = textArea.querySelector('[data-text="true"]');
-    const targetElement = dataTextSpan ? dataTextSpan.parentElement : textArea;
+    // Step 2: Find the correct Draft.js container (not the span's parent)
+    // We need to target the DIV that contains the Draft.js content, not the SPAN
+    let targetElement = textArea;
     
-    console.log('[TweetReply] Found data-text span:', !!dataTextSpan);
+    // Look for the Draft.js content container
+    const draftContent = textArea.querySelector('[data-contents="true"]') || 
+                        textArea.querySelector('.public-DraftEditor-content') ||
+                        textArea.querySelector('[role="textbox"]');
+    
+    if (draftContent) {
+      targetElement = draftContent;
+    }
+    
     console.log('[TweetReply] Target element:', targetElement.tagName, targetElement.className);
+    console.log('[TweetReply] Target element data attributes:', {
+      'data-contents': targetElement.getAttribute('data-contents'),
+      'data-testid': targetElement.getAttribute('data-testid'),
+      'role': targetElement.getAttribute('role')
+    });
     
     // Step 3: Direct innerHTML replacement (NO clearing step, NO delays)
     if (targetElement) {
