@@ -296,10 +296,17 @@
     async insertTextQuoraMethod(textArea, composer, text) {
       console.log("[TweetReply] \u{1F4DD} Executing Quora AI text insertion");
       composer.click();
-      const dataTextSpan = textArea.querySelector('[data-text="true"]');
-      const targetElement = dataTextSpan ? dataTextSpan.parentElement : textArea;
-      console.log("[TweetReply] Found data-text span:", !!dataTextSpan);
+      let targetElement = textArea;
+      const draftContent = textArea.querySelector('[data-contents="true"]') || textArea.querySelector(".public-DraftEditor-content") || textArea.querySelector('[role="textbox"]');
+      if (draftContent) {
+        targetElement = draftContent;
+      }
       console.log("[TweetReply] Target element:", targetElement.tagName, targetElement.className);
+      console.log("[TweetReply] Target element data attributes:", {
+        "data-contents": targetElement.getAttribute("data-contents"),
+        "data-testid": targetElement.getAttribute("data-testid"),
+        "role": targetElement.getAttribute("role")
+      });
       if (targetElement) {
         console.log("[TweetReply] Setting innerHTML directly");
         targetElement.innerHTML = `<span data-text="true">${text}</span>`;
