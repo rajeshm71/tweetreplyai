@@ -1088,18 +1088,18 @@ class TwitterReplyInjector {
       }
 
       // Strategy 2: Handle Twitter Draft.js editor
-      if (composer.getAttribute("data-testid") === "dmComposerTextInput" &&
+      if (composer.getAttribute("data-testid") === "dmComposerTextInput" ||
           composer.classList.contains("public-DraftEditor-content")) {
         console.log('[TweetReply] 📝 Using Twitter Draft.js method');
         
         // Try execCommand first
-        try {
-          document.execCommand("insertText", false, cleanText);
-          console.log('[TweetReply] ✅ Draft.js execCommand successful');
-          return;
-        } catch (error) {
-          console.warn('[TweetReply] execCommand failed:', error);
-        }
+        // try {
+        //   document.execCommand("insertText", false, cleanText);
+        //   console.log('[TweetReply] ✅ Draft.js execCommand successful');
+        //   return;
+        // } catch (error) {
+        //   console.warn('[TweetReply] execCommand failed:', error);
+        // }
         
         // Fallback: Direct DOM manipulation
         try {
