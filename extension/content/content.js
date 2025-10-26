@@ -915,26 +915,18 @@ async insertReplyIntoComposer(composer, replyData) {
       composer.focus();
       await this.sleep(30);
 
-      // --- FIXED: Proper text replacement for Draft.js ---
-      // 1) First, use execCommand to properly clear existing content (Draft.js compatible)
+      // --- FIXED: Clear existing text using execCommand (Draft.js compatible) ---
+      // 1) Clear existing content using execCommand - Draft.js recognizes this
       console.log('[TweetReply] 📝 Step 1: Clearing existing content with execCommand...');
       document.execCommand('selectAll', false, null);
       document.execCommand('delete', false, null);
       await this.sleep(30);
-      console.log('[TweetReply] Existing content cleared');
+      console.log('[TweetReply] Existing content cleared via execCommand');
 
-      // 2) Insert new text using execCommand (Draft.js recognizes this)
-      console.log('[TweetReply] ✏️ Step 2: Inserting new text with execCommand...');
-      document.execCommand('insertText', false, replyText);
-      await this.sleep(30);
-      console.log('[TweetReply] New text inserted with execCommand');
-
-      // 3) Fallback: If text not visible, try innerHTML approach
-      if (!composer.textContent || composer.textContent.trim() !== replyText.trim()) {
-        console.log('[TweetReply] ⚠️ Text not visible, trying innerHTML fallback...');
-        targetElement.innerHTML = `<span data-text="true">${replyText}</span>`;
-        console.log('[TweetReply] New content inserted via innerHTML:', targetElement.innerHTML);
-      }
+      // 4) Insert new content in the structure Twitter expects
+      console.log('[TweetReply] ✏️ Step 4: Inserting new content...');
+      targetElement.innerHTML = `<span data-text="true">${replyText}</span>`;
+      console.log('[TweetReply] New content inserted:', targetElement.innerHTML);
 
       // 4.5) Access React component and trigger re-render
       console.log('[TweetReply] 🔍 Step 4.5: Accessing React component...');

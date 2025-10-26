@@ -900,16 +900,10 @@
           document.execCommand("selectAll", false, null);
           document.execCommand("delete", false, null);
           await this.sleep(30);
-          console.log("[TweetReply] Existing content cleared");
-          console.log("[TweetReply] \u270F\uFE0F Step 2: Inserting new text with execCommand...");
-          document.execCommand("insertText", false, replyText);
-          await this.sleep(30);
-          console.log("[TweetReply] New text inserted with execCommand");
-          if (!composer.textContent || composer.textContent.trim() !== replyText.trim()) {
-            console.log("[TweetReply] \u26A0\uFE0F Text not visible, trying innerHTML fallback...");
-            targetElement.innerHTML = `<span data-text="true">${replyText}</span>`;
-            console.log("[TweetReply] New content inserted via innerHTML:", targetElement.innerHTML);
-          }
+          console.log("[TweetReply] Existing content cleared via execCommand");
+          console.log("[TweetReply] \u270F\uFE0F Step 4: Inserting new content...");
+          targetElement.innerHTML = `<span data-text="true">${replyText}</span>`;
+          console.log("[TweetReply] New content inserted:", targetElement.innerHTML);
           console.log("[TweetReply] \u{1F50D} Step 4.5: Accessing React component...");
           const fiber = this.getReactInstance(composer);
           const component = this.getReactComponent(fiber);
