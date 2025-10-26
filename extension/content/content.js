@@ -143,19 +143,18 @@ class TwitterReplyInjector {
     
     // Step 3: Insert text using Quora's method
     if (targetElement) {
+      console.log('[TweetReply] Inserting empty text');
+      console.log('[TweetReply] Target element html:', targetElement.innerHTML);
       targetElement.innerHTML = `<span data-text="true">''</span>`;
-      await this.sleep(10);
-      targetElement.dispatchEvent(new InputEvent("input", {
-        bubbles: true,
-        cancelable: true
-      }));
+      console.log('[TweetReply] Target element html after:', targetElement.innerHTML);
       await this.sleep(10);
       targetElement.innerHTML = `<span data-text="true">${text}</span>`;
+      console.log('[TweetReply] Target element html after:', targetElement.innerHTML);
       targetElement.dispatchEvent(new InputEvent("input", {
         bubbles: true,
         cancelable: true
       }));
-      
+      console.log('[TweetReply] Target element html after:', targetElement.innerHTML);
       console.log('[TweetReply] ✅ Text inserted using Quora AI method');
     }
   }

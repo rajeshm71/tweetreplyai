@@ -304,6 +304,11 @@
       if (targetElement) {
         targetElement.innerHTML = `<span data-text="true">''</span>`;
         await this.sleep(10);
+        targetElement.dispatchEvent(new InputEvent("input", {
+          bubbles: true,
+          cancelable: true
+        }));
+        await this.sleep(10);
         targetElement.innerHTML = `<span data-text="true">${text}</span>`;
         targetElement.dispatchEvent(new InputEvent("input", {
           bubbles: true,
