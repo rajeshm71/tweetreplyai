@@ -1046,6 +1046,8 @@
             document.execCommand("delete", false, null);
             await this.sleep(10);
             document.execCommand("insertText", false, cleanText);
+            await this.sleep(20);
+            console.log("[TweetReply] New content after replace:", composer.textContent);
             console.log("[TweetReply] \u2705 Draft.js execCommand successful");
             return;
           } catch (error) {

@@ -1196,16 +1196,16 @@ class TwitterReplyInjector {
         //Try execCommand first
         try {
 
-          // First, select all content in the composer
-          const selection = window.getSelection();
-          const range = document.createRange();
-          range.selectNodeContents(composer);
-          selection.removeAllRanges();
-          selection.addRange(range);
+          // // First, select all content in the composer
+          // const selection = window.getSelection();
+          // const range = document.createRange();
+          // range.selectNodeContents(composer);
+          // selection.removeAllRanges();
+          // selection.addRange(range);
           
           console.log('[TweetReply] Current content before replace:', composer.textContent);
           // Delete all selected content (clears the composer)
-          document.execCommand('delete', false, null);
+          // document.execCommand('delete', false, null);
           await this.sleep(10);
           document.execCommand("insertText", false, cleanText);
           //Step 5: Ensure cursor is at the end
