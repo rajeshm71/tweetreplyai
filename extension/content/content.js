@@ -1179,13 +1179,6 @@ async insertReplyIntoComposer(composer, replyData) {
 
 
 
-  
-  
-
-  sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-  }
-
   showQualityBadge(composer, score) {
     try {
       // Safety check

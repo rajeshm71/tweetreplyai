@@ -202,6 +202,31 @@
       this.injectedContainers = /* @__PURE__ */ new Set();
       this.initialize();
     }
+    // Helper to get React Fiber node from DOM element
+    getReactInstance(element) {
+      for (const key in element) {
+        if (key.startsWith("__reactFiber$") || key.startsWith("__reactInternalInstance$")) {
+          return element[key];
+        }
+      }
+      return element._reactInternalFiber || element._reactInternalInstance || null;
+    }
+    // Helper to find React component from fiber
+    getReactComponent(fiber) {
+      if (!fiber) return null;
+      let node = fiber;
+      while (node) {
+        if (node.stateNode && node.stateNode.forceUpdate) {
+          return node.stateNode;
+        }
+        node = node.return;
+      }
+      return null;
+    }
+    // Sleep helper method
+    sleep(ms) {
+      return new Promise((resolve) => setTimeout(resolve, ms));
+    }
     async initialize() {
       this.isAuthenticated = await this.authManager.isAuthenticated();
       if (this.isAuthenticated) {
@@ -903,6 +928,20 @@
           console.log("[TweetReply] \u270F\uFE0F Step 4: Inserting new content...");
           targetElement.innerHTML = `<span data-text="true">${replyText}</span>`;
           console.log("[TweetReply] New content inserted:", targetElement.innerHTML);
+          console.log("[TweetReply] \u{1F50D} Step 4.5: Accessing React component...");
+          const fiber = this.getReactInstance(composer);
+          const component = this.getReactComponent(fiber);
+          if (component) {
+            console.log("[TweetReply] Found React component, forcing update...");
+            try {
+              component.forceUpdate();
+              await this.sleep(50);
+            } catch (err) {
+              console.log("[TweetReply] forceUpdate failed:", err);
+            }
+          } else {
+            console.log("[TweetReply] No React component found");
+          }
           console.log("[TweetReply] \u{1F4E4} Step 5: Dispatching insert events...");
           const insEvt = new InputEvent("input", {
             bubbles: true,
@@ -926,31 +965,68 @@
           }
           console.log("[TweetReply] \u23F3 Waiting for React to process...");
           await this.sleep(60);
-          console.log("[TweetReply] \u{1F504} Step 7: Forcing Draft.js to recognize changes...");
-          console.log("[TweetReply] \u{1F504} Blur/refocus approach...");
+          console.log("[TweetReply] \u{1F504} Step 7: Enhanced Draft.js synchronization...");
+          console.log("[TweetReply] \u{1F504} Triggering React updates on parent chain...");
+          let current = composer.parentElement;
+          let depth = 0;
+          while (current && depth < 5) {
+            const parentFiber = this.getReactInstance(current);
+            const parentComponent = this.getReactComponent(parentFiber);
+            if (parentComponent && parentComponent.forceUpdate) {
+              try {
+                parentComponent.forceUpdate();
+                console.log("[TweetReply] Forced update on parent level", depth);
+              } catch (err) {
+                console.log("[TweetReply] Parent forceUpdate failed:", err);
+              }
+            }
+            current = current.parentElement;
+            depth++;
+          }
+          await this.sleep(30);
+          console.log("[TweetReply] \u{1F504} Triggering MutationObserver updates...");
+          const tempSpan = document.createElement("span");
+          tempSpan.style.display = "none";
+          targetElement.appendChild(tempSpan);
+          await this.sleep(10);
+          targetElement.removeChild(tempSpan);
+          await this.sleep(20);
+          console.log("[TweetReply] \u{1F504} Simulating keyboard input...");
+          const keyboardEvent = new KeyboardEvent("keydown", {
+            key: "End",
+            code: "End",
+            bubbles: true,
+            cancelable: true
+          });
+          composer.dispatchEvent(keyboardEvent);
+          await this.sleep(10);
+          const keyupEvent = new KeyboardEvent("keyup", {
+            key: "End",
+            code: "End",
+            bubbles: true,
+            cancelable: true
+          });
+          composer.dispatchEvent(keyupEvent);
+          await this.sleep(20);
+          console.log("[TweetReply] \u{1F504} Blur/focus with React reconciliation...");
           composer.blur();
-          await this.sleep(20);
+          await this.sleep(100);
           composer.focus();
-          await this.sleep(20);
-          console.log("[TweetReply] \u{1F504} Selection change approach...");
-          const sel2 = window.getSelection();
-          const range2 = document.createRange();
-          range2.selectNodeContents(targetElement);
-          range2.collapse(false);
-          sel2.removeAllRanges();
-          sel2.addRange(range2);
-          console.log("[TweetReply] \u{1F504} Additional event nudging...");
-          composer.dispatchEvent(new Event("selectionchange", { bubbles: true }));
-          composer.dispatchEvent(new Event("change", { bubbles: true }));
-          console.log("[TweetReply] \u{1F504} Checking if content is visible...");
-          const isVisible = targetElement.textContent && targetElement.textContent.trim() === replyText.trim();
-          console.log("[TweetReply] Content visible check:", isVisible);
-          if (!isVisible) {
-            console.log("[TweetReply] \u{1F504} Content not visible, trying micro-edit approach...");
-            document.execCommand("insertText", false, " ");
-            await this.sleep(10);
-            document.execCommand("delete", false, null);
-            await this.sleep(10);
+          await this.sleep(100);
+          console.log("[TweetReply] \u{1F504} Final visibility check...");
+          const computedStyle = window.getComputedStyle(targetElement);
+          const isDisplayed = computedStyle.display !== "none" && computedStyle.visibility !== "hidden" && computedStyle.opacity !== "0";
+          console.log("[TweetReply] Element displayed:", isDisplayed);
+          console.log("[TweetReply] TextContent:", targetElement.textContent);
+          console.log("[TweetReply] InnerHTML:", targetElement.innerHTML);
+          const hasDraftClasses = composer.className.includes("DraftEditor") || composer.closest(".DraftEditor-root");
+          console.log("[TweetReply] Has Draft.js classes:", !!hasDraftClasses);
+          if (!targetElement.textContent || targetElement.textContent.trim() !== replyText.trim()) {
+            console.log("[TweetReply] \u26A0\uFE0F Content still not visible, trying aggressive focus...");
+            composer.click();
+            await this.sleep(50);
+            composer.focus();
+            await this.sleep(50);
             targetElement.innerHTML = `<span data-text="true">${replyText}</span>`;
             composer.dispatchEvent(new InputEvent("input", {
               bubbles: true,
@@ -958,6 +1034,14 @@
               inputType: "insertText",
               data: replyText
             }));
+            if (component) {
+              try {
+                component.forceUpdate();
+              } catch (err) {
+                console.log("[TweetReply] Second forceUpdate failed:", err);
+              }
+            }
+            await this.sleep(100);
           }
           console.log("[TweetReply] \u{1F3AF} Final focus...");
           composer.focus();
@@ -1006,9 +1090,6 @@
         console.error("[TweetReply] \u274C Error during text insertion:", error);
         console.error("[TweetReply] Error stack:", error.stack);
       }
-    }
-    sleep(ms) {
-      return new Promise((resolve) => setTimeout(resolve, ms));
     }
     showQualityBadge(composer, score) {
       try {
