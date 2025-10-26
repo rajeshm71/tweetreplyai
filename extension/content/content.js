@@ -251,8 +251,8 @@ class TwitterReplyInjector {
     if (!found) {
       for (const selector of genericSelectors) {
         try {
-          const composers = container.querySelectorAll ? container.querySelectorAll(selector) : [];
-          composers.forEach(composer => this.injectSuggestButton(composer));
+      const composers = container.querySelectorAll ? container.querySelectorAll(selector) : [];
+      composers.forEach(composer => this.injectSuggestButton(composer));
         } catch (error) {
           console.error('Error checking selector:', selector, error);
         }
@@ -292,13 +292,13 @@ class TwitterReplyInjector {
                   composerContainer.querySelector('.toolbar') ||
                   composerContainer.querySelector('[role="toolbar"]');
 
-    if (!toolbar) {
+      if (!toolbar) {
       // Look for button containers with 2+ buttons (Twitter's native toolbar)
       const buttonContainers = composerContainer.querySelectorAll('div');
-      for (const container of buttonContainers) {
-        if (container.querySelectorAll('button').length >= 2) {
-          toolbar = container;
-          break;
+        for (const container of buttonContainers) {
+          if (container.querySelectorAll('button').length >= 2) {
+            toolbar = container;
+            break;
         }
       }
     }
@@ -854,11 +854,11 @@ class TwitterReplyInjector {
 
     // Method 6: Fallback to sentence detection from body text
     try {
-      const allText = document.body.textContent;
-      const sentences = allText.split(/[.!?]+/).filter(s => s.trim().length > 20);
+    const allText = document.body.textContent;
+    const sentences = allText.split(/[.!?]+/).filter(s => s.trim().length > 20);
       if (sentences.length > 0) {
         console.log('[TweetReply] ✅ Tweet text found via sentence detection');
-        return sentences[0]?.trim() || null;
+    return sentences[0]?.trim() || null;
       }
     } catch (error) {
       console.warn('[TweetReply] Sentence detection failed:', error);
@@ -1048,10 +1048,10 @@ class TwitterReplyInjector {
         console.log('[TweetReply] ❌ Invalid parameters');
         return;
       }
-      
+
       const replyText = typeof replyData === 'string' ? replyData : replyData.reply;
       const qualityScore = typeof replyData === 'object' ? replyData.qualityScore : null;
-      
+
       if (!replyText) {
         console.log('[TweetReply] ❌ No reply text to insert');
         return;
@@ -1204,11 +1204,13 @@ class TwitterReplyInjector {
           selection.addRange(range);
           
           console.log('[TweetReply] Current content before replace:', composer.textContent);
-          
           // Delete all selected content (clears the composer)
           document.execCommand('delete', false, null);
           await this.sleep(10);
           document.execCommand("insertText", false, cleanText);
+          //Step 5: Ensure cursor is at the end
+          await this.sleep(20);
+          console.log('[TweetReply] New content after replace:', composer.textContent);
           console.log('[TweetReply] ✅ Draft.js execCommand successful');
           return;
         } catch (error) {
@@ -1225,7 +1227,7 @@ class TwitterReplyInjector {
               if (textBlock) {
                 textBlock.textContent = cleanText;
                 composer.dispatchEvent(new InputEvent("input", {
-                  bubbles: true,
+          bubbles: true,
                   cancelable: true
                 }));
                 console.log('[TweetReply] ✅ Draft.js DOM manipulation successful');
