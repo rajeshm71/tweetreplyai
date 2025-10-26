@@ -310,7 +310,7 @@
       if (targetElement) {
         console.log("[TweetReply] Setting innerHTML directly");
         targetElement.innerHTML = `<span data-text="true">${text}</span>`;
-        console.log("[TweetReply] innerHTML set, content:", targetElement.textContent.substring(0, 50));
+        console.log("[TweetReply] innerHTML set, content:", targetElement.innerHTML);
         targetElement.dispatchEvent(new InputEvent("input", {
           bubbles: true,
           cancelable: true

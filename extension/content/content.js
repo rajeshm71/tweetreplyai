@@ -126,46 +126,25 @@ class TwitterReplyInjector {
     return textArea || (element.parentElement ? this.findTwitterTextArea(element.parentElement) : null);
   }
 
-  // Quora AI Method: Insert text using Quora's proven approach
+  // Quora AI Method: Insert text using Quora's EXACT proven approach
   async insertTextQuoraMethod(textArea, composer, text) {
-    console.log('[TweetReply] 📝 Executing Quora AI text insertion');
+    console.log('[TweetReply] 📝 Executing Quora AI text insertion (EXACT METHOD)');
     
-    // Step 1: Click composer to ensure focus (NO await/sleep - immediate)
+    // EXACT Quora AI approach - no modifications
     composer.click();
+    const dataTextSpan = textArea.querySelector('[data-text="true"]');
+    const targetElement = dataTextSpan ? dataTextSpan.parentElement : textArea;
     
-    // Step 2: Find the correct Draft.js container (not the span's parent)
-    // We need to target the DIV that contains the Draft.js content, not the SPAN
-    let targetElement = textArea;
-    
-    // Look for the Draft.js content container
-    const draftContent = textArea.querySelector('[data-contents="true"]') || 
-                        textArea.querySelector('.public-DraftEditor-content') ||
-                        textArea.querySelector('[role="textbox"]');
-    
-    if (draftContent) {
-      targetElement = draftContent;
-    }
-    
+    console.log('[TweetReply] Found data-text span:', !!dataTextSpan);
     console.log('[TweetReply] Target element:', targetElement.tagName, targetElement.className);
-    console.log('[TweetReply] Target element data attributes:', {
-      'data-contents': targetElement.getAttribute('data-contents'),
-      'data-testid': targetElement.getAttribute('data-testid'),
-      'role': targetElement.getAttribute('role')
-    });
     
-    // Step 3: Direct innerHTML replacement (NO clearing step, NO delays)
     if (targetElement) {
-      console.log('[TweetReply] Setting innerHTML directly');
       targetElement.innerHTML = `<span data-text="true">${text}</span>`;
-      console.log('[TweetReply] innerHTML set, content:', targetElement.innerHTML);
-      
-      // Step 4: Dispatch InputEvent immediately (NO delays)
       targetElement.dispatchEvent(new InputEvent("input", {
         bubbles: true,
         cancelable: true
       }));
-      
-      console.log('[TweetReply] ✅ Text inserted using Quora AI method');
+      console.log('[TweetReply] ✅ Text inserted using EXACT Quora AI method');
     }
   }
 
