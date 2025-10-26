@@ -896,12 +896,16 @@
           console.log("[TweetReply] \u{1F3AF} Focusing composer...");
           composer.focus();
           await this.sleep(30);
-          console.log("[TweetReply] \u{1F4DD} Step 1: Clearing existing content with execCommand...");
-          document.execCommand("selectAll", false, null);
-          document.execCommand("delete", false, null);
+          console.log("[TweetReply] \u{1F4DD} Step 1: Clearing existing content with modern API...");
+          const selection = window.getSelection();
+          const range = document.createRange();
+          range.selectNodeContents(composer);
+          selection.removeAllRanges();
+          selection.addRange(range);
+          selection.deleteFromDocument();
           await this.sleep(30);
-          console.log("[TweetReply] Existing content cleared via execCommand");
-          console.log("[TweetReply] \u270F\uFE0F Step 2: Inserting new text with execCommand...");
+          console.log("[TweetReply] Existing content cleared via modern API");
+          console.log("[TweetReply] \u270F\uFE0F Step 2: Inserting new text with execCommand for Draft.js...");
           document.execCommand("insertText", false, replyText);
           await this.sleep(30);
           console.log("[TweetReply] New text inserted with execCommand");
@@ -918,13 +922,31 @@
           } else {
             console.log("[TweetReply] \u2705 Text is visible after execCommand");
           }
-          console.log("[TweetReply] \u{1F3AF} Step 4: Positioning cursor at end...");
-          const sel = window.getSelection();
-          const range = document.createRange();
-          range.selectNodeContents(composer);
-          range.collapse(false);
-          sel.removeAllRanges();
-          sel.addRange(range);
+          console.log("[TweetReply] \u{1F504} Step 4: Triggering Draft.js state sync...");
+          const inputEvent = new InputEvent("input", {
+            bubbles: true,
+            cancelable: true,
+            inputType: "insertText",
+            data: replyText
+          });
+          composer.dispatchEvent(inputEvent);
+          await this.sleep(20);
+          const beforeInputEvent = new InputEvent("beforeinput", {
+            bubbles: true,
+            cancelable: true,
+            inputType: "insertText",
+            data: replyText
+          });
+          composer.dispatchEvent(beforeInputEvent);
+          await this.sleep(20);
+          console.log("[TweetReply] Draft.js events dispatched");
+          console.log("[TweetReply] \u{1F3AF} Step 5: Positioning cursor at end...");
+          const sel2 = window.getSelection();
+          const range2 = document.createRange();
+          range2.selectNodeContents(composer);
+          range2.collapse(false);
+          sel2.removeAllRanges();
+          sel2.addRange(range2);
           composer.focus();
           console.log("[TweetReply] Cursor positioned at end");
           console.log("[TweetReply] \u{1F50D} Step 4.5: Accessing React component...");

@@ -915,7 +915,7 @@ async insertReplyIntoComposer(composer, replyData) {
       composer.focus();
       await this.sleep(30);
 
-      // --- FIXED: Use modern APIs instead of deprecated execCommand ---
+      // --- FIXED: Hybrid approach - modern clearing + execCommand insertion for Draft.js compatibility ---
       // Step 1: Clear existing content using modern selection API
       console.log('[TweetReply] 📝 Step 1: Clearing existing content with modern API...');
       const selection = window.getSelection();
@@ -927,17 +927,11 @@ async insertReplyIntoComposer(composer, replyData) {
       await this.sleep(30);
       console.log('[TweetReply] Existing content cleared via modern API');
 
-      // Step 2: Insert new text using modern API
-      console.log('[TweetReply] ✏️ Step 2: Inserting new text with modern API...');
-      const textNode = document.createTextNode(replyText);
-      range.deleteContents();
-      range.insertNode(textNode);
-      range.setStartAfter(textNode);
-      range.collapse(false);
-      selection.removeAllRanges();
-      selection.addRange(range);
+      // Step 2: Insert new text using execCommand (Draft.js recognizes this)
+      console.log('[TweetReply] ✏️ Step 2: Inserting new text with execCommand for Draft.js...');
+      document.execCommand('insertText', false, replyText);
       await this.sleep(30);
-      console.log('[TweetReply] New text inserted with modern API');
+      console.log('[TweetReply] New text inserted with execCommand');
 
       // Step 3: Verify text is visible, try innerHTML as fallback if needed
       const currentText = composer.textContent?.trim();
@@ -955,14 +949,39 @@ async insertReplyIntoComposer(composer, replyData) {
         console.log('[TweetReply] ✅ Text is visible after execCommand');
       }
       
-      // Step 4: Position cursor at end for proper editing
-      console.log('[TweetReply] 🎯 Step 4: Positioning cursor at end...');
-      const sel = window.getSelection();
-      const range = document.createRange();
-      range.selectNodeContents(composer);
-      range.collapse(false); // false = collapse to end
-      sel.removeAllRanges();
-      sel.addRange(range);
+      // Step 4: Trigger Draft.js state synchronization
+      console.log('[TweetReply] 🔄 Step 4: Triggering Draft.js state sync...');
+      
+      // Dispatch input event to notify Draft.js of the change
+      const inputEvent = new InputEvent('input', {
+        bubbles: true,
+        cancelable: true,
+        inputType: 'insertText',
+        data: replyText
+      });
+      composer.dispatchEvent(inputEvent);
+      await this.sleep(20);
+      
+      // Dispatch beforeinput event for Draft.js compatibility
+      const beforeInputEvent = new InputEvent('beforeinput', {
+        bubbles: true,
+        cancelable: true,
+        inputType: 'insertText',
+        data: replyText
+      });
+      composer.dispatchEvent(beforeInputEvent);
+      await this.sleep(20);
+      
+      console.log('[TweetReply] Draft.js events dispatched');
+
+      // Step 5: Position cursor at end for proper editing
+      console.log('[TweetReply] 🎯 Step 5: Positioning cursor at end...');
+      const sel2 = window.getSelection();
+      const range2 = document.createRange();
+      range2.selectNodeContents(composer);
+      range2.collapse(false); // false = collapse to end
+      sel2.removeAllRanges();
+      sel2.addRange(range2);
       composer.focus();
       console.log('[TweetReply] Cursor positioned at end');
 
