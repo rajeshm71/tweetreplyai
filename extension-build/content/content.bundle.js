@@ -302,18 +302,18 @@
       console.log("[TweetReply] Found data-text span:", !!dataTextSpan);
       console.log("[TweetReply] Target element:", targetElement.tagName, targetElement.className);
       if (targetElement) {
+        console.log("[TweetReply] Inserting empty text");
+        console.log("[TweetReply] Target element html:", targetElement.innerHTML);
         targetElement.innerHTML = `<span data-text="true">''</span>`;
-        await this.sleep(10);
-        targetElement.dispatchEvent(new InputEvent("input", {
-          bubbles: true,
-          cancelable: true
-        }));
+        console.log("[TweetReply] Target element html after:", targetElement.innerHTML);
         await this.sleep(10);
         targetElement.innerHTML = `<span data-text="true">${text}</span>`;
+        console.log("[TweetReply] Target element html after:", targetElement.innerHTML);
         targetElement.dispatchEvent(new InputEvent("input", {
           bubbles: true,
           cancelable: true
         }));
+        console.log("[TweetReply] Target element html after:", targetElement.innerHTML);
         console.log("[TweetReply] \u2705 Text inserted using Quora AI method");
       }
     }

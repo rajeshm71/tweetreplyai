@@ -130,9 +130,8 @@ class TwitterReplyInjector {
   async insertTextQuoraMethod(textArea, composer, text) {
     console.log('[TweetReply] 📝 Executing Quora AI text insertion');
     
-    // Step 1: Click composer to ensure focus (Quora's approach)
+    // Step 1: Click composer to ensure focus (NO await/sleep - immediate)
     composer.click();
-    await this.sleep(20);
     
     // Step 2: Find [data-text="true"] span's parent (Twitter's Draft.js structure)
     const dataTextSpan = textArea.querySelector('[data-text="true"]');
@@ -141,20 +140,18 @@ class TwitterReplyInjector {
     console.log('[TweetReply] Found data-text span:', !!dataTextSpan);
     console.log('[TweetReply] Target element:', targetElement.tagName, targetElement.className);
     
-    // Step 3: Insert text using Quora's method
+    // Step 3: Direct innerHTML replacement (NO clearing step, NO delays)
     if (targetElement) {
-      console.log('[TweetReply] Inserting empty text');
-      console.log('[TweetReply] Target element html:', targetElement.innerHTML);
-      targetElement.innerHTML = `<span data-text="true">''</span>`;
-      console.log('[TweetReply] Target element html after:', targetElement.innerHTML);
-      await this.sleep(10);
+      console.log('[TweetReply] Setting innerHTML directly');
       targetElement.innerHTML = `<span data-text="true">${text}</span>`;
-      console.log('[TweetReply] Target element html after:', targetElement.innerHTML);
+      console.log('[TweetReply] innerHTML set, content:', targetElement.textContent.substring(0, 50));
+      
+      // Step 4: Dispatch InputEvent immediately (NO delays)
       targetElement.dispatchEvent(new InputEvent("input", {
         bubbles: true,
         cancelable: true
       }));
-      console.log('[TweetReply] Target element html after:', targetElement.innerHTML);
+      
       console.log('[TweetReply] ✅ Text inserted using Quora AI method');
     }
   }
