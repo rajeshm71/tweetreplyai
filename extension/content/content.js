@@ -1104,42 +1104,41 @@ class TwitterReplyInjector {
           console.log('[TweetReply] Current content before replace:', targetElement.textContent);
           console.log('[TweetReply] Current innerHTML before replace:', targetElement.innerHTML.substring(0, 100));
           
-          // Step 4: Replace innerHTML with Twitter's expected structure
-          // innerHTML replacement automatically clears existing content - no need for Selection API
-          targetElement.innerHTML = `<span data-text="true">${cleanText}</span>`;
+          // Step 4: Use execCommand to properly clear and insert text
+          // This triggers all Draft.js internal events correctly
           
-          console.log('[TweetReply] New content after replace:', targetElement.textContent);
-          console.log('[TweetReply] innerHTML set, content length:', targetElement.textContent.length);
+          // First, select all content in the composer
+          const selection = window.getSelection();
+          const range = document.createRange();
+          range.selectNodeContents(composer);
+          selection.removeAllRanges();
+          selection.addRange(range);
           
-          // Step 5: Dispatch InputEvent (simple, no inputType/data like Quora AI)
-          targetElement.dispatchEvent(new InputEvent('input', {
-            bubbles: true,
-            cancelable: true
-          }));
+          console.log('[TweetReply] Current content before replace:', composer.textContent);
           
-          // Step 6: Also dispatch on composer if different from targetElement
-          if (targetElement !== composer) {
-            composer.dispatchEvent(new InputEvent('input', {
-              bubbles: true,
-              cancelable: true
-            }));
+          // Delete all selected content (clears the composer)
+          document.execCommand('delete', false, null);
+          await this.sleep(10);
+          
+          // Insert the new text using execCommand (maintains Draft.js state)
+          document.execCommand('insertText', false, cleanText);
+          
+          console.log('[TweetReply] New content after replace:', composer.textContent);
+          console.log('[TweetReply] Content length:', composer.textContent.length);
+          
+          // Step 5: Ensure cursor is at the end
+          await this.sleep(20);
+          const endRange = document.createRange();
+          const textNode = composer.querySelector('[data-text="true"]');
+          
+          if (textNode && textNode.firstChild) {
+            endRange.setStart(textNode.firstChild, textNode.firstChild.length);
+            endRange.collapse(true);
+            selection.removeAllRanges();
+            selection.addRange(endRange);
           }
           
-          // Step 7: Dispatch additional events to activate Reply button
-          // Twitter needs these events to recognize the text and enable the button
-          composer.dispatchEvent(new Event('input', { bubbles: true }));
-          composer.dispatchEvent(new Event('change', { bubbles: true }));
-          
-          // Trigger a keyup event to simulate user typing (activates validation)
-          composer.dispatchEvent(new KeyboardEvent('keyup', {
-            bubbles: true,
-            cancelable: true,
-            key: ' ',
-            code: 'Space'
-          }));
-          
-          // Step 8: Final focus to position cursor
-          await this.sleep(50);
+          // Step 6: Final focus
           composer.focus();
           
           console.log('[TweetReply] ✅ Quora AI method completed');

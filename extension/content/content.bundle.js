@@ -1042,6 +1042,14 @@
                 cancelable: true
               }));
             }
+            composer.dispatchEvent(new Event("input", { bubbles: true }));
+            composer.dispatchEvent(new Event("change", { bubbles: true }));
+            composer.dispatchEvent(new KeyboardEvent("keyup", {
+              bubbles: true,
+              cancelable: true,
+              key: " ",
+              code: "Space"
+            }));
             await this.sleep(50);
             composer.focus();
             console.log("[TweetReply] \u2705 Quora AI method completed");
