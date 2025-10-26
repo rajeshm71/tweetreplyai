@@ -48,6 +48,78 @@ class TwitterReplyInjector {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
+  // Strip reply prefixes from generated text (based on inject.js)
+  stripReplyPrefix(text) {
+    const prefixes = [
+      "Question", "Supportive", "Disagree", "Enhance", "Smart", 
+      "Controversial", "Marketing", "Product-marketing"
+    ];
+    
+    let cleaned = text.trim();
+    
+    // Remove style prefixes
+    for (const prefix of prefixes) {
+      const regex = new RegExp(`^\\b${prefix}\\b\\s*[^\\w\\s]*\\s*`, "i");
+      if (regex.test(cleaned)) {
+        cleaned = cleaned.replace(regex, "").trim();
+        break;
+      }
+    }
+    
+    // Remove extra punctuation patterns like "Supportive: " or "Smart, "
+    const punctuationRegex = /^([A-Z][a-z]+)([\-:.,!]+)\s+/;
+    if (punctuationRegex.test(cleaned) && !cleaned.match(/^[A-Za-z]+,\s/)) {
+      cleaned = cleaned.replace(punctuationRegex, "").trim();
+    }
+    
+    return cleaned;
+  }
+
+  // Find closest text area to a button element (based on inject.js)
+  findClosestTextArea(buttonElement) {
+    console.log('[TweetReply] 🔍 Finding closest text area to button...');
+    
+    // Array of selectors to try for finding text input areas
+    const textAreaSelectors = [
+      'div[data-testid="tweetTextarea_0"]',
+      'div[data-testid="tweetTextarea_1"]',
+      'div[data-testid="tweetTextarea_2"]',
+      'div.public-DraftEditor-content[contenteditable="true"]',
+      'div.DraftEditor-root textarea',
+      'div[data-testid="reply-to-tweet"] div[contenteditable="true"]'
+    ];
+
+    let closestElement = null;
+    let closestDistance = Infinity;
+
+    // Try each selector
+    for (const selector of textAreaSelectors) {
+      const elements = document.querySelectorAll(selector);
+      if (elements.length > 0) {
+        const buttonRect = buttonElement.getBoundingClientRect();
+        
+        // Find the element closest to the button
+        for (const element of Array.from(elements)) {
+          const elementRect = element.getBoundingClientRect();
+          const distance = Math.abs(elementRect.top - buttonRect.top);
+          
+          if (distance < closestDistance) {
+            closestDistance = distance;
+            closestElement = element;
+          }
+        }
+      }
+    }
+
+    if (closestElement) {
+      console.log('[TweetReply] ✅ Found closest text area:', closestElement.tagName, closestElement.className);
+    } else {
+      console.warn('[TweetReply] ❌ No text area found');
+    }
+
+    return closestElement;
+  }
+
   async initialize() {
     // Check authentication status
     this.isAuthenticated = await this.authManager.isAuthenticated();
@@ -673,7 +745,10 @@ class TwitterReplyInjector {
   }
 
   extractTweetText() {
-    // Try to find the tweet being replied to
+    // Enhanced tweet text extraction based on inject.js approach
+    console.log('[TweetReply] 🔍 Extracting tweet text...');
+    
+    // Method 1: Look for tweet text in tweet elements (most reliable)
     const tweetSelectors = [
       '[data-testid="tweet"] [data-testid="tweetText"]',
       '.tweet-text',
@@ -685,15 +760,104 @@ class TwitterReplyInjector {
       for (const element of elements) {
         const text = element.textContent?.trim();
         if (text && text.length > 10) {
+          console.log('[TweetReply] ✅ Tweet text found via selector:', selector);
           return text;
         }
       }
     }
 
-    // Fallback: try to find any text that looks like a tweet
-    const allText = document.body.textContent;
-    const sentences = allText.split(/[.!?]+/).filter(s => s.trim().length > 20);
-    return sentences[0]?.trim() || null;
+    // Method 2: Extract from Draft.js spans (inject.js method)
+    try {
+      const draftSpans = document.querySelectorAll('span[data-text="true"]');
+      if (draftSpans.length > 0) {
+        const text = Array.from(draftSpans)
+          .map(span => span.textContent || "")
+          .join(" ")
+          .trim();
+        if (text && text.length > 10) {
+          console.log('[TweetReply] ✅ Tweet text found via Draft.js spans');
+          return text;
+        }
+      }
+    } catch (error) {
+      console.warn('[TweetReply] Draft.js span extraction failed:', error);
+    }
+
+    // Method 3: Look for any contentEditable with tweet-like content
+    try {
+      const contentEditables = document.querySelectorAll('[contenteditable="true"]');
+      for (const element of contentEditables) {
+        // Skip composer elements
+        if (element.getAttribute('data-testid')?.includes('tweetTextarea') ||
+            element.classList.contains('public-DraftEditor-content')) {
+          continue;
+        }
+        
+        const text = element.textContent?.trim();
+        if (text && text.length > 20 && text.length < 500) {
+          console.log('[TweetReply] ✅ Tweet text found via contentEditable');
+          return text;
+        }
+      }
+    } catch (error) {
+      console.warn('[TweetReply] contentEditable extraction failed:', error);
+    }
+
+    // Method 4: Look for Draft.js blocks
+    try {
+      const draftBlocks = document.querySelectorAll('.public-DraftStyleDefault-block');
+      if (draftBlocks.length > 0) {
+        const text = Array.from(draftBlocks)
+          .map(block => block.textContent || "")
+          .join("\n")
+          .trim();
+        if (text && text.length > 10) {
+          console.log('[TweetReply] ✅ Tweet text found via Draft.js blocks');
+          return text;
+        }
+      }
+    } catch (error) {
+      console.warn('[TweetReply] Draft.js block extraction failed:', error);
+    }
+
+    // Method 5: Parent element traversal (inject.js method)
+    try {
+      const tweetElements = document.querySelectorAll('[data-testid="tweet"]');
+      for (const tweet of tweetElements) {
+        let currentElement = tweet;
+        for (let i = 0; i < 3 && currentElement; i++) {
+          const spans = currentElement.querySelectorAll('span[data-text="true"]');
+          if (spans.length > 0) {
+            const text = Array.from(spans)
+              .map(span => span.textContent || "")
+              .join(" ")
+              .trim();
+            if (text && text.length > 10) {
+              console.log('[TweetReply] ✅ Tweet text found via parent traversal');
+              return text;
+            }
+          }
+          currentElement = currentElement.parentElement;
+        }
+      }
+    } catch (error) {
+      console.warn('[TweetReply] Parent traversal extraction failed:', error);
+    }
+
+    // Method 6: Fallback to sentence detection from body text
+    try {
+      const allText = document.body.textContent;
+      const sentences = allText.split(/[.!?]+/).filter(s => s.trim().length > 20);
+      if (sentences.length > 0) {
+        console.log('[TweetReply] ✅ Tweet text found via sentence detection');
+        return sentences[0]?.trim() || null;
+      }
+    } catch (error) {
+      console.warn('[TweetReply] Sentence detection failed:', error);
+    }
+
+    console.warn('[TweetReply] ❌ Failed to extract tweet text from any method');
+    return null;
   }
 
   extractTweetId() {
@@ -866,11 +1030,11 @@ class TwitterReplyInjector {
     }
   }
 
-  // Quora AI method: Simple, proven approach for Twitter Draft.js
-  // Based on analysis of Quora AI extension's working implementation
+  // Enhanced text insertion method based on inject.js proven approach
+  // Handles multiple Twitter input types with comprehensive fallbacks
   async insertReplyIntoComposer(composer, replyData) {
     try {
-      console.log('[TweetReply] 🚀 Starting insertReplyIntoComposer (Quora AI method)');
+      console.log('[TweetReply] 🚀 Starting enhanced text insertion (inject.js method)');
       
       if (!composer || !replyData) {
         console.log('[TweetReply] ❌ Invalid parameters');
@@ -885,48 +1049,153 @@ class TwitterReplyInjector {
         return;
       }
 
-      if (composer.contentEditable === 'true') {
-        console.log('[TweetReply] ✅ Using EXACT Quora AI Twitter method');
+      // Clean the text (remove HTML tags and strip prefixes)
+      const cleanText = this.stripReplyPrefix(replyText.replace(/<[^>]*>/g, ""));
+      console.log('[TweetReply] Clean text:', cleanText);
+
+      // Focus the composer first
+      composer.focus();
+
+      // Strategy 1: Handle Quill editor
+      if (composer.classList && composer.classList.contains("ql-editor")) {
+        console.log('[TweetReply] 📝 Using Quill editor method');
+        try {
+          composer.innerHTML = "";
+          cleanText.split("\n").forEach(line => {
+            if (line.trim()) {
+              const p = document.createElement("p");
+              p.textContent = line;
+              composer.appendChild(p);
+            } else {
+              const p = document.createElement("p");
+              p.innerHTML = "<br>";
+              composer.appendChild(p);
+            }
+          });
+          
+          if (composer.childNodes.length === 0) {
+            const p = document.createElement("p");
+            p.innerHTML = "<br>";
+            composer.appendChild(p);
+          }
+          
+          composer.dispatchEvent(new Event("input", {bubbles: true}));
+          console.log('[TweetReply] ✅ Quill editor text inserted');
+          return;
+        } catch (error) {
+          console.warn('[TweetReply] Quill editor method failed:', error);
+        }
+      }
+
+      // Strategy 2: Handle Twitter Draft.js editor
+      if (composer.getAttribute("data-testid") === "dmComposerTextInput" || 
+          composer.classList.contains("public-DraftEditor-content")) {
+        console.log('[TweetReply] 📝 Using Twitter Draft.js method');
         
-        // Step 1: Find [data-text="true"] span's parent element (EXACT Quora AI method)
+        // Try execCommand first
+        try {
+          document.execCommand("insertText", false, cleanText);
+          console.log('[TweetReply] ✅ Draft.js execCommand successful');
+          return;
+        } catch (error) {
+          console.warn('[TweetReply] execCommand failed:', error);
+        }
+        
+        // Fallback: Direct DOM manipulation
+        try {
+          const contentDiv = composer.querySelector('[data-contents="true"]');
+          if (contentDiv) {
+            const blocks = contentDiv.querySelectorAll('[data-block="true"]');
+            if (blocks.length > 0) {
+              const textBlock = blocks[0].querySelector(".public-DraftStyleDefault-block");
+              if (textBlock) {
+                textBlock.textContent = cleanText;
+                composer.dispatchEvent(new InputEvent("input", {
+                  bubbles: true,
+                  cancelable: true
+                }));
+                console.log('[TweetReply] ✅ Draft.js DOM manipulation successful');
+                return;
+              }
+            }
+          }
+        } catch (error) {
+          console.warn('[TweetReply] Draft.js DOM manipulation failed:', error);
+        }
+        
+        // Final fallback: Input events
+        try {
+          composer.dispatchEvent(new InputEvent("beforeinput", {
+            inputType: "insertText",
+            data: cleanText,
+            bubbles: true,
+            cancelable: true
+          }));
+          composer.dispatchEvent(new InputEvent("input", {
+            bubbles: true,
+            cancelable: true
+          }));
+          console.log('[TweetReply] ✅ Draft.js input events dispatched');
+          return;
+        } catch (error) {
+          console.warn('[TweetReply] Draft.js input events failed:', error);
+        }
+      }
+
+      // Strategy 3: Handle regular textarea
+      if (composer.tagName === 'TEXTAREA') {
+        console.log('[TweetReply] 📝 Using TEXTAREA method');
+        composer.value = cleanText;
+        composer.dispatchEvent(new Event('input', { bubbles: true }));
+        console.log('[TweetReply] ✅ Textarea text replaced');
+        return;
+      }
+
+      // Strategy 4: Handle regular contentEditable
+      if (composer.contentEditable === 'true') {
+        console.log('[TweetReply] 📝 Using contentEditable method');
+        
+        // Try to find existing text spans
         const dataTextSpan = composer.querySelector('[data-text="true"]');
         const targetElement = dataTextSpan ? dataTextSpan.parentElement : composer;
         
-        console.log('[TweetReply] Target element:', targetElement === composer ? 'composer' : 'parent');
-        
-        // Step 2: Click composer (EXACT Quora AI method)
+        // Click composer to ensure focus
         composer.click();
         await this.sleep(20);
         
-        // Step 3: Replace innerHTML directly (EXACT Quora AI method)
-        targetElement.innerHTML = `<span data-text="true">${replyText}</span>`;
-        console.log('[TweetReply] InnerHTML replaced:', targetElement.innerHTML);
+        // Replace innerHTML directly
+        targetElement.innerHTML = `<span data-text="true">${cleanText}</span>`;
         
-        // Step 4: Dispatch input event (EXACT Quora AI method - no data, no inputType)
+        // Dispatch input event
         targetElement.dispatchEvent(new InputEvent('input', {
           bubbles: true,
           cancelable: true
         }));
-        console.log('[TweetReply] Input event dispatched (exact Quora AI method)');
-        
-        console.log('[TweetReply] ✅ EXACT Quora AI Twitter method completed');
-
-      } else if (composer.tagName === 'TEXTAREA') {
-        console.log('[TweetReply] 📝 Using TEXTAREA method');
-        
-        composer.focus();
-        composer.setSelectionRange(0, composer.value.length);
-        composer.value = replyText;
-        composer.dispatchEvent(new Event('input', { bubbles: true }));
-        console.log('[TweetReply] ✅ Textarea text replaced');
-
-      } else {
-        console.log('[TweetReply] 🔍 Looking for nested input elements...');
-        const input = composer.querySelector('textarea, [contenteditable="true"]');
-        if (input) {
-          await this.insertReplyIntoComposer(input, replyData);
-        }
+        console.log('[TweetReply] ✅ contentEditable text inserted');
+        return;
       }
+
+      // Strategy 5: Look for nested input elements
+      console.log('[TweetReply] 🔍 Looking for nested input elements...');
+      const nestedInput = composer.querySelector('textarea, [contenteditable="true"]');
+      if (nestedInput) {
+        await this.insertReplyIntoComposer(nestedInput, replyData);
+        return;
+      }
+
+      // Strategy 6: Direct value/textContent assignment
+      if (composer.value !== undefined) {
+        composer.value = cleanText;
+        composer.dispatchEvent(new Event('input', { bubbles: true }));
+        console.log('[TweetReply] ✅ Direct value assignment successful');
+      } else if (composer.textContent !== undefined) {
+        composer.textContent = cleanText;
+        composer.dispatchEvent(new Event('input', { bubbles: true }));
+        console.log('[TweetReply] ✅ Direct textContent assignment successful');
+      }
+
+      // Ensure focus
+      composer.focus();
 
       if (typeof qualityScore === 'number') {
         this.showQualityBadge(composer, qualityScore);
