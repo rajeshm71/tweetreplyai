@@ -1037,9 +1037,12 @@
         if (composer.getAttribute("data-testid") === "dmComposerTextInput" || composer.classList.contains("public-DraftEditor-content") || composer.classList.contains("DraftEditor-editorContainer")) {
           console.log("[TweetReply] \u{1F4DD} Using Twitter Draft.js method");
           try {
+            const selection = window.getSelection();
+            const range = document.createRange();
+            range.selectNodeContents(composer);
+            selection.removeAllRanges();
+            selection.addRange(range);
             console.log("[TweetReply] Current content before replace:", composer.textContent);
-            document.execCommand("selectAll", false, null);
-            document.execCommand("delete", false, null);
             await this.sleep(10);
             document.execCommand("insertText", false, cleanText);
             await this.sleep(20);
