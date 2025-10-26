@@ -302,6 +302,7 @@
       console.log("[TweetReply] Found data-text span:", !!dataTextSpan);
       console.log("[TweetReply] Target element:", targetElement.tagName, targetElement.className);
       if (targetElement) {
+        targetElement.innerHTML = "";
         targetElement.innerHTML = `<span data-text="true">${text}</span>`;
         targetElement.dispatchEvent(new InputEvent("input", {
           bubbles: true,
