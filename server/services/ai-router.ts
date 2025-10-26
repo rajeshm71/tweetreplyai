@@ -1,10 +1,11 @@
 import { modelRouter as openaiRouter, ReplyOptions, ReplyResponse } from "./openai.js";
 import { geminiModelRouter } from "./gemini.js";
+import { groqModelRouter } from "./groq.js";
 
 export interface ModelInfo {
   key: string;
   name: string;
-  provider: "openai" | "gemini";
+  provider: "openai" | "gemini" | "groq";
   inputCost: number;
   outputCost: number;
   contextWindow: number;
@@ -13,7 +14,7 @@ export interface ModelInfo {
 
 export class UnifiedAIRouter {
   // Determine which provider handles a given model
-  private getProviderForModel(modelKey: string): "openai" | "gemini" | null {
+  private getProviderForModel(modelKey: string): "openai" | "gemini" | "groq" | null {
     // OpenAI models
     if (modelKey.startsWith("gpt-")) {
       return "openai";
@@ -22,6 +23,11 @@ export class UnifiedAIRouter {
     // Gemini models
     if (modelKey.startsWith("gemini-")) {
       return "gemini";
+    }
+
+    // Groq models (Llama models)
+    if (modelKey.startsWith("meta-llama/") || modelKey.startsWith("llama-")) {
+      return "groq";
     }
 
     return null;
@@ -45,6 +51,9 @@ export class UnifiedAIRouter {
       case "gemini":
         return geminiModelRouter.generateReply(options);
       
+      case "groq":
+        return groqModelRouter.generateReply(options);
+      
       default:
         throw new Error(`Unknown model: ${options.modelPreference}`);
     }
@@ -62,7 +71,12 @@ export class UnifiedAIRouter {
       provider: "gemini" as const,
     }));
 
-    return [...openaiModels, ...geminiModels].sort((a, b) => {
+    const groqModels = groqModelRouter.getAvailableModels().map(model => ({
+      ...model,
+      provider: "groq" as const,
+    }));
+
+    return [...openaiModels, ...geminiModels, ...groqModels].sort((a, b) => {
       // Sort by provider first, then by cost (cheapest first)
       if (a.provider !== b.provider) {
         return a.provider.localeCompare(b.provider);
@@ -78,6 +92,7 @@ export class UnifiedAIRouter {
     return {
       openai: allModels.filter(m => m.provider === "openai"),
       gemini: allModels.filter(m => m.provider === "gemini"),
+      groq: allModels.filter(m => m.provider === "groq"),
     };
   }
 
@@ -93,6 +108,11 @@ export class UnifiedAIRouter {
     if (provider === "gemini") {
       const info = geminiModelRouter.getModelInfo(modelKey);
       return info ? { ...info, key: modelKey, provider: "gemini" } : null;
+    }
+
+    if (provider === "groq") {
+      const info = groqModelRouter.getModelInfo(modelKey);
+      return info ? { ...info, key: modelKey, provider: "groq" } : null;
     }
 
     return null;
