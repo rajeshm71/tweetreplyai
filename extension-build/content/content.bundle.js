@@ -880,7 +880,7 @@
           composer.click();
           await this.sleep(20);
           targetElement.innerHTML = `<span data-text="true">${replyText}</span>`;
-          console.log("[TweetReply] InnerHTML set:", targetElement.innerHTML);
+          console.log("[TweetReply] InnerHTML replaced:", targetElement.innerHTML);
           targetElement.dispatchEvent(new InputEvent("input", {
             bubbles: true,
             cancelable: true

@@ -898,9 +898,9 @@ class TwitterReplyInjector {
         composer.click();
         await this.sleep(20);
         
-        // Step 3: Set innerHTML with data-text span (like Quora AI does)
+        // Step 3: Replace innerHTML directly (NO CLEARING - like Quora AI does)
         targetElement.innerHTML = `<span data-text="true">${replyText}</span>`;
-        console.log('[TweetReply] InnerHTML set:', targetElement.innerHTML);
+        console.log('[TweetReply] InnerHTML replaced:', targetElement.innerHTML);
         
         // Step 4: Dispatch input event (like Quora AI does)
         targetElement.dispatchEvent(new InputEvent('input', {
