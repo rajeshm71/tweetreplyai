@@ -1031,7 +1031,7 @@
             console.warn("[TweetReply] Quill editor method failed:", error);
           }
         }
-        if (composer.getAttribute("data-testid") === "dmComposerTextInput" || composer.classList.contains("public-DraftEditor-content")) {
+        if (composer.getAttribute("data-testid") === "dmComposerTextInput" && composer.classList.contains("public-DraftEditor-content")) {
           console.log("[TweetReply] \u{1F4DD} Using Twitter Draft.js method");
           try {
             document.execCommand("insertText", false, cleanText);
