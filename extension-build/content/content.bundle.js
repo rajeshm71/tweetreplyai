@@ -1031,11 +1031,14 @@
         if (composer.contentEditable === "true" || composer.getAttribute("data-testid")?.startsWith("tweetTextarea_") || composer.getAttribute("role") === "textbox") {
           console.log("[TweetReply] \u{1F4DD} Using Quora AI Twitter method");
           try {
-            const textArea = this.findTwitterTextArea(composer);
-            if (textArea) {
-              await this.insertTextQuoraMethod(textArea, composer, cleanText);
-              console.log("[TweetReply] \u2705 Quora AI method successful");
-              return;
+            const toolbar = composer.closest('[data-testid="toolBar"]') || composer.closest('[role="toolbar"]') || composer.parentElement;
+            if (toolbar) {
+              const textArea = this.findTwitterTextArea(toolbar);
+              if (textArea) {
+                await this.insertTextQuoraMethod(textArea, composer, cleanText);
+                console.log("[TweetReply] \u2705 Quora AI method successful");
+                return;
+              }
             }
           } catch (error) {
             console.warn("[TweetReply] Quora AI method failed:", error);

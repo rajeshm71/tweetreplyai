@@ -1098,19 +1098,24 @@ class TwitterReplyInjector {
         console.log('[TweetReply] 📝 Using Quora AI Twitter method');
         
         try {
-          // Step 1: Find the toolbar element (like Quora AI does)
-          const toolbar = composer.closest('[data-testid="toolBar"]') || 
-                         composer.closest('[role="toolbar"]') ||
-                         composer.parentElement;
+          // Step 1: Find the actual Twitter toolbar (like Quora AI does)
+          const toolbar = document.querySelector('[data-testid="toolBar"]');
           
           if (toolbar) {
-            // Step 2: Use Quora AI's exact approach - pass toolbar element
+            console.log('[TweetReply] Found Twitter toolbar:', toolbar.tagName, toolbar.className);
+            
+            // Step 2: Use Quora AI's exact approach - pass toolbar element as composer
             const textArea = this.findTwitterTextArea(toolbar);
             if (textArea) {
-              await this.insertTextQuoraMethod(textArea, composer, cleanText);
+              console.log('[TweetReply] Found text area from toolbar:', textArea.tagName, textArea.className);
+              await this.insertTextQuoraMethod(textArea, toolbar, cleanText);
               console.log('[TweetReply] ✅ Quora AI method successful');
               return;
+            } else {
+              console.warn('[TweetReply] No text area found in toolbar');
             }
+          } else {
+            console.warn('[TweetReply] No Twitter toolbar found');
           }
         } catch (error) {
           console.warn('[TweetReply] Quora AI method failed:', error);
