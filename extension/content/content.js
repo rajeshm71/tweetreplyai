@@ -1205,7 +1205,8 @@ class TwitterReplyInjector {
           
           console.log('[TweetReply] Current content before replace:', composer.textContent);
           // Delete all selected content (clears the composer)
-          // document.execCommand('delete', false, null);
+          document.execCommand('selectAll', false, null);
+          document.execCommand('delete', false, null);
           await this.sleep(10);
           document.execCommand("insertText", false, cleanText);
           //Step 5: Ensure cursor is at the end
