@@ -292,21 +292,17 @@
       const textArea = element.querySelector('div[data-testid^="tweetTextarea_"][role="textbox"]');
       return textArea || (element.parentElement ? this.findTwitterTextArea(element.parentElement) : null);
     }
-    // Quora AI Method: Insert text using Quora's EXACT proven approach
+    // Quora AI Method: Insert text using Quora's proven approach
     async insertTextQuoraMethod(textArea, composer, text) {
-      console.log("[TweetReply] \u{1F4DD} Executing Quora AI text insertion (EXACT METHOD)");
       composer.click();
       const dataTextSpan = textArea.querySelector('[data-text="true"]');
       const targetElement = dataTextSpan ? dataTextSpan.parentElement : textArea;
-      console.log("[TweetReply] Found data-text span:", !!dataTextSpan);
-      console.log("[TweetReply] Target element:", targetElement.tagName, targetElement.className);
       if (targetElement) {
         targetElement.innerHTML = `<span data-text="true">${text}</span>`;
         targetElement.dispatchEvent(new InputEvent("input", {
           bubbles: true,
           cancelable: true
         }));
-        console.log("[TweetReply] \u2705 Text inserted using EXACT Quora AI method");
       }
     }
     async initialize() {
@@ -1023,36 +1019,24 @@
         const replyText = typeof replyData === "string" ? replyData : replyData.reply;
         const qualityScore = typeof replyData === "object" ? replyData.qualityScore : null;
         if (!replyText) {
-          console.log("[TweetReply] \u274C No reply text to insert");
           return;
         }
         const cleanText = this.stripReplyPrefix(replyText.replace(/<[^>]*>/g, ""));
-        console.log("[TweetReply] Clean text:", cleanText);
         if (composer.contentEditable === "true" || composer.getAttribute("data-testid")?.startsWith("tweetTextarea_") || composer.getAttribute("role") === "textbox") {
-          console.log("[TweetReply] \u{1F4DD} Using Quora AI Twitter method");
           try {
             const toolbar = document.querySelector('[data-testid="toolBar"]');
             if (toolbar) {
-              console.log("[TweetReply] Found Twitter toolbar:", toolbar.tagName, toolbar.className);
               const textArea = this.findTwitterTextArea(toolbar);
               if (textArea) {
-                console.log("[TweetReply] Found text area from toolbar:", textArea.tagName, textArea.className);
                 await this.insertTextQuoraMethod(textArea, toolbar, cleanText);
-                console.log("[TweetReply] \u2705 Quora AI method successful");
                 return;
-              } else {
-                console.warn("[TweetReply] No text area found in toolbar");
               }
-            } else {
-              console.warn("[TweetReply] No Twitter toolbar found");
             }
           } catch (error) {
             console.warn("[TweetReply] Quora AI method failed:", error);
           }
         }
-        console.log("[TweetReply] \u{1F4DD} Falling back to inject.js multi-strategy approach");
         if (composer.classList && composer.classList.contains("ql-editor")) {
-          console.log("[TweetReply] \u{1F4DD} Using Quill editor method");
           try {
             composer.innerHTML = "";
             cleanText.split("\n").forEach((line) => {
@@ -1072,17 +1056,14 @@
               composer.appendChild(p);
             }
             composer.dispatchEvent(new Event("input", { bubbles: true }));
-            console.log("[TweetReply] \u2705 Quill editor text inserted");
             return;
           } catch (error) {
             console.warn("[TweetReply] Quill editor method failed:", error);
           }
         }
         if (composer.getAttribute("data-testid") === "dmComposerTextInput" || composer.classList.contains("public-DraftEditor-content") || composer.classList.contains("DraftEditor-editorContainer")) {
-          console.log("[TweetReply] \u{1F4DD} Using Twitter Draft.js method");
           try {
             document.execCommand("insertText", false, cleanText);
-            console.log("[TweetReply] \u2705 Draft.js execCommand successful");
             return;
           } catch (error) {
             console.warn("[TweetReply] execCommand failed:", error);
@@ -1099,7 +1080,6 @@
                     bubbles: true,
                     cancelable: true
                   }));
-                  console.log("[TweetReply] \u2705 Draft.js DOM manipulation successful");
                   return;
                 }
               }
@@ -1118,21 +1098,17 @@
               bubbles: true,
               cancelable: true
             }));
-            console.log("[TweetReply] \u2705 Draft.js input events dispatched");
             return;
           } catch (error) {
             console.warn("[TweetReply] Draft.js input events failed:", error);
           }
         }
         if (composer.tagName === "TEXTAREA") {
-          console.log("[TweetReply] \u{1F4DD} Using TEXTAREA method");
           composer.value = cleanText;
           composer.dispatchEvent(new Event("input", { bubbles: true }));
-          console.log("[TweetReply] \u2705 Textarea text replaced");
           return;
         }
         if (composer.contentEditable === "true") {
-          console.log("[TweetReply] \u{1F4DD} Using contentEditable method (fallback)");
           const dataTextSpan = composer.querySelector('[data-text="true"]');
           const targetElement = dataTextSpan ? dataTextSpan.parentElement : composer;
           composer.click();
@@ -1142,10 +1118,8 @@
             bubbles: true,
             cancelable: true
           }));
-          console.log("[TweetReply] \u2705 contentEditable text inserted");
           return;
         }
-        console.log("[TweetReply] \u{1F50D} Looking for nested input elements...");
         const nestedInput = composer.querySelector('textarea, [contenteditable="true"]');
         if (nestedInput) {
           await this.insertReplyIntoComposer(nestedInput, replyData);
@@ -1154,11 +1128,9 @@
         if (composer.value !== void 0) {
           composer.value = cleanText;
           composer.dispatchEvent(new Event("input", { bubbles: true }));
-          console.log("[TweetReply] \u2705 Direct value assignment successful");
         } else if (composer.textContent !== void 0) {
           composer.textContent = cleanText;
           composer.dispatchEvent(new Event("input", { bubbles: true }));
-          console.log("[TweetReply] \u2705 Direct textContent assignment successful");
         }
         composer.focus();
         if (typeof qualityScore === "number") {

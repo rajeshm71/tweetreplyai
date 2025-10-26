@@ -120,14 +120,14 @@ class TwitterReplyInjector {
     return closestElement;
   }
 
-  // Quora AI Method: Find Twitter text area (based on Quora AI extension)
+  // Find Twitter text area within an element
   findTwitterTextArea(element) {
     const textArea = element.querySelector('div[data-testid^="tweetTextarea_"][role="textbox"]');
     return textArea || (element.parentElement ? this.findTwitterTextArea(element.parentElement) : null);
   }
 
-  // Quora AI Method: Insert text using Quora's proven approach
-  async insertTextQuoraMethod(textArea, composer, text) {
+  // Insert text using proven Twitter approach
+  async insertTextTwitterMethod(textArea, composer, text) {
     composer.click();
     const dataTextSpan = textArea.querySelector('[data-text="true"]');
     const targetElement = dataTextSpan ? dataTextSpan.parentElement : textArea;
@@ -1063,7 +1063,7 @@ class TwitterReplyInjector {
   // Handles multiple Twitter input types with comprehensive fallbacks
   async insertReplyIntoComposer(composer, replyData) {
     try {
-      console.log('[TweetReply] 🚀 Starting Quora AI text insertion method');
+      console.log('[TweetReply] 🚀 Starting Twitter text insertion method');
       
       if (!composer || !replyData) {
         console.log('[TweetReply] ❌ Invalid parameters');
@@ -1080,24 +1080,24 @@ class TwitterReplyInjector {
       // Clean the text (remove HTML tags and strip prefixes)
       const cleanText = this.stripReplyPrefix(replyText.replace(/<[^>]*>/g, ""));
 
-      // Strategy 1: Quora AI Method for Twitter/X (PRIMARY METHOD)
+      // Strategy 1: Twitter Method (PRIMARY METHOD)
       if (composer.contentEditable === 'true' || 
           composer.getAttribute('data-testid')?.startsWith('tweetTextarea_') ||
           composer.getAttribute('role') === 'textbox') {
         
         try {
-          // Find the actual Twitter toolbar (like Quora AI does)
+          // Find the actual Twitter toolbar
           const toolbar = document.querySelector('[data-testid="toolBar"]');
           
           if (toolbar) {
             const textArea = this.findTwitterTextArea(toolbar);
             if (textArea) {
-              await this.insertTextQuoraMethod(textArea, toolbar, cleanText);
+              await this.insertTextTwitterMethod(textArea, toolbar, cleanText);
               return;
             }
           }
         } catch (error) {
-          console.warn('[TweetReply] Quora AI method failed:', error);
+          console.warn('[TweetReply] Twitter method failed:', error);
         }
       }
 
