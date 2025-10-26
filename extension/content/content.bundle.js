@@ -873,22 +873,28 @@
           return;
         }
         if (composer.contentEditable === "true") {
-          console.log("[TweetReply] \u2705 Using Quora AI method");
-          const dataTextSpan = composer.querySelector('[data-text="true"]');
-          const targetElement = dataTextSpan ? dataTextSpan.parentElement : composer;
-          console.log("[TweetReply] Target element:", targetElement === composer ? "composer" : "parent");
-          composer.click();
-          await this.sleep(20);
-          targetElement.innerHTML = `<span data-text="true">${replyText}</span>`;
-          console.log("[TweetReply] InnerHTML replaced:", targetElement.innerHTML);
-          targetElement.dispatchEvent(new InputEvent("input", {
-            bubbles: true,
-            cancelable: true
-          }));
-          console.log("[TweetReply] Input event dispatched");
+          console.log("[TweetReply] \u2705 Using Quora AI Facebook method (more robust)");
           composer.focus();
           await this.sleep(20);
-          console.log("[TweetReply] \u2705 Quora AI method completed");
+          const range = document.createRange();
+          const selection = window.getSelection();
+          range.selectNodeContents(composer);
+          range.collapse(false);
+          selection.removeAllRanges();
+          selection.addRange(range);
+          console.log("[TweetReply] Content selected for replacement");
+          composer.innerHTML = `<span data-text="true">${replyText}</span>`;
+          console.log("[TweetReply] InnerHTML replaced:", composer.innerHTML);
+          composer.dispatchEvent(new InputEvent("input", {
+            bubbles: true,
+            cancelable: true,
+            data: replyText,
+            inputType: "insertText"
+          }));
+          console.log("[TweetReply] Input event dispatched with data");
+          composer.focus();
+          await this.sleep(20);
+          console.log("[TweetReply] \u2705 Quora AI Facebook method completed");
         } else if (composer.tagName === "TEXTAREA") {
           console.log("[TweetReply] \u{1F4DD} Using TEXTAREA method");
           composer.focus();

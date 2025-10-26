@@ -886,34 +886,39 @@ class TwitterReplyInjector {
       }
 
       if (composer.contentEditable === 'true') {
-        console.log('[TweetReply] ✅ Using Quora AI method');
+        console.log('[TweetReply] ✅ Using Quora AI Facebook method (more robust)');
         
-        // Step 1: Find the data-text span's parent element (like Quora AI does)
-        const dataTextSpan = composer.querySelector('[data-text="true"]');
-        const targetElement = dataTextSpan ? dataTextSpan.parentElement : composer;
-        
-        console.log('[TweetReply] Target element:', targetElement === composer ? 'composer' : 'parent');
-        
-        // Step 2: Click composer to ensure focus (like Quora AI does)
-        composer.click();
+        // Step 1: Focus composer first (like Quora AI Facebook method)
+        composer.focus();
         await this.sleep(20);
         
-        // Step 3: Replace innerHTML directly (NO CLEARING - like Quora AI does)
-        targetElement.innerHTML = `<span data-text="true">${replyText}</span>`;
-        console.log('[TweetReply] InnerHTML replaced:', targetElement.innerHTML);
+        // Step 2: Select all existing content (like Quora AI Facebook method)
+        const range = document.createRange();
+        const selection = window.getSelection();
+        range.selectNodeContents(composer);
+        range.collapse(false); // false = collapse to end
+        selection.removeAllRanges();
+        selection.addRange(range);
+        console.log('[TweetReply] Content selected for replacement');
         
-        // Step 4: Dispatch input event (like Quora AI does)
-        targetElement.dispatchEvent(new InputEvent('input', {
+        // Step 3: Replace innerHTML with new content (like Quora AI Facebook method)
+        composer.innerHTML = `<span data-text="true">${replyText}</span>`;
+        console.log('[TweetReply] InnerHTML replaced:', composer.innerHTML);
+        
+        // Step 4: Dispatch input event with data (like Quora AI Facebook method)
+        composer.dispatchEvent(new InputEvent('input', {
           bubbles: true,
-          cancelable: true
+          cancelable: true,
+          data: replyText,
+          inputType: 'insertText'
         }));
-        console.log('[TweetReply] Input event dispatched');
+        console.log('[TweetReply] Input event dispatched with data');
         
         // Step 5: Focus composer for proper editing
         composer.focus();
         await this.sleep(20);
         
-        console.log('[TweetReply] ✅ Quora AI method completed');
+        console.log('[TweetReply] ✅ Quora AI Facebook method completed');
 
       } else if (composer.tagName === 'TEXTAREA') {
         console.log('[TweetReply] 📝 Using TEXTAREA method');
