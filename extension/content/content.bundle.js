@@ -475,7 +475,10 @@
           await this.updateButtonStateAsync(button);
           return;
         }
-        this.handleSuggestReply(composer, button, {
+        const actualComposer = composer.querySelector('[contenteditable="true"]') || composer.querySelector(".public-DraftEditor-content") || composer;
+        console.log("[TweetReply] Button click - Composer container:", composer.getAttribute("data-testid"));
+        console.log("[TweetReply] Button click - Actual composer:", actualComposer.contentEditable, actualComposer.className);
+        this.handleSuggestReply(actualComposer, button, {
           modelKey: modelSelect.value,
           promptVariation: promptSelect.value
         });
@@ -1004,6 +1007,49 @@
         const cleanText = this.stripReplyPrefix(replyText.replace(/<[^>]*>/g, ""));
         console.log("[TweetReply] Clean text:", cleanText);
         composer.focus();
+        if (composer.contentEditable === "true") {
+          console.log("[TweetReply] \u{1F4DD} Using Quora AI Twitter method (Priority)");
+          try {
+            const dataTextSpan = composer.querySelector('[data-text="true"]');
+            const targetElement = dataTextSpan ? dataTextSpan.parentElement : composer;
+            console.log("[TweetReply] Found data-text span:", !!dataTextSpan);
+            console.log("[TweetReply] Target element:", targetElement.tagName, targetElement.className);
+            composer.click();
+            await this.sleep(20);
+            try {
+              const selection = window.getSelection();
+              const range = document.createRange();
+              range.selectNodeContents(targetElement);
+              selection.removeAllRanges();
+              selection.addRange(range);
+              selection.deleteFromDocument();
+              await this.sleep(10);
+            } catch (clearError) {
+              console.warn("[TweetReply] Clear content failed:", clearError);
+            }
+            targetElement.innerHTML = `<span data-text="true">${cleanText}</span>`;
+            console.log("[TweetReply] innerHTML set, content length:", targetElement.textContent.length);
+            targetElement.dispatchEvent(new InputEvent("input", {
+              bubbles: true,
+              cancelable: true
+            }));
+            if (targetElement !== composer) {
+              composer.dispatchEvent(new InputEvent("input", {
+                bubbles: true,
+                cancelable: true
+              }));
+            }
+            await this.sleep(50);
+            composer.focus();
+            console.log("[TweetReply] \u2705 Quora AI method completed");
+            if (typeof qualityScore === "number") {
+              this.showQualityBadge(composer, qualityScore);
+            }
+            return;
+          } catch (error) {
+            console.warn("[TweetReply] Quora AI method failed, falling back:", error);
+          }
+        }
         if (composer.classList && composer.classList.contains("ql-editor")) {
           console.log("[TweetReply] \u{1F4DD} Using Quill editor method");
           try {
@@ -1031,8 +1077,35 @@
             console.warn("[TweetReply] Quill editor method failed:", error);
           }
         }
-        if (composer.getAttribute("data-testid") === "dmComposerTextInput" || composer.classList.contains("public-DraftEditor-content")) {
+        if (composer.getAttribute("data-testid") === "dmComposerTextInput" || composer.classList.contains("public-DraftEditor-content") || composer.classList.contains("DraftEditor-editorContainer")) {
           console.log("[TweetReply] \u{1F4DD} Using Twitter Draft.js method");
+          try {
+            document.execCommand("insertText", false, cleanText);
+            console.log("[TweetReply] \u2705 Draft.js execCommand successful");
+            return;
+          } catch (error) {
+            console.warn("[TweetReply] execCommand failed:", error);
+          }
+          try {
+            const contentDiv = composer.querySelector('[data-contents="true"]');
+            if (contentDiv) {
+              const blocks = contentDiv.querySelectorAll('[data-block="true"]');
+              if (blocks.length > 0) {
+                const textBlock = blocks[0].querySelector(".public-DraftStyleDefault-block");
+                if (textBlock) {
+                  textBlock.textContent = cleanText;
+                  composer.dispatchEvent(new InputEvent("input", {
+                    bubbles: true,
+                    cancelable: true
+                  }));
+                  console.log("[TweetReply] \u2705 Draft.js DOM manipulation successful");
+                  return;
+                }
+              }
+            }
+          } catch (error) {
+            console.warn("[TweetReply] Draft.js DOM manipulation failed:", error);
+          }
           try {
             composer.dispatchEvent(new InputEvent("beforeinput", {
               inputType: "insertText",
@@ -1058,7 +1131,7 @@
           return;
         }
         if (composer.contentEditable === "true") {
-          console.log("[TweetReply] \u{1F4DD} Using contentEditable method");
+          console.log("[TweetReply] \u{1F4DD} Using contentEditable method (fallback)");
           const dataTextSpan = composer.querySelector('[data-text="true"]');
           const targetElement = dataTextSpan ? dataTextSpan.parentElement : composer;
           composer.click();

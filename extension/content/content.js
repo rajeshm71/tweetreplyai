@@ -1071,35 +1071,44 @@ class TwitterReplyInjector {
         
         try {
           // Step 1: Find [data-text="true"] span's parent (Twitter's Draft.js structure)
+          // The structure is: contentEditable DIV > DIV > [multiple nested divs] > SPAN[data-text]
+          // We need to find the closest editable ancestor, not just immediate parent
           const dataTextSpan = composer.querySelector('[data-text="true"]');
-          const targetElement = dataTextSpan ? dataTextSpan.parentElement : composer;
+          
+          // Find the actual editable container by going up from the data-text span
+          let targetElement = composer;
+          if (dataTextSpan) {
+            // Go up the tree to find a DIV that's a direct child of the contentEditable
+            let parent = dataTextSpan.parentElement;
+            while (parent && parent !== composer) {
+              // Look for the div that contains all the Draft.js content
+              // It's usually the first div child of the contentEditable
+              if (parent.parentElement === composer || 
+                  (parent.tagName === 'DIV' && parent.getAttribute('data-contents') === 'true')) {
+                targetElement = parent;
+                break;
+              }
+              parent = parent.parentElement;
+            }
+          }
           
           console.log('[TweetReply] Found data-text span:', !!dataTextSpan);
           console.log('[TweetReply] Target element:', targetElement.tagName, targetElement.className);
+          console.log('[TweetReply] Target element has data-contents:', targetElement.getAttribute('data-contents'));
           
           // Step 2: Click composer to ensure focus and Draft.js initialization
           composer.click();
           await this.sleep(20);
           
-          // Step 3: Clear existing content first by selecting all and deleting
-          // This ensures replacement instead of append
-          try {
-            const selection = window.getSelection();
-            const range = document.createRange();
-            range.selectNodeContents(targetElement);
-            selection.removeAllRanges();
-            selection.addRange(range);
-            
-            // Delete selected content
-            selection.deleteFromDocument();
-            await this.sleep(10);
-          } catch (clearError) {
-            console.warn('[TweetReply] Clear content failed:', clearError);
-            // Continue anyway - innerHTML will overwrite
-          }
+          // Step 3: Log current state before replacement
+          console.log('[TweetReply] Current content before replace:', targetElement.textContent);
+          console.log('[TweetReply] Current innerHTML before replace:', targetElement.innerHTML.substring(0, 100));
           
           // Step 4: Replace innerHTML with Twitter's expected structure
+          // innerHTML replacement automatically clears existing content - no need for Selection API
           targetElement.innerHTML = `<span data-text="true">${cleanText}</span>`;
+          
+          console.log('[TweetReply] New content after replace:', targetElement.textContent);
           console.log('[TweetReply] innerHTML set, content length:', targetElement.textContent.length);
           
           // Step 5: Dispatch InputEvent (simple, no inputType/data like Quora AI)
