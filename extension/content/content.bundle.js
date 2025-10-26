@@ -896,38 +896,20 @@
           console.log("[TweetReply] \u{1F3AF} Focusing composer...");
           composer.focus();
           await this.sleep(30);
-          console.log("[TweetReply] \u{1F4DD} Step 1: Selecting all existing content...");
-          const sel = window.getSelection();
-          const range = document.createRange();
-          range.selectNodeContents(targetElement);
-          sel.removeAllRanges();
-          sel.addRange(range);
-          console.log("[TweetReply] Selection range:", sel.toString());
-          console.log("[TweetReply] \u{1F5D1}\uFE0F Step 2: Dispatching delete events...");
-          const beforeDel = new InputEvent("beforeinput", {
-            bubbles: true,
-            cancelable: true,
-            inputType: "deleteByCut",
-            // delete selection
-            data: null
-          });
-          targetElement.dispatchEvent(beforeDel);
-          console.log("[TweetReply] Dispatched beforeinput deleteByCut");
-          const delEvt = new InputEvent("input", {
-            bubbles: true,
-            cancelable: true,
-            inputType: "deleteContentBackward",
-            data: null
-          });
-          targetElement.dispatchEvent(delEvt);
-          console.log("[TweetReply] Dispatched input deleteContentBackward");
-          console.log("[TweetReply] \u{1F9F9} Step 3: Clearing DOM to match internal state...");
-          targetElement.innerHTML = "";
-          console.log("[TweetReply] DOM cleared, content now:", targetElement.innerHTML);
-          await this.sleep(20);
-          console.log("[TweetReply] \u270F\uFE0F Step 4: Inserting new content...");
-          targetElement.innerHTML = `<span data-text="true">${replyText}</span>`;
-          console.log("[TweetReply] New content inserted:", targetElement.innerHTML);
+          console.log("[TweetReply] \u{1F4DD} Step 1: Clearing existing content with execCommand...");
+          document.execCommand("selectAll", false, null);
+          document.execCommand("delete", false, null);
+          await this.sleep(30);
+          console.log("[TweetReply] Existing content cleared");
+          console.log("[TweetReply] \u270F\uFE0F Step 2: Inserting new text with execCommand...");
+          document.execCommand("insertText", false, replyText);
+          await this.sleep(30);
+          console.log("[TweetReply] New text inserted with execCommand");
+          if (!composer.textContent || composer.textContent.trim() !== replyText.trim()) {
+            console.log("[TweetReply] \u26A0\uFE0F Text not visible, trying innerHTML fallback...");
+            targetElement.innerHTML = `<span data-text="true">${replyText}</span>`;
+            console.log("[TweetReply] New content inserted via innerHTML:", targetElement.innerHTML);
+          }
           console.log("[TweetReply] \u{1F50D} Step 4.5: Accessing React component...");
           const fiber = this.getReactInstance(composer);
           const component = this.getReactComponent(fiber);

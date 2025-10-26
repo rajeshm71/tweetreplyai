@@ -915,47 +915,26 @@ async insertReplyIntoComposer(composer, replyData) {
       composer.focus();
       await this.sleep(30);
 
-      // --- NEW: Robust "replace existing text" sequence ---
-      // 1) Select all existing content inside targetElement
-      console.log('[TweetReply] 📝 Step 1: Selecting all existing content...');
-      const sel = window.getSelection();
-      const range = document.createRange();
-      range.selectNodeContents(targetElement);
-      sel.removeAllRanges();
-      sel.addRange(range);
-      console.log('[TweetReply] Selection range:', sel.toString());
+      // --- FIXED: Proper text replacement for Draft.js ---
+      // 1) First, use execCommand to properly clear existing content (Draft.js compatible)
+      console.log('[TweetReply] 📝 Step 1: Clearing existing content with execCommand...');
+      document.execCommand('selectAll', false, null);
+      document.execCommand('delete', false, null);
+      await this.sleep(30);
+      console.log('[TweetReply] Existing content cleared');
 
-      // 2) Tell React/Draft-like editor we're deleting the selection
-      //    (both beforeinput + input events help certain editors sync state)
-      console.log('[TweetReply] 🗑️ Step 2: Dispatching delete events...');
-      const beforeDel = new InputEvent('beforeinput', {
-        bubbles: true,
-        cancelable: true,
-        inputType: 'deleteByCut', // delete selection
-        data: null
-      });
-      targetElement.dispatchEvent(beforeDel);
-      console.log('[TweetReply] Dispatched beforeinput deleteByCut');
+      // 2) Insert new text using execCommand (Draft.js recognizes this)
+      console.log('[TweetReply] ✏️ Step 2: Inserting new text with execCommand...');
+      document.execCommand('insertText', false, replyText);
+      await this.sleep(30);
+      console.log('[TweetReply] New text inserted with execCommand');
 
-      const delEvt = new InputEvent('input', {
-        bubbles: true,
-        cancelable: true,
-        inputType: 'deleteContentBackward',
-        data: null
-      });
-      targetElement.dispatchEvent(delEvt);
-      console.log('[TweetReply] Dispatched input deleteContentBackward');
-
-      // 3) Also clear DOM to match internal state (keeps things in lockstep)
-      console.log('[TweetReply] 🧹 Step 3: Clearing DOM to match internal state...');
-      targetElement.innerHTML = ''; // ensure no leftover nodes
-      console.log('[TweetReply] DOM cleared, content now:', targetElement.innerHTML);
-      await this.sleep(20);
-
-      // 4) Insert new content in the structure Twitter expects
-      console.log('[TweetReply] ✏️ Step 4: Inserting new content...');
-      targetElement.innerHTML = `<span data-text="true">${replyText}</span>`;
-      console.log('[TweetReply] New content inserted:', targetElement.innerHTML);
+      // 3) Fallback: If text not visible, try innerHTML approach
+      if (!composer.textContent || composer.textContent.trim() !== replyText.trim()) {
+        console.log('[TweetReply] ⚠️ Text not visible, trying innerHTML fallback...');
+        targetElement.innerHTML = `<span data-text="true">${replyText}</span>`;
+        console.log('[TweetReply] New content inserted via innerHTML:', targetElement.innerHTML);
+      }
 
       // 4.5) Access React component and trigger re-render
       console.log('[TweetReply] 🔍 Step 4.5: Accessing React component...');
