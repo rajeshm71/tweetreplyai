@@ -287,6 +287,29 @@
       }
       return closestElement;
     }
+    // Quora AI Method: Find Twitter text area (based on Quora AI extension)
+    findTwitterTextArea(element) {
+      const textArea = element.querySelector('div[data-testid^="tweetTextarea_"][role="textbox"]');
+      return textArea || (element.parentElement ? this.findTwitterTextArea(element.parentElement) : null);
+    }
+    // Quora AI Method: Insert text using Quora's proven approach
+    async insertTextQuoraMethod(textArea, composer, text) {
+      console.log("[TweetReply] \u{1F4DD} Executing Quora AI text insertion");
+      composer.click();
+      await this.sleep(20);
+      const dataTextSpan = textArea.querySelector('[data-text="true"]');
+      const targetElement = dataTextSpan ? dataTextSpan.parentElement : textArea;
+      console.log("[TweetReply] Found data-text span:", !!dataTextSpan);
+      console.log("[TweetReply] Target element:", targetElement.tagName, targetElement.className);
+      if (targetElement) {
+        targetElement.innerHTML = `<span data-text="true">${text}</span>`;
+        targetElement.dispatchEvent(new InputEvent("input", {
+          bubbles: true,
+          cancelable: true
+        }));
+        console.log("[TweetReply] \u2705 Text inserted using Quora AI method");
+      }
+    }
     async initialize() {
       this.isAuthenticated = await this.authManager.isAuthenticated();
       if (this.isAuthenticated) {
@@ -993,7 +1016,7 @@
     // Handles multiple Twitter input types with comprehensive fallbacks
     async insertReplyIntoComposer(composer, replyData) {
       try {
-        console.log("[TweetReply] \u{1F680} Starting enhanced text insertion (inject.js method)");
+        console.log("[TweetReply] \u{1F680} Starting Quora AI text insertion method");
         if (!composer || !replyData) {
           console.log("[TweetReply] \u274C Invalid parameters");
           return;
@@ -1006,7 +1029,20 @@
         }
         const cleanText = this.stripReplyPrefix(replyText.replace(/<[^>]*>/g, ""));
         console.log("[TweetReply] Clean text:", cleanText);
-        composer.focus();
+        if (composer.contentEditable === "true" || composer.getAttribute("data-testid")?.startsWith("tweetTextarea_") || composer.getAttribute("role") === "textbox") {
+          console.log("[TweetReply] \u{1F4DD} Using Quora AI Twitter method");
+          try {
+            const textArea = this.findTwitterTextArea(composer);
+            if (textArea) {
+              await this.insertTextQuoraMethod(textArea, composer, cleanText);
+              console.log("[TweetReply] \u2705 Quora AI method successful");
+              return;
+            }
+          } catch (error) {
+            console.warn("[TweetReply] Quora AI method failed:", error);
+          }
+        }
+        console.log("[TweetReply] \u{1F4DD} Falling back to inject.js multi-strategy approach");
         if (composer.classList && composer.classList.contains("ql-editor")) {
           console.log("[TweetReply] \u{1F4DD} Using Quill editor method");
           try {
@@ -1037,19 +1073,7 @@
         if (composer.getAttribute("data-testid") === "dmComposerTextInput" || composer.classList.contains("public-DraftEditor-content") || composer.classList.contains("DraftEditor-editorContainer")) {
           console.log("[TweetReply] \u{1F4DD} Using Twitter Draft.js method");
           try {
-            const selection = window.getSelection();
-            const range = document.createRange();
-            range.selectNodeContents(composer);
-            selection.removeAllRanges();
-            selection.addRange(range);
-            console.log("[TweetReply] Current content before replace:", composer.textContent);
-            composer.textContent = "";
-            await this.sleep(10);
-            console.log("[TweetReply] Current content after replacement:", composer.textContent);
-            await this.sleep(10);
             document.execCommand("insertText", false, cleanText);
-            await this.sleep(20);
-            console.log("[TweetReply] New content after replace:", composer.textContent);
             console.log("[TweetReply] \u2705 Draft.js execCommand successful");
             return;
           } catch (error) {

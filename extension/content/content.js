@@ -143,6 +143,7 @@ class TwitterReplyInjector {
     
     // Step 3: Insert text using Quora's method
     if (targetElement) {
+      targetElement.innerHTML = '';
       targetElement.innerHTML = `<span data-text="true">${text}</span>`;
       targetElement.dispatchEvent(new InputEvent("input", {
         bubbles: true,
