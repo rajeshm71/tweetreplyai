@@ -915,19 +915,29 @@ async insertReplyIntoComposer(composer, replyData) {
       composer.focus();
       await this.sleep(30);
 
-      // --- FIXED: Use execCommand for both clearing AND insertion (Draft.js compatible) ---
-      // Step 1: Clear existing content using execCommand - Draft.js recognizes this
-      console.log('[TweetReply] 📝 Step 1: Clearing existing content with execCommand...');
-      document.execCommand('selectAll', false, null);
-      document.execCommand('delete', false, null);
+      // --- FIXED: Use modern APIs instead of deprecated execCommand ---
+      // Step 1: Clear existing content using modern selection API
+      console.log('[TweetReply] 📝 Step 1: Clearing existing content with modern API...');
+      const selection = window.getSelection();
+      const range = document.createRange();
+      range.selectNodeContents(composer);
+      selection.removeAllRanges();
+      selection.addRange(range);
+      selection.deleteFromDocument();
       await this.sleep(30);
-      console.log('[TweetReply] Existing content cleared via execCommand');
+      console.log('[TweetReply] Existing content cleared via modern API');
 
-      // Step 2: Insert new text using execCommand - Draft.js recognizes this
-      console.log('[TweetReply] ✏️ Step 2: Inserting new text with execCommand...');
-      document.execCommand('insertText', false, replyText);
+      // Step 2: Insert new text using modern API
+      console.log('[TweetReply] ✏️ Step 2: Inserting new text with modern API...');
+      const textNode = document.createTextNode(replyText);
+      range.deleteContents();
+      range.insertNode(textNode);
+      range.setStartAfter(textNode);
+      range.collapse(false);
+      selection.removeAllRanges();
+      selection.addRange(range);
       await this.sleep(30);
-      console.log('[TweetReply] New text inserted with execCommand');
+      console.log('[TweetReply] New text inserted with modern API');
 
       // Step 3: Verify text is visible, try innerHTML as fallback if needed
       const currentText = composer.textContent?.trim();
