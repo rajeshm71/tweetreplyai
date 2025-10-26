@@ -13,6 +13,41 @@ class TwitterReplyInjector {
     this.initialize();
   }
 
+  // Helper to get React Fiber node from DOM element
+  getReactInstance(element) {
+    // React 16+ stores fiber in __reactFiber$ prefixed keys
+    for (const key in element) {
+      if (key.startsWith('__reactFiber$') || key.startsWith('__reactInternalInstance$')) {
+        return element[key];
+      }
+    }
+    
+    // Fallback: check common React property names
+    return element._reactInternalFiber || 
+           element._reactInternalInstance || 
+           null;
+  }
+
+  // Helper to find React component from fiber
+  getReactComponent(fiber) {
+    if (!fiber) return null;
+    
+    // Traverse up to find component with state
+    let node = fiber;
+    while (node) {
+      if (node.stateNode && node.stateNode.forceUpdate) {
+        return node.stateNode;
+      }
+      node = node.return;
+    }
+    return null;
+  }
+
+  // Sleep helper method
+  sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
   async initialize() {
     // Check authentication status
     this.isAuthenticated = await this.authManager.isAuthenticated();
@@ -922,6 +957,23 @@ async insertReplyIntoComposer(composer, replyData) {
       targetElement.innerHTML = `<span data-text="true">${replyText}</span>`;
       console.log('[TweetReply] New content inserted:', targetElement.innerHTML);
 
+      // 4.5) Access React component and trigger re-render
+      console.log('[TweetReply] 🔍 Step 4.5: Accessing React component...');
+      const fiber = this.getReactInstance(composer);
+      const component = this.getReactComponent(fiber);
+
+      if (component) {
+        console.log('[TweetReply] Found React component, forcing update...');
+        try {
+          component.forceUpdate();
+          await this.sleep(50);
+        } catch (err) {
+          console.log('[TweetReply] forceUpdate failed:', err);
+        }
+      } else {
+        console.log('[TweetReply] No React component found');
+      }
+
       // 5) Fire insert event so React updates editorState with the new text
       console.log('[TweetReply] 📤 Step 5: Dispatching insert events...');
       const insEvt = new InputEvent('input', {
@@ -950,44 +1002,92 @@ async insertReplyIntoComposer(composer, replyData) {
       console.log('[TweetReply] ⏳ Waiting for React to process...');
       await this.sleep(60);
       
-      // 7) FORCE DRAFT.JS TO RECOGNIZE THE CHANGE - Multiple approaches
-      console.log('[TweetReply] 🔄 Step 7: Forcing Draft.js to recognize changes...');
-      
-      // Approach 1: Blur and refocus to trigger re-render
-      console.log('[TweetReply] 🔄 Blur/refocus approach...');
+      // 7) ENHANCED: Force Draft.js synchronization using multiple techniques
+      console.log('[TweetReply] 🔄 Step 7: Enhanced Draft.js synchronization...');
+
+      // 7a) Trigger React setState on parent elements
+      console.log('[TweetReply] 🔄 Triggering React updates on parent chain...');
+      let current = composer.parentElement;
+      let depth = 0;
+      while (current && depth < 5) {
+        const parentFiber = this.getReactInstance(current);
+        const parentComponent = this.getReactComponent(parentFiber);
+        if (parentComponent && parentComponent.forceUpdate) {
+          try {
+            parentComponent.forceUpdate();
+            console.log('[TweetReply] Forced update on parent level', depth);
+          } catch (err) {
+            console.log('[TweetReply] Parent forceUpdate failed:', err);
+          }
+        }
+        current = current.parentElement;
+        depth++;
+      }
+      await this.sleep(30);
+
+      // 7b) Use MutationObserver trick to trigger React's reconciliation
+      console.log('[TweetReply] 🔄 Triggering MutationObserver updates...');
+      const tempSpan = document.createElement('span');
+      tempSpan.style.display = 'none';
+      targetElement.appendChild(tempSpan);
+      await this.sleep(10);
+      targetElement.removeChild(tempSpan);
+      await this.sleep(20);
+
+      // 7c) Dispatch native keyboard event to simulate real typing
+      console.log('[TweetReply] 🔄 Simulating keyboard input...');
+      const keyboardEvent = new KeyboardEvent('keydown', {
+        key: 'End',
+        code: 'End',
+        bubbles: true,
+        cancelable: true
+      });
+      composer.dispatchEvent(keyboardEvent);
+      await this.sleep(10);
+
+      const keyupEvent = new KeyboardEvent('keyup', {
+        key: 'End',
+        code: 'End',
+        bubbles: true,
+        cancelable: true
+      });
+      composer.dispatchEvent(keyupEvent);
+      await this.sleep(20);
+
+      // 7d) Blur/focus with longer delays
+      console.log('[TweetReply] 🔄 Blur/focus with React reconciliation...');
       composer.blur();
-      await this.sleep(20);
+      await this.sleep(100); // Longer delay for React to process
       composer.focus();
-      await this.sleep(20);
-      
-      // Approach 2: Trigger selection change to force Draft.js update
-      console.log('[TweetReply] 🔄 Selection change approach...');
-      const sel = window.getSelection();
-      const range = document.createRange();
-      range.selectNodeContents(targetElement);
-      range.collapse(false);
-      sel.removeAllRanges();
-      sel.addRange(range);
-      
-      // Approach 3: Dispatch additional events to nudge Draft.js
-      console.log('[TweetReply] 🔄 Additional event nudging...');
-      composer.dispatchEvent(new Event('selectionchange', { bubbles: true }));
-      composer.dispatchEvent(new Event('change', { bubbles: true }));
-      
-      // Approach 4: If still not visible, try a micro-edit to force re-render
-      console.log('[TweetReply] 🔄 Checking if content is visible...');
-      const isVisible = targetElement.textContent && targetElement.textContent.trim() === replyText.trim();
-      console.log('[TweetReply] Content visible check:', isVisible);
-      
-      if (!isVisible) {
-        console.log('[TweetReply] 🔄 Content not visible, trying micro-edit approach...');
-        // Insert a space, then delete it to force Draft.js to recalculate
-        document.execCommand('insertText', false, ' ');
-        await this.sleep(10);
-        document.execCommand('delete', false, null);
-        await this.sleep(10);
+      await this.sleep(100);
+
+      // 7e) Final visibility check and fallback
+      console.log('[TweetReply] 🔄 Final visibility check...');
+      const computedStyle = window.getComputedStyle(targetElement);
+      const isDisplayed = computedStyle.display !== 'none' && 
+                       computedStyle.visibility !== 'hidden' &&
+                       computedStyle.opacity !== '0';
+                       
+      console.log('[TweetReply] Element displayed:', isDisplayed);
+      console.log('[TweetReply] TextContent:', targetElement.textContent);
+      console.log('[TweetReply] InnerHTML:', targetElement.innerHTML);
+
+      // Check if composer has Draft.js classes
+      const hasDraftClasses = composer.className.includes('DraftEditor') || 
+                             composer.closest('.DraftEditor-root');
+      console.log('[TweetReply] Has Draft.js classes:', !!hasDraftClasses);
+
+      // If still not working, try to find and click the composer to force focus
+      if (!targetElement.textContent || targetElement.textContent.trim() !== replyText.trim()) {
+        console.log('[TweetReply] ⚠️ Content still not visible, trying aggressive focus...');
         
-        // Re-insert our content
+        // Simulate click to ensure Draft.js is fully initialized
+        composer.click();
+        await this.sleep(50);
+        composer.focus();
+        await this.sleep(50);
+        
+        // Re-insert content
         targetElement.innerHTML = `<span data-text="true">${replyText}</span>`;
         composer.dispatchEvent(new InputEvent('input', {
           bubbles: true,
@@ -995,6 +1095,17 @@ async insertReplyIntoComposer(composer, replyData) {
           inputType: 'insertText',
           data: replyText
         }));
+        
+        // Force React update again
+        if (component) {
+          try {
+            component.forceUpdate();
+          } catch (err) {
+            console.log('[TweetReply] Second forceUpdate failed:', err);
+          }
+        }
+        
+        await this.sleep(100);
       }
       
       console.log('[TweetReply] 🎯 Final focus...');

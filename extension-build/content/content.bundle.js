@@ -926,10 +926,44 @@
           }
           console.log("[TweetReply] \u23F3 Waiting for React to process...");
           await this.sleep(60);
+          console.log("[TweetReply] \u{1F504} Step 7: Forcing Draft.js to recognize changes...");
+          console.log("[TweetReply] \u{1F504} Blur/refocus approach...");
+          composer.blur();
+          await this.sleep(20);
+          composer.focus();
+          await this.sleep(20);
+          console.log("[TweetReply] \u{1F504} Selection change approach...");
+          const sel2 = window.getSelection();
+          const range2 = document.createRange();
+          range2.selectNodeContents(targetElement);
+          range2.collapse(false);
+          sel2.removeAllRanges();
+          sel2.addRange(range2);
+          console.log("[TweetReply] \u{1F504} Additional event nudging...");
+          composer.dispatchEvent(new Event("selectionchange", { bubbles: true }));
+          composer.dispatchEvent(new Event("change", { bubbles: true }));
+          console.log("[TweetReply] \u{1F504} Checking if content is visible...");
+          const isVisible = targetElement.textContent && targetElement.textContent.trim() === replyText.trim();
+          console.log("[TweetReply] Content visible check:", isVisible);
+          if (!isVisible) {
+            console.log("[TweetReply] \u{1F504} Content not visible, trying micro-edit approach...");
+            document.execCommand("insertText", false, " ");
+            await this.sleep(10);
+            document.execCommand("delete", false, null);
+            await this.sleep(10);
+            targetElement.innerHTML = `<span data-text="true">${replyText}</span>`;
+            composer.dispatchEvent(new InputEvent("input", {
+              bubbles: true,
+              cancelable: true,
+              inputType: "insertText",
+              data: replyText
+            }));
+          }
           console.log("[TweetReply] \u{1F3AF} Final focus...");
           composer.focus();
           console.log("[TweetReply] \u2705 Text replaced using Qura AI method");
           console.log("[TweetReply] Final content:", targetElement.innerHTML);
+          console.log("[TweetReply] Final text content:", targetElement.textContent);
         } else if (composer.tagName === "TEXTAREA") {
           console.log("[TweetReply] \u{1F4DD} Using TEXTAREA method");
           console.log("[TweetReply] Textarea value before:", composer.value);
