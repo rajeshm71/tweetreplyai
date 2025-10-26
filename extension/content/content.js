@@ -1069,91 +1069,91 @@ class TwitterReplyInjector {
       if (composer.contentEditable === 'true') {
         console.log('[TweetReply] 📝 Using Quora AI Twitter method (Priority)');
         
-        try {
-          // Step 1: Find [data-text="true"] span's parent (Twitter's Draft.js structure)
-          // The structure is: contentEditable DIV > DIV > [multiple nested divs] > SPAN[data-text]
-          // We need to find the closest editable ancestor, not just immediate parent
-          const dataTextSpan = composer.querySelector('[data-text="true"]');
+      //   try {
+      //     // Step 1: Find [data-text="true"] span's parent (Twitter's Draft.js structure)
+      //     // The structure is: contentEditable DIV > DIV > [multiple nested divs] > SPAN[data-text]
+      //     // We need to find the closest editable ancestor, not just immediate parent
+      //     const dataTextSpan = composer.querySelector('[data-text="true"]');
           
-          // Find the actual editable container by going up from the data-text span
-          let targetElement = composer;
-          if (dataTextSpan) {
-            // Go up the tree to find a DIV that's a direct child of the contentEditable
-            let parent = dataTextSpan.parentElement;
-            while (parent && parent !== composer) {
-              // Look for the div that contains all the Draft.js content
-              // It's usually the first div child of the contentEditable
-              if (parent.parentElement === composer || 
-                  (parent.tagName === 'DIV' && parent.getAttribute('data-contents') === 'true')) {
-                targetElement = parent;
-                break;
-              }
-              parent = parent.parentElement;
-            }
-          }
+      //     // Find the actual editable container by going up from the data-text span
+      //     let targetElement = composer;
+      //     if (dataTextSpan) {
+      //       // Go up the tree to find a DIV that's a direct child of the contentEditable
+      //       let parent = dataTextSpan.parentElement;
+      //       while (parent && parent !== composer) {
+      //         // Look for the div that contains all the Draft.js content
+      //         // It's usually the first div child of the contentEditable
+      //         if (parent.parentElement === composer || 
+      //             (parent.tagName === 'DIV' && parent.getAttribute('data-contents') === 'true')) {
+      //           targetElement = parent;
+      //           break;
+      //         }
+      //         parent = parent.parentElement;
+      //       }
+      //     }
           
-          console.log('[TweetReply] Found data-text span:', !!dataTextSpan);
-          console.log('[TweetReply] Target element:', targetElement.tagName, targetElement.className);
-          console.log('[TweetReply] Target element has data-contents:', targetElement.getAttribute('data-contents'));
+      //     console.log('[TweetReply] Found data-text span:', !!dataTextSpan);
+      //     console.log('[TweetReply] Target element:', targetElement.tagName, targetElement.className);
+      //     console.log('[TweetReply] Target element has data-contents:', targetElement.getAttribute('data-contents'));
           
-          // Step 2: Click composer to ensure focus and Draft.js initialization
-          composer.click();
-          await this.sleep(20);
+      //     // Step 2: Click composer to ensure focus and Draft.js initialization
+      //     composer.click();
+      //     await this.sleep(20);
           
-          // Step 3: Log current state before replacement
-          console.log('[TweetReply] Current content before replace:', targetElement.textContent);
-          console.log('[TweetReply] Current innerHTML before replace:', targetElement.innerHTML.substring(0, 100));
+      //     // Step 3: Log current state before replacement
+      //     console.log('[TweetReply] Current content before replace:', targetElement.textContent);
+      //     console.log('[TweetReply] Current innerHTML before replace:', targetElement.innerHTML.substring(0, 100));
           
-          // Step 4: Use execCommand to properly clear and insert text
-          // This triggers all Draft.js internal events correctly
+      //     // Step 4: Use execCommand to properly clear and insert text
+      //     // This triggers all Draft.js internal events correctly
           
-          // First, select all content in the composer
-          const selection = window.getSelection();
-          const range = document.createRange();
-          range.selectNodeContents(composer);
-          selection.removeAllRanges();
-          selection.addRange(range);
+      //     // First, select all content in the composer
+      //     const selection = window.getSelection();
+      //     const range = document.createRange();
+      //     range.selectNodeContents(composer);
+      //     selection.removeAllRanges();
+      //     selection.addRange(range);
           
-          console.log('[TweetReply] Current content before replace:', composer.textContent);
+      //     console.log('[TweetReply] Current content before replace:', composer.textContent);
           
-          // Delete all selected content (clears the composer)
-          document.execCommand('delete', false, null);
-          await this.sleep(10);
+      //     // Delete all selected content (clears the composer)
+      //     document.execCommand('delete', false, null);
+      //     await this.sleep(10);
           
-          // Insert the new text using execCommand (maintains Draft.js state)
-          document.execCommand('insertText', false, cleanText);
+      //     // Insert the new text using execCommand (maintains Draft.js state)
+      //     document.execCommand('insertText', false, cleanText);
           
-          console.log('[TweetReply] New content after replace:', composer.textContent);
-          console.log('[TweetReply] Content length:', composer.textContent.length);
+      //     console.log('[TweetReply] New content after replace:', composer.textContent);
+      //     console.log('[TweetReply] Content length:', composer.textContent.length);
           
-          // Step 5: Ensure cursor is at the end
-          await this.sleep(20);
-          const endRange = document.createRange();
-          const textNode = composer.querySelector('[data-text="true"]');
+      //     // Step 5: Ensure cursor is at the end
+      //     await this.sleep(20);
+      //     const endRange = document.createRange();
+      //     const textNode = composer.querySelector('[data-text="true"]');
           
-          if (textNode && textNode.firstChild) {
-            endRange.setStart(textNode.firstChild, textNode.firstChild.length);
-            endRange.collapse(true);
-            selection.removeAllRanges();
-            selection.addRange(endRange);
-          }
+      //     if (textNode && textNode.firstChild) {
+      //       endRange.setStart(textNode.firstChild, textNode.firstChild.length);
+      //       endRange.collapse(true);
+      //       selection.removeAllRanges();
+      //       selection.addRange(endRange);
+      //     }
           
-          // Step 6: Final focus
-          composer.focus();
+      //     // Step 6: Final focus
+      //     composer.focus();
           
-          console.log('[TweetReply] ✅ Quora AI method completed');
+      //     console.log('[TweetReply] ✅ Quora AI method completed');
           
-          // Show quality badge
-          if (typeof qualityScore === 'number') {
-            this.showQualityBadge(composer, qualityScore);
-          }
+      //     // Show quality badge
+      //     if (typeof qualityScore === 'number') {
+      //       this.showQualityBadge(composer, qualityScore);
+      //     }
           
-          return; // Success - exit early
-        } catch (error) {
-          console.warn('[TweetReply] Quora AI method failed, falling back:', error);
-          // Fall through to other strategies
-        }
-      }
+      //     return; // Success - exit early
+      //   } catch (error) {
+      //     console.warn('[TweetReply] Quora AI method failed, falling back:', error);
+      //     // Fall through to other strategies
+      //   }
+      // }
 
       // Strategy 1: Handle Quill editor
       if (composer.classList && composer.classList.contains("ql-editor")) {
@@ -1195,6 +1195,19 @@ class TwitterReplyInjector {
         
         //Try execCommand first
         try {
+
+          // First, select all content in the composer
+          const selection = window.getSelection();
+          const range = document.createRange();
+          range.selectNodeContents(composer);
+          selection.removeAllRanges();
+          selection.addRange(range);
+          
+          console.log('[TweetReply] Current content before replace:', composer.textContent);
+          
+          // Delete all selected content (clears the composer)
+          document.execCommand('delete', false, null);
+          await this.sleep(10);
           document.execCommand("insertText", false, cleanText);
           console.log('[TweetReply] ✅ Draft.js execCommand successful');
           return;

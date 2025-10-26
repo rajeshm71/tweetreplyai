@@ -1029,28 +1029,26 @@
             await this.sleep(20);
             console.log("[TweetReply] Current content before replace:", targetElement.textContent);
             console.log("[TweetReply] Current innerHTML before replace:", targetElement.innerHTML.substring(0, 100));
-            targetElement.innerHTML = `<span data-text="true">${cleanText}</span>`;
-            console.log("[TweetReply] New content after replace:", targetElement.textContent);
-            console.log("[TweetReply] innerHTML set, content length:", targetElement.textContent.length);
-            targetElement.dispatchEvent(new InputEvent("input", {
-              bubbles: true,
-              cancelable: true
-            }));
-            if (targetElement !== composer) {
-              composer.dispatchEvent(new InputEvent("input", {
-                bubbles: true,
-                cancelable: true
-              }));
+            const selection = window.getSelection();
+            const range = document.createRange();
+            range.selectNodeContents(composer);
+            selection.removeAllRanges();
+            selection.addRange(range);
+            console.log("[TweetReply] Current content before replace:", composer.textContent);
+            document.execCommand("delete", false, null);
+            await this.sleep(10);
+            document.execCommand("insertText", false, cleanText);
+            console.log("[TweetReply] New content after replace:", composer.textContent);
+            console.log("[TweetReply] Content length:", composer.textContent.length);
+            await this.sleep(20);
+            const endRange = document.createRange();
+            const textNode = composer.querySelector('[data-text="true"]');
+            if (textNode && textNode.firstChild) {
+              endRange.setStart(textNode.firstChild, textNode.firstChild.length);
+              endRange.collapse(true);
+              selection.removeAllRanges();
+              selection.addRange(endRange);
             }
-            composer.dispatchEvent(new Event("input", { bubbles: true }));
-            composer.dispatchEvent(new Event("change", { bubbles: true }));
-            composer.dispatchEvent(new KeyboardEvent("keyup", {
-              bubbles: true,
-              cancelable: true,
-              key: " ",
-              code: "Space"
-            }));
-            await this.sleep(50);
             composer.focus();
             console.log("[TweetReply] \u2705 Quora AI method completed");
             if (typeof qualityScore === "number") {
