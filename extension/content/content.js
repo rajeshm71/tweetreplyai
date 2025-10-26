@@ -915,18 +915,46 @@ async insertReplyIntoComposer(composer, replyData) {
       composer.focus();
       await this.sleep(30);
 
-      // --- FIXED: Clear existing text using execCommand (Draft.js compatible) ---
-      // 1) Clear existing content using execCommand - Draft.js recognizes this
+      // --- FIXED: Use execCommand for both clearing AND insertion (Draft.js compatible) ---
+      // Step 1: Clear existing content using execCommand - Draft.js recognizes this
       console.log('[TweetReply] 📝 Step 1: Clearing existing content with execCommand...');
       document.execCommand('selectAll', false, null);
       document.execCommand('delete', false, null);
       await this.sleep(30);
       console.log('[TweetReply] Existing content cleared via execCommand');
 
-      // 4) Insert new content in the structure Twitter expects
-      console.log('[TweetReply] ✏️ Step 4: Inserting new content...');
-      targetElement.innerHTML = `<span data-text="true">${replyText}</span>`;
-      console.log('[TweetReply] New content inserted:', targetElement.innerHTML);
+      // Step 2: Insert new text using execCommand - Draft.js recognizes this
+      console.log('[TweetReply] ✏️ Step 2: Inserting new text with execCommand...');
+      document.execCommand('insertText', false, replyText);
+      await this.sleep(30);
+      console.log('[TweetReply] New text inserted with execCommand');
+
+      // Step 3: Verify text is visible, try innerHTML as fallback if needed
+      const currentText = composer.textContent?.trim();
+      console.log('[TweetReply] 🔍 Step 3: Verifying text visibility...');
+      console.log('[TweetReply] Current text:', currentText);
+      console.log('[TweetReply] Expected text:', replyText.trim());
+      
+      if (!currentText || currentText !== replyText.trim()) {
+        console.log('[TweetReply] ⚠️ Text not visible after execCommand, trying innerHTML fallback...');
+        if (targetElement && targetElement !== composer) {
+          targetElement.innerHTML = `<span data-text="true">${replyText}</span>`;
+          console.log('[TweetReply] Fallback innerHTML insertion attempted');
+        }
+      } else {
+        console.log('[TweetReply] ✅ Text is visible after execCommand');
+      }
+      
+      // Step 4: Position cursor at end for proper editing
+      console.log('[TweetReply] 🎯 Step 4: Positioning cursor at end...');
+      const sel = window.getSelection();
+      const range = document.createRange();
+      range.selectNodeContents(composer);
+      range.collapse(false); // false = collapse to end
+      sel.removeAllRanges();
+      sel.addRange(range);
+      composer.focus();
+      console.log('[TweetReply] Cursor positioned at end');
 
       // 4.5) Access React component and trigger re-render
       console.log('[TweetReply] 🔍 Step 4.5: Accessing React component...');

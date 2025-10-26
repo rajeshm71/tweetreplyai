@@ -901,9 +901,32 @@
           document.execCommand("delete", false, null);
           await this.sleep(30);
           console.log("[TweetReply] Existing content cleared via execCommand");
-          console.log("[TweetReply] \u270F\uFE0F Step 4: Inserting new content...");
-          targetElement.innerHTML = `<span data-text="true">${replyText}</span>`;
-          console.log("[TweetReply] New content inserted:", targetElement.innerHTML);
+          console.log("[TweetReply] \u270F\uFE0F Step 2: Inserting new text with execCommand...");
+          document.execCommand("insertText", false, replyText);
+          await this.sleep(30);
+          console.log("[TweetReply] New text inserted with execCommand");
+          const currentText = composer.textContent?.trim();
+          console.log("[TweetReply] \u{1F50D} Step 3: Verifying text visibility...");
+          console.log("[TweetReply] Current text:", currentText);
+          console.log("[TweetReply] Expected text:", replyText.trim());
+          if (!currentText || currentText !== replyText.trim()) {
+            console.log("[TweetReply] \u26A0\uFE0F Text not visible after execCommand, trying innerHTML fallback...");
+            if (targetElement && targetElement !== composer) {
+              targetElement.innerHTML = `<span data-text="true">${replyText}</span>`;
+              console.log("[TweetReply] Fallback innerHTML insertion attempted");
+            }
+          } else {
+            console.log("[TweetReply] \u2705 Text is visible after execCommand");
+          }
+          console.log("[TweetReply] \u{1F3AF} Step 4: Positioning cursor at end...");
+          const sel = window.getSelection();
+          const range = document.createRange();
+          range.selectNodeContents(composer);
+          range.collapse(false);
+          sel.removeAllRanges();
+          sel.addRange(range);
+          composer.focus();
+          console.log("[TweetReply] Cursor positioned at end");
           console.log("[TweetReply] \u{1F50D} Step 4.5: Accessing React component...");
           const fiber = this.getReactInstance(composer);
           const component = this.getReactComponent(fiber);
