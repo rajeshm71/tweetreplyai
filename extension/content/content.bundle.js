@@ -1007,58 +1007,6 @@
         const cleanText = this.stripReplyPrefix(replyText.replace(/<[^>]*>/g, ""));
         console.log("[TweetReply] Clean text:", cleanText);
         composer.focus();
-        if (composer.contentEditable === "true") {
-          console.log("[TweetReply] \u{1F4DD} Using Quora AI Twitter method (Priority)");
-          try {
-            const dataTextSpan = composer.querySelector('[data-text="true"]');
-            let targetElement = composer;
-            if (dataTextSpan) {
-              let parent = dataTextSpan.parentElement;
-              while (parent && parent !== composer) {
-                if (parent.parentElement === composer || parent.tagName === "DIV" && parent.getAttribute("data-contents") === "true") {
-                  targetElement = parent;
-                  break;
-                }
-                parent = parent.parentElement;
-              }
-            }
-            console.log("[TweetReply] Found data-text span:", !!dataTextSpan);
-            console.log("[TweetReply] Target element:", targetElement.tagName, targetElement.className);
-            console.log("[TweetReply] Target element has data-contents:", targetElement.getAttribute("data-contents"));
-            composer.click();
-            await this.sleep(20);
-            console.log("[TweetReply] Current content before replace:", targetElement.textContent);
-            console.log("[TweetReply] Current innerHTML before replace:", targetElement.innerHTML.substring(0, 100));
-            const selection = window.getSelection();
-            const range = document.createRange();
-            range.selectNodeContents(composer);
-            selection.removeAllRanges();
-            selection.addRange(range);
-            console.log("[TweetReply] Current content before replace:", composer.textContent);
-            document.execCommand("delete", false, null);
-            await this.sleep(10);
-            document.execCommand("insertText", false, cleanText);
-            console.log("[TweetReply] New content after replace:", composer.textContent);
-            console.log("[TweetReply] Content length:", composer.textContent.length);
-            await this.sleep(20);
-            const endRange = document.createRange();
-            const textNode = composer.querySelector('[data-text="true"]');
-            if (textNode && textNode.firstChild) {
-              endRange.setStart(textNode.firstChild, textNode.firstChild.length);
-              endRange.collapse(true);
-              selection.removeAllRanges();
-              selection.addRange(endRange);
-            }
-            composer.focus();
-            console.log("[TweetReply] \u2705 Quora AI method completed");
-            if (typeof qualityScore === "number") {
-              this.showQualityBadge(composer, qualityScore);
-            }
-            return;
-          } catch (error) {
-            console.warn("[TweetReply] Quora AI method failed, falling back:", error);
-          }
-        }
         if (composer.classList && composer.classList.contains("ql-editor")) {
           console.log("[TweetReply] \u{1F4DD} Using Quill editor method");
           try {
@@ -1089,6 +1037,14 @@
         if (composer.getAttribute("data-testid") === "dmComposerTextInput" || composer.classList.contains("public-DraftEditor-content") || composer.classList.contains("DraftEditor-editorContainer")) {
           console.log("[TweetReply] \u{1F4DD} Using Twitter Draft.js method");
           try {
+            const selection = window.getSelection();
+            const range = document.createRange();
+            range.selectNodeContents(composer);
+            selection.removeAllRanges();
+            selection.addRange(range);
+            console.log("[TweetReply] Current content before replace:", composer.textContent);
+            document.execCommand("delete", false, null);
+            await this.sleep(10);
             document.execCommand("insertText", false, cleanText);
             console.log("[TweetReply] \u2705 Draft.js execCommand successful");
             return;

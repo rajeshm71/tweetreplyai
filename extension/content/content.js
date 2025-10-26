@@ -1066,8 +1066,8 @@ class TwitterReplyInjector {
 
       // Strategy 0: Quora AI Method for Twitter (HIGHEST PRIORITY)
       // This should execute first for Twitter's tweetTextarea composers
-      if (composer.contentEditable === 'true') {
-        console.log('[TweetReply] 📝 Using Quora AI Twitter method (Priority)');
+      // if (composer.contentEditable === 'true') {
+      //   console.log('[TweetReply] 📝 Using Quora AI Twitter method (Priority)');
         
       //   try {
       //     // Step 1: Find [data-text="true"] span's parent (Twitter's Draft.js structure)
