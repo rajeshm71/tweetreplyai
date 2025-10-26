@@ -227,6 +227,66 @@
     sleep(ms) {
       return new Promise((resolve) => setTimeout(resolve, ms));
     }
+    // Strip reply prefixes from generated text (based on inject.js)
+    stripReplyPrefix(text) {
+      const prefixes = [
+        "Question",
+        "Supportive",
+        "Disagree",
+        "Enhance",
+        "Smart",
+        "Controversial",
+        "Marketing",
+        "Product-marketing"
+      ];
+      let cleaned = text.trim();
+      for (const prefix of prefixes) {
+        const regex = new RegExp(`^\\b${prefix}\\b\\s*[^\\w\\s]*\\s*`, "i");
+        if (regex.test(cleaned)) {
+          cleaned = cleaned.replace(regex, "").trim();
+          break;
+        }
+      }
+      const punctuationRegex = /^([A-Z][a-z]+)([\-:.,!]+)\s+/;
+      if (punctuationRegex.test(cleaned) && !cleaned.match(/^[A-Za-z]+,\s/)) {
+        cleaned = cleaned.replace(punctuationRegex, "").trim();
+      }
+      return cleaned;
+    }
+    // Find closest text area to a button element (based on inject.js)
+    findClosestTextArea(buttonElement) {
+      console.log("[TweetReply] \u{1F50D} Finding closest text area to button...");
+      const textAreaSelectors = [
+        'div[data-testid="tweetTextarea_0"]',
+        'div[data-testid="tweetTextarea_1"]',
+        'div[data-testid="tweetTextarea_2"]',
+        'div.public-DraftEditor-content[contenteditable="true"]',
+        "div.DraftEditor-root textarea",
+        'div[data-testid="reply-to-tweet"] div[contenteditable="true"]'
+      ];
+      let closestElement = null;
+      let closestDistance = Infinity;
+      for (const selector of textAreaSelectors) {
+        const elements = document.querySelectorAll(selector);
+        if (elements.length > 0) {
+          const buttonRect = buttonElement.getBoundingClientRect();
+          for (const element of Array.from(elements)) {
+            const elementRect = element.getBoundingClientRect();
+            const distance = Math.abs(elementRect.top - buttonRect.top);
+            if (distance < closestDistance) {
+              closestDistance = distance;
+              closestElement = element;
+            }
+          }
+        }
+      }
+      if (closestElement) {
+        console.log("[TweetReply] \u2705 Found closest text area:", closestElement.tagName, closestElement.className);
+      } else {
+        console.warn("[TweetReply] \u274C No text area found");
+      }
+      return closestElement;
+    }
     async initialize() {
       this.isAuthenticated = await this.authManager.isAuthenticated();
       if (this.isAuthenticated) {
@@ -702,6 +762,7 @@
       return container?.querySelector(".tweetreply-suggest-btn");
     }
     extractTweetText() {
+      console.log("[TweetReply] \u{1F50D} Extracting tweet text...");
       const tweetSelectors = [
         '[data-testid="tweet"] [data-testid="tweetText"]',
         ".tweet-text",
@@ -713,13 +774,81 @@
         for (const element of elements) {
           const text = element.textContent?.trim();
           if (text && text.length > 10) {
+            console.log("[TweetReply] \u2705 Tweet text found via selector:", selector);
             return text;
           }
         }
       }
-      const allText = document.body.textContent;
-      const sentences = allText.split(/[.!?]+/).filter((s) => s.trim().length > 20);
-      return sentences[0]?.trim() || null;
+      try {
+        const draftSpans = document.querySelectorAll('span[data-text="true"]');
+        if (draftSpans.length > 0) {
+          const text = Array.from(draftSpans).map((span) => span.textContent || "").join(" ").trim();
+          if (text && text.length > 10) {
+            console.log("[TweetReply] \u2705 Tweet text found via Draft.js spans");
+            return text;
+          }
+        }
+      } catch (error) {
+        console.warn("[TweetReply] Draft.js span extraction failed:", error);
+      }
+      try {
+        const contentEditables = document.querySelectorAll('[contenteditable="true"]');
+        for (const element of contentEditables) {
+          if (element.getAttribute("data-testid")?.includes("tweetTextarea") || element.classList.contains("public-DraftEditor-content")) {
+            continue;
+          }
+          const text = element.textContent?.trim();
+          if (text && text.length > 20 && text.length < 500) {
+            console.log("[TweetReply] \u2705 Tweet text found via contentEditable");
+            return text;
+          }
+        }
+      } catch (error) {
+        console.warn("[TweetReply] contentEditable extraction failed:", error);
+      }
+      try {
+        const draftBlocks = document.querySelectorAll(".public-DraftStyleDefault-block");
+        if (draftBlocks.length > 0) {
+          const text = Array.from(draftBlocks).map((block) => block.textContent || "").join("\n").trim();
+          if (text && text.length > 10) {
+            console.log("[TweetReply] \u2705 Tweet text found via Draft.js blocks");
+            return text;
+          }
+        }
+      } catch (error) {
+        console.warn("[TweetReply] Draft.js block extraction failed:", error);
+      }
+      try {
+        const tweetElements = document.querySelectorAll('[data-testid="tweet"]');
+        for (const tweet of tweetElements) {
+          let currentElement = tweet;
+          for (let i = 0; i < 3 && currentElement; i++) {
+            const spans = currentElement.querySelectorAll('span[data-text="true"]');
+            if (spans.length > 0) {
+              const text = Array.from(spans).map((span) => span.textContent || "").join(" ").trim();
+              if (text && text.length > 10) {
+                console.log("[TweetReply] \u2705 Tweet text found via parent traversal");
+                return text;
+              }
+            }
+            currentElement = currentElement.parentElement;
+          }
+        }
+      } catch (error) {
+        console.warn("[TweetReply] Parent traversal extraction failed:", error);
+      }
+      try {
+        const allText = document.body.textContent;
+        const sentences = allText.split(/[.!?]+/).filter((s) => s.trim().length > 20);
+        if (sentences.length > 0) {
+          console.log("[TweetReply] \u2705 Tweet text found via sentence detection");
+          return sentences[0]?.trim() || null;
+        }
+      } catch (error) {
+        console.warn("[TweetReply] Sentence detection failed:", error);
+      }
+      console.warn("[TweetReply] \u274C Failed to extract tweet text from any method");
+      return null;
     }
     extractTweetId() {
       const urlMatch = window.location.href.match(/status\/(\d+)/);
@@ -857,11 +986,11 @@
         return null;
       }
     }
-    // Quora AI method: Simple, proven approach for Twitter Draft.js
-    // Based on analysis of Quora AI extension's working implementation
+    // Enhanced text insertion method based on inject.js proven approach
+    // Handles multiple Twitter input types with comprehensive fallbacks
     async insertReplyIntoComposer(composer, replyData) {
       try {
-        console.log("[TweetReply] \u{1F680} Starting insertReplyIntoComposer (Quora AI method)");
+        console.log("[TweetReply] \u{1F680} Starting enhanced text insertion (inject.js method)");
         if (!composer || !replyData) {
           console.log("[TweetReply] \u274C Invalid parameters");
           return;
@@ -872,35 +1001,119 @@
           console.log("[TweetReply] \u274C No reply text to insert");
           return;
         }
+        const cleanText = this.stripReplyPrefix(replyText.replace(/<[^>]*>/g, ""));
+        console.log("[TweetReply] Clean text:", cleanText);
+        composer.focus();
+        if (composer.classList && composer.classList.contains("ql-editor")) {
+          console.log("[TweetReply] \u{1F4DD} Using Quill editor method");
+          try {
+            composer.innerHTML = "";
+            cleanText.split("\n").forEach((line) => {
+              if (line.trim()) {
+                const p = document.createElement("p");
+                p.textContent = line;
+                composer.appendChild(p);
+              } else {
+                const p = document.createElement("p");
+                p.innerHTML = "<br>";
+                composer.appendChild(p);
+              }
+            });
+            if (composer.childNodes.length === 0) {
+              const p = document.createElement("p");
+              p.innerHTML = "<br>";
+              composer.appendChild(p);
+            }
+            composer.dispatchEvent(new Event("input", { bubbles: true }));
+            console.log("[TweetReply] \u2705 Quill editor text inserted");
+            return;
+          } catch (error) {
+            console.warn("[TweetReply] Quill editor method failed:", error);
+          }
+        }
+        if (composer.getAttribute("data-testid") === "dmComposerTextInput" || composer.classList.contains("public-DraftEditor-content")) {
+          console.log("[TweetReply] \u{1F4DD} Using Twitter Draft.js method");
+          try {
+            document.execCommand("insertText", false, cleanText);
+            console.log("[TweetReply] \u2705 Draft.js execCommand successful");
+            return;
+          } catch (error) {
+            console.warn("[TweetReply] execCommand failed:", error);
+          }
+          try {
+            const contentDiv = composer.querySelector('[data-contents="true"]');
+            if (contentDiv) {
+              const blocks = contentDiv.querySelectorAll('[data-block="true"]');
+              if (blocks.length > 0) {
+                const textBlock = blocks[0].querySelector(".public-DraftStyleDefault-block");
+                if (textBlock) {
+                  textBlock.textContent = cleanText;
+                  composer.dispatchEvent(new InputEvent("input", {
+                    bubbles: true,
+                    cancelable: true
+                  }));
+                  console.log("[TweetReply] \u2705 Draft.js DOM manipulation successful");
+                  return;
+                }
+              }
+            }
+          } catch (error) {
+            console.warn("[TweetReply] Draft.js DOM manipulation failed:", error);
+          }
+          try {
+            composer.dispatchEvent(new InputEvent("beforeinput", {
+              inputType: "insertText",
+              data: cleanText,
+              bubbles: true,
+              cancelable: true
+            }));
+            composer.dispatchEvent(new InputEvent("input", {
+              bubbles: true,
+              cancelable: true
+            }));
+            console.log("[TweetReply] \u2705 Draft.js input events dispatched");
+            return;
+          } catch (error) {
+            console.warn("[TweetReply] Draft.js input events failed:", error);
+          }
+        }
+        if (composer.tagName === "TEXTAREA") {
+          console.log("[TweetReply] \u{1F4DD} Using TEXTAREA method");
+          composer.value = cleanText;
+          composer.dispatchEvent(new Event("input", { bubbles: true }));
+          console.log("[TweetReply] \u2705 Textarea text replaced");
+          return;
+        }
         if (composer.contentEditable === "true") {
-          console.log("[TweetReply] \u2705 Using EXACT Quora AI Twitter method");
+          console.log("[TweetReply] \u{1F4DD} Using contentEditable method");
           const dataTextSpan = composer.querySelector('[data-text="true"]');
           const targetElement = dataTextSpan ? dataTextSpan.parentElement : composer;
-          console.log("[TweetReply] Target element:", targetElement === composer ? "composer" : "parent");
           composer.click();
           await this.sleep(20);
-          targetElement.innerHTML = `<span data-text="true">${replyText}</span>`;
-          console.log("[TweetReply] InnerHTML replaced:", targetElement.innerHTML);
+          targetElement.innerHTML = `<span data-text="true">${cleanText}</span>`;
           targetElement.dispatchEvent(new InputEvent("input", {
             bubbles: true,
             cancelable: true
           }));
-          console.log("[TweetReply] Input event dispatched (exact Quora AI method)");
-          console.log("[TweetReply] \u2705 EXACT Quora AI Twitter method completed");
-        } else if (composer.tagName === "TEXTAREA") {
-          console.log("[TweetReply] \u{1F4DD} Using TEXTAREA method");
-          composer.focus();
-          composer.setSelectionRange(0, composer.value.length);
-          composer.value = replyText;
-          composer.dispatchEvent(new Event("input", { bubbles: true }));
-          console.log("[TweetReply] \u2705 Textarea text replaced");
-        } else {
-          console.log("[TweetReply] \u{1F50D} Looking for nested input elements...");
-          const input = composer.querySelector('textarea, [contenteditable="true"]');
-          if (input) {
-            await this.insertReplyIntoComposer(input, replyData);
-          }
+          console.log("[TweetReply] \u2705 contentEditable text inserted");
+          return;
         }
+        console.log("[TweetReply] \u{1F50D} Looking for nested input elements...");
+        const nestedInput = composer.querySelector('textarea, [contenteditable="true"]');
+        if (nestedInput) {
+          await this.insertReplyIntoComposer(nestedInput, replyData);
+          return;
+        }
+        if (composer.value !== void 0) {
+          composer.value = cleanText;
+          composer.dispatchEvent(new Event("input", { bubbles: true }));
+          console.log("[TweetReply] \u2705 Direct value assignment successful");
+        } else if (composer.textContent !== void 0) {
+          composer.textContent = cleanText;
+          composer.dispatchEvent(new Event("input", { bubbles: true }));
+          console.log("[TweetReply] \u2705 Direct textContent assignment successful");
+        }
+        composer.focus();
         if (typeof qualityScore === "number") {
           this.showQualityBadge(composer, qualityScore);
         }
