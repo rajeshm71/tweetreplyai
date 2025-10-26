@@ -1011,23 +1011,26 @@
           console.log("[TweetReply] \u{1F4DD} Using Quora AI Twitter method (Priority)");
           try {
             const dataTextSpan = composer.querySelector('[data-text="true"]');
-            const targetElement = dataTextSpan ? dataTextSpan.parentElement : composer;
+            let targetElement = composer;
+            if (dataTextSpan) {
+              let parent = dataTextSpan.parentElement;
+              while (parent && parent !== composer) {
+                if (parent.parentElement === composer || parent.tagName === "DIV" && parent.getAttribute("data-contents") === "true") {
+                  targetElement = parent;
+                  break;
+                }
+                parent = parent.parentElement;
+              }
+            }
             console.log("[TweetReply] Found data-text span:", !!dataTextSpan);
             console.log("[TweetReply] Target element:", targetElement.tagName, targetElement.className);
+            console.log("[TweetReply] Target element has data-contents:", targetElement.getAttribute("data-contents"));
             composer.click();
             await this.sleep(20);
-            try {
-              const selection = window.getSelection();
-              const range = document.createRange();
-              range.selectNodeContents(targetElement);
-              selection.removeAllRanges();
-              selection.addRange(range);
-              selection.deleteFromDocument();
-              await this.sleep(10);
-            } catch (clearError) {
-              console.warn("[TweetReply] Clear content failed:", clearError);
-            }
+            console.log("[TweetReply] Current content before replace:", targetElement.textContent);
+            console.log("[TweetReply] Current innerHTML before replace:", targetElement.innerHTML.substring(0, 100));
             targetElement.innerHTML = `<span data-text="true">${cleanText}</span>`;
+            console.log("[TweetReply] New content after replace:", targetElement.textContent);
             console.log("[TweetReply] innerHTML set, content length:", targetElement.textContent.length);
             targetElement.dispatchEvent(new InputEvent("input", {
               bubbles: true,

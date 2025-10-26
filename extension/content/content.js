@@ -1125,7 +1125,20 @@ class TwitterReplyInjector {
             }));
           }
           
-          // Step 7: Final focus to position cursor
+          // Step 7: Dispatch additional events to activate Reply button
+          // Twitter needs these events to recognize the text and enable the button
+          composer.dispatchEvent(new Event('input', { bubbles: true }));
+          composer.dispatchEvent(new Event('change', { bubbles: true }));
+          
+          // Trigger a keyup event to simulate user typing (activates validation)
+          composer.dispatchEvent(new KeyboardEvent('keyup', {
+            bubbles: true,
+            cancelable: true,
+            key: ' ',
+            code: 'Space'
+          }));
+          
+          // Step 8: Final focus to position cursor
           await this.sleep(50);
           composer.focus();
           
