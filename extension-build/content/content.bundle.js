@@ -1043,6 +1043,7 @@
             selection.removeAllRanges();
             selection.addRange(range);
             console.log("[TweetReply] Current content before replace:", composer.textContent);
+            document.execCommand("selectAll", false, null);
             await this.sleep(10);
             document.execCommand("insertText", false, cleanText);
             await this.sleep(20);
