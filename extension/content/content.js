@@ -502,6 +502,14 @@ class TwitterReplyInjector {
           select.appendChild(option);
         });
       }
+      if (models && models.groq) {
+        models.groq.forEach(model => {
+          const option = document.createElement('option');
+          option.value = model.key;
+          option.textContent = model.name;
+          select.appendChild(option);
+        });
+      }
     }).catch(error => {
       console.error('Failed to load models:', error);
     });

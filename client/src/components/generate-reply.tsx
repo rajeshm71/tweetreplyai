@@ -487,6 +487,26 @@ export function GenerateReply() {
                         </div>
                       </SelectItem>
                     ))}
+                    
+                    {/* Groq Models */}
+                    {modelsData.groq && modelsData.groq.length > 0 && (
+                      <>
+                        <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground mt-2">Groq</div>
+                        {modelsData.groq.map((model) => (
+                          <SelectItem key={model.key} value={model.key} data-testid={`model-${model.key}`}>
+                            <div className="flex items-center justify-between w-full">
+                              <div className="flex flex-col">
+                                <span className="font-medium">{model.name}</span>
+                                <span className="text-xs text-muted-foreground">{model.description}</span>
+                              </div>
+                              <Badge variant="outline" className="ml-2 text-xs">
+                                ${model.inputCost.toFixed(2)}/1M
+                              </Badge>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </>
+                    )}
                   </>
                 )
               )}
