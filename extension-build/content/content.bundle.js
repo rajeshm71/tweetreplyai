@@ -1034,26 +1034,6 @@
         if (composer.getAttribute("data-testid") === "dmComposerTextInput" || composer.classList.contains("public-DraftEditor-content")) {
           console.log("[TweetReply] \u{1F4DD} Using Twitter Draft.js method");
           try {
-            const contentDiv = composer.querySelector('[data-contents="true"]');
-            if (contentDiv) {
-              const blocks = contentDiv.querySelectorAll('[data-block="true"]');
-              if (blocks.length > 0) {
-                const textBlock = blocks[0].querySelector(".public-DraftStyleDefault-block");
-                if (textBlock) {
-                  textBlock.textContent = cleanText;
-                  composer.dispatchEvent(new InputEvent("input", {
-                    bubbles: true,
-                    cancelable: true
-                  }));
-                  console.log("[TweetReply] \u2705 Draft.js DOM manipulation successful");
-                  return;
-                }
-              }
-            }
-          } catch (error) {
-            console.warn("[TweetReply] Draft.js DOM manipulation failed:", error);
-          }
-          try {
             composer.dispatchEvent(new InputEvent("beforeinput", {
               inputType: "insertText",
               data: cleanText,

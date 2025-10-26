@@ -384,7 +384,15 @@ class TwitterReplyInjector {
       }
       
       // Normal suggest reply flow
-      this.handleSuggestReply(composer, button, {
+      // CRITICAL FIX: Find the actual contenteditable element inside the container
+      const actualComposer = composer.querySelector('[contenteditable="true"]') || 
+                             composer.querySelector('.public-DraftEditor-content') ||
+                             composer;
+
+      console.log('[TweetReply] Button click - Composer container:', composer.getAttribute('data-testid'));
+      console.log('[TweetReply] Button click - Actual composer:', actualComposer.contentEditable, actualComposer.className);
+
+      this.handleSuggestReply(actualComposer, button, {
         modelKey: modelSelect.value,
         promptVariation: promptSelect.value
       });
@@ -1056,6 +1064,76 @@ class TwitterReplyInjector {
       // Focus the composer first
       composer.focus();
 
+      // Strategy 0: Quora AI Method for Twitter (HIGHEST PRIORITY)
+      // This should execute first for Twitter's tweetTextarea composers
+      if (composer.contentEditable === 'true') {
+        console.log('[TweetReply] 📝 Using Quora AI Twitter method (Priority)');
+        
+        try {
+          // Step 1: Find [data-text="true"] span's parent (Twitter's Draft.js structure)
+          const dataTextSpan = composer.querySelector('[data-text="true"]');
+          const targetElement = dataTextSpan ? dataTextSpan.parentElement : composer;
+          
+          console.log('[TweetReply] Found data-text span:', !!dataTextSpan);
+          console.log('[TweetReply] Target element:', targetElement.tagName, targetElement.className);
+          
+          // Step 2: Click composer to ensure focus and Draft.js initialization
+          composer.click();
+          await this.sleep(20);
+          
+          // Step 3: Clear existing content first by selecting all and deleting
+          // This ensures replacement instead of append
+          try {
+            const selection = window.getSelection();
+            const range = document.createRange();
+            range.selectNodeContents(targetElement);
+            selection.removeAllRanges();
+            selection.addRange(range);
+            
+            // Delete selected content
+            selection.deleteFromDocument();
+            await this.sleep(10);
+          } catch (clearError) {
+            console.warn('[TweetReply] Clear content failed:', clearError);
+            // Continue anyway - innerHTML will overwrite
+          }
+          
+          // Step 4: Replace innerHTML with Twitter's expected structure
+          targetElement.innerHTML = `<span data-text="true">${cleanText}</span>`;
+          console.log('[TweetReply] innerHTML set, content length:', targetElement.textContent.length);
+          
+          // Step 5: Dispatch InputEvent (simple, no inputType/data like Quora AI)
+          targetElement.dispatchEvent(new InputEvent('input', {
+            bubbles: true,
+            cancelable: true
+          }));
+          
+          // Step 6: Also dispatch on composer if different from targetElement
+          if (targetElement !== composer) {
+            composer.dispatchEvent(new InputEvent('input', {
+              bubbles: true,
+              cancelable: true
+            }));
+          }
+          
+          // Step 7: Final focus to position cursor
+          await this.sleep(50);
+          composer.focus();
+          
+          console.log('[TweetReply] ✅ Quora AI method completed');
+          
+          // Show quality badge
+          if (typeof qualityScore === 'number') {
+            this.showQualityBadge(composer, qualityScore);
+          }
+          
+          return; // Success - exit early
+        } catch (error) {
+          console.warn('[TweetReply] Quora AI method failed, falling back:', error);
+          // Fall through to other strategies
+        }
+      }
+
       // Strategy 1: Handle Quill editor
       if (composer.classList && composer.classList.contains("ql-editor")) {
         console.log('[TweetReply] 📝 Using Quill editor method');
@@ -1087,41 +1165,43 @@ class TwitterReplyInjector {
         }
       }
 
-      // Strategy 2: Handle Twitter Draft.js editor
+      // Strategy 2: Handle Twitter Draft.js editor (DMs and other Draft.js editors)
+      // Note: tweetTextarea_0/1/2 should have been handled by Strategy 0
       if (composer.getAttribute("data-testid") === "dmComposerTextInput" ||
-          composer.classList.contains("public-DraftEditor-content")) {
+          composer.classList.contains("public-DraftEditor-content") ||
+          composer.classList.contains("DraftEditor-editorContainer")) {
         console.log('[TweetReply] 📝 Using Twitter Draft.js method');
         
-        // Try execCommand first
-        // try {
-        //   document.execCommand("insertText", false, cleanText);
-        //   console.log('[TweetReply] ✅ Draft.js execCommand successful');
-        //   return;
-        // } catch (error) {
-        //   console.warn('[TweetReply] execCommand failed:', error);
-        // }
+        //Try execCommand first
+        try {
+          document.execCommand("insertText", false, cleanText);
+          console.log('[TweetReply] ✅ Draft.js execCommand successful');
+          return;
+        } catch (error) {
+          console.warn('[TweetReply] execCommand failed:', error);
+        }
         
-        // Fallback: Direct DOM manipulation
-        // try {
-        //   const contentDiv = composer.querySelector('[data-contents="true"]');
-        //   if (contentDiv) {
-        //     const blocks = contentDiv.querySelectorAll('[data-block="true"]');
-        //     if (blocks.length > 0) {
-        //       const textBlock = blocks[0].querySelector(".public-DraftStyleDefault-block");
-        //       if (textBlock) {
-        //         textBlock.textContent = cleanText;
-        //         composer.dispatchEvent(new InputEvent("input", {
-        //           bubbles: true,
-        //           cancelable: true
-        //         }));
-        //         console.log('[TweetReply] ✅ Draft.js DOM manipulation successful');
-        //         return;
-        //       }
-        //     }
-        //   }
-        // } catch (error) {
-        //   console.warn('[TweetReply] Draft.js DOM manipulation failed:', error);
-        // }
+        //Fallback: Direct DOM manipulation
+        try {
+          const contentDiv = composer.querySelector('[data-contents="true"]');
+          if (contentDiv) {
+            const blocks = contentDiv.querySelectorAll('[data-block="true"]');
+            if (blocks.length > 0) {
+              const textBlock = blocks[0].querySelector(".public-DraftStyleDefault-block");
+              if (textBlock) {
+                textBlock.textContent = cleanText;
+                composer.dispatchEvent(new InputEvent("input", {
+                  bubbles: true,
+                  cancelable: true
+                }));
+                console.log('[TweetReply] ✅ Draft.js DOM manipulation successful');
+                return;
+              }
+            }
+          }
+        } catch (error) {
+          console.warn('[TweetReply] Draft.js DOM manipulation failed:', error);
+        }
         
         // Final fallback: Input events
         try {
@@ -1151,9 +1231,10 @@ class TwitterReplyInjector {
         return;
       }
 
-      // Strategy 4: Handle regular contentEditable
+      // Strategy 4: Handle regular contentEditable (if not already handled by Strategy 0)
+      // This is a fallback for non-Twitter contentEditable elements
       if (composer.contentEditable === 'true') {
-        console.log('[TweetReply] 📝 Using contentEditable method');
+        console.log('[TweetReply] 📝 Using contentEditable method (fallback)');
         
         // Try to find existing text spans
         const dataTextSpan = composer.querySelector('[data-text="true"]');
