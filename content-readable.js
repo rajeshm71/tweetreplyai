@@ -1,19 +1,47 @@
+/**
+ * TweetReply AI Extension - Content Script
+ * Enhanced Twitter reply generation with AI-powered suggestions
+ * 
+ * This content script injects reply suggestion buttons into Twitter's interface
+ * and handles AI-powered reply generation using multiple fallback strategies
+ * based on the proven inject.js approach.
+ */
+
 import { AuthManager } from '../utils/auth.js';
 import { ApiClient } from '../utils/api.js';
 
+/**
+ * Main Twitter Reply Injector Class
+ * Handles all Twitter interface modifications and AI reply generation
+ */
 class TwitterReplyInjector {
+  
+  /**
+   * Initialize the injector with authentication and API clients
+   */
   constructor() {
+    // Core dependencies
     this.authManager = new AuthManager();
     this.apiClient = new ApiClient();
+    
+    // State management
     this.isAuthenticated = false;
     this.usageData = null;
     this.injectedButtons = new Set();
-    this.injectedContainers = new Set(); // Track injected container IDs
+    this.injectedContainers = new Set();
     
+    // Start the injection process
     this.initialize();
   }
 
-  // Helper to get React Fiber node from DOM element
+  // ============================================================================
+  // REACT INTEGRATION HELPERS
+  // ============================================================================
+
+  /**
+   * Get React Fiber node from DOM element
+   * Used for advanced React component interaction
+   */
   getReactInstance(element) {
     // React 16+ stores fiber in __reactFiber$ prefixed keys
     for (const key in element) {
@@ -28,11 +56,13 @@ class TwitterReplyInjector {
            null;
   }
 
-  // Helper to find React component from fiber
+  /**
+   * Find React component from fiber node
+   * Traverses up the fiber tree to find component with state
+   */
   getReactComponent(fiber) {
     if (!fiber) return null;
     
-    // Traverse up to find component with state
     let node = fiber;
     while (node) {
       if (node.stateNode && node.stateNode.forceUpdate) {
@@ -43,12 +73,24 @@ class TwitterReplyInjector {
     return null;
   }
 
-  // Sleep helper method
+  // ============================================================================
+  // UTILITY FUNCTIONS
+  // ============================================================================
+
+  /**
+   * Sleep helper for async operations
+   * @param {number} ms - Milliseconds to sleep
+   */
   sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
-  // Strip reply prefixes from generated text (based on inject.js)
+  /**
+   * Strip reply prefixes from generated text (based on inject.js)
+   * Removes style prefixes like "Supportive:", "Question:", etc.
+   * @param {string} text - Text to clean
+   * @returns {string} - Cleaned text
+   */
   stripReplyPrefix(text) {
     const prefixes = [
       "Question", "Supportive", "Disagree", "Enhance", "Smart", 
@@ -75,7 +117,12 @@ class TwitterReplyInjector {
     return cleaned;
   }
 
-  // Find closest text area to a button element (based on inject.js)
+  /**
+   * Find closest text area to a button element (based on inject.js)
+   * Uses distance-based selection to find the most relevant composer
+   * @param {HTMLElement} buttonElement - Button that triggered the action
+   * @returns {HTMLElement|null} - Closest text area element
+   */
   findClosestTextArea(buttonElement) {
     console.log('[TweetReply] 🔍 Finding closest text area to button...');
     
@@ -120,39 +167,14 @@ class TwitterReplyInjector {
     return closestElement;
   }
 
-  // Quora AI Method: Find Twitter text area (based on Quora AI extension)
-  findTwitterTextArea(element) {
-    const textArea = element.querySelector('div[data-testid^="tweetTextarea_"][role="textbox"]');
-    return textArea || (element.parentElement ? this.findTwitterTextArea(element.parentElement) : null);
-  }
+  // ============================================================================
+  // INITIALIZATION & AUTHENTICATION
+  // ============================================================================
 
-  // Quora AI Method: Insert text using Quora's proven approach
-  async insertTextQuoraMethod(textArea, composer, text) {
-    console.log('[TweetReply] 📝 Executing Quora AI text insertion');
-    
-    // Step 1: Click composer to ensure focus (Quora's approach)
-    composer.click();
-    await this.sleep(20);
-    
-    // Step 2: Find [data-text="true"] span's parent (Twitter's Draft.js structure)
-    const dataTextSpan = textArea.querySelector('[data-text="true"]');
-    const targetElement = dataTextSpan ? dataTextSpan.parentElement : textArea;
-    
-    console.log('[TweetReply] Found data-text span:', !!dataTextSpan);
-    console.log('[TweetReply] Target element:', targetElement.tagName, targetElement.className);
-    
-    // Step 3: Insert text using Quora's method
-    if (targetElement) {
-      targetElement.innerHTML = `<span data-text="true">${text}</span>`;
-      targetElement.dispatchEvent(new InputEvent("input", {
-        bubbles: true,
-        cancelable: true
-      }));
-      
-      console.log('[TweetReply] ✅ Text inserted using Quora AI method');
-    }
-  }
-
+  /**
+   * Initialize the extension
+   * Sets up authentication, observers, and event listeners
+   */
   async initialize() {
     // Check authentication status
     this.isAuthenticated = await this.authManager.isAuthenticated();
@@ -169,7 +191,6 @@ class TwitterReplyInjector {
       if (message.action === 'suggestReply') {
         this.handleSuggestReplyFromPopup();
       } else if (message.action === 'authUpdated') {
-        // Refresh auth state when background detects login
         this.refreshAuthState();
       }
     });
@@ -189,29 +210,43 @@ class TwitterReplyInjector {
     }, 30000);
   }
 
+  /**
+   * Refresh authentication state
+   * Called when auth status changes
+   */
   async refreshAuthState() {
     const wasAuthenticated = this.isAuthenticated;
     this.isAuthenticated = await this.authManager.isAuthenticated();
     
     if (this.isAuthenticated && !wasAuthenticated) {
-      // Just logged in, reload usage data
       await this.loadUsageData();
     }
     
-    // Update all button states
     this.updateAllButtonStates();
   }
 
+  /**
+   * Load usage data from API
+   * Gets current usage statistics and limits
+   */
   async loadUsageData() {
     try {
       this.usageData = await this.apiClient.getUsage();
     } catch (error) {
       console.error('[TweetReply] Failed to load usage data:', error);
       this.usageData = null;
-      throw error; // Re-throw so caller can handle
+      throw error;
     }
   }
 
+  // ============================================================================
+  // DOM OBSERVATION & COMPOSER DETECTION
+  // ============================================================================
+
+  /**
+   * Start observing DOM changes for reply composers
+   * Uses MutationObserver to detect when Twitter creates new composer elements
+   */
   startObserving() {
     // Debounced observer to reduce redundant checks
     let debounceTimer = null;
@@ -247,6 +282,11 @@ class TwitterReplyInjector {
     this.checkForReplyComposers(document.body);
   }
 
+  /**
+   * Check container for reply composers and inject buttons
+   * Uses specific selectors first, then falls back to generic ones
+   * @param {HTMLElement} container - Container to search in
+   */
   checkForReplyComposers(container) {
     // Separate specific vs generic selectors to avoid duplicate matches
     const specificSelectors = [
@@ -284,8 +324,8 @@ class TwitterReplyInjector {
     if (!found) {
       for (const selector of genericSelectors) {
         try {
-      const composers = container.querySelectorAll ? container.querySelectorAll(selector) : [];
-      composers.forEach(composer => this.injectSuggestButton(composer));
+          const composers = container.querySelectorAll ? container.querySelectorAll(selector) : [];
+          composers.forEach(composer => this.injectSuggestButton(composer));
         } catch (error) {
           console.error('Error checking selector:', selector, error);
         }
@@ -293,6 +333,15 @@ class TwitterReplyInjector {
     }
   }
 
+  // ============================================================================
+  // UI INJECTION & BUTTON CREATION
+  // ============================================================================
+
+  /**
+   * Inject suggest button into composer
+   * Creates the UI elements for reply suggestion
+   * @param {HTMLElement} composer - The composer element to inject into
+   */
   injectSuggestButton(composer) {
     if (!composer || this.injectedButtons.has(composer)) return;
 
@@ -310,7 +359,7 @@ class TwitterReplyInjector {
       composerContainer.dataset.tweetreplyContainerId = containerId;
     }
 
-    // Check if button already exists IN THIS CONTAINER (not entire document)
+    // Check if button already exists IN THIS CONTAINER
     if (composerContainer.querySelector('.tweetreply-button-container') || 
         this.injectedContainers.has(containerId)) {
       this.injectedButtons.add(composer);
@@ -325,13 +374,13 @@ class TwitterReplyInjector {
                   composerContainer.querySelector('.toolbar') ||
                   composerContainer.querySelector('[role="toolbar"]');
 
-      if (!toolbar) {
+    if (!toolbar) {
       // Look for button containers with 2+ buttons (Twitter's native toolbar)
       const buttonContainers = composerContainer.querySelectorAll('div');
-        for (const container of buttonContainers) {
-          if (container.querySelectorAll('button').length >= 2) {
-            toolbar = container;
-            break;
+      for (const container of buttonContainers) {
+        if (container.querySelectorAll('button').length >= 2) {
+          toolbar = container;
+          break;
         }
       }
     }
@@ -348,6 +397,11 @@ class TwitterReplyInjector {
     }
   }
 
+  /**
+   * Create a custom toolbar for composers without native toolbars
+   * @param {HTMLElement} composer - The composer element
+   * @returns {HTMLElement} - Created toolbar element
+   */
   createToolbar(composer) {
     const toolbar = document.createElement('div');
     toolbar.className = 'tweetreply-toolbar';
@@ -368,6 +422,12 @@ class TwitterReplyInjector {
     return toolbar;
   }
 
+  /**
+   * Create the main suggest button with dropdowns
+   * @param {HTMLElement} composer - The composer element
+   * @param {string} containerId - Unique container ID
+   * @returns {HTMLElement} - Button container element
+   */
   createSuggestButton(composer, containerId) {
     const container = document.createElement('div');
     container.className = 'tweetreply-button-container';
@@ -384,7 +444,7 @@ class TwitterReplyInjector {
     // Suggest button
     const button = document.createElement('button');
     button.className = 'tweetreply-suggest-btn';
-    button.dataset.authPending = 'true'; // Mark as pending initialization
+    button.dataset.authPending = 'true';
 
     // Set initial loading state
     button.disabled = true;
@@ -411,21 +471,13 @@ class TwitterReplyInjector {
         console.log('[TweetReply] Retrying button initialization...');
         delete button.dataset.loadError;
         button.dataset.authPending = 'true';
-        this.updateButtonState(button); // Show loading
-        await this.updateButtonStateAsync(button); // Retry
+        this.updateButtonState(button);
+        await this.updateButtonStateAsync(button);
         return;
       }
       
       // Normal suggest reply flow
-      // CRITICAL FIX: Find the actual contenteditable element inside the container
-      const actualComposer = composer.querySelector('[contenteditable="true"]') || 
-                             composer.querySelector('.public-DraftEditor-content') ||
-                             composer;
-
-      console.log('[TweetReply] Button click - Composer container:', composer.getAttribute('data-testid'));
-      console.log('[TweetReply] Button click - Actual composer:', actualComposer.contentEditable, actualComposer.className);
-
-      this.handleSuggestReply(actualComposer, button, {
+      this.handleSuggestReply(composer, button, {
         modelKey: modelSelect.value,
         promptVariation: promptSelect.value
       });
@@ -435,56 +487,10 @@ class TwitterReplyInjector {
     return container;
   }
 
-  async updateButtonStateAsync(button) {
-    try {
-      console.log('[TweetReply] Initializing button state...');
-      
-      // Re-check auth if needed
-      if (!this.isAuthenticated) {
-        this.isAuthenticated = await this.authManager.isAuthenticated();
-        console.log('[TweetReply] Auth status:', this.isAuthenticated);
-      }
-      
-      // Load usage with timeout
-      if (this.isAuthenticated && !this.usageData) {
-        console.log('[TweetReply] Loading usage data...');
-        
-        try {
-          await Promise.race([
-            this.loadUsageData(),
-            new Promise((_, reject) => 
-              setTimeout(() => reject(new Error('Timeout after 10 seconds')), 10000)
-            )
-          ]);
-          
-          console.log('[TweetReply] Usage data loaded:', this.usageData);
-        } catch (error) {
-          console.warn('[TweetReply] Failed to load usage data, using fallback:', error);
-          
-          // Graceful degradation: assume user has quota, let backend validate
-          this.usageData = { 
-            used: 0, 
-            limit: 999, 
-            resetAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-          };
-        }
-      }
-      
-      // Success: remove pending flag
-      delete button.dataset.authPending;
-      delete button.dataset.loadError;
-      this.updateButtonState(button);
-      
-    } catch (error) {
-      console.error('[TweetReply] Critical error initializing button:', error);
-      
-      // Set error state
-      delete button.dataset.authPending;
-      button.dataset.loadError = 'true';
-      this.updateButtonState(button);
-    }
-  }
-
+  /**
+   * Create model selection dropdown
+   * @returns {HTMLElement} - Select element
+   */
   createModelSelect() {
     const select = document.createElement('select');
     select.className = 'tweetreply-model-select';
@@ -521,6 +527,10 @@ class TwitterReplyInjector {
     return select;
   }
 
+  /**
+   * Create prompt selection dropdown
+   * @returns {HTMLElement} - Select element
+   */
   createPromptSelect() {
     const select = document.createElement('select');
     select.className = 'tweetreply-prompt-select';
@@ -549,6 +559,14 @@ class TwitterReplyInjector {
     return select;
   }
 
+  // ============================================================================
+  // API INTEGRATION
+  // ============================================================================
+
+  /**
+   * Load available AI models from API
+   * @returns {Promise<Object>} - Models data
+   */
   async loadModels() {
     try {
       return await this.apiClient.getModels();
@@ -558,6 +576,10 @@ class TwitterReplyInjector {
     }
   }
 
+  /**
+   * Load available prompts from API
+   * @returns {Promise<Array>} - Prompts data
+   */
   async loadPrompts() {
     try {
       return await this.apiClient.getPrompts();
@@ -567,6 +589,69 @@ class TwitterReplyInjector {
     }
   }
 
+  // ============================================================================
+  // BUTTON STATE MANAGEMENT
+  // ============================================================================
+
+  /**
+   * Update button state asynchronously
+   * Handles authentication and usage data loading
+   * @param {HTMLElement} button - Button to update
+   */
+  async updateButtonStateAsync(button) {
+    try {
+      console.log('[TweetReply] Initializing button state...');
+      
+      // Re-check auth if needed
+      if (!this.isAuthenticated) {
+        this.isAuthenticated = await this.authManager.isAuthenticated();
+        console.log('[TweetReply] Auth status:', this.isAuthenticated);
+      }
+      
+      // Load usage with timeout
+      if (this.isAuthenticated && !this.usageData) {
+        console.log('[TweetReply] Loading usage data...');
+        
+        try {
+          await Promise.race([
+            this.loadUsageData(),
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Timeout after 10 seconds')), 10000)
+            )
+          ]);
+          
+          console.log('[TweetReply] Usage data loaded:', this.usageData);
+        } catch (error) {
+          console.warn('[TweetReply] Failed to load usage data, using fallback:', error);
+          
+          // Graceful degradation: assume user has quota
+          this.usageData = { 
+            used: 0, 
+            limit: 999, 
+            resetAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+          };
+        }
+      }
+      
+      // Success: remove pending flag
+      delete button.dataset.authPending;
+      delete button.dataset.loadError;
+      this.updateButtonState(button);
+      
+    } catch (error) {
+      console.error('[TweetReply] Critical error initializing button:', error);
+      
+      // Set error state
+      delete button.dataset.authPending;
+      button.dataset.loadError = 'true';
+      this.updateButtonState(button);
+    }
+  }
+
+  /**
+   * Update button visual state based on authentication and usage
+   * @param {HTMLElement} button - Button to update
+   */
   updateButtonState(button) {
     // Don't update if still pending
     if (button.dataset.authPending === 'true') {
@@ -575,7 +660,7 @@ class TwitterReplyInjector {
 
     // Error state (failed to load)
     if (button.dataset.loadError === 'true') {
-      button.disabled = false; // Allow retry
+      button.disabled = false;
       button.innerHTML = `
         <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" style="margin-right: 4px;">
           <path d="M12 2L13.09 8.26L19 7.27L14.18 12.09L20 17.91L13.09 15.74L12 22L10.91 15.74L4 17.91L8.82 12.09L3 7.27L8.91 8.26L12 2Z" opacity="0.8"/>
@@ -644,8 +729,12 @@ class TwitterReplyInjector {
     button.style.opacity = '1';
   }
 
+  /**
+   * Insert button into toolbar
+   * @param {HTMLElement} toolbar - Toolbar element
+   * @param {HTMLElement} button - Button container to insert
+   */
   insertButtonInToolbar(toolbar, button) {
-    // Try to insert at the beginning of the toolbar
     if (toolbar.firstChild) {
       toolbar.insertBefore(button, toolbar.firstChild);
     } else {
@@ -653,6 +742,27 @@ class TwitterReplyInjector {
     }
   }
 
+  /**
+   * Update all button states
+   * Called when authentication or usage data changes
+   */
+  updateAllButtonStates() {
+    document.querySelectorAll('.tweetreply-suggest-btn').forEach(button => {
+      this.updateButtonState(button);
+    });
+  }
+
+  // ============================================================================
+  // REPLY GENERATION & HANDLING
+  // ============================================================================
+
+  /**
+   * Handle suggest reply button click
+   * Main entry point for AI reply generation
+   * @param {HTMLElement} composer - The composer element
+   * @param {HTMLElement} button - The clicked button
+   * @param {Object} options - Generation options (model, prompt)
+   */
   async handleSuggestReply(composer, button, options = {}) {
     if (!this.isAuthenticated) {
       this.showMessage(composer, 'Please sign in to use TweetReply', 'error');
@@ -694,7 +804,7 @@ class TwitterReplyInjector {
       const conversationContext = this.extractConversationContext();
       const tweetMetadata = this.extractTweetMetadata();
 
-      // Log what we're sending for debugging (safely)
+      // Log what we're sending for debugging
       console.log('[TweetReply] Generating reply with data:', {
         tweet_id: tweetId,
         tweet_text_length: tweetText.length,
@@ -705,10 +815,10 @@ class TwitterReplyInjector {
 
       const response = await this.apiClient.generateReply({
         tweet_text: tweetText,
-        tweet_id: tweetId, // Now guaranteed to be non-null
+        tweet_id: tweetId,
         model_key: options.modelKey,
         prompt_variation: options.promptVariation,
-        author_info: authorInfo, // Now guaranteed to have follower_count as number
+        author_info: authorInfo,
         conversation_context: conversationContext,
         tweet_metadata: tweetMetadata
       });
@@ -760,8 +870,11 @@ class TwitterReplyInjector {
     }
   }
 
+  /**
+   * Handle suggest reply from popup
+   * Finds visible composers and triggers reply generation
+   */
   async handleSuggestReplyFromPopup() {
-    // Find the currently focused composer or the first visible one
     const composers = document.querySelectorAll('[data-testid="tweetTextarea_0"], [data-testid="tweetTextarea_1"]');
     
     for (const composer of composers) {
@@ -775,18 +888,35 @@ class TwitterReplyInjector {
     }
   }
 
+  /**
+   * Check if composer is visible
+   * @param {HTMLElement} composer - Composer element
+   * @returns {boolean} - Whether composer is visible
+   */
   isComposerVisible(composer) {
     const rect = composer.getBoundingClientRect();
     return rect.width > 0 && rect.height > 0 && rect.top >= 0 && rect.bottom <= window.innerHeight;
   }
 
+  /**
+   * Find button for composer
+   * @param {HTMLElement} composer - Composer element
+   * @returns {HTMLElement|null} - Associated button element
+   */
   findButtonForComposer(composer) {
     const container = composer.closest('[data-testid="tweetComposer"]') || composer.parentElement;
     return container?.querySelector('.tweetreply-suggest-btn');
   }
 
+  // ============================================================================
+  // TEXT EXTRACTION METHODS
+  // ============================================================================
+
+  /**
+   * Extract tweet text using multiple methods (enhanced with inject.js approach)
+   * @returns {string|null} - Extracted tweet text
+   */
   extractTweetText() {
-    // Enhanced tweet text extraction based on inject.js approach
     console.log('[TweetReply] 🔍 Extracting tweet text...');
     
     // Method 1: Look for tweet text in tweet elements (most reliable)
@@ -887,11 +1017,11 @@ class TwitterReplyInjector {
 
     // Method 6: Fallback to sentence detection from body text
     try {
-    const allText = document.body.textContent;
-    const sentences = allText.split(/[.!?]+/).filter(s => s.trim().length > 20);
+      const allText = document.body.textContent;
+      const sentences = allText.split(/[.!?]+/).filter(s => s.trim().length > 20);
       if (sentences.length > 0) {
         console.log('[TweetReply] ✅ Tweet text found via sentence detection');
-    return sentences[0]?.trim() || null;
+        return sentences[0]?.trim() || null;
       }
     } catch (error) {
       console.warn('[TweetReply] Sentence detection failed:', error);
@@ -901,6 +1031,10 @@ class TwitterReplyInjector {
     return null;
   }
 
+  /**
+   * Extract tweet ID using multiple methods
+   * @returns {string|null} - Tweet ID
+   */
   extractTweetId() {
     // Method 1: From URL (works on /status/123 pages)
     const urlMatch = window.location.href.match(/status\/(\d+)/);
@@ -954,10 +1088,14 @@ class TwitterReplyInjector {
     return null;
   }
 
+  /**
+   * Parse follower count string to number
+   * @param {string} countStr - Count string like "1.2K", "5M"
+   * @returns {number} - Parsed count
+   */
   parseFollowerCount(countStr) {
     if (!countStr) return 0;
     
-    // Convert "1.2K" → 1200, "5M" → 5000000, etc.
     const multipliers = { K: 1000, M: 1000000, B: 1000000000 };
     const match = countStr.match(/^([\d.]+)([KMB])?$/i);
     
@@ -969,6 +1107,10 @@ class TwitterReplyInjector {
     return Math.round(num * (multipliers[suffix] || 1));
   }
 
+  /**
+   * Extract author information from tweet
+   * @returns {Object} - Author info object
+   */
   extractAuthorInfo() {
     try {
       const authorElement = document.querySelector('[data-testid="User-Name"]');
@@ -977,7 +1119,7 @@ class TwitterReplyInjector {
         return {
           username: 'unknown',
           verified: false,
-          follower_count: 0 // Fallback value
+          follower_count: 0
         };
       }
 
@@ -985,7 +1127,7 @@ class TwitterReplyInjector {
       const verifiedIcon = authorElement.querySelector('[data-testid="icon-verified"]');
       const isVerified = !!verifiedIcon;
 
-      // Try to get follower count - use 0 as fallback
+      // Try to get follower count
       let followerCount = 0;
       
       // Method 1: From profile page bio
@@ -1015,7 +1157,7 @@ class TwitterReplyInjector {
       return {
         username,
         verified: isVerified,
-        follower_count: followerCount // Always returns a number
+        follower_count: followerCount
       };
     } catch (error) {
       console.error('[TweetReply] Failed to extract author info:', error);
@@ -1027,6 +1169,10 @@ class TwitterReplyInjector {
     }
   }
 
+  /**
+   * Extract conversation context from surrounding tweets
+   * @returns {Array|null} - Array of parent tweet texts
+   */
   extractConversationContext() {
     try {
       const tweets = document.querySelectorAll('[data-testid="tweet"]');
@@ -1051,6 +1197,10 @@ class TwitterReplyInjector {
     }
   }
 
+  /**
+   * Extract tweet metadata (media, polls, timestamp)
+   * @returns {Object|null} - Tweet metadata
+   */
   extractTweetMetadata() {
     try {
       const hasMedia = !!document.querySelector('[data-testid="tweetPhoto"], [data-testid="videoPlayer"]');
@@ -1071,20 +1221,28 @@ class TwitterReplyInjector {
     }
   }
 
-  // Enhanced text insertion method based on inject.js proven approach
-  // Handles multiple Twitter input types with comprehensive fallbacks
+  // ============================================================================
+  // TEXT INSERTION ENGINE (Enhanced with inject.js approach)
+  // ============================================================================
+
+  /**
+   * Enhanced text insertion method based on inject.js proven approach
+   * Handles multiple Twitter input types with comprehensive fallbacks
+   * @param {HTMLElement} composer - The composer element
+   * @param {Object|string} replyData - Reply data or text string
+   */
   async insertReplyIntoComposer(composer, replyData) {
     try {
-      console.log('[TweetReply] 🚀 Starting Quora AI text insertion method');
+      console.log('[TweetReply] 🚀 Starting enhanced text insertion (inject.js method)');
       
       if (!composer || !replyData) {
         console.log('[TweetReply] ❌ Invalid parameters');
         return;
       }
-
+      
       const replyText = typeof replyData === 'string' ? replyData : replyData.reply;
       const qualityScore = typeof replyData === 'object' ? replyData.qualityScore : null;
-
+      
       if (!replyText) {
         console.log('[TweetReply] ❌ No reply text to insert');
         return;
@@ -1094,31 +1252,10 @@ class TwitterReplyInjector {
       const cleanText = this.stripReplyPrefix(replyText.replace(/<[^>]*>/g, ""));
       console.log('[TweetReply] Clean text:', cleanText);
 
-      // Strategy 1: Quora AI Method for Twitter/X (PRIMARY METHOD)
-      // This is the proven approach from Quora AI extension
-      if (composer.contentEditable === 'true' || 
-          composer.getAttribute('data-testid')?.startsWith('tweetTextarea_') ||
-          composer.getAttribute('role') === 'textbox') {
-        
-        console.log('[TweetReply] 📝 Using Quora AI Twitter method');
-        
-        try {
-          // Step 1: Find the text area using Quora's approach
-          const textArea = this.findTwitterTextArea(composer);
-          if (textArea) {
-            await this.insertTextQuoraMethod(textArea, composer, cleanText);
-            console.log('[TweetReply] ✅ Quora AI method successful');
-            return;
-          }
-        } catch (error) {
-          console.warn('[TweetReply] Quora AI method failed:', error);
-        }
-      }
+      // Focus the composer first
+      composer.focus();
 
-      // Strategy 2: Fallback to inject.js multi-strategy approach
-      console.log('[TweetReply] 📝 Falling back to inject.js multi-strategy approach');
-
-      // Strategy 2a: Handle Quill editor
+      // Strategy 1: Handle Quill editor
       if (composer.classList && composer.classList.contains("ql-editor")) {
         console.log('[TweetReply] 📝 Using Quill editor method');
         try {
@@ -1141,7 +1278,7 @@ class TwitterReplyInjector {
             composer.appendChild(p);
           }
           
-          composer.dispatchEvent(new Event("input", {bubbles: true}));
+          composer.dispatchEvent(new Event("input", { bubbles: true }));
           console.log('[TweetReply] ✅ Quill editor text inserted');
           return;
         } catch (error) {
@@ -1149,10 +1286,9 @@ class TwitterReplyInjector {
         }
       }
 
-      // Strategy 2b: Handle Twitter Draft.js editor
-      if (composer.getAttribute("data-testid") === "dmComposerTextInput" ||
-          composer.classList.contains("public-DraftEditor-content") ||
-          composer.classList.contains("DraftEditor-editorContainer")) {
+      // Strategy 2: Handle Twitter Draft.js editor
+      if (composer.getAttribute("data-testid") === "dmComposerTextInput" &&
+          composer.classList.contains("public-DraftEditor-content")) {
         console.log('[TweetReply] 📝 Using Twitter Draft.js method');
         
         // Try execCommand first
@@ -1174,7 +1310,7 @@ class TwitterReplyInjector {
               if (textBlock) {
                 textBlock.textContent = cleanText;
                 composer.dispatchEvent(new InputEvent("input", {
-          bubbles: true,
+                  bubbles: true,
                   cancelable: true
                 }));
                 console.log('[TweetReply] ✅ Draft.js DOM manipulation successful');
@@ -1205,7 +1341,7 @@ class TwitterReplyInjector {
         }
       }
 
-      // Strategy 2c: Handle regular textarea
+      // Strategy 3: Handle regular textarea
       if (composer.tagName === 'TEXTAREA') {
         console.log('[TweetReply] 📝 Using TEXTAREA method');
         composer.value = cleanText;
@@ -1214,9 +1350,9 @@ class TwitterReplyInjector {
         return;
       }
 
-      // Strategy 2d: Handle regular contentEditable (fallback)
+      // Strategy 4: Handle regular contentEditable
       if (composer.contentEditable === 'true') {
-        console.log('[TweetReply] 📝 Using contentEditable method (fallback)');
+        console.log('[TweetReply] 📝 Using contentEditable method');
         
         // Try to find existing text spans
         const dataTextSpan = composer.querySelector('[data-text="true"]');
@@ -1238,7 +1374,7 @@ class TwitterReplyInjector {
         return;
       }
 
-      // Strategy 2e: Look for nested input elements
+      // Strategy 5: Look for nested input elements
       console.log('[TweetReply] 🔍 Looking for nested input elements...');
       const nestedInput = composer.querySelector('textarea, [contenteditable="true"]');
       if (nestedInput) {
@@ -1246,7 +1382,7 @@ class TwitterReplyInjector {
         return;
       }
 
-      // Strategy 2f: Direct value/textContent assignment
+      // Strategy 6: Direct value/textContent assignment
       if (composer.value !== undefined) {
         composer.value = cleanText;
         composer.dispatchEvent(new Event('input', { bubbles: true }));
@@ -1269,21 +1405,17 @@ class TwitterReplyInjector {
     }
   }
 
+  // ============================================================================
+  // UI FEEDBACK & MESSAGING
+  // ============================================================================
 
-
-
-
-
-
-
-
-
-
-
-
+  /**
+   * Show quality badge for generated reply
+   * @param {HTMLElement} composer - Composer element
+   * @param {number} score - Quality score (0-100)
+   */
   showQualityBadge(composer, score) {
     try {
-      // Safety check
       if (!composer || !composer.parentElement) {
         console.warn('[TweetReply] Cannot show quality badge: composer or parent not found');
         return;
@@ -1311,18 +1443,23 @@ class TwitterReplyInjector {
     }
   }
 
+  /**
+   * Get quality class based on score
+   * @param {number} score - Quality score
+   * @returns {string} - CSS class name
+   */
   getQualityClass(score) {
     if (score >= 80) return 'high';
     if (score >= 60) return 'medium';
     return 'low';
   }
 
-  updateAllButtonStates() {
-    document.querySelectorAll('.tweetreply-suggest-btn').forEach(button => {
-      this.updateButtonState(button);
-    });
-  }
-
+  /**
+   * Show message to user
+   * @param {HTMLElement} composer - Composer element
+   * @param {string} message - Message text
+   * @param {string} type - Message type (info, success, error)
+   */
   showMessage(composer, message, type = 'info') {
     // Remove existing messages
     const existingMessage = composer.parentElement?.querySelector('.tweetreply-message');
@@ -1347,6 +1484,11 @@ class TwitterReplyInjector {
     }, 3000);
   }
 
+  /**
+   * Format time distance for display
+   * @param {Date} date - Target date
+   * @returns {string} - Formatted time string
+   */
   formatTimeDistance(date) {
     const now = new Date();
     const diffMs = date.getTime() - now.getTime();
@@ -1364,5 +1506,9 @@ class TwitterReplyInjector {
   }
 }
 
-// Initialize the injector
+// ============================================================================
+// INITIALIZATION
+// ============================================================================
+
+// Initialize the injector when DOM is ready
 new TwitterReplyInjector();

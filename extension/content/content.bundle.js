@@ -1044,7 +1044,8 @@
             selection.addRange(range);
             console.log("[TweetReply] Current content before replace:", composer.textContent);
             composer.textContent = "";
-            console.log("[TweetReply] Current content after replace:", composer.textContent);
+            await this.sleep(10);
+            console.log("[TweetReply] Current content after replacement:", composer.textContent);
             await this.sleep(10);
             document.execCommand("insertText", false, cleanText);
             await this.sleep(20);
