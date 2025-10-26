@@ -1088,7 +1088,7 @@ class TwitterReplyInjector {
       }
 
       // Strategy 2: Handle Twitter Draft.js editor
-      if (composer.getAttribute("data-testid") === "dmComposerTextInput" || 
+      if (composer.getAttribute("data-testid") === "dmComposerTextInput" &&
           composer.classList.contains("public-DraftEditor-content")) {
         console.log('[TweetReply] 📝 Using Twitter Draft.js method');
         
