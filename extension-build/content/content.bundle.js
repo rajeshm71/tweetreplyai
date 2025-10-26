@@ -1038,6 +1038,8 @@
           console.log("[TweetReply] \u{1F4DD} Using Twitter Draft.js method");
           try {
             console.log("[TweetReply] Current content before replace:", composer.textContent);
+            document.execCommand("selectAll", false, null);
+            document.execCommand("delete", false, null);
             await this.sleep(10);
             document.execCommand("insertText", false, cleanText);
             await this.sleep(20);
