@@ -111,7 +111,7 @@ export function GenerateReply() {
   const queryClient = useQueryClient();
 
   // Fetch available models
-  const { data: modelsData, isLoading: modelsLoading } = useQuery<{openai: ModelInfo[], gemini: ModelInfo[]}>({
+  const { data: modelsData, isLoading: modelsLoading } = useQuery<{openai: ModelInfo[], gemini: ModelInfo[], groq: ModelInfo[]}>({
     queryKey: ["/api/models"],
     refetchOnWindowFocus: false,
   });
