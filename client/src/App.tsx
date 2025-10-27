@@ -11,6 +11,7 @@ import AppPage from "@/pages/app";
 import AuthPage from "@/pages/auth";
 import ProfilePage from "@/pages/profile";
 import SettingsPage from "@/pages/settings";
+import PrivacyPolicy from "@/pages/privacy";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -23,6 +24,7 @@ function Router() {
           <Route path="/" component={Landing} />
           <Route path="/login" component={AuthPage} />
           <Route path="/pricing" component={Pricing} />
+          <Route path="/privacy" component={PrivacyPolicy} />
         </>
       ) : (
         <>
@@ -32,6 +34,7 @@ function Router() {
           <Route path="/settings" component={SettingsPage} />
           <Route path="/login" component={AuthPage} />
           <Route path="/pricing" component={Pricing} />
+          <Route path="/privacy" component={PrivacyPolicy} />
         </>
       )}
       <Route component={NotFound} />
