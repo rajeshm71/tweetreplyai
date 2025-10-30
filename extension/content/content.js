@@ -330,8 +330,14 @@ class TwitterReplyInjector {
     }
 
     if (toolbar && !toolbar.querySelector('.tweetreply-button-container')) {
-      const button = this.createSuggestButton(composer, containerId);
-      this.insertButtonInToolbar(toolbar, button);
+      const controlsRow = this.createSuggestButton(composer, containerId);
+      // Insert our controls row ABOVE the native toolbar so emoji/media stay in place
+      if (toolbar.parentNode) {
+        toolbar.parentNode.insertBefore(controlsRow, toolbar);
+      } else {
+        // Fallback to previous behavior if no parent (shouldn't happen normally)
+        this.insertButtonInToolbar(toolbar, controlsRow);
+      }
       this.injectedButtons.add(composer);
     }
   }
