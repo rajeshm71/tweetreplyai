@@ -449,6 +449,15 @@ class TwitterReplyInjector {
     const container = document.createElement('div');
     container.className = 'tweetreply-button-container';
     container.dataset.containerId = containerId;
+    // Ensure visible and properly spaced above toolbar on tweet detail page
+    container.style.cssText = `
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 6px 0 6px 0;
+      position: relative;
+      z-index: 1;
+    `;
     
     // Model dropdown
     const modelSelect = this.createModelSelect();
@@ -583,7 +592,7 @@ class TwitterReplyInjector {
         }
       });
     } catch (_) {}
-
+    
     // Load models from API
     this.loadModels().then(models => {
       if (models && models.openai) {
@@ -658,7 +667,7 @@ class TwitterReplyInjector {
         }
       });
     } catch (_) {}
-
+    
     // Load prompts from API
     this.loadPrompts().then(prompts => {
       if (prompts && Array.isArray(prompts)) {
@@ -1249,7 +1258,7 @@ class TwitterReplyInjector {
             const textArea = this.findTwitterTextArea(toolbar);
             if (textArea) {
               await this.insertTextTwitterMethod(textArea, toolbar, cleanText);
-              return;
+          return;
             }
           }
         } catch (error) {

@@ -437,9 +437,7 @@
       if (!toolbar) {
         toolbar = this.createToolbar(composer);
       }
-      if (toolbar && !this.isReplyComposer(toolbar)) {
-        return;
-      }
+      if (this.isMainComposer(composerContainer)) return;
       if (toolbar && !toolbar.querySelector(".tweetreply-button-container")) {
         const controlsRow = this.createSuggestButton(composer, containerId);
         if (toolbar.parentNode) {
@@ -449,6 +447,14 @@
         }
         try {
           this.placeSuggestButtonLeftOfReply(toolbar, controlsRow);
+          let tries = 0;
+          const retry = () => {
+            if (tries++ >= 5) return;
+            if (!this.placeSuggestButtonLeftOfReply(toolbar, controlsRow)) {
+              setTimeout(retry, 200);
+            }
+          };
+          setTimeout(retry, 150);
         } catch (err) {
           console.warn("[TweetReply] Could not place Suggest button next to Reply:", err);
         }
@@ -471,32 +477,48 @@
       }
       return toolbar;
     }
-    // Determine whether a toolbar belongs to a reply composer (not main tweet box)
-    isReplyComposer(toolbarEl) {
-      if (!toolbarEl) return false;
-      const replyBtn = this.findReplyButton(toolbarEl);
-      if (replyBtn) return true;
-      const postBtn = Array.from(toolbarEl.querySelectorAll('div[role="button"], button')).find((btn) => /^(post|tweet)$/i.test((btn.getAttribute("aria-label") || btn.textContent || "").trim()));
-      if (postBtn) return false;
-      return false;
+    // Determine whether an element belongs to a reply composer (not main tweet box)
+    isReplyComposer(containerEl) {
+      if (!containerEl) return false;
+      const hasReplyPlaceholder = !!Array.from(containerEl.querySelectorAll('[data-testid^="tweetTextarea_"], [contenteditable="true"]')).find((el) => /post your reply/i.test(el.getAttribute("aria-label") || el.getAttribute("placeholder") || el.textContent || ""));
+      const toolbar = containerEl.querySelector('[data-testid="toolBar"], [role="toolbar"]') || containerEl;
+      const replyBtn = this.findReplyButton(toolbar);
+      return !!(hasReplyPlaceholder || replyBtn);
+    }
+    // Determine if this is the main tweet composer ("What's happening?")
+    isMainComposer(containerEl) {
+      const textareas = containerEl.querySelectorAll('[data-testid^="tweetTextarea_"], [contenteditable="true"]');
+      for (const el of textareas) {
+        const hint = (el.getAttribute("aria-label") || el.getAttribute("placeholder") || "").toLowerCase();
+        if (hint.includes("what's happening") || hint.includes("what\u2019s happening")) return true;
+      }
+      const hasPost = Array.from(containerEl.querySelectorAll('div[role="button"], button')).some((btn) => /^(post|tweet)$/i.test((btn.getAttribute("aria-label") || btn.textContent || "").trim()));
+      const hasReply = !!this.findReplyButton(containerEl);
+      return hasPost && !hasReply;
     }
     // Find the native Reply button inside toolbar
     findReplyButton(toolbarEl) {
       if (!toolbarEl) return null;
+      const byTestId = toolbarEl.querySelector('[data-testid="tweetButtonInline"]');
+      if (byTestId) return byTestId;
       const candidates = Array.from(toolbarEl.querySelectorAll('div[role="button"], button'));
-      return candidates.find((btn) => /reply/i.test((btn.getAttribute("aria-label") || btn.textContent || "").trim())) || null;
+      let found = candidates.find((btn) => /reply/i.test(btn.getAttribute("aria-label") || ""));
+      if (found) return found;
+      found = candidates.find((btn) => /reply/i.test((btn.textContent || "").trim()));
+      return found || null;
     }
     // Place our Suggest button immediately to the left of the native Reply button
     placeSuggestButtonLeftOfReply(toolbarEl, controlsRow) {
       const replyBtn = this.findReplyButton(toolbarEl);
-      if (!replyBtn) return;
+      if (!replyBtn) return false;
       const suggestBtn = controlsRow.querySelector(".tweetreply-suggest-btn");
       if (!suggestBtn) return;
-      if (toolbarEl.contains(suggestBtn)) return;
+      if (toolbarEl.contains(suggestBtn)) return true;
       suggestBtn.style.marginRight = "8px";
       if (replyBtn.parentNode) {
         replyBtn.parentNode.insertBefore(suggestBtn, replyBtn);
       }
+      return true;
     }
     createSuggestButton(composer, containerId) {
       const container = document.createElement("div");
