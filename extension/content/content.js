@@ -329,6 +329,11 @@ class TwitterReplyInjector {
       toolbar = this.createToolbar(composer);
     }
 
+    // Guard: only inject for reply composers, not the main tweet box
+    if (toolbar && !this.isReplyComposer(toolbar)) {
+      return;
+    }
+
     if (toolbar && !toolbar.querySelector('.tweetreply-button-container')) {
       const controlsRow = this.createSuggestButton(composer, containerId);
       // Insert our controls row ABOVE the native toolbar so emoji/media stay in place
@@ -337,6 +342,13 @@ class TwitterReplyInjector {
       } else {
         // Fallback to previous behavior if no parent (shouldn't happen normally)
         this.insertButtonInToolbar(toolbar, controlsRow);
+      }
+
+      // Move the actual Suggest button into the native toolbar, just left of Reply
+      try {
+        this.placeSuggestButtonLeftOfReply(toolbar, controlsRow);
+      } catch (err) {
+        console.warn('[TweetReply] Could not place Suggest button next to Reply:', err);
       }
       this.injectedButtons.add(composer);
     }
@@ -360,6 +372,49 @@ class TwitterReplyInjector {
     }
 
     return toolbar;
+  }
+
+  // Determine whether a toolbar belongs to a reply composer (not main tweet box)
+  isReplyComposer(toolbarEl) {
+    if (!toolbarEl) return false;
+
+    // Identify native Reply button in the same toolbar area
+    const replyBtn = this.findReplyButton(toolbarEl);
+    if (replyBtn) return true;
+
+    // If toolbar contains Post/Tweet button, it's not a reply composer
+    const postBtn = Array.from(toolbarEl.querySelectorAll('div[role="button"], button'))
+      .find(btn => /^(post|tweet)$/i.test((btn.getAttribute('aria-label') || btn.textContent || '').trim()));
+    if (postBtn) return false;
+
+    return false;
+  }
+
+  // Find the native Reply button inside toolbar
+  findReplyButton(toolbarEl) {
+    if (!toolbarEl) return null;
+    const candidates = Array.from(toolbarEl.querySelectorAll('div[role="button"], button'));
+    return candidates.find(btn => /reply/i.test((btn.getAttribute('aria-label') || btn.textContent || '').trim())) || null;
+  }
+
+  // Place our Suggest button immediately to the left of the native Reply button
+  placeSuggestButtonLeftOfReply(toolbarEl, controlsRow) {
+    const replyBtn = this.findReplyButton(toolbarEl);
+    if (!replyBtn) return; // Not a reply composer or structure changed
+
+    const suggestBtn = controlsRow.querySelector('.tweetreply-suggest-btn');
+    if (!suggestBtn) return;
+
+    // Avoid duplicate placement
+    if (toolbarEl.contains(suggestBtn)) return;
+
+    // Ensure minimal spacing consistent with toolbar
+    suggestBtn.style.marginRight = '8px';
+
+    // Insert just before native Reply button
+    if (replyBtn.parentNode) {
+      replyBtn.parentNode.insertBefore(suggestBtn, replyBtn);
+    }
   }
 
   createSuggestButton(composer, containerId) {

@@ -438,8 +438,12 @@
         toolbar = this.createToolbar(composer);
       }
       if (toolbar && !toolbar.querySelector(".tweetreply-button-container")) {
-        const button = this.createSuggestButton(composer, containerId);
-        this.insertButtonInToolbar(toolbar, button);
+        const controlsRow = this.createSuggestButton(composer, containerId);
+        if (toolbar.parentNode) {
+          toolbar.parentNode.insertBefore(controlsRow, toolbar);
+        } else {
+          this.insertButtonInToolbar(toolbar, controlsRow);
+        }
         this.injectedButtons.add(composer);
       }
     }
