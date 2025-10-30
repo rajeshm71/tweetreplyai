@@ -545,6 +545,17 @@ class TwitterReplyInjector {
     defaultOption.textContent = 'Auto';
     select.appendChild(defaultOption);
     
+    // Try to restore previously selected model
+    let savedModelKey = null;
+    try {
+      chrome.storage?.local?.get(['tweetreply_model'], data => {
+        if (data && typeof data.tweetreply_model === 'string') {
+          savedModelKey = data.tweetreply_model;
+          // If options are already loaded later we will apply this
+        }
+      });
+    } catch (_) {}
+
     // Load models from API
     this.loadModels().then(models => {
       if (models && models.openai) {
@@ -571,8 +582,29 @@ class TwitterReplyInjector {
           select.appendChild(option);
         });
       }
+
+      // Apply default/preferred ordering and selection
+      const options = Array.from(select.querySelectorAll('option'));
+      // Prefer saved value if present
+      if (savedModelKey && options.some(o => o.value === savedModelKey)) {
+        select.value = savedModelKey;
+      } else {
+        // Move "LLama Scout" (case-insensitive) to top and select it
+        const preferred = options.find(o => /llama\s*scout/i.test(o.textContent || ''))
+          || options.find(o => /llama/i.test(o.textContent || ''))
+          || null;
+        if (preferred && preferred !== defaultOption) {
+          select.insertBefore(preferred, select.children[1] || null);
+          select.value = preferred.value;
+        }
+      }
     }).catch(error => {
       console.error('Failed to load models:', error);
+    });
+
+    // Persist selection when user changes it
+    select.addEventListener('change', () => {
+      try { chrome.storage?.local?.set({ tweetreply_model: select.value }); } catch (_) {}
     });
     
     return select;
@@ -589,6 +621,16 @@ class TwitterReplyInjector {
     defaultOption.textContent = 'Default';
     select.appendChild(defaultOption);
     
+    // Try to restore previously selected prompt/style
+    let savedPrompt = null;
+    try {
+      chrome.storage?.local?.get(['tweetreply_prompt'], data => {
+        if (data && typeof data.tweetreply_prompt === 'string') {
+          savedPrompt = data.tweetreply_prompt;
+        }
+      });
+    } catch (_) {}
+
     // Load prompts from API
     this.loadPrompts().then(prompts => {
       if (prompts && Array.isArray(prompts)) {
@@ -599,8 +641,25 @@ class TwitterReplyInjector {
           select.appendChild(option);
         });
       }
+
+      const options = Array.from(select.querySelectorAll('option'));
+      if (savedPrompt && options.some(o => (o.value === savedPrompt))) {
+        select.value = savedPrompt;
+      } else {
+        // Move "Direct response" to top and select it
+        const preferred = options.find(o => /direct\s*response/i.test(o.textContent || '')) || null;
+        if (preferred && preferred !== defaultOption) {
+          select.insertBefore(preferred, select.children[1] || null);
+          select.value = preferred.value;
+        }
+      }
     }).catch(error => {
       console.error('Failed to load prompts:', error);
+    });
+
+    // Persist selection when user changes it
+    select.addEventListener('change', () => {
+      try { chrome.storage?.local?.set({ tweetreply_prompt: select.value }); } catch (_) {}
     });
     
     return select;
