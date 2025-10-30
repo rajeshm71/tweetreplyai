@@ -587,6 +587,15 @@
       defaultOption.value = "";
       defaultOption.textContent = "Auto";
       select.appendChild(defaultOption);
+      let savedModelKey = null;
+      try {
+        chrome.storage?.local?.get(["tweetreply_model"], (data) => {
+          if (data && typeof data.tweetreply_model === "string") {
+            savedModelKey = data.tweetreply_model;
+          }
+        });
+      } catch (_) {
+      }
       this.loadModels().then((models) => {
         if (models && models.openai) {
           models.openai.forEach((model) => {
@@ -612,8 +621,24 @@
             select.appendChild(option);
           });
         }
+        const options = Array.from(select.querySelectorAll("option"));
+        if (savedModelKey && options.some((o) => o.value === savedModelKey)) {
+          select.value = savedModelKey;
+        } else {
+          const preferred = options.find((o) => /llama\s*scout/i.test(o.textContent || "")) || options.find((o) => /llama/i.test(o.textContent || "")) || null;
+          if (preferred && preferred !== defaultOption) {
+            select.insertBefore(preferred, select.children[1] || null);
+            select.value = preferred.value;
+          }
+        }
       }).catch((error) => {
         console.error("Failed to load models:", error);
+      });
+      select.addEventListener("change", () => {
+        try {
+          chrome.storage?.local?.set({ tweetreply_model: select.value });
+        } catch (_) {
+        }
       });
       return select;
     }
@@ -625,6 +650,15 @@
       defaultOption.value = "";
       defaultOption.textContent = "Default";
       select.appendChild(defaultOption);
+      let savedPrompt = null;
+      try {
+        chrome.storage?.local?.get(["tweetreply_prompt"], (data) => {
+          if (data && typeof data.tweetreply_prompt === "string") {
+            savedPrompt = data.tweetreply_prompt;
+          }
+        });
+      } catch (_) {
+      }
       this.loadPrompts().then((prompts) => {
         if (prompts && Array.isArray(prompts)) {
           prompts.forEach((prompt) => {
@@ -634,8 +668,24 @@
             select.appendChild(option);
           });
         }
+        const options = Array.from(select.querySelectorAll("option"));
+        if (savedPrompt && options.some((o) => o.value === savedPrompt)) {
+          select.value = savedPrompt;
+        } else {
+          const preferred = options.find((o) => /direct\s*response/i.test(o.textContent || "")) || null;
+          if (preferred && preferred !== defaultOption) {
+            select.insertBefore(preferred, select.children[1] || null);
+            select.value = preferred.value;
+          }
+        }
       }).catch((error) => {
         console.error("Failed to load prompts:", error);
+      });
+      select.addEventListener("change", () => {
+        try {
+          chrome.storage?.local?.set({ tweetreply_prompt: select.value });
+        } catch (_) {
+        }
       });
       return select;
     }
