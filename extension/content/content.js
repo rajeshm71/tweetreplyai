@@ -311,6 +311,15 @@ class TwitterReplyInjector {
     // Determine composer context (detail / inline / post)
     const ctx = this.getComposerContext(composerContainer);
 
+    // Page-level guard: if the global inline button reads "Post", do not inject anywhere
+    try {
+      const globalInlineBtn = document.querySelector('[data-testid="tweetButtonInline"]');
+      const globalInlineText = globalInlineBtn?.textContent?.trim() || '';
+      if (/^post$/i.test(globalInlineText)) {
+        return;
+      }
+    } catch (_) {}
+
     // Strictly skip main Post/Tweet composer
     if (ctx.type === 'post') {
       return;
@@ -416,7 +425,9 @@ class TwitterReplyInjector {
   // Classify composer container context
   getComposerContext(containerEl) {
     if (!containerEl) return { type: 'unknown' };
-    if (this.isMainComposer(containerEl)) return { type: 'post' };
+    // Also treat aria-label "Post text" as Post composer signal
+    const aria = containerEl.querySelector('[data-testid^="tweetTextarea_"], [contenteditable="true"]')?.getAttribute('aria-label') || '';
+    if (this.isMainComposer(containerEl) || /^post\s*text$/i.test(aria)) return { type: 'post' };
     if (this.isReplyComposer(containerEl)) {
       // Try to distinguish inline vs detail using article hierarchy
       const article = containerEl.closest('article')
@@ -439,7 +450,11 @@ class TwitterReplyInjector {
     if (found) return found;
     // visible text contains Reply
     found = candidates.find(btn => /reply/i.test((btn.textContent || '').trim()));
-    return found || null;
+    if (found) return found;
+    // Fallback: look globally for inline button with text Reply
+    const globalInlineBtn = document.querySelector('[data-testid="tweetButtonInline"]');
+    if (globalInlineBtn && /reply/i.test(globalInlineBtn.textContent || '')) return globalInlineBtn;
+    return null;
   }
 
   // Place our Suggest button immediately to the left of the native Reply button

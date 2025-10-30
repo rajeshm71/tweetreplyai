@@ -424,6 +424,10 @@
         return;
       }
       this.injectedContainers.add(containerId);
+      const ctx = this.getComposerContext(composerContainer);
+      if (ctx.type === "post") {
+        return;
+      }
       let toolbar = composerContainer.querySelector('[data-testid="toolBar"]') || composerContainer.querySelector(".toolbar") || composerContainer.querySelector('[role="toolbar"]');
       if (!toolbar) {
         const buttonContainers = composerContainer.querySelectorAll("div");
@@ -437,24 +441,19 @@
       if (!toolbar) {
         toolbar = this.createToolbar(composer);
       }
-      if (this.isMainComposer(composerContainer)) return;
       if (toolbar && !toolbar.querySelector(".tweetreply-button-container")) {
         const controlsRow = this.createSuggestButton(composer, containerId);
+        controlsRow.hidden = ctx.type === "post";
         if (toolbar.parentNode) {
           toolbar.parentNode.insertBefore(controlsRow, toolbar);
         } else {
           this.insertButtonInToolbar(toolbar, controlsRow);
         }
         try {
-          this.placeSuggestButtonLeftOfReply(toolbar, controlsRow);
-          let tries = 0;
-          const retry = () => {
-            if (tries++ >= 5) return;
-            if (!this.placeSuggestButtonLeftOfReply(toolbar, controlsRow)) {
-              setTimeout(retry, 200);
-            }
-          };
-          setTimeout(retry, 150);
+          const placed = this.placeSuggestButtonLeftOfReply(toolbar, controlsRow);
+          if (!placed) {
+            this.observePlacement(toolbar, controlsRow);
+          }
         } catch (err) {
           console.warn("[TweetReply] Could not place Suggest button next to Reply:", err);
         }
@@ -492,9 +491,20 @@
         const hint = (el.getAttribute("aria-label") || el.getAttribute("placeholder") || "").toLowerCase();
         if (hint.includes("what's happening") || hint.includes("what\u2019s happening")) return true;
       }
-      const hasPost = Array.from(containerEl.querySelectorAll('div[role="button"], button')).some((btn) => /^(post|tweet)$/i.test((btn.getAttribute("aria-label") || btn.textContent || "").trim()));
+      const hasPost = !!(containerEl.querySelector('[data-testid="tweetButton"]') || Array.from(containerEl.querySelectorAll('div[role="button"], button')).some((btn) => /^(post|tweet)$/i.test((btn.getAttribute("aria-label") || btn.textContent || "").trim())));
       const hasReply = !!this.findReplyButton(containerEl);
       return hasPost && !hasReply;
+    }
+    // Classify composer container context
+    getComposerContext(containerEl) {
+      if (!containerEl) return { type: "unknown" };
+      if (this.isMainComposer(containerEl)) return { type: "post" };
+      if (this.isReplyComposer(containerEl)) {
+        const article = containerEl.closest("article");
+        const hasDetailsHeader = !!document.querySelector("article time");
+        return { type: article ? "inline" : "detail" };
+      }
+      return { type: "unknown" };
     }
     // Find the native Reply button inside toolbar
     findReplyButton(toolbarEl) {
@@ -515,10 +525,27 @@
       if (!suggestBtn) return;
       if (toolbarEl.contains(suggestBtn)) return true;
       suggestBtn.style.marginRight = "8px";
-      if (replyBtn.parentNode) {
-        replyBtn.parentNode.insertBefore(suggestBtn, replyBtn);
+      const parent = replyBtn.parentElement || toolbarEl;
+      if (parent) {
+        parent.insertBefore(suggestBtn, replyBtn);
       }
       return true;
+    }
+    // Observe toolbar for changes and retry placement until success
+    observePlacement(toolbarEl, controlsRow) {
+      let attempts = 0;
+      const tryPlace = () => {
+        if (this.placeSuggestButtonLeftOfReply(toolbarEl, controlsRow)) {
+          observer.disconnect();
+        } else if (++attempts >= 8) {
+          observer.disconnect();
+        }
+      };
+      const observer = new MutationObserver(() => {
+        tryPlace();
+      });
+      observer.observe(toolbarEl, { childList: true, subtree: true });
+      setTimeout(tryPlace, 150);
     }
     createSuggestButton(composer, containerId) {
       const container = document.createElement("div");
