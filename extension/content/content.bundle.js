@@ -458,10 +458,7 @@
           this.insertButtonInToolbar(toolbar, controlsRow);
         }
         try {
-          const placed = this.placeSuggestButtonLeftOfReply(toolbar, controlsRow);
-          if (!placed) {
-            this.observePlacement(toolbar, controlsRow);
-          }
+          this.ensureSuggestLeftOfReply(toolbar, controlsRow, composerContainer);
         } catch (err) {
           console.warn("[TweetReply] Could not place Suggest button next to Reply:", err);
         }
@@ -506,8 +503,7 @@
     // Classify composer container context
     getComposerContext(containerEl) {
       if (!containerEl) return { type: "unknown" };
-      const aria = containerEl.querySelector('[data-testid^="tweetTextarea_"], [contenteditable="true"]')?.getAttribute("aria-label") || "";
-      if (this.isMainComposer(containerEl) || /^post\s*text$/i.test(aria)) return { type: "post" };
+      if (this.isMainComposer(containerEl)) return { type: "post" };
       if (this.isReplyComposer(containerEl)) {
         const article = containerEl.closest("article");
         const hasDetailsHeader = !!document.querySelector("article time");
@@ -558,6 +554,24 @@
       });
       observer.observe(toolbarEl, { childList: true, subtree: true });
       setTimeout(tryPlace, 150);
+    }
+    // Ensure Suggest stays left of Reply across focus/typing/renders
+    ensureSuggestLeftOfReply(toolbarEl, controlsRow, containerEl) {
+      if (!this.placeSuggestButtonLeftOfReply(toolbarEl, controlsRow)) {
+        this.observePlacement(toolbarEl, controlsRow);
+      }
+      let last = 0;
+      const throttleMs = 200;
+      const maybePlace = () => {
+        const now = Date.now();
+        if (now - last < throttleMs) return;
+        last = now;
+        this.placeSuggestButtonLeftOfReply(toolbarEl, controlsRow);
+      };
+      const events = ["focusin", "input", "keyup"];
+      events.forEach((ev) => {
+        containerEl.addEventListener(ev, maybePlace, { passive: true });
+      });
     }
     createSuggestButton(composer, containerId) {
       const container = document.createElement("div");

@@ -311,14 +311,7 @@ class TwitterReplyInjector {
     // Determine composer context (detail / inline / post)
     const ctx = this.getComposerContext(composerContainer);
 
-    // Page-level guard: if the global inline button reads "Post", do not inject anywhere
-    try {
-      const globalInlineBtn = document.querySelector('[data-testid="tweetButtonInline"]');
-      const globalInlineText = globalInlineBtn?.textContent?.trim() || '';
-      if (/^post$/i.test(globalInlineText)) {
-        return;
-      }
-    } catch (_) {}
+    // Note: Do not block based on page-level inline button text; rely on container-level checks
 
     // Strictly skip main Post/Tweet composer
     if (ctx.type === 'post') {
