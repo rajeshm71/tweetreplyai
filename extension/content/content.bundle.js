@@ -524,6 +524,14 @@
       const container = document.createElement("div");
       container.className = "tweetreply-button-container";
       container.dataset.containerId = containerId;
+      container.style.cssText = `
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 6px 0 6px 0;
+      position: relative;
+      z-index: 1;
+    `;
       const modelSelect = this.createModelSelect();
       container.appendChild(modelSelect);
       const promptSelect = this.createPromptSelect();

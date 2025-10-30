@@ -308,6 +308,14 @@ class TwitterReplyInjector {
     // Mark this container as injected
     this.injectedContainers.add(containerId);
 
+    // Determine composer context (detail / inline / post)
+    const ctx = this.getComposerContext(composerContainer);
+
+    // Strictly skip main Post/Tweet composer
+    if (ctx.type === 'post') {
+      return;
+    }
+
     // Find the composer's toolbar area
     let toolbar = composerContainer.querySelector('[data-testid="toolBar"]') ||
                   composerContainer.querySelector('.toolbar') ||
@@ -329,11 +337,10 @@ class TwitterReplyInjector {
       toolbar = this.createToolbar(composer);
     }
 
-    // Guard: avoid main composer; allow tweet detail reply even if toolbar structure differs
-    if (this.isMainComposer(composerContainer)) return;
-
     if (toolbar && !toolbar.querySelector('.tweetreply-button-container')) {
       const controlsRow = this.createSuggestButton(composer, containerId);
+      // Hide controls for non-reply contexts as a safety net
+      controlsRow.hidden = (ctx.type === 'post');
       // Insert our controls row ABOVE the native toolbar so emoji/media stay in place
       if (toolbar.parentNode) {
         toolbar.parentNode.insertBefore(controlsRow, toolbar);
@@ -344,16 +351,12 @@ class TwitterReplyInjector {
 
       // Move the actual Suggest button into the native toolbar, just left of Reply
       try {
-        this.placeSuggestButtonLeftOfReply(toolbar, controlsRow);
-        // Retry a few times in case Reply button renders slightly later (tweet detail)
-        let tries = 0;
-        const retry = () => {
-          if (tries++ >= 5) return;
-          if (!this.placeSuggestButtonLeftOfReply(toolbar, controlsRow)) {
-            setTimeout(retry, 200);
-          }
-        };
-        setTimeout(retry, 150);
+        // Immediate attempt
+        const placed = this.placeSuggestButtonLeftOfReply(toolbar, controlsRow);
+        // Retry and observe until placed (handles tweet detail late render)
+        if (!placed) {
+          this.observePlacement(toolbar, controlsRow);
+        }
       } catch (err) {
         console.warn('[TweetReply] Could not place Suggest button next to Reply:', err);
       }
@@ -403,10 +406,25 @@ class TwitterReplyInjector {
       if (hint.includes("what's happening") || hint.includes('what’s happening')) return true;
     }
     // Also check for Post/Tweet primary button without Reply
-    const hasPost = Array.from(containerEl.querySelectorAll('div[role="button"], button'))
-      .some(btn => /^(post|tweet)$/i.test((btn.getAttribute('aria-label') || btn.textContent || '').trim()));
+    const hasPost = !!(containerEl.querySelector('[data-testid="tweetButton"]') ||
+      Array.from(containerEl.querySelectorAll('div[role="button"], button'))
+        .some(btn => /^(post|tweet)$/i.test((btn.getAttribute('aria-label') || btn.textContent || '').trim())));
     const hasReply = !!this.findReplyButton(containerEl);
     return hasPost && !hasReply;
+  }
+
+  // Classify composer container context
+  getComposerContext(containerEl) {
+    if (!containerEl) return { type: 'unknown' };
+    if (this.isMainComposer(containerEl)) return { type: 'post' };
+    if (this.isReplyComposer(containerEl)) {
+      // Try to distinguish inline vs detail using article hierarchy
+      const article = containerEl.closest('article')
+      const hasDetailsHeader = !!document.querySelector('article time');
+      // Heuristic: on detail page there is a single large composer under main tweet
+      return { type: (article ? 'inline' : 'detail') };
+    }
+    return { type: 'unknown' };
   }
 
   // Find the native Reply button inside toolbar
@@ -439,10 +457,28 @@ class TwitterReplyInjector {
     suggestBtn.style.marginRight = '8px';
 
     // Insert just before native Reply button
-    if (replyBtn.parentNode) {
-      replyBtn.parentNode.insertBefore(suggestBtn, replyBtn);
+    const parent = replyBtn.parentElement || toolbarEl;
+    if (parent) {
+      parent.insertBefore(suggestBtn, replyBtn);
     }
     return true;
+  }
+
+  // Observe toolbar for changes and retry placement until success
+  observePlacement(toolbarEl, controlsRow) {
+    let attempts = 0;
+    const tryPlace = () => {
+      if (this.placeSuggestButtonLeftOfReply(toolbarEl, controlsRow)) {
+        observer.disconnect();
+      } else if (++attempts >= 8) {
+        observer.disconnect();
+      }
+    };
+    const observer = new MutationObserver(() => {
+      tryPlace();
+    });
+    observer.observe(toolbarEl, { childList: true, subtree: true });
+    setTimeout(tryPlace, 150);
   }
 
   createSuggestButton(composer, containerId) {
