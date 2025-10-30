@@ -425,6 +425,14 @@
       }
       this.injectedContainers.add(containerId);
       const ctx = this.getComposerContext(composerContainer);
+      try {
+        const globalInlineBtn = document.querySelector('[data-testid="tweetButtonInline"]');
+        const globalInlineText = globalInlineBtn?.textContent?.trim() || "";
+        if (/^post$/i.test(globalInlineText)) {
+          return;
+        }
+      } catch (_) {
+      }
       if (ctx.type === "post") {
         return;
       }
@@ -498,7 +506,8 @@
     // Classify composer container context
     getComposerContext(containerEl) {
       if (!containerEl) return { type: "unknown" };
-      if (this.isMainComposer(containerEl)) return { type: "post" };
+      const aria = containerEl.querySelector('[data-testid^="tweetTextarea_"], [contenteditable="true"]')?.getAttribute("aria-label") || "";
+      if (this.isMainComposer(containerEl) || /^post\s*text$/i.test(aria)) return { type: "post" };
       if (this.isReplyComposer(containerEl)) {
         const article = containerEl.closest("article");
         const hasDetailsHeader = !!document.querySelector("article time");
@@ -515,7 +524,10 @@
       let found = candidates.find((btn) => /reply/i.test(btn.getAttribute("aria-label") || ""));
       if (found) return found;
       found = candidates.find((btn) => /reply/i.test((btn.textContent || "").trim()));
-      return found || null;
+      if (found) return found;
+      const globalInlineBtn = document.querySelector('[data-testid="tweetButtonInline"]');
+      if (globalInlineBtn && /reply/i.test(globalInlineBtn.textContent || "")) return globalInlineBtn;
+      return null;
     }
     // Place our Suggest button immediately to the left of the native Reply button
     placeSuggestButtonLeftOfReply(toolbarEl, controlsRow) {

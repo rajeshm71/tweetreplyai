@@ -360,12 +360,7 @@ class TwitterReplyInjector {
 
       // Move the actual Suggest button into the native toolbar, just left of Reply
       try {
-        // Immediate attempt
-        const placed = this.placeSuggestButtonLeftOfReply(toolbar, controlsRow);
-        // Retry and observe until placed (handles tweet detail late render)
-        if (!placed) {
-          this.observePlacement(toolbar, controlsRow);
-        }
+        this.ensureSuggestLeftOfReply(toolbar, controlsRow, composerContainer);
       } catch (err) {
         console.warn('[TweetReply] Could not place Suggest button next to Reply:', err);
       }
@@ -425,9 +420,7 @@ class TwitterReplyInjector {
   // Classify composer container context
   getComposerContext(containerEl) {
     if (!containerEl) return { type: 'unknown' };
-    // Also treat aria-label "Post text" as Post composer signal
-    const aria = containerEl.querySelector('[data-testid^="tweetTextarea_"], [contenteditable="true"]')?.getAttribute('aria-label') || '';
-    if (this.isMainComposer(containerEl) || /^post\s*text$/i.test(aria)) return { type: 'post' };
+    if (this.isMainComposer(containerEl)) return { type: 'post' };
     if (this.isReplyComposer(containerEl)) {
       // Try to distinguish inline vs detail using article hierarchy
       const article = containerEl.closest('article')
@@ -494,6 +487,29 @@ class TwitterReplyInjector {
     });
     observer.observe(toolbarEl, { childList: true, subtree: true });
     setTimeout(tryPlace, 150);
+  }
+
+  // Ensure Suggest stays left of Reply across focus/typing/renders
+  ensureSuggestLeftOfReply(toolbarEl, controlsRow, containerEl) {
+    // Initial placement + observer
+    if (!this.placeSuggestButtonLeftOfReply(toolbarEl, controlsRow)) {
+      this.observePlacement(toolbarEl, controlsRow);
+    }
+
+    // Throttled re-placement on user interaction
+    let last = 0;
+    const throttleMs = 200;
+    const maybePlace = () => {
+      const now = Date.now();
+      if (now - last < throttleMs) return;
+      last = now;
+      this.placeSuggestButtonLeftOfReply(toolbarEl, controlsRow);
+    };
+
+    const events = ['focusin', 'input', 'keyup'];
+    events.forEach(ev => {
+      containerEl.addEventListener(ev, maybePlace, { passive: true });
+    });
   }
 
   createSuggestButton(composer, containerId) {
