@@ -305,12 +305,106 @@
         }));
       }
     }
+    // Auto-like functionality
+    async isAutoLikeEnabled() {
+      try {
+        const result = await chrome.storage.local.get(["tweetreply_auto_like"]);
+        return result.tweetreply_auto_like !== false;
+      } catch (error) {
+        console.warn("[TweetReply] Failed to check auto-like setting:", error);
+        return true;
+      }
+    }
+    findTweetArticle(element) {
+      if (!element) return null;
+      let current = element;
+      let depth = 0;
+      while (current && depth < 10) {
+        if (current.tagName === "ARTICLE" && (current.getAttribute("data-testid") === "tweet" || current.querySelector('[data-testid="tweet"]'))) {
+          return current.getAttribute("data-testid") === "tweet" ? current : current.querySelector('[data-testid="tweet"]')?.closest("article") || current;
+        }
+        current = current.parentElement;
+        depth++;
+      }
+      const article = element.closest("article");
+      return article || null;
+    }
+    findLikeButton(tweetArticle) {
+      if (!tweetArticle) return null;
+      let likeBtn = tweetArticle.querySelector('[data-testid="like"]');
+      if (likeBtn) {
+        const isLiked = !!tweetArticle.querySelector('[data-testid="unlike"]') || likeBtn.getAttribute("aria-pressed") === "true";
+        if (isLiked) return null;
+        return likeBtn;
+      }
+      const buttons = tweetArticle.querySelectorAll('button[aria-label*="Like" i], [role="button"][aria-label*="Like" i]');
+      for (const btn of buttons) {
+        const ariaLabel = btn.getAttribute("aria-label") || "";
+        if (/like/i.test(ariaLabel) && !/unlike/i.test(ariaLabel)) {
+          const isLiked = btn.getAttribute("aria-pressed") === "true" || btn.querySelector('[data-testid="unlike"]');
+          if (!isLiked) return btn;
+        }
+      }
+      const heartButtons = tweetArticle.querySelectorAll('button, [role="button"]');
+      for (const btn of heartButtons) {
+        const hasHeartIcon = btn.querySelector('svg path[d*="M12"]') || btn.querySelector('[class*="heart"]') || btn.innerHTML.includes("M20.884 13.19");
+        if (hasHeartIcon) {
+          const isLiked = btn.getAttribute("aria-pressed") === "true" || btn.querySelector('[data-testid="unlike"]') || btn.classList.contains("liked");
+          if (!isLiked) return btn;
+        }
+      }
+      return null;
+    }
+    async performAutoLike(likeButton) {
+      if (!likeButton) return false;
+      try {
+        likeButton.click();
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        return true;
+      } catch (error) {
+        console.warn("[TweetReply] Failed to auto-like:", error);
+        try {
+          const event = new MouseEvent("click", {
+            bubbles: true,
+            cancelable: true,
+            view: window
+          });
+          likeButton.dispatchEvent(event);
+          await new Promise((resolve) => setTimeout(resolve, 100));
+          return true;
+        } catch (e) {
+          console.warn("[TweetReply] MouseEvent simulation failed:", e);
+          return false;
+        }
+      }
+    }
+    setupAutoLikeOnReply() {
+      document.addEventListener("click", async (e) => {
+        const target = e.target;
+        if (!target) return;
+        const isReplyButton = target.matches('[data-testid="reply"]') || target.closest('[data-testid="reply"]') || target.matches('button[aria-label*="Reply" i]') || target.closest('button[aria-label*="Reply" i]') || target.matches('[role="button"][aria-label*="Reply" i]') || target.closest('[role="button"][aria-label*="Reply" i]') || target.matches('[data-testid="tweetButtonInline"]') || target.closest('[data-testid="tweetButtonInline"]');
+        if (!isReplyButton) return;
+        const autoLikeEnabled = await this.isAutoLikeEnabled();
+        if (!autoLikeEnabled) return;
+        const replyButton = target.closest('[data-testid="reply"]') || target.closest('button[aria-label*="Reply" i]') || target.closest('[role="button"][aria-label*="Reply" i]') || target.closest('[data-testid="tweetButtonInline"]') || target;
+        const tweetArticle = this.findTweetArticle(replyButton);
+        if (!tweetArticle) {
+          return;
+        }
+        const likeButton = this.findLikeButton(tweetArticle);
+        if (!likeButton) {
+          return;
+        }
+        await this.performAutoLike(likeButton);
+      }, true);
+    }
     async initialize() {
       this.isAuthenticated = await this.authManager.isAuthenticated();
       if (this.isAuthenticated) {
         await this.loadUsageData();
       }
       this.startObserving();
+      this.setupAutoLikeOnReply();
       chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         if (message.action === "suggestReply") {
           this.handleSuggestReplyFromPopup();

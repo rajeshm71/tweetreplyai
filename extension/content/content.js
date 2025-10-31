@@ -1359,24 +1359,53 @@ class TwitterReplyInjector {
         };
       }
 
-      const username = authorElement.textContent?.trim() || 'unknown';
+      // Parse username string: "Display Name@username.time"
+      const fullText = authorElement.textContent?.trim() || 'unknown';
+      let username = 'unknown';
+      let displayName = null;
+      let postedTime = null;
+
+      // Pattern: "Display Name@username.time" (e.g., "Russell Brunson@russellbrunson.2h")
+      const match = fullText.match(/^(.+?)@([^.]+)(?:\.(.+))?$/);
+      if (match) {
+        [, displayName, username, postedTime] = match;
+        username = username.trim();
+        displayName = displayName.trim();
+        if (postedTime) postedTime = postedTime.trim();
+      } else {
+        // Fallback: if no match, use full text as username
+        username = fullText;
+      }
+
       const verifiedIcon = authorElement.querySelector('[data-testid="icon-verified"]');
       const isVerified = !!verifiedIcon;
 
       // Try to get follower count - use 0 as fallback
       let followerCount = 0;
       
-      // Method 1: From profile page bio
-      const bioElement = document.querySelector('[data-testid="UserDescription"]');
-      if (bioElement) {
-        const followerMatch = bioElement.textContent?.match(/(\d+(?:\.\d+)?[KMB]?)\s*followers?/i);
+      // Method 1: From tweet article context (most likely place)
+      const tweetArticle = authorElement.closest('article[data-testid="tweet"]') || authorElement.closest('article');
+      if (tweetArticle) {
+        const followerMatch = tweetArticle.textContent?.match(/(\d+(?:\.\d+)?[KMB]?)\s*followers?/i);
         if (followerMatch) {
           followerCount = this.parseFollowerCount(followerMatch[1]);
-          console.log('[TweetReply] Follower count extracted from bio:', followerCount);
+          console.log('[TweetReply] Follower count extracted from tweet article:', followerCount);
         }
       }
       
-      // Method 2: From hover card (if visible)
+      // Method 2: From profile page bio (fallback)
+      if (followerCount === 0) {
+        const bioElement = document.querySelector('[data-testid="UserDescription"]');
+        if (bioElement) {
+          const followerMatch = bioElement.textContent?.match(/(\d+(?:\.\d+)?[KMB]?)\s*followers?/i);
+          if (followerMatch) {
+            followerCount = this.parseFollowerCount(followerMatch[1]);
+            console.log('[TweetReply] Follower count extracted from bio:', followerCount);
+          }
+        }
+      }
+      
+      // Method 3: From hover card (if visible) - fallback
       if (followerCount === 0) {
         const hoverCard = document.querySelector('[data-testid="HoverCard"]');
         if (hoverCard) {
@@ -1388,7 +1417,13 @@ class TwitterReplyInjector {
         }
       }
 
-      console.log('[TweetReply] Author info extracted:', { username, verified: isVerified, follower_count: followerCount });
+      console.log('[TweetReply] Author info extracted:', { 
+        username, 
+        display_name: displayName, 
+        posted_time: postedTime,
+        verified: isVerified, 
+        follower_count: followerCount 
+      });
 
       return {
         username,
