@@ -1359,22 +1359,32 @@ class TwitterReplyInjector {
         };
       }
 
-      // Parse username string: "Display Name@username.time"
+      // Parse username string: "Display Name@username · time" (e.g., "Jules Mesh@jules_mesh · 7h")
       const fullText = authorElement.textContent?.trim() || 'unknown';
       let username = 'unknown';
       let displayName = null;
       let postedTime = null;
 
-      // Pattern: "Display Name@username.time" (e.g., "Russell Brunson@russellbrunson.2h")
-      const match = fullText.match(/^(.+?)@([^.]+)(?:\.(.+))?$/);
+      // Pattern: "Display Name@username · time" or "@username · time"
+      // Middle dot can be Unicode U+00B7 (·), regular period (.), or · character
+      // Match with display name first
+      let match = fullText.match(/^(.+?)@([^\u00B7·.\s]+)\s*[\u00B7·.]\s*(.+)$/);
       if (match) {
         [, displayName, username, postedTime] = match;
         username = username.trim();
         displayName = displayName.trim();
-        if (postedTime) postedTime = postedTime.trim();
+        postedTime = postedTime.trim();
       } else {
-        // Fallback: if no match, use full text as username
-        username = fullText;
+        // Try without display name: "@username · time"
+        match = fullText.match(/^@([^\u00B7·.\s]+)\s*[\u00B7·.]\s*(.+)$/);
+        if (match) {
+          [, username, postedTime] = match;
+          username = username.trim();
+          postedTime = postedTime.trim();
+        } else {
+          // Fallback: if no match, use full text as username
+          username = fullText;
+        }
       }
 
       const verifiedIcon = authorElement.querySelector('[data-testid="icon-verified"]');

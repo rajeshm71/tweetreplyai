@@ -1204,16 +1204,38 @@
             // Fallback value
           };
         }
-        const username = authorElement.textContent?.trim() || "unknown";
+        const fullText = authorElement.textContent?.trim() || "unknown";
+        let username = "unknown";
+        let displayName = null;
+        let postedTime = null;
+        const match = fullText.match(/^(.+?)@([^.]+)(?:\.(.+))?$/);
+        if (match) {
+          [, displayName, username, postedTime] = match;
+          username = username.trim();
+          displayName = displayName.trim();
+          if (postedTime) postedTime = postedTime.trim();
+        } else {
+          username = fullText;
+        }
         const verifiedIcon = authorElement.querySelector('[data-testid="icon-verified"]');
         const isVerified = !!verifiedIcon;
         let followerCount = 0;
-        const bioElement = document.querySelector('[data-testid="UserDescription"]');
-        if (bioElement) {
-          const followerMatch = bioElement.textContent?.match(/(\d+(?:\.\d+)?[KMB]?)\s*followers?/i);
+        const tweetArticle = authorElement.closest('article[data-testid="tweet"]') || authorElement.closest("article");
+        if (tweetArticle) {
+          const followerMatch = tweetArticle.textContent?.match(/(\d+(?:\.\d+)?[KMB]?)\s*followers?/i);
           if (followerMatch) {
             followerCount = this.parseFollowerCount(followerMatch[1]);
-            console.log("[TweetReply] Follower count extracted from bio:", followerCount);
+            console.log("[TweetReply] Follower count extracted from tweet article:", followerCount);
+          }
+        }
+        if (followerCount === 0) {
+          const bioElement = document.querySelector('[data-testid="UserDescription"]');
+          if (bioElement) {
+            const followerMatch = bioElement.textContent?.match(/(\d+(?:\.\d+)?[KMB]?)\s*followers?/i);
+            if (followerMatch) {
+              followerCount = this.parseFollowerCount(followerMatch[1]);
+              console.log("[TweetReply] Follower count extracted from bio:", followerCount);
+            }
           }
         }
         if (followerCount === 0) {
@@ -1226,7 +1248,13 @@
             }
           }
         }
-        console.log("[TweetReply] Author info extracted:", { username, verified: isVerified, follower_count: followerCount });
+        console.log("[TweetReply] Author info extracted:", {
+          username,
+          display_name: displayName,
+          posted_time: postedTime,
+          verified: isVerified,
+          follower_count: followerCount
+        });
         return {
           username,
           verified: isVerified,
