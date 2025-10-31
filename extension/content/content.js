@@ -141,6 +141,160 @@ class TwitterReplyInjector {
     }
   }
 
+  // Auto-like functionality
+  async isAutoLikeEnabled() {
+    try {
+      const result = await chrome.storage.local.get(['tweetreply_auto_like']);
+      // Default to enabled if not set
+      return result.tweetreply_auto_like !== false;
+    } catch (error) {
+      console.warn('[TweetReply] Failed to check auto-like setting:', error);
+      return true; // Default enabled
+    }
+  }
+
+  findTweetArticle(element) {
+    if (!element) return null;
+    
+    // Traverse up to find article[data-testid="tweet"]
+    let current = element;
+    let depth = 0;
+    while (current && depth < 10) {
+      if (current.tagName === 'ARTICLE' && 
+          (current.getAttribute('data-testid') === 'tweet' || 
+           current.querySelector('[data-testid="tweet"]'))) {
+        return current.getAttribute('data-testid') === 'tweet' 
+          ? current 
+          : current.querySelector('[data-testid="tweet"]')?.closest('article') || current;
+      }
+      current = current.parentElement;
+      depth++;
+    }
+    
+    // Fallback: look for any article
+    const article = element.closest('article');
+    return article || null;
+  }
+
+  findLikeButton(tweetArticle) {
+    if (!tweetArticle) return null;
+
+    // Strategy 1: data-testid="like" (primary)
+    let likeBtn = tweetArticle.querySelector('[data-testid="like"]');
+    if (likeBtn) {
+      // Check if already liked
+      const isLiked = !!tweetArticle.querySelector('[data-testid="unlike"]') ||
+                     likeBtn.getAttribute('aria-pressed') === 'true';
+      if (isLiked) return null; // Already liked, don't auto-like
+      return likeBtn;
+    }
+
+    // Strategy 2: button with aria-label containing "Like"
+    const buttons = tweetArticle.querySelectorAll('button[aria-label*="Like" i], [role="button"][aria-label*="Like" i]');
+    for (const btn of buttons) {
+      const ariaLabel = btn.getAttribute('aria-label') || '';
+      if (/like/i.test(ariaLabel) && !/unlike/i.test(ariaLabel)) {
+        // Check if already liked
+        const isLiked = btn.getAttribute('aria-pressed') === 'true' ||
+                       btn.querySelector('[data-testid="unlike"]');
+        if (!isLiked) return btn;
+      }
+    }
+
+    // Strategy 3: Look for heart icon button
+    const heartButtons = tweetArticle.querySelectorAll('button, [role="button"]');
+    for (const btn of heartButtons) {
+      const hasHeartIcon = btn.querySelector('svg path[d*="M12"]') || 
+                          btn.querySelector('[class*="heart"]') ||
+                          btn.innerHTML.includes('M20.884 13.19');
+      if (hasHeartIcon) {
+        const isLiked = btn.getAttribute('aria-pressed') === 'true' ||
+                       btn.querySelector('[data-testid="unlike"]') ||
+                       btn.classList.contains('liked');
+        if (!isLiked) return btn;
+      }
+    }
+
+    return null;
+  }
+
+  async performAutoLike(likeButton) {
+    if (!likeButton) return false;
+
+    try {
+      // Method 1: Direct click
+      likeButton.click();
+      
+      // Wait a bit to ensure Twitter's handler processes it
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      return true;
+    } catch (error) {
+      console.warn('[TweetReply] Failed to auto-like:', error);
+      
+      // Method 2: Try MouseEvent simulation
+      try {
+        const event = new MouseEvent('click', {
+          bubbles: true,
+          cancelable: true,
+          view: window
+        });
+        likeButton.dispatchEvent(event);
+        await new Promise(resolve => setTimeout(resolve, 100));
+        return true;
+      } catch (e) {
+        console.warn('[TweetReply] MouseEvent simulation failed:', e);
+        return false;
+      }
+    }
+  }
+
+  setupAutoLikeOnReply() {
+    // Use event delegation to catch all Reply button clicks
+    document.addEventListener('click', async (e) => {
+      const target = e.target;
+      if (!target) return;
+
+      // Check if clicked element is a Reply button
+      const isReplyButton = target.matches('[data-testid="reply"]') ||
+                           target.closest('[data-testid="reply"]') ||
+                           target.matches('button[aria-label*="Reply" i]') ||
+                           target.closest('button[aria-label*="Reply" i]') ||
+                           target.matches('[role="button"][aria-label*="Reply" i]') ||
+                           target.closest('[role="button"][aria-label*="Reply" i]') ||
+                           target.matches('[data-testid="tweetButtonInline"]') ||
+                           target.closest('[data-testid="tweetButtonInline"]');
+
+      if (!isReplyButton) return;
+
+      // Check if auto-like is enabled
+      const autoLikeEnabled = await this.isAutoLikeEnabled();
+      if (!autoLikeEnabled) return;
+
+      // Find the actual Reply button element
+      const replyButton = target.closest('[data-testid="reply"]') ||
+                         target.closest('button[aria-label*="Reply" i]') ||
+                         target.closest('[role="button"][aria-label*="Reply" i]') ||
+                         target.closest('[data-testid="tweetButtonInline"]') ||
+                         target;
+
+      // Find tweet article
+      const tweetArticle = this.findTweetArticle(replyButton);
+      if (!tweetArticle) {
+        return; // Couldn't find tweet article
+      }
+
+      // Find like button
+      const likeButton = this.findLikeButton(tweetArticle);
+      if (!likeButton) {
+        return; // Already liked or no like button found
+      }
+
+      // Perform auto-like
+      await this.performAutoLike(likeButton);
+    }, true); // Use capture phase to catch before other handlers
+  }
+
   async initialize() {
     // Check authentication status
     this.isAuthenticated = await this.authManager.isAuthenticated();
@@ -151,6 +305,9 @@ class TwitterReplyInjector {
     
     // Start observing for reply composers
     this.startObserving();
+    
+    // Setup auto-like on Reply click
+    this.setupAutoLikeOnReply();
     
     // Listen for messages from popup and background
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
