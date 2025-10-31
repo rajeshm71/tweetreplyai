@@ -1208,14 +1208,21 @@
         let username = "unknown";
         let displayName = null;
         let postedTime = null;
-        const match = fullText.match(/^(.+?)@([^.]+)(?:\.(.+))?$/);
+        let match = fullText.match(/^(.+?)@([^\u00B7·.\s]+)\s*[\u00B7·.]\s*(.+)$/);
         if (match) {
           [, displayName, username, postedTime] = match;
           username = username.trim();
           displayName = displayName.trim();
-          if (postedTime) postedTime = postedTime.trim();
+          postedTime = postedTime.trim();
         } else {
-          username = fullText;
+          match = fullText.match(/^@([^\u00B7·.\s]+)\s*[\u00B7·.]\s*(.+)$/);
+          if (match) {
+            [, username, postedTime] = match;
+            username = username.trim();
+            postedTime = postedTime.trim();
+          } else {
+            username = fullText;
+          }
         }
         const verifiedIcon = authorElement.querySelector('[data-testid="icon-verified"]');
         const isVerified = !!verifiedIcon;

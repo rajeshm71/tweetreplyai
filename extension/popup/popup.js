@@ -101,6 +101,12 @@ class PopupManager {
     
     // Draft improvement
     this.analyzeBtn?.addEventListener('click', () => this.handleAnalyzeDraft());
+    
+    // Tweet hiding settings
+    const saveHidingSettingsBtn = document.getElementById('saveHidingSettings');
+    if (saveHidingSettingsBtn) {
+      saveHidingSettingsBtn.addEventListener('click', () => this.saveHidingSettings());
+    }
   }
 
   async initialize() {
@@ -417,10 +423,84 @@ class PopupManager {
 
   showSettings() {
     this.settingsPanel?.classList.remove('hidden');
+    // Load hiding settings when settings panel is shown
+    this.loadHidingSettings();
   }
 
   hideSettings() {
     this.settingsPanel?.classList.add('hidden');
+  }
+
+  // Load tweet hiding settings
+  async loadHidingSettings() {
+    try {
+      const result = await chrome.storage.local.get(['tweetHidingSettings']);
+      const settings = result.tweetHidingSettings || {
+        replyThreshold: 1,
+        hideDurationHours: 1
+      };
+      
+      const replyThresholdInput = document.getElementById('replyThreshold');
+      const hideDurationInput = document.getElementById('hideDuration');
+      
+      if (replyThresholdInput) {
+        replyThresholdInput.value = settings.replyThreshold || 1;
+      }
+      if (hideDurationInput) {
+        hideDurationInput.value = settings.hideDurationHours || 1;
+      }
+    } catch (error) {
+      console.error('Failed to load hiding settings:', error);
+    }
+  }
+
+  // Save tweet hiding settings
+  async saveHidingSettings() {
+    try {
+      const replyThresholdInput = document.getElementById('replyThreshold');
+      const hideDurationInput = document.getElementById('hideDuration');
+      const saveBtn = document.getElementById('saveHidingSettings');
+      const savedMsg = document.getElementById('hiding-settings-saved');
+      
+      if (!replyThresholdInput || !hideDurationInput) return;
+      
+      const replyThreshold = parseInt(replyThresholdInput.value) || 1;
+      const hideDuration = parseInt(hideDurationInput.value) || 1;
+      
+      // Clamp values to valid ranges
+      const clampedThreshold = Math.max(1, Math.min(10, replyThreshold));
+      const clampedDuration = Math.max(1, Math.min(24, hideDuration));
+      
+      await chrome.storage.local.set({
+        tweetHidingSettings: {
+          replyThreshold: clampedThreshold,
+          hideDurationHours: clampedDuration
+        }
+      });
+      
+      // Show success message
+      if (savedMsg) {
+        savedMsg.style.display = 'block';
+        setTimeout(() => {
+          savedMsg.style.display = 'none';
+        }, 2000);
+      }
+      
+      // Update button text temporarily
+      if (saveBtn) {
+        const originalText = saveBtn.textContent;
+        saveBtn.textContent = 'Saved!';
+        saveBtn.style.background = '#10b981';
+        
+        setTimeout(() => {
+          saveBtn.textContent = originalText;
+          saveBtn.style.background = '#1d9bf0';
+        }, 2000);
+      }
+    } catch (error) {
+      console.error('Failed to save hiding settings:', error);
+      alert('Failed to save settings. Please try again.');
+    }
   }
 
   showHistory() {

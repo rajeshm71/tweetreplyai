@@ -3,14 +3,36 @@ import { ApiClient } from '../utils/api.js';
 
 class TwitterReplyInjector {
   constructor() {
+    // Return existing instance if already created (SPA navigation guard)
+    if (window.__tweetReplyInjector) {
+      const existing = window.__tweetReplyInjector;
+      // Re-initialize if needed (e.g., after page navigation or DOM ready)
+      // Only re-initialize if DOM is ready and not already initialized
+      if (document.readyState === 'complete' && !existing.initialized) {
+        existing.initialize();
+        existing.initialized = true;
+      }
+      return existing;
+    }
+    
     this.authManager = new AuthManager();
     this.apiClient = new ApiClient();
     this.isAuthenticated = false;
     this.usageData = null;
     this.injectedButtons = new Set();
     this.injectedContainers = new Set(); // Track injected container IDs
+    this.unhiddenUsers = new Set(); // Session-only unhidden users (in memory)
     
+    // Store global reference
+    window.__tweetReplyInjector = this;
+    
+    // Cleanup on page unload
+    this.beforeUnloadHandler = () => this.destroy();
+    window.addEventListener('beforeunload', this.beforeUnloadHandler);
+    
+    this.initialized = false;
     this.initialize();
+    this.initialized = true;
   }
 
   // Helper to get React Fiber node from DOM element
@@ -250,8 +272,11 @@ class TwitterReplyInjector {
   }
 
   setupAutoLikeOnReply() {
+    // Don't add if already added (prevent accumulation on re-execution)
+    if (this.autoLikeClickHandler) return;
+    
     // Use event delegation to catch all Reply button clicks
-    document.addEventListener('click', async (e) => {
+    this.autoLikeClickHandler = async (e) => {
       const target = e.target;
       if (!target) return;
 
@@ -267,10 +292,6 @@ class TwitterReplyInjector {
 
       if (!isReplyButton) return;
 
-      // Check if auto-like is enabled
-      const autoLikeEnabled = await this.isAutoLikeEnabled();
-      if (!autoLikeEnabled) return;
-
       // Find the actual Reply button element
       const replyButton = target.closest('[data-testid="reply"]') ||
                          target.closest('button[aria-label*="Reply" i]') ||
@@ -284,15 +305,24 @@ class TwitterReplyInjector {
         return; // Couldn't find tweet article
       }
 
-      // Find like button
-      const likeButton = this.findLikeButton(tweetArticle);
-      if (!likeButton) {
-        return; // Already liked or no like button found
+      // Track reply (for tweet hiding feature) - always track, even if auto-like is disabled
+      const username = await this.extractUsernameFromTweet(tweetArticle);
+      if (username && username !== 'unknown') {
+        await this.trackReply(username);
       }
 
-      // Perform auto-like
-      await this.performAutoLike(likeButton);
-    }, true); // Use capture phase to catch before other handlers
+      // Existing auto-like logic
+      const autoLikeEnabled = await this.isAutoLikeEnabled();
+      if (autoLikeEnabled) {
+        const likeButton = this.findLikeButton(tweetArticle);
+        if (likeButton) {
+          await this.performAutoLike(likeButton);
+        }
+      }
+    }; // End of handler function
+    
+    // Add event listener
+    document.addEventListener('click', this.autoLikeClickHandler, true); // Use capture phase to catch before other handlers
   }
 
   async initialize() {
@@ -306,28 +336,52 @@ class TwitterReplyInjector {
     // Start observing for reply composers
     this.startObserving();
     
-    // Setup auto-like on Reply click
+    // Setup auto-like on Reply click (this also tracks replies for hiding feature)
     this.setupAutoLikeOnReply();
     
-    // Listen for messages from popup and background
-    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-      if (message.action === 'suggestReply') {
-        this.handleSuggestReplyFromPopup();
-      } else if (message.action === 'authUpdated') {
-        // Refresh auth state when background detects login
-        this.refreshAuthState();
-      }
-    });
+    // Setup tweet hiding feature
+    this.setupTweetHiding();
     
-    // Listen for storage changes (auth state updates)
-    chrome.storage.onChanged.addListener((changes, areaName) => {
-      if (areaName === 'local' && changes.token) {
-        this.refreshAuthState();
-      }
-    });
+    // Listen for messages from popup and background
+    // Only add if not already added (prevent accumulation)
+    // Note: chrome.runtime.onMessage doesn't have removeListener, but Chrome manages cleanup
+    // on content script re-execution. However, we still guard to avoid duplicate handlers.
+    if (!this.runtimeMessageHandler) {
+      this.runtimeMessageHandler = (message, sender, sendResponse) => {
+        if (message.action === 'suggestReply') {
+          this.handleSuggestReplyFromPopup();
+        } else if (message.action === 'authUpdated') {
+          // Refresh auth state when background detects login
+          this.refreshAuthState();
+        }
+      };
+      chrome.runtime.onMessage.addListener(this.runtimeMessageHandler);
+    }
+    
+    // Listen for storage changes (auth state updates and tweet hiding sync)
+    // Only add if not already added (prevent accumulation)
+    if (!this.storageChangeHandler) {
+      this.storageChangeHandler = (changes, areaName) => {
+        if (areaName === 'local') {
+          // Auth state updates
+          if (changes.token) {
+            this.refreshAuthState();
+          }
+          // Tweet hiding sync across tabs
+          if (changes.replyHistory || changes.tweetHidingSettings) {
+            this.checkAndHideTweets();
+          }
+        }
+      };
+      chrome.storage.onChanged.addListener(this.storageChangeHandler);
+    }
     
     // Refresh usage data periodically
-    setInterval(() => {
+    // Clear existing interval if any (prevent accumulation)
+    if (this.usageDataInterval) {
+      clearInterval(this.usageDataInterval);
+    }
+    this.usageDataInterval = setInterval(() => {
       if (this.isAuthenticated) {
         this.loadUsageData();
       }
@@ -358,12 +412,16 @@ class TwitterReplyInjector {
   }
 
   startObserving() {
+    // Don't create if already exists (prevent accumulation)
+    if (this.mainObserver) return;
+    
     // Debounced observer to reduce redundant checks
-    let debounceTimer = null;
+    // Store debounce timer as instance property for cleanup
+    this.mainObserverDebounceTimer = null;
     const addedNodes = new Set();
     
-    const observer = new MutationObserver((mutations) => {
-      clearTimeout(debounceTimer);
+    this.mainObserver = new MutationObserver((mutations) => {
+      clearTimeout(this.mainObserverDebounceTimer);
       
       // Collect all added nodes
       mutations.forEach((mutation) => {
@@ -375,15 +433,30 @@ class TwitterReplyInjector {
       });
       
       // Debounce: Wait 100ms for DOM to settle before processing
-      debounceTimer = setTimeout(() => {
+      this.mainObserverDebounceTimer = setTimeout(() => {
         addedNodes.forEach((node) => {
           this.checkForReplyComposers(node);
         });
         addedNodes.clear();
+        
+        // Also check for new tweets to hide (if tweet hiding is initialized)
+        if (this.hidingInitialized) {
+          // Debounce tweet hiding check
+          if (this.hidingCheckTimeout) {
+            clearTimeout(this.hidingCheckTimeout);
+          }
+          this.hidingCheckTimeout = setTimeout(async () => {
+            try {
+              await this.checkAndHideTweets();
+            } catch (error) {
+              console.error('[TweetReply] Error checking tweets:', error);
+            }
+          }, 500);
+        }
       }, 100);
     });
 
-    observer.observe(document.body, {
+    this.mainObserver.observe(document.body, {
       childList: true,
       subtree: true
     });
@@ -1450,6 +1523,561 @@ class TwitterReplyInjector {
     }
   }
 
+  // ============================================================================
+  // TWEET HIDING FEATURE - Storage & Configuration Helpers
+  // ============================================================================
+
+  // Get hiding settings with defaults
+  async getHidingSettings() {
+    try {
+      const result = await chrome.storage.local.get(['tweetHidingSettings']);
+      const settings = result.tweetHidingSettings || {
+        replyThreshold: 1,
+        hideDurationHours: 1
+      };
+      
+      // Validate and clamp values
+      return {
+        replyThreshold: Math.max(1, Math.min(10, parseInt(settings.replyThreshold) || 1)),
+        hideDurationHours: Math.max(1, Math.min(24, parseInt(settings.hideDurationHours) || 1))
+      };
+    } catch (error) {
+      console.warn('[TweetReply] Failed to get hiding settings:', error);
+      return { replyThreshold: 1, hideDurationHours: 1 };
+    }
+  }
+
+  // Set hiding settings
+  async setHidingSettings(settings) {
+    try {
+      await chrome.storage.local.set({ tweetHidingSettings: settings });
+    } catch (error) {
+      console.error('[TweetReply] Failed to save hiding settings:', error);
+    }
+  }
+
+  // Get reply history
+  async getReplyHistory() {
+    try {
+      const result = await chrome.storage.local.get(['replyHistory']);
+      return result.replyHistory || {};
+    } catch (error) {
+      console.warn('[TweetReply] Failed to get reply history:', error);
+      return {};
+    }
+  }
+
+  // Track reply to a user
+  async trackReply(username) {
+    if (!username || username === 'unknown') return;
+    
+    // Prevent concurrent tracking for same username
+    const lockKey = `tracking_${username}`;
+    if (this[lockKey]) {
+      return; // Already tracking this user
+    }
+    this[lockKey] = true;
+    
+    try {
+      const history = await this.getReplyHistory();
+      const settings = await this.getHidingSettings();
+      const now = Date.now();
+      
+      if (!history[username]) {
+        history[username] = { replies: [], hidden: false };
+      }
+      
+      // Check if this exact reply already exists (within 1 second - same click)
+      // Prevents duplicate tracking from rapid clicks
+      const recentReply = history[username].replies.find(
+        r => Math.abs(r.timestamp - now) < 1000
+      );
+      if (recentReply) {
+        return; // Already tracked this reply - unlock handled in finally
+      }
+      
+      // Add reply timestamp
+      history[username].replies.push({ timestamp: now });
+      
+      // Cleanup old replies (older than hideDurationHours)
+      const cutoff = now - (settings.hideDurationHours * 60 * 60 * 1000);
+      history[username].replies = history[username].replies.filter(
+        r => r.timestamp > cutoff
+      );
+      
+      // Check if threshold reached
+      if (history[username].replies.length >= settings.replyThreshold) {
+        const hideUntil = now + (settings.hideDurationHours * 60 * 60 * 1000);
+        history[username].hidden = true;
+        history[username].hideUntil = hideUntil;
+        
+        // Save updated history
+        await chrome.storage.local.set({ replyHistory: history });
+        
+        // Trigger hiding
+        await this.hideTweetsFromUser(username);
+        
+        // Show notification (optional)
+        this.showHidingNotification(username, history[username].replies.length);
+      } else {
+        // Save updated history (even if not hiding yet)
+        await chrome.storage.local.set({ replyHistory: history });
+      }
+    } catch (error) {
+      console.error('[TweetReply] Error tracking reply:', error);
+    } finally {
+      // Unlock after completion
+      delete this[lockKey];
+    }
+  }
+
+  // Check if user should be hidden
+  async shouldHideUser(username) {
+    if (!username || username === 'unknown') return false;
+    
+    // Check if manually unhidden this session
+    if (this.unhiddenUsers.has(username)) {
+      return false;
+    }
+    
+    const history = await this.getReplyHistory();
+    const userData = history[username];
+    
+    if (!userData || !userData.hidden) return false;
+    
+    // Check if still in hiding period
+    const now = Date.now();
+    if (userData.hideUntil && userData.hideUntil > now) {
+      return true;
+    }
+    
+    // Expired - auto-unhide
+    if (userData.hideUntil && userData.hideUntil <= now) {
+      userData.hidden = false;
+      delete userData.hideUntil;
+      await chrome.storage.local.set({ replyHistory: history });
+    }
+    
+    return false;
+  }
+
+  // Unhide user (session only)
+  async unhideUser(username) {
+    if (!username) return;
+    
+    // Add to session-only unhidden set
+    this.unhiddenUsers.add(username);
+    
+    // Restore all hidden tweets from this user
+    const tweets = document.querySelectorAll(`article[data-testid="tweet"][data-hidden-username="${username}"]`);
+    tweets.forEach(tweet => {
+      this.restoreTweet(tweet);
+    });
+  }
+
+  // Cleanup expired history
+  async cleanupExpiredHistory() {
+    const history = await this.getReplyHistory();
+    const settings = await this.getHidingSettings();
+    const cutoff = Date.now() - (settings.hideDurationHours * 60 * 60 * 1000);
+    
+    for (const [username, data] of Object.entries(history)) {
+      // Remove old replies
+      data.replies = data.replies.filter(r => r.timestamp > cutoff);
+      
+      // Auto-unhide if expired
+      if (data.hideUntil && data.hideUntil <= Date.now()) {
+        data.hidden = false;
+        delete data.hideUntil;
+      }
+      
+      // Remove user if no replies left and not hidden
+      if (data.replies.length === 0 && !data.hidden) {
+        delete history[username];
+      }
+    }
+    
+    await chrome.storage.local.set({ replyHistory: history });
+  }
+
+  // ============================================================================
+  // TWEET HIDING FEATURE - Username Extraction from Tweet
+  // ============================================================================
+
+  // Extract username from specific tweet article
+  async extractUsernameFromTweet(tweetArticle) {
+    try {
+      const authorElement = tweetArticle.querySelector('[data-testid="User-Name"]');
+      if (!authorElement) return null;
+      
+      // Use same parsing logic as extractAuthorInfo()
+      const fullText = authorElement.textContent?.trim() || '';
+      
+      // Pattern: "Display Name@username · time" or "@username · time"
+      let match = fullText.match(/^(.+?)@([^\u00B7·.\s]+)\s*[\u00B7·.]\s*(.+)$/);
+      if (match) {
+        return match[2].trim(); // username
+      }
+      
+      // Try without display name: "@username · time"
+      match = fullText.match(/^@([^\u00B7·.\s]+)\s*[\u00B7·.]\s*(.+)$/);
+      if (match) {
+        return match[1].trim(); // username
+      }
+      
+      // Fallback: try to extract from @username pattern
+      const usernameMatch = fullText.match(/@([^\s\u00B7·.]+)/);
+      if (usernameMatch) {
+        return usernameMatch[1];
+      }
+      
+      return null;
+    } catch (error) {
+      console.warn('[TweetReply] Failed to extract username from tweet:', error);
+      return null;
+    }
+  }
+
+  // Sync version for immediate checks
+  extractUsernameFromTweetSync(tweetArticle) {
+    try {
+      const authorElement = tweetArticle.querySelector('[data-testid="User-Name"]');
+      if (!authorElement) return null;
+      
+      const fullText = authorElement.textContent?.trim() || '';
+      
+      // Pattern: "Display Name@username · time" or "@username · time"
+      let match = fullText.match(/^(.+?)@([^\u00B7·.\s]+)\s*[\u00B7·.]\s*(.+)$/);
+      if (match) {
+        return match[2].trim();
+      }
+      
+      match = fullText.match(/^@([^\u00B7·.\s]+)\s*[\u00B7·.]\s*(.+)$/);
+      if (match) {
+        return match[1].trim();
+      }
+      
+      const usernameMatch = fullText.match(/@([^\s\u00B7·.]+)/);
+      if (usernameMatch) {
+        return usernameMatch[1];
+      }
+      
+      return null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  // ============================================================================
+  // TWEET HIDING FEATURE - Tweet Hiding System
+  // ============================================================================
+
+  setupTweetHiding() {
+    // Don't setup if already initialized
+    if (this.hidingInitialized) return;
+    this.hidingInitialized = true;
+    
+    // Initialize on load
+    this.checkAndHideTweets();
+    
+    // Watch for new tweets
+    this.observeTimeline();
+    
+    // Periodically cleanup and recheck
+    // Clear existing interval if any (prevent accumulation)
+    if (this.hidingCleanupInterval) {
+      clearInterval(this.hidingCleanupInterval);
+    }
+    this.hidingCleanupInterval = setInterval(() => {
+      this.cleanupExpiredHistory();
+      this.checkAndHideTweets();
+    }, 60000); // Every minute
+  }
+
+  async checkAndHideTweets() {
+    // Prevent concurrent execution (called from multiple places)
+    if (this.checkingTweets) {
+      return; // Already checking, skip this call
+    }
+    this.checkingTweets = true;
+    
+    try {
+      const history = await this.getReplyHistory();
+      const hideMap = new Map(); // Cache shouldHide results per username
+      
+      // Find all tweets
+      const tweets = document.querySelectorAll('article[data-testid="tweet"]');
+      
+      for (const tweet of tweets) {
+        // Check if already hidden
+        if (tweet.dataset.hidingHidden === 'true') {
+          const username = this.extractUsernameFromTweetSync(tweet);
+          if (!username || username === 'unknown') {
+            // Invalid username but marked as hidden - restore
+            this.restoreTweet(tweet);
+            continue;
+          }
+          
+          // Cache shouldHide result
+          if (!hideMap.has(username)) {
+            hideMap.set(username, await this.shouldHideUser(username));
+          }
+          
+          // If should still be hidden, skip
+          if (hideMap.get(username)) {
+            continue;
+          }
+          
+          // Was unhidden but still marked as hidden - restore
+          this.restoreTweet(tweet);
+          continue;
+        }
+        
+        // Skip if already processed and not hidden (likely doesn't need hiding)
+        if (tweet.dataset.hidingProcessed === 'true') continue;
+        tweet.dataset.hidingProcessed = 'true';
+        
+        // Extract username from tweet
+        const username = this.extractUsernameFromTweetSync(tweet);
+        if (!username || username === 'unknown') continue;
+        
+        // Skip if manually unhidden
+        if (this.unhiddenUsers.has(username)) continue;
+        
+        // Check if should hide (use cache)
+        if (!hideMap.has(username)) {
+          hideMap.set(username, await this.shouldHideUser(username));
+        }
+        
+        if (hideMap.get(username)) {
+          this.hideTweet(tweet, username);
+        }
+      }
+    } catch (error) {
+      console.error('[TweetReply] Error checking tweets:', error);
+    } finally {
+      // Unlock after completion
+      this.checkingTweets = false;
+    }
+  }
+
+  async hideTweetsFromUser(username) {
+    // Check if manually unhidden
+    if (this.unhiddenUsers.has(username)) {
+      return; // Don't hide if manually unhidden
+    }
+    
+    // Find all tweets from this user
+    const tweets = document.querySelectorAll('article[data-testid="tweet"]');
+    tweets.forEach(tweet => {
+      const tweetUsername = this.extractUsernameFromTweetSync(tweet);
+      if (tweetUsername === username) {
+        if (!tweet.dataset.hidingHidden) {
+          this.hideTweet(tweet, username);
+        }
+      }
+    });
+  }
+
+  hideTweet(tweetArticle, username) {
+    // Skip if already hidden or manually unhidden
+    if (tweetArticle.dataset.hidingHidden === 'true') return;
+    if (this.unhiddenUsers.has(username)) return;
+    
+    // Mark as hidden
+    tweetArticle.dataset.hidingHidden = 'true';
+    tweetArticle.dataset.hiddenUsername = username;
+    
+    // Create indicator
+    this.createHiddenTweetIndicator(tweetArticle, username);
+  }
+
+  createHiddenTweetIndicator(tweetArticle, username) {
+    // Sanitize username to prevent XSS
+    const safeUsername = username.replace(/[<>&"']/g, '');
+    
+    // Find tweet content container
+    const tweetContent = tweetArticle.querySelector('[data-testid="tweetText"]')?.parentElement ||
+                         tweetArticle.querySelector('div[lang]') ||
+                         tweetArticle;
+    
+    // Hide tweet content
+    tweetArticle.style.opacity = '0.5';
+    tweetArticle.style.pointerEvents = 'none';
+    
+    // Create indicator
+    const indicator = document.createElement('div');
+    indicator.className = 'tweet-hide-indicator';
+    indicator.style.cssText = `
+      padding: 12px;
+      background: #1d9bf0;
+      color: white;
+      border-radius: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: 8px 0;
+      position: relative;
+      z-index: 10;
+    `;
+    
+    indicator.innerHTML = `
+      <span style="font-weight: 500;">Hidden: @${safeUsername}</span>
+      <button class="tweet-hide-unhide-btn" data-username="${safeUsername}" style="
+        padding: 6px 12px;
+        background: white;
+        color: #1d9bf0;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: 600;
+      ">Unhide</button>
+    `;
+    
+    // Insert indicator with error handling
+    try {
+      if (tweetContent && tweetContent.parentElement) {
+        tweetContent.style.display = 'none';
+        tweetContent.after(indicator);
+      } else {
+        tweetArticle.prepend(indicator);
+      }
+    } catch (error) {
+      // Fallback: prepend to article
+      tweetArticle.prepend(indicator);
+    }
+    
+    // Add unhide click handler
+    const unhideBtn = indicator.querySelector('.tweet-hide-unhide-btn');
+    if (unhideBtn) {
+      unhideBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        await this.unhideUser(username);
+        this.restoreTweet(tweetArticle);
+      });
+    }
+  }
+
+  restoreTweet(tweetArticle) {
+    // Remove hidden state
+    tweetArticle.dataset.hidingHidden = 'false';
+    tweetArticle.dataset.hidingProcessed = 'false'; // Reset processed flag for re-processing
+    tweetArticle.style.opacity = '';
+    tweetArticle.style.pointerEvents = '';
+    
+    // Remove indicator
+    const indicator = tweetArticle.querySelector('.tweet-hide-indicator');
+    if (indicator) {
+      indicator.remove();
+    }
+    
+    // Restore content
+    const tweetContent = tweetArticle.querySelector('[data-testid="tweetText"]')?.parentElement ||
+                         tweetArticle.querySelector('div[lang]');
+    if (tweetContent) {
+      tweetContent.style.display = '';
+    }
+    
+    // Remove username attribute
+    delete tweetArticle.dataset.hiddenUsername;
+  }
+
+  observeTimeline() {
+    // Don't create if already exists (prevent accumulation)
+    if (this.timelineObserver) return;
+    
+    // Find timeline containers - avoid observing body (already observed by mainObserver)
+    const timeline = document.querySelector('[data-testid="primaryColumn"]') ||
+                     document.querySelector('[data-testid="homeTimeline"]') ||
+                     document.querySelector('main');
+    
+    // Only create observer if we found a specific container (not body)
+    // This prevents duplicate observation with mainObserver
+    if (!timeline || timeline === document.body) {
+      // No specific container found - mainObserver will handle tweet hiding
+      // Tweet hiding is already integrated into mainObserver callback
+      console.log('[TweetReply] Timeline observer skipped - using main observer instead');
+      return;
+    }
+    
+    // Watch for new tweets being added
+    this.timelineObserver = new MutationObserver(async (mutations) => {
+      // Debounce to avoid too many calls
+      if (this.hidingCheckTimeout) {
+        clearTimeout(this.hidingCheckTimeout);
+      }
+      
+      this.hidingCheckTimeout = setTimeout(async () => {
+        try {
+          await this.checkAndHideTweets();
+        } catch (error) {
+          console.error('[TweetReply] Error checking tweets:', error);
+        }
+      }, 500);
+    });
+    
+    // Observe the specific timeline container
+    this.timelineObserver.observe(timeline, {
+      childList: true,
+      subtree: true
+    });
+  }
+
+  // Optional: Show notification when hiding
+  showHidingNotification(username, replyCount) {
+    try {
+      // Sanitize username to prevent XSS
+      const safeUsername = username.replace(/[<>&"']/g, '');
+      
+      // Create temporary toast notification
+      const toast = document.createElement('div');
+      toast.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: #1d9bf0;
+        color: white;
+        padding: 12px 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        z-index: 10000;
+        font-size: 14px;
+        font-weight: 500;
+        animation: slideIn 0.3s ease-out;
+      `;
+      
+      toast.textContent = `Hidden tweets from @${safeUsername} (${replyCount} replies)`;
+      
+      // Add animation if not already added
+      if (!document.getElementById('tweet-hide-animations')) {
+        const style = document.createElement('style');
+        style.id = 'tweet-hide-animations';
+        style.textContent = `
+          @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+          }
+          @keyframes slideOut {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(100%); opacity: 0; }
+          }
+        `;
+        document.head.appendChild(style);
+      }
+      
+      document.body.appendChild(toast);
+      
+      // Auto-remove after 3 seconds
+      setTimeout(() => {
+        toast.style.animation = 'slideOut 0.3s ease-out';
+        setTimeout(() => toast.remove(), 300);
+      }, 3000);
+    } catch (error) {
+      console.error('[TweetReply] Error showing notification:', error);
+    }
+  }
+
   extractConversationContext() {
     try {
       const tweets = document.querySelectorAll('[data-testid="tweet"]');
@@ -1769,7 +2397,69 @@ class TwitterReplyInjector {
       return `in ${minutes}m`;
     }
   }
+
+  // ============================================================================
+  // CLEANUP & DESTRUCTION
+  // ============================================================================
+
+  destroy() {
+    // Disconnect observers
+    if (this.mainObserver) {
+      this.mainObserver.disconnect();
+      this.mainObserver = null;
+    }
+    if (this.timelineObserver) {
+      this.timelineObserver.disconnect();
+      this.timelineObserver = null;
+    }
+    
+    // Remove event listeners
+    if (this.autoLikeClickHandler) {
+      document.removeEventListener('click', this.autoLikeClickHandler, true);
+      this.autoLikeClickHandler = null;
+    }
+    
+    // Clear intervals
+    if (this.usageDataInterval) {
+      clearInterval(this.usageDataInterval);
+      this.usageDataInterval = null;
+    }
+    if (this.hidingCleanupInterval) {
+      clearInterval(this.hidingCleanupInterval);
+      this.hidingCleanupInterval = null;
+    }
+    
+    // Clear timeouts
+    if (this.hidingCheckTimeout) {
+      clearTimeout(this.hidingCheckTimeout);
+      this.hidingCheckTimeout = null;
+    }
+    if (this.mainObserverDebounceTimer) {
+      clearTimeout(this.mainObserverDebounceTimer);
+      this.mainObserverDebounceTimer = null;
+    }
+    
+    // Remove beforeunload listener
+    if (this.beforeUnloadHandler) {
+      window.removeEventListener('beforeunload', this.beforeUnloadHandler);
+      this.beforeUnloadHandler = null;
+    }
+    
+    // Remove storage listener
+    if (this.storageChangeHandler) {
+      chrome.storage.onChanged.removeListener(this.storageChangeHandler);
+      this.storageChangeHandler = null;
+    }
+    
+    // Clear flags
+    this.hidingInitialized = false;
+    
+    // Remove global reference
+    delete window.__tweetReplyInjector;
+  }
 }
 
-// Initialize the injector
-new TwitterReplyInjector();
+// Initialize the injector (with SPA guard to prevent multiple instances)
+if (!window.__tweetReplyInjector) {
+  new TwitterReplyInjector();
+}
