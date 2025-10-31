@@ -425,14 +425,6 @@
       }
       this.injectedContainers.add(containerId);
       const ctx = this.getComposerContext(composerContainer);
-      try {
-        const globalInlineBtn = document.querySelector('[data-testid="tweetButtonInline"]');
-        const globalInlineText = globalInlineBtn?.textContent?.trim() || "";
-        if (/^post$/i.test(globalInlineText)) {
-          return;
-        }
-      } catch (_) {
-      }
       if (ctx.type === "post") {
         return;
       }

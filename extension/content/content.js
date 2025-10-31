@@ -401,12 +401,20 @@ class TwitterReplyInjector {
     for (const el of textareas) {
       const hint = (el.getAttribute('aria-label') || el.getAttribute('placeholder') || '').toLowerCase();
       if (hint.includes("what's happening") || hint.includes('what’s happening')) return true;
+      // Treat aria "Post text" as Post composer only when not inside a dialog or article (reply contexts)
+      if (/^post\s*text$/i.test(hint) && !containerEl.closest('[role="dialog"], article')) return true;
     }
     // Also check for Post/Tweet primary button without Reply
     const hasPost = !!(containerEl.querySelector('[data-testid="tweetButton"]') ||
       Array.from(containerEl.querySelectorAll('div[role="button"], button'))
         .some(btn => /^(post|tweet)$/i.test((btn.getAttribute('aria-label') || btn.textContent || '').trim())));
     const hasReply = !!this.findReplyButton(containerEl);
+    if (!hasReply && hasPost) return true;
+
+    // If the global inline button reads "Post" and this container is not a dialog/article, treat as Post composer
+    const globalInlineBtn = document.querySelector('[data-testid="tweetButtonInline"]');
+    const globalInlineText = globalInlineBtn?.textContent?.trim() || '';
+    if (/^post$/i.test(globalInlineText) && !containerEl.closest('[role="dialog"], article')) return true;
     return hasPost && !hasReply;
   }
 
