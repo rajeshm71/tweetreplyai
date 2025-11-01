@@ -132,6 +132,9 @@
   display: flex;
   gap: 8px;
   align-items: center;
+  width: 100%;
+  flex-wrap: wrap;
+  margin-bottom: 6px; /* keep spacing from native toolbar */
 }
 
 .tweetreply-model-select,

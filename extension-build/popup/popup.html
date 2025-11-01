@@ -153,6 +153,53 @@
         <div class="settings-actions">
           <button id="signout-btn" class="secondary-btn">Sign Out</button>
         </div>
+        
+        <!-- Tweet Hiding Settings -->
+        <div class="settings-section" style="margin-top: 20px; padding: 16px 0; border-top: 1px solid #e1e8ed;">
+          <h4 style="margin-bottom: 12px; font-size: 14px; font-weight: 600; color: #14171a;">Tweet Hiding</h4>
+          <div style="margin-bottom: 16px;">
+            <label style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 13px; color: #657786;">
+              <span>Reply Threshold:</span>
+              <input type="number" id="replyThreshold" min="1" max="10" value="1" 
+                     style="width: 50px; padding: 4px 8px; border: 1px solid #e1e8ed; border-radius: 4px; text-align: center;">
+            </label>
+            <small style="display: block; color: #657786; font-size: 11px; margin-top: 4px;">
+              Hide tweets after replying to this many tweets from the same user
+            </small>
+          </div>
+          <div style="margin-bottom: 16px;">
+            <label style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 13px; color: #657786;">
+              <span>Hide Duration (hours):</span>
+              <input type="number" id="hideDuration" min="1" max="24" value="1" 
+                     style="width: 50px; padding: 4px 8px; border: 1px solid #e1e8ed; border-radius: 4px; text-align: center;">
+            </label>
+            <small style="display: block; color: #657786; font-size: 11px; margin-top: 4px;">
+              How long to hide tweets after threshold is reached
+            </small>
+          </div>
+          <button id="saveHidingSettings" style="
+            width: 100%;
+            padding: 10px 16px;
+            background: #1d9bf0;
+            color: white;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            transition: background 0.2s;
+          ">Save Settings</button>
+          <div id="hiding-settings-saved" style="
+            display: none;
+            margin-top: 8px;
+            padding: 8px;
+            background: #10b981;
+            color: white;
+            border-radius: 4px;
+            font-size: 12px;
+            text-align: center;
+          ">Settings saved!</div>
+        </div>
       </div>
     </div>
 
