@@ -61,8 +61,12 @@ export class ReplyPostProcessor {
 
     // Step 7: Apply removal operations (only if original had >= 5 words)
     if (hasMinWords) {
-      processed = this.filterSentences(processed); // Rule 3
-      processed = this.removeStartPhrases(processed); // Rule 1
+      // First remove start phrases (Rule 1) - this handles phrases at the very start of reply
+      processed = this.removeStartPhrases(processed);
+      // Then filter sentences (Rule 3) - this handles sentences that start with filtered words
+      processed = this.filterSentences(processed);
+      // Also check if entire reply starts with filtered sentence starts and remove
+      processed = this.removeFilteredStartWords(processed);
     }
 
     // Step 8: Normalize whitespace
@@ -214,6 +218,31 @@ export class ReplyPostProcessor {
   }
 
   /**
+   * Remove filtered start words at the beginning of entire reply
+   * Checks if the entire reply (not just sentences) starts with filtered words
+   */
+  private removeFilteredStartWords(text: string): string {
+    if (!text || !text.trim()) {
+      return text;
+    }
+    
+    let cleaned = text.trim();
+    
+    for (const startWord of FILTERED_SENTENCE_STARTS) {
+      const escaped = this.escapeRegex(startWord);
+      // Match word at start of entire reply, followed by space, punctuation, or end
+      const startRegex = new RegExp(`^${escaped}(\\s|[.,!?:;]|$)`, "i");
+      if (startRegex.test(cleaned)) {
+        // Remove the word and following punctuation/space
+        cleaned = cleaned.replace(startRegex, "").trim();
+        break; // Only remove first matching word
+      }
+    }
+    
+    return cleaned;
+  }
+
+  /**
    * Rule 3: Filter sentences
    * Splits on periods, removes sentences starting with filtered words or containing disqualifying words
    */
@@ -268,7 +297,12 @@ export class ReplyPostProcessor {
       let shouldRemove = false;
 
       for (const startWord of FILTERED_SENTENCE_STARTS) {
-        const startRegex = new RegExp(`^${this.escapeRegex(startWord)}\\b`, "i");
+        // Escape the word for regex (handles apostrophes, special chars, etc.)
+        const escaped = this.escapeRegex(startWord);
+        // Match word at start, followed by: space, punctuation, or end of string
+        // This handles "That's", "Love", etc. reliably without word boundary issues
+        // Pattern: ^word followed by (space OR punctuation OR end)
+        const startRegex = new RegExp(`^${escaped}(\\s|[.,!?:;]|$)`, "i");
         if (startRegex.test(sentenceText)) {
           shouldRemove = true;
           break;
