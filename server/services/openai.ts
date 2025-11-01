@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { getPromptConfig, type PromptConfig } from "./prompts.js";
+import { replyPostProcessor } from "./reply-postprocessor.js";
 
 // TODO: Set OPENAI_API_KEY in environment to enable AI reply generation
 const openai = process.env.OPENAI_API_KEY ? new OpenAI() : null;
@@ -110,35 +111,8 @@ export class ModelRouter {
   }
 
   private postProcessReply(reply: string): string {
-    // Trim whitespace and ensure proper length
-    let processed = reply.trim();
-
-    // Remove quotes if the AI wrapped the response
-    if (processed.startsWith('"') && processed.endsWith('"')) {
-      processed = processed.slice(1, -1);
-    }
-
-    // Ensure it's under 50 words
-    const words = processed.split(/\s+/);
-    if (words.length > 50) {
-      processed = words.slice(0, 50).join(" ");
-    }
-
-    // Remove banned patterns
-    const bannedPatterns = [
-      /#\w+/g, // Hashtags
-      /Check out my/gi,
-      /The future is here/gi,
-      /This changes everything/gi,
-      /Revolutionary/gi,
-      /Game-changing/gi,
-    ];
-
-    bannedPatterns.forEach((pattern) => {
-      processed = processed.replace(pattern, "");
-    });
-
-    return processed.trim();
+    // Use comprehensive postprocessor service
+    return replyPostProcessor.processReply(reply);
   }
 
   async generateReply(options: ReplyOptions): Promise<ReplyResponse> {

@@ -1,6 +1,7 @@
 import { Groq } from "groq-sdk";
 import { ReplyOptions, ReplyResponse } from "./openai.js";
 import { getPromptConfig, type PromptConfig } from "./prompts.js";
+import { replyPostProcessor } from "./reply-postprocessor.js";
 
 // Initialize Groq client
 const groq = process.env.GROQ_API_KEY ? new Groq() : null;
@@ -50,35 +51,8 @@ export class GroqModelRouter {
   }
 
   private postProcessReply(reply: string): string {
-    // Same post-processing as OpenAI and Gemini services
-    let processed = reply.trim();
-
-    // Remove quotes if the AI wrapped the response
-    if (processed.startsWith('"') && processed.endsWith('"')) {
-      processed = processed.slice(1, -1);
-    }
-
-    // Ensure it's under 50 words
-    const words = processed.split(/\s+/);
-    if (words.length > 50) {
-      processed = words.slice(0, 50).join(" ");
-    }
-
-    // Remove banned patterns
-    const bannedPatterns = [
-      /#\w+/g, // Hashtags
-      /Check out my/gi,
-      /The future is here/gi,
-      /This changes everything/gi,
-      /Revolutionary/gi,
-      /Game-changing/gi,
-    ];
-
-    bannedPatterns.forEach((pattern) => {
-      processed = processed.replace(pattern, "");
-    });
-
-    return processed.trim();
+    // Use comprehensive postprocessor service
+    return replyPostProcessor.processReply(reply);
   }
 
   async generateReply(options: ReplyOptions): Promise<ReplyResponse> {
