@@ -394,25 +394,35 @@
     setupAutoLikeOnReply() {
       if (this.autoLikeClickHandler) return;
       this.autoLikeClickHandler = async (e) => {
-        const target = e.target;
-        if (!target) return;
-        const isReplyButton = target.matches('[data-testid="reply"]') || target.closest('[data-testid="reply"]') || target.matches('button[aria-label*="Reply" i]') || target.closest('button[aria-label*="Reply" i]') || target.matches('[role="button"][aria-label*="Reply" i]') || target.closest('[role="button"][aria-label*="Reply" i]') || target.matches('[data-testid="tweetButtonInline"]') || target.closest('[data-testid="tweetButtonInline"]');
-        if (!isReplyButton) return;
-        const replyButton = target.closest('[data-testid="reply"]') || target.closest('button[aria-label*="Reply" i]') || target.closest('[role="button"][aria-label*="Reply" i]') || target.closest('[data-testid="tweetButtonInline"]') || target;
-        const tweetArticle = this.findTweetArticle(replyButton);
-        if (!tweetArticle) {
-          return;
-        }
-        const username = await this.extractUsernameFromTweet(tweetArticle);
-        if (username && username !== "unknown") {
-          await this.trackReply(username);
-        }
-        const autoLikeEnabled = await this.isAutoLikeEnabled();
-        if (autoLikeEnabled) {
-          const likeButton = this.findLikeButton(tweetArticle);
-          if (likeButton) {
-            await this.performAutoLike(likeButton);
+        try {
+          const target = e.target;
+          if (!target) return;
+          const isReplyButton = target.matches('[data-testid="reply"]') || target.closest('[data-testid="reply"]') || target.matches('button[aria-label*="Reply" i]') || target.closest('button[aria-label*="Reply" i]') || target.matches('[role="button"][aria-label*="Reply" i]') || target.closest('[role="button"][aria-label*="Reply" i]') || target.matches('[data-testid="tweetButtonInline"]') || target.closest('[data-testid="tweetButtonInline"]');
+          if (!isReplyButton) return;
+          const replyButton = target.closest('[data-testid="reply"]') || target.closest('button[aria-label*="Reply" i]') || target.closest('[role="button"][aria-label*="Reply" i]') || target.closest('[data-testid="tweetButtonInline"]') || target;
+          const tweetArticle = this.findTweetArticle(replyButton);
+          if (!tweetArticle) {
+            return;
           }
+          try {
+            const username = await this.extractUsernameFromTweet(tweetArticle);
+            if (username && username !== "unknown") {
+              this.trackReply(username).catch((err) => {
+                console.warn("[TweetReply] Reply tracking failed:", err);
+              });
+            }
+          } catch (error) {
+            console.warn("[TweetReply] Failed to extract username for tracking:", error);
+          }
+          const autoLikeEnabled = await this.isAutoLikeEnabled();
+          if (autoLikeEnabled) {
+            const likeButton = this.findLikeButton(tweetArticle);
+            if (likeButton) {
+              await this.performAutoLike(likeButton);
+            }
+          }
+        } catch (error) {
+          console.error("[TweetReply] Auto-like handler error:", error);
         }
       };
       document.addEventListener("click", this.autoLikeClickHandler, true);
