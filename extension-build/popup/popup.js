@@ -102,10 +102,10 @@ class PopupManager {
     // Draft improvement
     this.analyzeBtn?.addEventListener('click', () => this.handleAnalyzeDraft());
     
-    // Tweet hiding settings
-    const saveHidingSettingsBtn = document.getElementById('saveHidingSettings');
-    if (saveHidingSettingsBtn) {
-      saveHidingSettingsBtn.addEventListener('click', () => this.saveHidingSettings());
+    // Reply tracking settings
+    const saveTrackingSettingsBtn = document.getElementById('saveTrackingSettings');
+    if (saveTrackingSettingsBtn) {
+      saveTrackingSettingsBtn.addEventListener('click', () => this.saveTrackingSettings());
     }
   }
 
@@ -423,58 +423,49 @@ class PopupManager {
 
   showSettings() {
     this.settingsPanel?.classList.remove('hidden');
-    // Load hiding settings when settings panel is shown
-    this.loadHidingSettings();
+    // Load tracking settings when settings panel is shown
+    this.loadTrackingSettings();
   }
 
   hideSettings() {
     this.settingsPanel?.classList.add('hidden');
   }
 
-  // Load tweet hiding settings
-  async loadHidingSettings() {
+  // Load reply tracking settings
+  async loadTrackingSettings() {
     try {
-      const result = await chrome.storage.local.get(['tweetHidingSettings']);
-      const settings = result.tweetHidingSettings || {
-        replyThreshold: 1,
-        hideDurationHours: 1
+      const result = await chrome.storage.local.get(['replyTrackingSettings']);
+      const settings = result.replyTrackingSettings || {
+        trackingPeriodDays: 7
       };
       
-      const replyThresholdInput = document.getElementById('replyThreshold');
-      const hideDurationInput = document.getElementById('hideDuration');
+      const trackingPeriodInput = document.getElementById('trackingPeriodDays');
       
-      if (replyThresholdInput) {
-        replyThresholdInput.value = settings.replyThreshold || 1;
-      }
-      if (hideDurationInput) {
-        hideDurationInput.value = settings.hideDurationHours || 1;
+      if (trackingPeriodInput) {
+        trackingPeriodInput.value = settings.trackingPeriodDays || 7;
       }
     } catch (error) {
-      console.error('Failed to load hiding settings:', error);
+      console.error('Failed to load tracking settings:', error);
     }
   }
 
-  // Save tweet hiding settings
-  async saveHidingSettings() {
+  // Save reply tracking settings
+  async saveTrackingSettings() {
     try {
-      const replyThresholdInput = document.getElementById('replyThreshold');
-      const hideDurationInput = document.getElementById('hideDuration');
-      const saveBtn = document.getElementById('saveHidingSettings');
-      const savedMsg = document.getElementById('hiding-settings-saved');
+      const trackingPeriodInput = document.getElementById('trackingPeriodDays');
+      const saveBtn = document.getElementById('saveTrackingSettings');
+      const savedMsg = document.getElementById('tracking-settings-saved');
       
-      if (!replyThresholdInput || !hideDurationInput) return;
+      if (!trackingPeriodInput) return;
       
-      const replyThreshold = parseInt(replyThresholdInput.value) || 1;
-      const hideDuration = parseInt(hideDurationInput.value) || 1;
+      const trackingPeriod = parseInt(trackingPeriodInput.value) || 7;
       
       // Clamp values to valid ranges
-      const clampedThreshold = Math.max(1, Math.min(10, replyThreshold));
-      const clampedDuration = Math.max(1, Math.min(24, hideDuration));
+      const clampedPeriod = Math.max(1, Math.min(30, trackingPeriod));
       
       await chrome.storage.local.set({
-        tweetHidingSettings: {
-          replyThreshold: clampedThreshold,
-          hideDurationHours: clampedDuration
+        replyTrackingSettings: {
+          trackingPeriodDays: clampedPeriod
         }
       });
       
@@ -498,7 +489,7 @@ class PopupManager {
         }, 2000);
       }
     } catch (error) {
-      console.error('Failed to save hiding settings:', error);
+      console.error('Failed to save tracking settings:', error);
       alert('Failed to save settings. Please try again.');
     }
   }

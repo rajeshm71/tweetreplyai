@@ -1759,6 +1759,14 @@ class TwitterReplyInjector {
     }
   }
 
+  // Get color for reply count badge based on count (gradient from light to dark blue)
+  getReplyCountColor(count) {
+    if (count === 1) return '#60A5FA';      // Light blue
+    if (count <= 3) return '#2563EB';       // Medium blue
+    if (count <= 5) return '#1E40AF';       // Darker blue
+    return '#1E3A8A';                        // Darkest blue
+  }
+
   // Show reply count on a tweet near username/author info
   async showReplyCountOnTweet(tweetArticle, username, count = null) {
     if (!tweetArticle || !username || username === 'unknown') return;
@@ -1780,53 +1788,208 @@ class TwitterReplyInjector {
     
     // Find User-Name element (try again in case DOM changed during async operations)
     const userNameElement = tweetArticle.querySelector('[data-testid="User-Name"]');
-    if (!userNameElement) return;
+    if (!userNameElement || !userNameElement.isConnected) return;
     
     // Check if tweet is still connected to DOM
     if (!tweetArticle.isConnected) {
       return; // Tweet was removed
     }
     
-    // Create count indicator
+    // Get color based on count
+    const color = this.getReplyCountColor(count);
+    
+    // Create count indicator with modern styling
     const indicator = document.createElement('span');
     indicator.className = 'tweetreply-reply-count';
     indicator.setAttribute('data-username', username);
     indicator.style.cssText = `
-      margin-left: 8px;
-      padding: 2px 8px;
-      background: #1d9bf0;
+      margin-left: 6px;
+      padding: 3px 10px;
+      background: ${color};
       color: white;
-      border-radius: 12px;
+      border-radius: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
       font-size: 12px;
       font-weight: 600;
       white-space: nowrap;
       display: inline-block;
+      transition: background-color 0.2s ease;
     `;
     indicator.textContent = `${count} ${count === 1 ? 'reply' : 'replies'}`;
     
-    // Insert after User-Name element or its parent
-    // Try multiple strategies for robust placement
+    // Find time element and insert right after it (multiple strategies)
+    let inserted = false;
+    
     try {
-      // Strategy 1: Insert after User-Name element (most common case)
-      if (userNameElement.nextSibling) {
-        userNameElement.parentNode.insertBefore(indicator, userNameElement.nextSibling);
+      // Strategy 1: Look for <time> element within the User-Name container or tweet
+      const timeElement = userNameElement.querySelector('time') || tweetArticle.querySelector('time');
+      
+      if (timeElement && timeElement.isConnected) {
+        // Re-check parent exists (DOM might have changed during async operations)
+        const timeParent = timeElement.parentNode;
+        if (!timeParent || !timeParent.isConnected) {
+          // Parent removed, skip this strategy
+        } else {
+          // Insert right after time element with space
+          // Check if space already exists
+          const nextSibling = timeElement.nextSibling;
+          if (nextSibling && nextSibling.nodeType === Node.TEXT_NODE && nextSibling.textContent.trim() === '') {
+            // Space already exists, insert after it
+            if (nextSibling.nextSibling) {
+              timeParent.insertBefore(indicator, nextSibling.nextSibling);
+            } else {
+              timeParent.appendChild(indicator);
+            }
+          } else {
+            // No space exists, create one
+            const spaceText = document.createTextNode(' ');
+            if (nextSibling) {
+              timeParent.insertBefore(spaceText, nextSibling);
+              timeParent.insertBefore(indicator, nextSibling);
+            } else {
+              timeParent.appendChild(spaceText);
+              timeParent.appendChild(indicator);
+            }
+          }
+          inserted = true;
+        }
       } else {
-        // Strategy 2: Append to parent if no next sibling
-        userNameElement.parentNode.appendChild(indicator);
+        // Strategy 2: Find time pattern in User-Name text and insert after it
+        const userNameText = userNameElement.textContent || '';
+        // Match time pattern (e.g., "11h", "17h", "1h", "2d", "3w", "1m", "30s", etc.)
+        // Pattern: middle dot followed by optional space, then digits, then time unit (h/m/s/d/w)
+        const timeMatch = userNameText.match(/[\u00B7·.]\s*(\d+[hmsdw]?)\b/i);
+        
+        if (timeMatch) {
+          // Find the text node containing the time or the element containing it
+          const walker = document.createTreeWalker(
+            userNameElement,
+            NodeFilter.SHOW_TEXT,
+            null
+          );
+          
+          let textNode;
+          while ((textNode = walker.nextNode())) {
+            if (textNode.textContent && textNode.textContent.includes(timeMatch[1])) {
+              // Found text node with time, insert after its parent element
+              const textParent = textNode.parentElement || textNode.parentNode;
+              if (textParent && textParent.isConnected) {
+                const parentContainer = textParent.parentNode;
+                if (parentContainer && parentContainer.isConnected) {
+                  // Check if space already exists after text parent
+                  const nextSibling = textParent.nextSibling;
+                  if (nextSibling && nextSibling.nodeType === Node.TEXT_NODE && nextSibling.textContent.trim() === '') {
+                    // Space already exists, insert after it
+                    if (nextSibling.nextSibling) {
+                      parentContainer.insertBefore(indicator, nextSibling.nextSibling);
+                    } else {
+                      parentContainer.appendChild(indicator);
+                    }
+                  } else {
+                    // No space exists, create one
+                    const spaceText = document.createTextNode(' ');
+                    if (nextSibling) {
+                      parentContainer.insertBefore(spaceText, nextSibling);
+                      parentContainer.insertBefore(indicator, nextSibling);
+                    } else {
+                      parentContainer.appendChild(spaceText);
+                      parentContainer.appendChild(indicator);
+                    }
+                  }
+                  inserted = true;
+                  break;
+                }
+              }
+              // If insertion failed, continue to next text node (might have multiple matches)
+            }
+          }
+          
+          // If text node approach didn't work, try to insert after User-Name element
+          if (!inserted && userNameElement.isConnected) {
+            // Find container that likely holds the time
+            // Time is usually the last part after middle dot
+            const container = userNameElement.parentElement || userNameElement.parentNode;
+            if (container && container.isConnected) {
+              // Check if space already exists
+              const nextSibling = userNameElement.nextSibling;
+              if (nextSibling && nextSibling.nodeType === Node.TEXT_NODE && nextSibling.textContent.trim() === '') {
+                // Space already exists, insert after it
+                if (nextSibling.nextSibling) {
+                  container.insertBefore(indicator, nextSibling.nextSibling);
+                } else {
+                  container.appendChild(indicator);
+                }
+              } else {
+                // No space exists, create one
+                const spaceText = document.createTextNode(' ');
+                if (nextSibling) {
+                  container.insertBefore(spaceText, nextSibling);
+                  container.insertBefore(indicator, nextSibling);
+                } else {
+                  container.appendChild(spaceText);
+                  container.appendChild(indicator);
+                }
+              }
+              inserted = true;
+            }
+          }
+        }
+      }
+      
+      // Strategy 3: Fallback - Insert after User-Name element with space
+      if (!inserted && userNameElement.isConnected) {
+        const parent = userNameElement.parentNode;
+        if (parent && parent.isConnected) {
+          // Check if space already exists
+          const nextSibling = userNameElement.nextSibling;
+          if (nextSibling && nextSibling.nodeType === Node.TEXT_NODE && nextSibling.textContent.trim() === '') {
+            // Space already exists, insert after it
+            if (nextSibling.nextSibling) {
+              parent.insertBefore(indicator, nextSibling.nextSibling);
+            } else {
+              parent.appendChild(indicator);
+            }
+          } else {
+            // No space exists, create one
+            const spaceText = document.createTextNode(' ');
+            if (nextSibling) {
+              parent.insertBefore(spaceText, nextSibling);
+              parent.insertBefore(indicator, nextSibling);
+            } else {
+              parent.appendChild(spaceText);
+              parent.appendChild(indicator);
+            }
+          }
+          inserted = true;
+        }
       }
     } catch (error) {
-      // Strategy 3: Fallback - try to insert after parent element
+      // Strategy 4: Last resort fallback - append to User-Name parent
       try {
-        const parent = userNameElement.parentElement;
-        if (parent && parent.parentElement) {
-          if (parent.nextSibling) {
-            parent.parentElement.insertBefore(indicator, parent.nextSibling);
+        // Re-check if elements still connected after error
+        if (!userNameElement.isConnected || !tweetArticle.isConnected) {
+          return; // DOM changed, abort
+        }
+        
+        const parent = userNameElement.parentElement || userNameElement.parentNode;
+        if (parent && parent.isConnected) {
+          // Check if space already exists at end
+          const lastChild = parent.lastChild;
+          if (lastChild && lastChild.nodeType === Node.TEXT_NODE && lastChild.textContent.trim() === '') {
+            // Space exists, insert before it
+            parent.insertBefore(indicator, lastChild);
           } else {
-            parent.parentElement.appendChild(indicator);
+            // No space, create one
+            const spaceText = document.createTextNode(' ');
+            parent.appendChild(spaceText);
+            parent.appendChild(indicator);
           }
         } else {
-          // Strategy 4: Last resort - append to User-Name element itself
-          userNameElement.appendChild(indicator);
+          // Absolute last resort - only if still connected
+          if (userNameElement.isConnected) {
+            userNameElement.appendChild(indicator);
+          }
         }
       } catch (e) {
         console.warn('[TweetReply] Could not insert reply count indicator:', e);
@@ -1847,16 +2010,23 @@ class TwitterReplyInjector {
       const tweets = document.querySelectorAll('article[data-testid="tweet"]');
       
       for (const tweet of tweets) {
+        // Check if tweet is still connected (may have been removed during async operations)
+        if (!tweet.isConnected) continue;
+        
         const username = this.extractUsernameFromTweetSync(tweet);
         if (username && username !== 'unknown') {
           const count = await this.getReplyCountForUser(username, settings.trackingPeriodDays);
+          
+          // Re-check tweet is still connected before DOM manipulation
+          if (!tweet.isConnected) continue;
+          
           if (count > 0) {
             // Pass count to avoid duplicate lookup
             await this.showReplyCountOnTweet(tweet, username, count);
           } else {
             // Remove indicator if count is 0
             const existingIndicator = tweet.querySelector('.tweetreply-reply-count');
-            if (existingIndicator) {
+            if (existingIndicator && existingIndicator.isConnected) {
               existingIndicator.remove();
             }
           }

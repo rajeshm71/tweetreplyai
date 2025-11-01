@@ -208,7 +208,6 @@
       this.usageData = null;
       this.injectedButtons = /* @__PURE__ */ new Set();
       this.injectedContainers = /* @__PURE__ */ new Set();
-      this.unhiddenUsers = /* @__PURE__ */ new Set();
       window.__tweetReplyInjector = this;
       this.beforeUnloadHandler = () => this.destroy();
       window.addEventListener("beforeunload", this.beforeUnloadHandler);
@@ -425,7 +424,7 @@
       }
       this.startObserving();
       this.setupAutoLikeOnReply();
-      this.setupTweetHiding();
+      this.setupReplyCountDisplay();
       if (!this.runtimeMessageHandler) {
         this.runtimeMessageHandler = (message, sender, sendResponse) => {
           if (message.action === "suggestReply") {
@@ -442,8 +441,8 @@
             if (changes.token) {
               this.refreshAuthState();
             }
-            if (changes.replyHistory || changes.tweetHidingSettings) {
-              this.checkAndHideTweets();
+            if (changes.replyHistory || changes.replyTrackingSettings) {
+              this.updateReplyCountsOnTweets();
             }
           }
         };
@@ -493,15 +492,15 @@
             this.checkForReplyComposers(node);
           });
           addedNodes.clear();
-          if (this.hidingInitialized) {
-            if (this.hidingCheckTimeout) {
-              clearTimeout(this.hidingCheckTimeout);
+          if (this.countDisplayInitialized) {
+            if (this.countUpdateTimeout) {
+              clearTimeout(this.countUpdateTimeout);
             }
-            this.hidingCheckTimeout = setTimeout(async () => {
+            this.countUpdateTimeout = setTimeout(async () => {
               try {
-                await this.checkAndHideTweets();
+                await this.updateReplyCountsOnTweets();
               } catch (error) {
-                console.error("[TweetReply] Error checking tweets:", error);
+                console.error("[TweetReply] Error updating reply counts:", error);
               }
             }, 500);
           }
@@ -1326,31 +1325,29 @@
       }
     }
     // ============================================================================
-    // TWEET HIDING FEATURE - Storage & Configuration Helpers
+    // REPLY TRACKING & COUNT DISPLAY - Storage & Configuration Helpers
     // ============================================================================
-    // Get hiding settings with defaults
-    async getHidingSettings() {
+    // Get tracking settings with defaults
+    async getTrackingSettings() {
       try {
-        const result = await chrome.storage.local.get(["tweetHidingSettings"]);
-        const settings = result.tweetHidingSettings || {
-          replyThreshold: 1,
-          hideDurationHours: 1
+        const result = await chrome.storage.local.get(["replyTrackingSettings"]);
+        const settings = result.replyTrackingSettings || {
+          trackingPeriodDays: 7
         };
         return {
-          replyThreshold: Math.max(1, Math.min(10, parseInt(settings.replyThreshold) || 1)),
-          hideDurationHours: Math.max(1, Math.min(24, parseInt(settings.hideDurationHours) || 1))
+          trackingPeriodDays: Math.max(1, Math.min(30, parseInt(settings.trackingPeriodDays) || 7))
         };
       } catch (error) {
-        console.warn("[TweetReply] Failed to get hiding settings:", error);
-        return { replyThreshold: 1, hideDurationHours: 1 };
+        console.warn("[TweetReply] Failed to get tracking settings:", error);
+        return { trackingPeriodDays: 7 };
       }
     }
-    // Set hiding settings
-    async setHidingSettings(settings) {
+    // Set tracking settings
+    async setTrackingSettings(settings) {
       try {
-        await chrome.storage.local.set({ tweetHidingSettings: settings });
+        await chrome.storage.local.set({ replyTrackingSettings: settings });
       } catch (error) {
-        console.error("[TweetReply] Failed to save hiding settings:", error);
+        console.error("[TweetReply] Failed to save tracking settings:", error);
       }
     }
     // Get reply history
@@ -1373,10 +1370,16 @@
       this[lockKey] = true;
       try {
         const history = await this.getReplyHistory();
-        const settings = await this.getHidingSettings();
+        const settings = await this.getTrackingSettings();
         const now = Date.now();
         if (!history[username]) {
-          history[username] = { replies: [], hidden: false };
+          history[username] = { replies: [] };
+        }
+        if (history[username].hidden !== void 0) {
+          delete history[username].hidden;
+        }
+        if (history[username].hideUntil !== void 0) {
+          delete history[username].hideUntil;
         }
         const recentReply = history[username].replies.find(
           (r) => Math.abs(r.timestamp - now) < 1e3
@@ -1385,74 +1388,49 @@
           return;
         }
         history[username].replies.push({ timestamp: now });
-        const cutoff = now - settings.hideDurationHours * 60 * 60 * 1e3;
+        const cutoff = now - settings.trackingPeriodDays * 24 * 60 * 60 * 1e3;
         history[username].replies = history[username].replies.filter(
           (r) => r.timestamp > cutoff
         );
-        if (history[username].replies.length >= settings.replyThreshold) {
-          const hideUntil = now + settings.hideDurationHours * 60 * 60 * 1e3;
-          history[username].hidden = true;
-          history[username].hideUntil = hideUntil;
-          await chrome.storage.local.set({ replyHistory: history });
-          await this.hideTweetsFromUser(username);
-          this.showHidingNotification(username, history[username].replies.length);
-        } else {
-          await chrome.storage.local.set({ replyHistory: history });
-        }
+        await chrome.storage.local.set({ replyHistory: history });
+        await this.updateReplyCountsOnTweets();
       } catch (error) {
         console.error("[TweetReply] Error tracking reply:", error);
       } finally {
         delete this[lockKey];
       }
     }
-    // Check if user should be hidden
-    async shouldHideUser(username) {
-      if (!username || username === "unknown") return false;
-      if (this.unhiddenUsers.has(username)) {
-        return false;
-      }
-      const history = await this.getReplyHistory();
-      const userData = history[username];
-      if (!userData || !userData.hidden) return false;
-      const now = Date.now();
-      if (userData.hideUntil && userData.hideUntil > now) {
-        return true;
-      }
-      if (userData.hideUntil && userData.hideUntil <= now) {
-        userData.hidden = false;
-        delete userData.hideUntil;
-        await chrome.storage.local.set({ replyHistory: history });
-      }
-      return false;
-    }
-    // Unhide user (session only)
-    async unhideUser(username) {
-      if (!username) return;
-      this.unhiddenUsers.add(username);
-      const tweets = document.querySelectorAll(`article[data-testid="tweet"][data-hidden-username="${username}"]`);
-      tweets.forEach((tweet) => {
-        this.restoreTweet(tweet);
-      });
-    }
     // Cleanup expired history
     async cleanupExpiredHistory() {
       const history = await this.getReplyHistory();
-      const settings = await this.getHidingSettings();
-      const cutoff = Date.now() - settings.hideDurationHours * 60 * 60 * 1e3;
+      const settings = await this.getTrackingSettings();
+      const cutoff = Date.now() - settings.trackingPeriodDays * 24 * 60 * 60 * 1e3;
+      let hasChanges = false;
       for (const [username, data] of Object.entries(history)) {
-        data.replies = data.replies.filter((r) => r.timestamp > cutoff);
-        if (data.hideUntil && data.hideUntil <= Date.now()) {
-          data.hidden = false;
-          delete data.hideUntil;
+        const originalCount = data.replies?.length || 0;
+        data.replies = (data.replies || []).filter((r) => r.timestamp > cutoff);
+        if (data.hidden !== void 0) {
+          delete data.hidden;
+          hasChanges = true;
         }
-        if (data.replies.length === 0 && !data.hidden) {
+        if (data.hideUntil !== void 0) {
+          delete data.hideUntil;
+          hasChanges = true;
+        }
+        if (data.replies.length === 0) {
           delete history[username];
+          hasChanges = true;
+        } else if (data.replies.length !== originalCount) {
+          hasChanges = true;
         }
       }
-      await chrome.storage.local.set({ replyHistory: history });
+      if (hasChanges) {
+        await chrome.storage.local.set({ replyHistory: history });
+        await this.updateReplyCountsOnTweets();
+      }
     }
     // ============================================================================
-    // TWEET HIDING FEATURE - Username Extraction from Tweet
+    // REPLY TRACKING & COUNT DISPLAY - Username Extraction from Tweet
     // ============================================================================
     // Extract username from specific tweet article
     async extractUsernameFromTweet(tweetArticle) {
@@ -1502,218 +1480,122 @@
       }
     }
     // ============================================================================
-    // TWEET HIDING FEATURE - Tweet Hiding System
+    // REPLY TRACKING & COUNT DISPLAY - Reply Count Display System
     // ============================================================================
-    setupTweetHiding() {
-      if (this.hidingInitialized) return;
-      this.hidingInitialized = true;
-      this.checkAndHideTweets();
-      this.observeTimeline();
-      if (this.hidingCleanupInterval) {
-        clearInterval(this.hidingCleanupInterval);
+    // Get reply count for a user within last N days
+    async getReplyCountForUser(username, days) {
+      if (!username || username === "unknown") return 0;
+      try {
+        const history = await this.getReplyHistory();
+        const userData = history[username];
+        if (!userData || !userData.replies || userData.replies.length === 0) {
+          return 0;
+        }
+        const now = Date.now();
+        const cutoff = now - days * 24 * 60 * 60 * 1e3;
+        const count = userData.replies.filter((r) => r.timestamp > cutoff).length;
+        return count;
+      } catch (error) {
+        console.error("[TweetReply] Error getting reply count:", error);
+        return 0;
       }
-      this.hidingCleanupInterval = setInterval(() => {
-        this.cleanupExpiredHistory();
-        this.checkAndHideTweets();
-      }, 6e4);
     }
-    async checkAndHideTweets() {
+    // Show reply count on a tweet near username/author info
+    async showReplyCountOnTweet(tweetArticle, username, count = null) {
+      if (!tweetArticle || !username || username === "unknown") return;
+      const existingIndicator = tweetArticle.querySelector(".tweetreply-reply-count");
+      if (existingIndicator) {
+        existingIndicator.remove();
+      }
+      if (count === null) {
+        const settings = await this.getTrackingSettings();
+        count = await this.getReplyCountForUser(username, settings.trackingPeriodDays);
+      }
+      if (count <= 0) return;
+      const userNameElement = tweetArticle.querySelector('[data-testid="User-Name"]');
+      if (!userNameElement) return;
+      if (!tweetArticle.isConnected) {
+        return;
+      }
+      const indicator = document.createElement("span");
+      indicator.className = "tweetreply-reply-count";
+      indicator.setAttribute("data-username", username);
+      indicator.style.cssText = `
+      margin-left: 8px;
+      padding: 2px 8px;
+      background: #1d9bf0;
+      color: white;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+      display: inline-block;
+    `;
+      indicator.textContent = `${count} ${count === 1 ? "reply" : "replies"}`;
+      try {
+        if (userNameElement.nextSibling) {
+          userNameElement.parentNode.insertBefore(indicator, userNameElement.nextSibling);
+        } else {
+          userNameElement.parentNode.appendChild(indicator);
+        }
+      } catch (error) {
+        try {
+          const parent = userNameElement.parentElement;
+          if (parent && parent.parentElement) {
+            if (parent.nextSibling) {
+              parent.parentElement.insertBefore(indicator, parent.nextSibling);
+            } else {
+              parent.parentElement.appendChild(indicator);
+            }
+          } else {
+            userNameElement.appendChild(indicator);
+          }
+        } catch (e) {
+          console.warn("[TweetReply] Could not insert reply count indicator:", e);
+        }
+      }
+    }
+    // Update reply counts on all visible tweets
+    async updateReplyCountsOnTweets() {
       if (this.checkingTweets) {
         return;
       }
       this.checkingTweets = true;
       try {
-        const history = await this.getReplyHistory();
-        const hideMap = /* @__PURE__ */ new Map();
+        const settings = await this.getTrackingSettings();
         const tweets = document.querySelectorAll('article[data-testid="tweet"]');
         for (const tweet of tweets) {
-          if (tweet.dataset.hidingHidden === "true") {
-            const username2 = this.extractUsernameFromTweetSync(tweet);
-            if (!username2 || username2 === "unknown") {
-              this.restoreTweet(tweet);
-              continue;
-            }
-            if (!hideMap.has(username2)) {
-              hideMap.set(username2, await this.shouldHideUser(username2));
-            }
-            if (hideMap.get(username2)) {
-              continue;
-            }
-            this.restoreTweet(tweet);
-            continue;
-          }
-          if (tweet.dataset.hidingProcessed === "true") continue;
-          tweet.dataset.hidingProcessed = "true";
           const username = this.extractUsernameFromTweetSync(tweet);
-          if (!username || username === "unknown") continue;
-          if (this.unhiddenUsers.has(username)) continue;
-          if (!hideMap.has(username)) {
-            hideMap.set(username, await this.shouldHideUser(username));
-          }
-          if (hideMap.get(username)) {
-            this.hideTweet(tweet, username);
+          if (username && username !== "unknown") {
+            const count = await this.getReplyCountForUser(username, settings.trackingPeriodDays);
+            if (count > 0) {
+              await this.showReplyCountOnTweet(tweet, username, count);
+            } else {
+              const existingIndicator = tweet.querySelector(".tweetreply-reply-count");
+              if (existingIndicator) {
+                existingIndicator.remove();
+              }
+            }
           }
         }
       } catch (error) {
-        console.error("[TweetReply] Error checking tweets:", error);
+        console.error("[TweetReply] Error updating reply counts:", error);
       } finally {
         this.checkingTweets = false;
       }
     }
-    async hideTweetsFromUser(username) {
-      if (this.unhiddenUsers.has(username)) {
-        return;
+    // Setup reply count display system
+    setupReplyCountDisplay() {
+      if (this.countDisplayInitialized) return;
+      this.countDisplayInitialized = true;
+      this.updateReplyCountsOnTweets();
+      if (this.trackingCleanupInterval) {
+        clearInterval(this.trackingCleanupInterval);
       }
-      const tweets = document.querySelectorAll('article[data-testid="tweet"]');
-      tweets.forEach((tweet) => {
-        const tweetUsername = this.extractUsernameFromTweetSync(tweet);
-        if (tweetUsername === username) {
-          if (!tweet.dataset.hidingHidden) {
-            this.hideTweet(tweet, username);
-          }
-        }
-      });
-    }
-    hideTweet(tweetArticle, username) {
-      if (tweetArticle.dataset.hidingHidden === "true") return;
-      if (this.unhiddenUsers.has(username)) return;
-      tweetArticle.dataset.hidingHidden = "true";
-      tweetArticle.dataset.hiddenUsername = username;
-      this.createHiddenTweetIndicator(tweetArticle, username);
-    }
-    createHiddenTweetIndicator(tweetArticle, username) {
-      const safeUsername = username.replace(/[<>&"']/g, "");
-      const tweetContent = tweetArticle.querySelector('[data-testid="tweetText"]')?.parentElement || tweetArticle.querySelector("div[lang]") || tweetArticle;
-      tweetArticle.style.opacity = "0.5";
-      tweetArticle.style.pointerEvents = "none";
-      const indicator = document.createElement("div");
-      indicator.className = "tweet-hide-indicator";
-      indicator.style.cssText = `
-      padding: 12px;
-      background: #1d9bf0;
-      color: white;
-      border-radius: 8px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin: 8px 0;
-      position: relative;
-      z-index: 10;
-    `;
-      indicator.innerHTML = `
-      <span style="font-weight: 500;">Hidden: @${safeUsername}</span>
-      <button class="tweet-hide-unhide-btn" data-username="${safeUsername}" style="
-        padding: 6px 12px;
-        background: white;
-        color: #1d9bf0;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        font-weight: 600;
-      ">Unhide</button>
-    `;
-      try {
-        if (tweetContent && tweetContent.parentElement) {
-          tweetContent.style.display = "none";
-          tweetContent.after(indicator);
-        } else {
-          tweetArticle.prepend(indicator);
-        }
-      } catch (error) {
-        tweetArticle.prepend(indicator);
-      }
-      const unhideBtn = indicator.querySelector(".tweet-hide-unhide-btn");
-      if (unhideBtn) {
-        unhideBtn.addEventListener("click", async (e) => {
-          e.stopPropagation();
-          e.preventDefault();
-          await this.unhideUser(username);
-          this.restoreTweet(tweetArticle);
-        });
-      }
-    }
-    restoreTweet(tweetArticle) {
-      tweetArticle.dataset.hidingHidden = "false";
-      tweetArticle.dataset.hidingProcessed = "false";
-      tweetArticle.style.opacity = "";
-      tweetArticle.style.pointerEvents = "";
-      const indicator = tweetArticle.querySelector(".tweet-hide-indicator");
-      if (indicator) {
-        indicator.remove();
-      }
-      const tweetContent = tweetArticle.querySelector('[data-testid="tweetText"]')?.parentElement || tweetArticle.querySelector("div[lang]");
-      if (tweetContent) {
-        tweetContent.style.display = "";
-      }
-      delete tweetArticle.dataset.hiddenUsername;
-    }
-    observeTimeline() {
-      if (this.timelineObserver) return;
-      const timeline = document.querySelector('[data-testid="primaryColumn"]') || document.querySelector('[data-testid="homeTimeline"]') || document.querySelector("main");
-      if (!timeline || timeline === document.body) {
-        console.log("[TweetReply] Timeline observer skipped - using main observer instead");
-        return;
-      }
-      this.timelineObserver = new MutationObserver(async (mutations) => {
-        if (this.hidingCheckTimeout) {
-          clearTimeout(this.hidingCheckTimeout);
-        }
-        this.hidingCheckTimeout = setTimeout(async () => {
-          try {
-            await this.checkAndHideTweets();
-          } catch (error) {
-            console.error("[TweetReply] Error checking tweets:", error);
-          }
-        }, 500);
-      });
-      this.timelineObserver.observe(timeline, {
-        childList: true,
-        subtree: true
-      });
-    }
-    // Optional: Show notification when hiding
-    showHidingNotification(username, replyCount) {
-      try {
-        const safeUsername = username.replace(/[<>&"']/g, "");
-        const toast = document.createElement("div");
-        toast.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        background: #1d9bf0;
-        color: white;
-        padding: 12px 20px;
-        border-radius: 8px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        z-index: 10000;
-        font-size: 14px;
-        font-weight: 500;
-        animation: slideIn 0.3s ease-out;
-      `;
-        toast.textContent = `Hidden tweets from @${safeUsername} (${replyCount} replies)`;
-        if (!document.getElementById("tweet-hide-animations")) {
-          const style = document.createElement("style");
-          style.id = "tweet-hide-animations";
-          style.textContent = `
-          @keyframes slideIn {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-          }
-          @keyframes slideOut {
-            from { transform: translateX(0); opacity: 1; }
-            to { transform: translateX(100%); opacity: 0; }
-          }
-        `;
-          document.head.appendChild(style);
-        }
-        document.body.appendChild(toast);
-        setTimeout(() => {
-          toast.style.animation = "slideOut 0.3s ease-out";
-          setTimeout(() => toast.remove(), 300);
-        }, 3e3);
-      } catch (error) {
-        console.error("[TweetReply] Error showing notification:", error);
-      }
+      this.trackingCleanupInterval = setInterval(() => {
+        this.cleanupExpiredHistory();
+        this.updateReplyCountsOnTweets();
+      }, 6e4);
     }
     extractConversationContext() {
       try {
@@ -1954,9 +1836,9 @@
         this.mainObserver.disconnect();
         this.mainObserver = null;
       }
-      if (this.timelineObserver) {
-        this.timelineObserver.disconnect();
-        this.timelineObserver = null;
+      if (this.countUpdateTimeout) {
+        clearTimeout(this.countUpdateTimeout);
+        this.countUpdateTimeout = null;
       }
       if (this.autoLikeClickHandler) {
         document.removeEventListener("click", this.autoLikeClickHandler, true);
@@ -1966,13 +1848,9 @@
         clearInterval(this.usageDataInterval);
         this.usageDataInterval = null;
       }
-      if (this.hidingCleanupInterval) {
-        clearInterval(this.hidingCleanupInterval);
-        this.hidingCleanupInterval = null;
-      }
-      if (this.hidingCheckTimeout) {
-        clearTimeout(this.hidingCheckTimeout);
-        this.hidingCheckTimeout = null;
+      if (this.trackingCleanupInterval) {
+        clearInterval(this.trackingCleanupInterval);
+        this.trackingCleanupInterval = null;
       }
       if (this.mainObserverDebounceTimer) {
         clearTimeout(this.mainObserverDebounceTimer);
@@ -1986,7 +1864,7 @@
         chrome.storage.onChanged.removeListener(this.storageChangeHandler);
         this.storageChangeHandler = null;
       }
-      this.hidingInitialized = false;
+      this.countDisplayInitialized = false;
       delete window.__tweetReplyInjector;
     }
   };
