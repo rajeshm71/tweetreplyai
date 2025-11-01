@@ -12,6 +12,19 @@ const FILTERED_SENTENCE_STARTS = ["Love", "That's"];
 // Configuration for words that disqualify sentences - easily extensible
 const DISQUALIFYING_WORDS = ["simplification"];
 
+// Configuration for banned patterns (from previous postprocessing) - easily extensible
+const BANNED_PATTERNS = [
+  /#\w+/g, // Hashtags
+  /Check out my/gi,
+  /The future is here/gi,
+  /This changes everything/gi,
+  /Revolutionary/gi,
+  /Game-changing/gi,
+];
+
+// Maximum word count (from previous postprocessing)
+const MAX_WORDS = 50;
+
 // Minimum word count required for removal operations
 const MIN_WORDS_FOR_REMOVAL = 5;
 
@@ -37,31 +50,99 @@ export class ReplyPostProcessor {
     // Step 4: Start with original reply
     let processed = originalReply;
 
-    // Step 5: Apply format cleanup (always executed)
+    // Step 5: Apply previous postprocessing rules (always executed)
+    processed = this.removeWrapperQuotes(processed); // Previous rule: Remove quotes if AI wrapped response
+    processed = this.removeBannedPatterns(processed); // Previous rule: Remove hashtags and banned phrases
+    processed = this.limitWordCount(processed, MAX_WORDS); // Previous rule: Limit to 50 words
+    
+    // Step 6: Apply new format cleanup rules (always executed)
     processed = this.replaceDashes(processed); // Rule 2
     processed = this.removeDoubleQuotes(processed); // Rule 4
 
-    // Step 6: Apply removal operations (only if original had >= 5 words)
+    // Step 7: Apply removal operations (only if original had >= 5 words)
     if (hasMinWords) {
       processed = this.filterSentences(processed); // Rule 3
       processed = this.removeStartPhrases(processed); // Rule 1
     }
 
-    // Step 7: Normalize whitespace
+    // Step 8: Normalize whitespace
     processed = this.normalizeWhitespace(processed);
 
-    // Step 8: Final validation - check if processed has minimum words
+    // Step 9: Final validation - check if processed has minimum words
     const processedWordCount = this.countWords(processed);
     if (processedWordCount < MIN_WORDS_FOR_REMOVAL) {
-      // Return original with format cleanup applied (rules 2, 4 only)
+      // Return original with all cleanup applied (previous rules + new format cleanup)
       const originalWithCleanup = this.normalizeWhitespace(
-        this.removeDoubleQuotes(this.replaceDashes(originalReply))
+        this.removeDoubleQuotes(
+          this.replaceDashes(
+            this.limitWordCount(
+              this.removeBannedPatterns(
+                this.removeWrapperQuotes(originalReply)
+              ),
+              MAX_WORDS
+            )
+          )
+        )
       );
       return originalWithCleanup.trim() || originalReply;
     }
 
-    // Step 9: Return processed reply
+    // Step 10: Return processed reply
     return processed.trim() || originalReply;
+  }
+
+  /**
+   * Previous Rule: Remove wrapper quotes
+   * Removes quotes if the AI wrapped the entire response
+   */
+  private removeWrapperQuotes(text: string): string {
+    if (!text) {
+      return text;
+    }
+    let processed = text.trim();
+    
+    // Remove quotes if the AI wrapped the response
+    if (processed.startsWith('"') && processed.endsWith('"')) {
+      processed = processed.slice(1, -1);
+    }
+    if (processed.startsWith("'") && processed.endsWith("'")) {
+      processed = processed.slice(1, -1);
+    }
+    
+    return processed.trim();
+  }
+
+  /**
+   * Previous Rule: Remove banned patterns
+   * Removes hashtags and promotional phrases
+   */
+  private removeBannedPatterns(text: string): string {
+    if (!text) {
+      return text;
+    }
+    let processed = text;
+    
+    // Remove all banned patterns
+    for (const pattern of BANNED_PATTERNS) {
+      processed = processed.replace(pattern, "");
+    }
+    
+    return processed;
+  }
+
+  /**
+   * Previous Rule: Limit word count
+   * Ensures reply is under maximum word limit
+   */
+  private limitWordCount(text: string, maxWords: number): string {
+    if (!text) {
+      return text;
+    }
+    const words = text.trim().split(/\s+/).filter((word) => word.length > 0);
+    if (words.length > maxWords) {
+      return words.slice(0, maxWords).join(" ");
+    }
+    return text;
   }
 
   /**
@@ -100,7 +181,7 @@ export class ReplyPostProcessor {
   /**
    * Rule 2: Replace dashes/em dashes with spaces
    * Finds - or — between words and replaces with space
-   * Preserves dashes in hyphenated words (well-known, etc.)
+   * Replaces ALL dashes between words, including in hyphenated words
    */
   private replaceDashes(text: string): string {
     if (!text) {
@@ -112,12 +193,13 @@ export class ReplyPostProcessor {
       .replace(/—/g, " ") // Em dash
       .replace(/–/g, " "); // En dash
 
-    // Replace regular dash (-) only when NOT part of a hyphenated word
-    // Hyphenated words have pattern: word-char dash word-char (e.g., "well-known")
-    // We preserve this pattern and only replace dashes that are clearly separators
+    // Replace regular dash (-) that appears between word characters
+    // Pattern: word-char dash word-char (e.g., "short-term" → "short term")
+    // This matches dashes between letters/numbers, which covers hyphenated words
     
-    // Strategy: Replace dashes that are surrounded by spaces or at boundaries
-    // This preserves hyphens in compound words like "well-known", "co-worker"
+    // Replace dash between word characters: "short-term" → "short term"
+    // Use word boundary to ensure we're replacing dashes between words
+    cleaned = cleaned.replace(/(\w)-(\w)/g, "$1 $2");
     
     // Replace dash between spaces: "word - word" → "word word"
     cleaned = cleaned.replace(/\s+-\s+/g, " ");
