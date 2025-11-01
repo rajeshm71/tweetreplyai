@@ -1500,6 +1500,13 @@
         return 0;
       }
     }
+    // Get color for reply count badge based on count (gradient from light to dark blue)
+    getReplyCountColor(count) {
+      if (count === 1) return "#60A5FA";
+      if (count <= 3) return "#2563EB";
+      if (count <= 5) return "#1E40AF";
+      return "#1E3A8A";
+    }
     // Show reply count on a tweet near username/author info
     async showReplyCountOnTweet(tweetArticle, username, count = null) {
       if (!tweetArticle || !username || username === "unknown") return;
@@ -1513,42 +1520,161 @@
       }
       if (count <= 0) return;
       const userNameElement = tweetArticle.querySelector('[data-testid="User-Name"]');
-      if (!userNameElement) return;
+      if (!userNameElement || !userNameElement.isConnected) return;
       if (!tweetArticle.isConnected) {
         return;
       }
+      const color = this.getReplyCountColor(count);
       const indicator = document.createElement("span");
       indicator.className = "tweetreply-reply-count";
       indicator.setAttribute("data-username", username);
       indicator.style.cssText = `
-      margin-left: 8px;
-      padding: 2px 8px;
-      background: #1d9bf0;
+      margin-left: 6px;
+      padding: 3px 10px;
+      background: ${color};
       color: white;
-      border-radius: 12px;
+      border-radius: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
       font-size: 12px;
       font-weight: 600;
       white-space: nowrap;
       display: inline-block;
+      transition: background-color 0.2s ease;
     `;
       indicator.textContent = `${count} ${count === 1 ? "reply" : "replies"}`;
+      let inserted = false;
       try {
-        if (userNameElement.nextSibling) {
-          userNameElement.parentNode.insertBefore(indicator, userNameElement.nextSibling);
+        const timeElement = userNameElement.querySelector("time") || tweetArticle.querySelector("time");
+        if (timeElement && timeElement.isConnected) {
+          const timeParent = timeElement.parentNode;
+          if (!timeParent || !timeParent.isConnected) {
+          } else {
+            const nextSibling = timeElement.nextSibling;
+            if (nextSibling && nextSibling.nodeType === Node.TEXT_NODE && nextSibling.textContent.trim() === "") {
+              if (nextSibling.nextSibling) {
+                timeParent.insertBefore(indicator, nextSibling.nextSibling);
+              } else {
+                timeParent.appendChild(indicator);
+              }
+            } else {
+              const spaceText = document.createTextNode(" ");
+              if (nextSibling) {
+                timeParent.insertBefore(spaceText, nextSibling);
+                timeParent.insertBefore(indicator, nextSibling);
+              } else {
+                timeParent.appendChild(spaceText);
+                timeParent.appendChild(indicator);
+              }
+            }
+            inserted = true;
+          }
         } else {
-          userNameElement.parentNode.appendChild(indicator);
+          const userNameText = userNameElement.textContent || "";
+          const timeMatch = userNameText.match(/[\u00B7·.]\s*(\d+[hmsdw]?)\b/i);
+          if (timeMatch) {
+            const walker = document.createTreeWalker(
+              userNameElement,
+              NodeFilter.SHOW_TEXT,
+              null
+            );
+            let textNode;
+            while (textNode = walker.nextNode()) {
+              if (textNode.textContent && textNode.textContent.includes(timeMatch[1])) {
+                const textParent = textNode.parentElement || textNode.parentNode;
+                if (textParent && textParent.isConnected) {
+                  const parentContainer = textParent.parentNode;
+                  if (parentContainer && parentContainer.isConnected) {
+                    const nextSibling = textParent.nextSibling;
+                    if (nextSibling && nextSibling.nodeType === Node.TEXT_NODE && nextSibling.textContent.trim() === "") {
+                      if (nextSibling.nextSibling) {
+                        parentContainer.insertBefore(indicator, nextSibling.nextSibling);
+                      } else {
+                        parentContainer.appendChild(indicator);
+                      }
+                    } else {
+                      const spaceText = document.createTextNode(" ");
+                      if (nextSibling) {
+                        parentContainer.insertBefore(spaceText, nextSibling);
+                        parentContainer.insertBefore(indicator, nextSibling);
+                      } else {
+                        parentContainer.appendChild(spaceText);
+                        parentContainer.appendChild(indicator);
+                      }
+                    }
+                    inserted = true;
+                    break;
+                  }
+                }
+              }
+            }
+            if (!inserted && userNameElement.isConnected) {
+              const container = userNameElement.parentElement || userNameElement.parentNode;
+              if (container && container.isConnected) {
+                const nextSibling = userNameElement.nextSibling;
+                if (nextSibling && nextSibling.nodeType === Node.TEXT_NODE && nextSibling.textContent.trim() === "") {
+                  if (nextSibling.nextSibling) {
+                    container.insertBefore(indicator, nextSibling.nextSibling);
+                  } else {
+                    container.appendChild(indicator);
+                  }
+                } else {
+                  const spaceText = document.createTextNode(" ");
+                  if (nextSibling) {
+                    container.insertBefore(spaceText, nextSibling);
+                    container.insertBefore(indicator, nextSibling);
+                  } else {
+                    container.appendChild(spaceText);
+                    container.appendChild(indicator);
+                  }
+                }
+                inserted = true;
+              }
+            }
+          }
+        }
+        if (!inserted && userNameElement.isConnected) {
+          const parent = userNameElement.parentNode;
+          if (parent && parent.isConnected) {
+            const nextSibling = userNameElement.nextSibling;
+            if (nextSibling && nextSibling.nodeType === Node.TEXT_NODE && nextSibling.textContent.trim() === "") {
+              if (nextSibling.nextSibling) {
+                parent.insertBefore(indicator, nextSibling.nextSibling);
+              } else {
+                parent.appendChild(indicator);
+              }
+            } else {
+              const spaceText = document.createTextNode(" ");
+              if (nextSibling) {
+                parent.insertBefore(spaceText, nextSibling);
+                parent.insertBefore(indicator, nextSibling);
+              } else {
+                parent.appendChild(spaceText);
+                parent.appendChild(indicator);
+              }
+            }
+            inserted = true;
+          }
         }
       } catch (error) {
         try {
-          const parent = userNameElement.parentElement;
-          if (parent && parent.parentElement) {
-            if (parent.nextSibling) {
-              parent.parentElement.insertBefore(indicator, parent.nextSibling);
+          if (!userNameElement.isConnected || !tweetArticle.isConnected) {
+            return;
+          }
+          const parent = userNameElement.parentElement || userNameElement.parentNode;
+          if (parent && parent.isConnected) {
+            const lastChild = parent.lastChild;
+            if (lastChild && lastChild.nodeType === Node.TEXT_NODE && lastChild.textContent.trim() === "") {
+              parent.insertBefore(indicator, lastChild);
             } else {
-              parent.parentElement.appendChild(indicator);
+              const spaceText = document.createTextNode(" ");
+              parent.appendChild(spaceText);
+              parent.appendChild(indicator);
             }
           } else {
-            userNameElement.appendChild(indicator);
+            if (userNameElement.isConnected) {
+              userNameElement.appendChild(indicator);
+            }
           }
         } catch (e) {
           console.warn("[TweetReply] Could not insert reply count indicator:", e);
@@ -1565,14 +1691,16 @@
         const settings = await this.getTrackingSettings();
         const tweets = document.querySelectorAll('article[data-testid="tweet"]');
         for (const tweet of tweets) {
+          if (!tweet.isConnected) continue;
           const username = this.extractUsernameFromTweetSync(tweet);
           if (username && username !== "unknown") {
             const count = await this.getReplyCountForUser(username, settings.trackingPeriodDays);
+            if (!tweet.isConnected) continue;
             if (count > 0) {
               await this.showReplyCountOnTweet(tweet, username, count);
             } else {
               const existingIndicator = tweet.querySelector(".tweetreply-reply-count");
-              if (existingIndicator) {
+              if (existingIndicator && existingIndicator.isConnected) {
                 existingIndicator.remove();
               }
             }

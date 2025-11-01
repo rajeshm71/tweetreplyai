@@ -276,47 +276,62 @@ class TwitterReplyInjector {
     
     // Use event delegation to catch all Reply button clicks
     this.autoLikeClickHandler = async (e) => {
-      const target = e.target;
-      if (!target) return;
+      try {
+        const target = e.target;
+        if (!target) return;
 
-      // Check if clicked element is a Reply button
-      const isReplyButton = target.matches('[data-testid="reply"]') ||
-                           target.closest('[data-testid="reply"]') ||
-                           target.matches('button[aria-label*="Reply" i]') ||
+        // Check if clicked element is a Reply button
+        const isReplyButton = target.matches('[data-testid="reply"]') ||
+                             target.closest('[data-testid="reply"]') ||
+                             target.matches('button[aria-label*="Reply" i]') ||
+                             target.closest('button[aria-label*="Reply" i]') ||
+                             target.matches('[role="button"][aria-label*="Reply" i]') ||
+                             target.closest('[role="button"][aria-label*="Reply" i]') ||
+                             target.matches('[data-testid="tweetButtonInline"]') ||
+                             target.closest('[data-testid="tweetButtonInline"]');
+
+        if (!isReplyButton) return;
+
+        // Find the actual Reply button element
+        const replyButton = target.closest('[data-testid="reply"]') ||
                            target.closest('button[aria-label*="Reply" i]') ||
-                           target.matches('[role="button"][aria-label*="Reply" i]') ||
                            target.closest('[role="button"][aria-label*="Reply" i]') ||
-                           target.matches('[data-testid="tweetButtonInline"]') ||
-                           target.closest('[data-testid="tweetButtonInline"]');
+                           target.closest('[data-testid="tweetButtonInline"]') ||
+                           target;
 
-      if (!isReplyButton) return;
-
-      // Find the actual Reply button element
-      const replyButton = target.closest('[data-testid="reply"]') ||
-                         target.closest('button[aria-label*="Reply" i]') ||
-                         target.closest('[role="button"][aria-label*="Reply" i]') ||
-                         target.closest('[data-testid="tweetButtonInline"]') ||
-                         target;
-
-      // Find tweet article
-      const tweetArticle = this.findTweetArticle(replyButton);
-      if (!tweetArticle) {
-        return; // Couldn't find tweet article
-      }
-
-      // Track reply (for reply count display) - always track, even if auto-like is disabled
-      const username = await this.extractUsernameFromTweet(tweetArticle);
-      if (username && username !== 'unknown') {
-        await this.trackReply(username);
-      }
-
-      // Existing auto-like logic
-      const autoLikeEnabled = await this.isAutoLikeEnabled();
-      if (autoLikeEnabled) {
-        const likeButton = this.findLikeButton(tweetArticle);
-        if (likeButton) {
-          await this.performAutoLike(likeButton);
+        // Find tweet article
+        const tweetArticle = this.findTweetArticle(replyButton);
+        if (!tweetArticle) {
+          return; // Couldn't find tweet article
         }
+
+        // Track reply in background (non-blocking, fire-and-forget)
+        // Don't await - execute in parallel with auto-like so tracking doesn't block auto-like
+        try {
+          const username = await this.extractUsernameFromTweet(tweetArticle);
+          if (username && username !== 'unknown') {
+            // Fire and forget - don't await
+            this.trackReply(username).catch(err => {
+              console.warn('[TweetReply] Reply tracking failed:', err);
+            });
+          }
+        } catch (error) {
+          // Silently fail - tracking shouldn't block auto-like
+          console.warn('[TweetReply] Failed to extract username for tracking:', error);
+        }
+
+        // Execute auto-like immediately (don't wait for tracking)
+        const autoLikeEnabled = await this.isAutoLikeEnabled();
+        if (autoLikeEnabled) {
+          const likeButton = this.findLikeButton(tweetArticle);
+          if (likeButton) {
+            await this.performAutoLike(likeButton);
+          }
+        }
+      } catch (error) {
+        // Log errors but don't break the event handler
+        // Note: If auto-like execution failed, it has already failed, but we prevent unhandled exceptions
+        console.error('[TweetReply] Auto-like handler error:', error);
       }
     }; // End of handler function
     
@@ -347,12 +362,12 @@ class TwitterReplyInjector {
     // on content script re-execution. However, we still guard to avoid duplicate handlers.
     if (!this.runtimeMessageHandler) {
       this.runtimeMessageHandler = (message, sender, sendResponse) => {
-        if (message.action === 'suggestReply') {
-          this.handleSuggestReplyFromPopup();
-        } else if (message.action === 'authUpdated') {
-          // Refresh auth state when background detects login
-          this.refreshAuthState();
-        }
+      if (message.action === 'suggestReply') {
+        this.handleSuggestReplyFromPopup();
+      } else if (message.action === 'authUpdated') {
+        // Refresh auth state when background detects login
+        this.refreshAuthState();
+      }
       };
       chrome.runtime.onMessage.addListener(this.runtimeMessageHandler);
     }
@@ -364,8 +379,8 @@ class TwitterReplyInjector {
         if (areaName === 'local') {
           // Auth state updates
           if (changes.token) {
-            this.refreshAuthState();
-          }
+        this.refreshAuthState();
+      }
           // Reply tracking sync across tabs - update counts when history changes
           if (changes.replyHistory || changes.replyTrackingSettings) {
             this.updateReplyCountsOnTweets();
@@ -1477,12 +1492,12 @@ class TwitterReplyInjector {
       
       // Method 2: From profile page bio (fallback)
       if (followerCount === 0) {
-        const bioElement = document.querySelector('[data-testid="UserDescription"]');
-        if (bioElement) {
-          const followerMatch = bioElement.textContent?.match(/(\d+(?:\.\d+)?[KMB]?)\s*followers?/i);
-          if (followerMatch) {
-            followerCount = this.parseFollowerCount(followerMatch[1]);
-            console.log('[TweetReply] Follower count extracted from bio:', followerCount);
+      const bioElement = document.querySelector('[data-testid="UserDescription"]');
+      if (bioElement) {
+        const followerMatch = bioElement.textContent?.match(/(\d+(?:\.\d+)?[KMB]?)\s*followers?/i);
+        if (followerMatch) {
+          followerCount = this.parseFollowerCount(followerMatch[1]);
+          console.log('[TweetReply] Follower count extracted from bio:', followerCount);
           }
         }
       }
@@ -2438,5 +2453,5 @@ class TwitterReplyInjector {
 
 // Initialize the injector (with SPA guard to prevent multiple instances)
 if (!window.__tweetReplyInjector) {
-  new TwitterReplyInjector();
+new TwitterReplyInjector();
 }
