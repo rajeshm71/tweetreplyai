@@ -307,27 +307,36 @@ class TwitterReplyInjector {
 
         // Track reply in background (non-blocking, fire-and-forget)
         // Don't await - execute in parallel with auto-like so tracking doesn't block auto-like
-        try {
-          const username = await this.extractUsernameFromTweet(tweetArticle);
+        // Fire and forget - execute asynchronously without blocking
+        this.extractUsernameFromTweet(tweetArticle).then(username => {
           if (username && username !== 'unknown') {
-            // Fire and forget - don't await
             this.trackReply(username).catch(err => {
               console.warn('[TweetReply] Reply tracking failed:', err);
             });
           }
-        } catch (error) {
+        }).catch(error => {
           // Silently fail - tracking shouldn't block auto-like
           console.warn('[TweetReply] Failed to extract username for tracking:', error);
-        }
+        });
 
-        // Execute auto-like immediately (don't wait for tracking)
-        const autoLikeEnabled = await this.isAutoLikeEnabled();
-        if (autoLikeEnabled) {
-          const likeButton = this.findLikeButton(tweetArticle);
-          if (likeButton) {
-            await this.performAutoLike(likeButton);
+        // Execute auto-like asynchronously (don't wait for tracking)
+        // Use setTimeout to defer slightly and avoid race conditions with Twitter's handlers
+        this.isAutoLikeEnabled().then(autoLikeEnabled => {
+          if (autoLikeEnabled) {
+            // Small delay to let Twitter process the reply click first
+            setTimeout(() => {
+              const likeButton = this.findLikeButton(tweetArticle);
+              if (likeButton) {
+                // Fire and forget - don't await
+                this.performAutoLike(likeButton).catch(err => {
+                  console.warn('[TweetReply] Auto-like execution failed:', err);
+                });
+              }
+            }, 50); // Small delay to avoid race conditions
           }
-        }
+        }).catch(err => {
+          console.warn('[TweetReply] Failed to check auto-like setting:', err);
+        });
       } catch (error) {
         // Log errors but don't break the event handler
         // Note: If auto-like execution failed, it has already failed, but we prevent unhandled exceptions
