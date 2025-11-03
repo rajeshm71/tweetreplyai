@@ -404,23 +404,29 @@
           if (!tweetArticle) {
             return;
           }
-          try {
-            const username = await this.extractUsernameFromTweet(tweetArticle);
+          this.extractUsernameFromTweet(tweetArticle).then((username) => {
             if (username && username !== "unknown") {
               this.trackReply(username).catch((err) => {
                 console.warn("[TweetReply] Reply tracking failed:", err);
               });
             }
-          } catch (error) {
+          }).catch((error) => {
             console.warn("[TweetReply] Failed to extract username for tracking:", error);
-          }
-          const autoLikeEnabled = await this.isAutoLikeEnabled();
-          if (autoLikeEnabled) {
-            const likeButton = this.findLikeButton(tweetArticle);
-            if (likeButton) {
-              await this.performAutoLike(likeButton);
+          });
+          this.isAutoLikeEnabled().then((autoLikeEnabled) => {
+            if (autoLikeEnabled) {
+              setTimeout(() => {
+                const likeButton = this.findLikeButton(tweetArticle);
+                if (likeButton) {
+                  this.performAutoLike(likeButton).catch((err) => {
+                    console.warn("[TweetReply] Auto-like execution failed:", err);
+                  });
+                }
+              }, 50);
             }
-          }
+          }).catch((err) => {
+            console.warn("[TweetReply] Failed to check auto-like setting:", err);
+          });
         } catch (error) {
           console.error("[TweetReply] Auto-like handler error:", error);
         }

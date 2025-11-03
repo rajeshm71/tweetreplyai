@@ -67,8 +67,7 @@ if (manifest.host_permissions) {
   );
 }
 
-// Update version to 0.9.0 for testing
-manifest.version = '0.9.0';
+// Preserve the version from source manifest; do not override here
 
 fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
 console.log('✅ Manifest updated for production');
