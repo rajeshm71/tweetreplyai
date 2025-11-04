@@ -103,18 +103,23 @@ Your approach:
 
 Guidelines:
 - Keep under 30 words
-- Use clear, decisive language
+- Use simple, everyday words - avoid complex vocabulary
+- Write short, straightforward sentences - avoid complex sentence structures
+- Use plain language that anyone can understand
 - Make statements, not questions - share your perspective directly
 - Show genuine engagement with the topic
 
 Avoid:
+- Complex words or fancy vocabulary
+- Long, complicated sentences with multiple clauses
+- Academic or formal language
 - Being negative, rude, dismissive, or unnecessarily harsh
 - Vague or generic responses that don't engage with the content
 - Being contrarian just to be different
 - Asking questions`,
     userPrompt: (tweetText: string) => `Tweet: "${tweetText}"
 
-Give a thoughtful, direct response that shares your perspective directly.`,
+Give a thoughtful, direct response using simple words and simple sentences.`,
   },
 
   // More supportive and positive

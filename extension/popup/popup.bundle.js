@@ -268,6 +268,10 @@
       this.closeImproveBtn?.addEventListener("click", () => this.hideImprove());
       this.closeAnalyticsBtn?.addEventListener("click", () => this.hideAnalytics());
       this.analyzeBtn?.addEventListener("click", () => this.handleAnalyzeDraft());
+      const saveTrackingSettingsBtn = document.getElementById("saveTrackingSettings");
+      if (saveTrackingSettingsBtn) {
+        saveTrackingSettingsBtn.addEventListener("click", () => this.saveTrackingSettings());
+      }
     }
     async initialize() {
       try {
@@ -507,9 +511,59 @@
     }
     showSettings() {
       this.settingsPanel?.classList.remove("hidden");
+      this.loadTrackingSettings();
     }
     hideSettings() {
       this.settingsPanel?.classList.add("hidden");
+    }
+    // Load reply tracking settings
+    async loadTrackingSettings() {
+      try {
+        const result = await chrome.storage.local.get(["replyTrackingSettings"]);
+        const settings = result.replyTrackingSettings || {
+          trackingPeriodDays: 7
+        };
+        const trackingPeriodInput = document.getElementById("trackingPeriodDays");
+        if (trackingPeriodInput) {
+          trackingPeriodInput.value = settings.trackingPeriodDays || 7;
+        }
+      } catch (error) {
+        console.error("Failed to load tracking settings:", error);
+      }
+    }
+    // Save reply tracking settings
+    async saveTrackingSettings() {
+      try {
+        const trackingPeriodInput = document.getElementById("trackingPeriodDays");
+        const saveBtn = document.getElementById("saveTrackingSettings");
+        const savedMsg = document.getElementById("tracking-settings-saved");
+        if (!trackingPeriodInput) return;
+        const trackingPeriod = parseInt(trackingPeriodInput.value) || 7;
+        const clampedPeriod = Math.max(1, Math.min(30, trackingPeriod));
+        await chrome.storage.local.set({
+          replyTrackingSettings: {
+            trackingPeriodDays: clampedPeriod
+          }
+        });
+        if (savedMsg) {
+          savedMsg.style.display = "block";
+          setTimeout(() => {
+            savedMsg.style.display = "none";
+          }, 2e3);
+        }
+        if (saveBtn) {
+          const originalText = saveBtn.textContent;
+          saveBtn.textContent = "Saved!";
+          saveBtn.style.background = "#10b981";
+          setTimeout(() => {
+            saveBtn.textContent = originalText;
+            saveBtn.style.background = "#1d9bf0";
+          }, 2e3);
+        }
+      } catch (error) {
+        console.error("Failed to save tracking settings:", error);
+        alert("Failed to save settings. Please try again.");
+      }
     }
     showHistory() {
       this.hideAllPanels();
