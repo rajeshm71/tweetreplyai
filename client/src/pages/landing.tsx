@@ -4,16 +4,23 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { PricingCards } from "@/components/pricing-cards";
 import { useAuth } from "@/hooks/useAuth";
-import { Sparkles, Zap, ArrowRight, CheckCircle, Rocket, Brain, MessageCircle, Download, Crown, Star, Shield, ChevronRight, TrendingUp, Chrome, Heart, Users, Building2, Award } from "lucide-react";
+import { Sparkles, Zap, ArrowRight, CheckCircle, Rocket, Brain, MessageCircle, Download, Crown, Star, Shield, ChevronRight, TrendingUp, Chrome, Heart, Users, Menu, X, Copy, Check, Building2, Award } from "lucide-react";
 import useEmblaCarousel from 'embla-carousel-react';
 import Autoplay from 'embla-carousel-autoplay';
 import { useCallback, useEffect, useState } from 'react';
-import { motion, useInView } from 'framer-motion';
-import { useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+
+// Constants for better maintainability
+const SCROLL_THRESHOLD = 0.5; // Threshold for showing sticky CTA (50% of hero height)
+const COPY_SUCCESS_DURATION = 2000; // Duration to show copy success feedback (ms)
+const DEMO_REPLY_DELAY = 800; // Delay before showing demo reply (ms)
 
 export default function Landing() {
   const { isAuthenticated } = useAuth();
   const [activeUsers, setActiveUsers] = useState(0);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [showStickyCTA, setShowStickyCTA] = useState(false);
+  const [currentExampleIndex, setCurrentExampleIndex] = useState(0);
   
   useEffect(() => {
     const target = 5000;
@@ -44,7 +51,7 @@ export default function Landing() {
     {
       username: "@ProductHunt",
       tweet: "What's the best productivity tool you've discovered this year?",
-      reply: "TweetReply ironically! Saves me hours crafting authentic replies daily 🚀"
+      reply: "TweetReplyAI ironically! Saves me hours crafting authentic replies daily 🚀"
     },
     {
       username: "@TechCrunch",
@@ -58,49 +65,40 @@ export default function Landing() {
     }
   ];
 
+  // Auto-cycle through example replies
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentExampleIndex((prev) => (prev + 1) % exampleReplies.length);
+    }, 5000); // Change every 5 seconds
+
+    return () => clearInterval(interval);
+  }, [exampleReplies.length]);
+
   const testimonials = [
     {
-      quote: "TweetReply completely transformed our social media strategy. We've seen a 300% increase in engagement and save hours every week. The AI responses are so natural!",
+      quote: "TweetReplyAI completely transformed how I engage on X. I save hours every week and my engagement has skyrocketed. The AI responses feel completely natural!",
       author: "Sarah Chen",
-      role: "Marketing Director @ TechCorp"
+      role: "Marketing Director"
     },
     {
-      quote: "As a solo founder, TweetReply helps me maintain authentic connections without spending all day on social media. It's like having a social media manager in my pocket!",
+      quote: "As a solo founder, TweetReplyAI helps me maintain authentic connections without spending all day on social media. It's like having a social media manager in my pocket!",
       author: "Michael Rodriguez",
-      role: "Founder @ StartupLabs"
+      role: "Startup Founder"
     },
     {
       quote: "The quality of replies is incredible. Our community engagement has tripled, and people can't tell it's AI-assisted. Game changer for content creators!",
       author: "Emily Watson",
-      role: "Content Creator & Influencer"
+      role: "Content Creator"
     }
   ];
 
-  const [emblaRef, emblaApi] = useEmblaCarousel({ loop: true }, [Autoplay({ delay: 4000, stopOnInteraction: false })]);
   const [testimonialEmblaRef, testimonialEmblaApi] = useEmblaCarousel({ loop: true }, [Autoplay({ delay: 5000, stopOnInteraction: false })]);
-  const [selectedIndex, setSelectedIndex] = useState(0);
   const [testimonialIndex, setTestimonialIndex] = useState(0);
-  const [demoTweet, setDemoTweet] = useState("");
-  const [demoReply, setDemoReply] = useState("");
-
-  const onSelect = useCallback(() => {
-    if (!emblaApi) return;
-    setSelectedIndex(emblaApi.selectedScrollSnap());
-  }, [emblaApi]);
 
   const onTestimonialSelect = useCallback(() => {
     if (!testimonialEmblaApi) return;
     setTestimonialIndex(testimonialEmblaApi.selectedScrollSnap());
   }, [testimonialEmblaApi]);
-
-  useEffect(() => {
-    if (!emblaApi) return;
-    onSelect();
-    emblaApi.on('select', onSelect);
-    return () => {
-      emblaApi.off('select', onSelect);
-    };
-  }, [emblaApi, onSelect]);
 
   useEffect(() => {
     if (!testimonialEmblaApi) return;
@@ -111,233 +109,457 @@ export default function Landing() {
     };
   }, [testimonialEmblaApi, onTestimonialSelect]);
 
-  const generateDemoReply = (tweet: string) => {
-    if (!tweet.trim()) {
-      setDemoReply("");
-      return;
-    }
-    
-    const demoReplies = [
-      "That's a great perspective! I totally agree 💯",
-      "Interesting take! Have you considered the impact on... 🤔",
-      "This is exactly what I've been thinking about lately!",
-      "Love this! More people need to hear about it 🚀",
-      "Thanks for sharing! This really resonated with me ✨"
-    ];
-    
-    setTimeout(() => {
-      const randomReply = demoReplies[Math.floor(Math.random() * demoReplies.length)];
-      setDemoReply(randomReply);
-    }, 800);
-  };
-
   const faqs = [
     {
       question: "How do the reply quotas work?",
-      answer: "Your quota resets automatically based on your plan. Trial users get 10 replies per day, weekly subscribers get 700 replies every 7 days, and monthly subscribers get 3,000 replies every 30 days."
+      answer: "Your quota resets automatically based on your plan. Trial users get 10 replies per day, weekly subscribers get 700 replies every 7 days, and monthly subscribers get 3,000 replies every 30 days.",
+      icon: "Zap"
     },
     {
       question: "Can I use both the extension and web app?",
-      answer: "Yes! Your subscription covers both the Chrome extension and the mobile-friendly web interface. Your quota is shared across both platforms."
+      answer: "Yes! Your subscription covers both the Chrome extension and the mobile-friendly web interface. Your quota is shared across both platforms.",
+      icon: "MessageCircle"
     },
     {
       question: "How authentic are the AI-generated replies?",
-      answer: "Our AI is trained to generate human-like, contextual replies under 25 words. Most users post our suggestions without any edits. We avoid generic AI clichés and hashtags."
+      answer: "Our AI is trained to generate human-like, contextual replies under 25 words. Most users post our suggestions without any edits. We avoid generic AI clichés and hashtags.",
+      icon: "Brain"
     },
     {
       question: "What AI models do you use?",
-      answer: "We use the latest GPT and Gemini models, automatically selecting the best model based on tweet complexity for optimal results."
+      answer: "We use the latest GPT and Gemini models, automatically selecting the best model based on tweet complexity for optimal results.",
+      icon: "Sparkles"
     },
     {
       question: "Can I cancel anytime?",
-      answer: "Absolutely! You can cancel your subscription at any time. Your plan will remain active until the end of your current billing cycle."
+      answer: "Absolutely! You can cancel your subscription at any time. Your plan will remain active until the end of your current billing cycle.",
+      icon: "Shield"
+    },
+    {
+      question: "Is my data secure?",
+      answer: "Yes, we take privacy seriously. Your tweets and replies are processed securely and we never store your personal data. All data transmission is encrypted.",
+      icon: "Shield"
+    },
+    {
+      question: "How fast are replies generated?",
+      answer: "Our AI typically generates replies in under 2 seconds. The actual time may vary slightly based on tweet complexity and server load.",
+      icon: "Zap"
+    },
+    {
+      question: "Can I customize the tone of replies?",
+      answer: "Currently, our AI automatically detects the tone and context of the original tweet. We're working on tone customization features for future releases.",
+      icon: "MessageCircle"
     }
   ];
 
+  // Handle smooth scroll for anchor links
+  // Fixed: Use closest('a') to handle clicks on child elements within anchors
+  useEffect(() => {
+    const handleSmoothScroll = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      // Find the closest anchor element (handles clicks on child elements like icons)
+      const anchor = target.closest('a[href^="#"]');
+      if (anchor) {
+        e.preventDefault();
+        const href = anchor.getAttribute('href');
+        if (href) {
+          const element = document.querySelector(href);
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+        }
+      }
+    };
+    
+    document.addEventListener('click', handleSmoothScroll);
+    return () => document.removeEventListener('click', handleSmoothScroll);
+  }, []);
+
+  // Handle sticky CTA visibility
+  // Fixed: Throttled with requestAnimationFrame for performance, uses proper hero section selector,
+  // includes error handling
+  useEffect(() => {
+    let ticking = false;
+    
+    const handleScroll = () => {
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          try {
+            // Use the hero section with aria-labelledby for accurate selection
+            const heroSection = document.querySelector('section[aria-labelledby="hero-heading"]');
+            if (!heroSection) return;
+            
+            const heroHeight = heroSection.offsetHeight || 0;
+            setShowStickyCTA(window.scrollY > heroHeight * SCROLL_THRESHOLD);
+          } catch (error) {
+            console.error('Scroll handler error:', error);
+          } finally {
+            ticking = false;
+          }
+        });
+        ticking = true;
+      }
+    };
+    
+    // Use passive listener for better scroll performance
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    handleScroll(); // Initial calculation
+    
+    // Cleanup: remove event listener
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+    };
+  }, []);
+
+
   return (
     <div className="min-h-screen bg-background">
+      {/* Skip to content link */}
+      <a href="#main-content" className="skip-to-content">
+        Skip to main content
+      </a>
+
       {/* Navigation */}
-      <nav className="sticky top-0 z-50 glass-effect border-b border-border/50 backdrop-blur-xl">
+      <nav 
+        className="sticky top-0 z-50 glass-effect border-b border-border/50 backdrop-blur-xl"
+        aria-label="Main navigation"
+      >
         <div className="container flex items-center justify-between h-16">
           <div className="flex items-center space-x-4">
             <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center shadow-lg">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center shadow-lg" aria-hidden="true">
                 <Sparkles className="w-4 h-4 text-white" />
               </div>
-              <span className="font-display font-bold text-xl">TweetReply</span>
+              <span className="font-display font-bold text-xl">TweetReplyAI</span>
             </div>
             
             <Button 
               onClick={() => {
-                if (isAuthenticated) {
-                  window.open('https://chrome.google.com/webstore', '_blank');
-                } else {
-                  window.location.href = '/login';
-                }
+                window.open('https://chromewebstore.google.com/detail/tweetreply-ai-powered-twi/nhpilcnghmcdhcbhndmemiggfekmdgem', '_blank');
               }}
-              className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl hover-lift border-0 font-medium shadow-md"
+              className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl hover-lift border-0 font-medium shadow-md hidden sm:flex"
               data-testid="button-add-to-chrome"
               size="sm"
+              aria-label="Add TweetReplyAI to Chrome"
             >
-              <Chrome className="w-4 h-4 mr-2" />
+              <Chrome className="w-4 h-4 mr-2" aria-hidden="true" />
               Add to Chrome
             </Button>
           </div>
           
           <div className="flex items-center space-x-6">
-            <a href="#features" className="text-muted-foreground hover:text-foreground smooth-transition text-sm font-medium hidden md:block">Features</a>
-            <a href="#pricing" className="text-muted-foreground hover:text-foreground smooth-transition text-sm font-medium hidden md:block">Pricing</a>
+            <a 
+              href="#features" 
+              className="text-muted-foreground hover:text-foreground smooth-transition text-sm font-medium hidden md:block focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+              aria-label="Navigate to Features section"
+            >
+              Features
+            </a>
+            <a 
+              href="#pricing" 
+              className="text-muted-foreground hover:text-foreground smooth-transition text-sm font-medium hidden md:block focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+              aria-label="Navigate to Pricing section"
+            >
+              Pricing
+            </a>
             <Button 
               onClick={() => window.location.href = '/login'}
-              className="bg-gradient-to-r from-primary to-primary/80 text-white shadow-lg hover-lift border-0 font-semibold"
+              className="bg-gradient-to-r from-primary to-primary/80 text-white shadow-lg hover-lift border-0 font-semibold hidden sm:flex"
               data-testid="button-signin"
+              aria-label="Get started with TweetReplyAI"
             >
               Get Started
-              <ArrowRight className="w-4 h-4 ml-2" />
+              <ArrowRight className="w-4 h-4 ml-2" aria-hidden="true" />
+            </Button>
+            
+            {/* Mobile menu button */}
+            <Button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="md:hidden"
+              variant="ghost"
+              size="sm"
+              aria-label="Toggle mobile menu"
+              aria-expanded={mobileMenuOpen}
+            >
+              {mobileMenuOpen ? (
+                <X className="w-5 h-5" aria-hidden="true" />
+              ) : (
+                <Menu className="w-5 h-5" aria-hidden="true" />
+              )}
             </Button>
           </div>
         </div>
+
+        {/* Mobile menu */}
+        {mobileMenuOpen && (
+          <div className="md:hidden border-t border-border/50 bg-background/95 backdrop-blur-xl">
+            <div className="container py-4 space-y-3">
+              <Button
+                onClick={() => {
+                  window.open('https://chromewebstore.google.com/detail/tweetreply-ai-powered-twi/nhpilcnghmcdhcbhndmemiggfekmdgem', '_blank');
+                  setMobileMenuOpen(false);
+                }}
+                className="w-full justify-start bg-gradient-to-r from-blue-500 to-indigo-600 text-white"
+                size="sm"
+              >
+                <Chrome className="w-4 h-4 mr-2" />
+                Add to Chrome
+              </Button>
+              <a 
+                href="#features" 
+                onClick={() => setMobileMenuOpen(false)}
+                className="block px-4 py-2 text-sm text-muted-foreground hover:text-foreground smooth-transition"
+              >
+                Features
+              </a>
+              <a 
+                href="#pricing" 
+                onClick={() => setMobileMenuOpen(false)}
+                className="block px-4 py-2 text-sm text-muted-foreground hover:text-foreground smooth-transition"
+              >
+                Pricing
+              </a>
+              <Button
+                onClick={() => {
+                  window.location.href = '/login';
+                  setMobileMenuOpen(false);
+                }}
+                className="w-full justify-start bg-gradient-to-r from-primary to-primary/80 text-white"
+                size="sm"
+              >
+                Get Started
+                <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
+            </div>
+          </div>
+        )}
       </nav>
 
+      {/* Sticky CTA for mobile */}
+      {showStickyCTA && (
+        <div className="fixed bottom-0 left-0 right-0 z-40 md:hidden bg-background/95 backdrop-blur-xl border-t border-border/50 p-4 shadow-lg animate-in slide-in-from-bottom">
+          <Button
+            onClick={() => window.location.href = '/login'}
+            className="w-full bg-gradient-to-r from-primary to-primary/80 text-white shadow-xl"
+            size="lg"
+            aria-label="Get started with TweetReplyAI"
+          >
+            <Sparkles className="w-5 h-5 mr-2" />
+            Start Free Trial
+            <ArrowRight className="w-5 h-5 ml-2" />
+          </Button>
+        </div>
+      )}
+
+      <main id="main-content">
+
       {/* Hero Section */}
-      <section className="relative overflow-hidden">
+      <section className="relative overflow-hidden" aria-labelledby="hero-heading">
         <div className="hero-gradient grid-pattern">
           <div className="container section-padding relative">
             {/* Floating Elements */}
-            <div className="absolute top-10 right-10 w-24 h-24 bg-gradient-to-br from-primary/20 to-purple-500/20 rounded-full blur-2xl floating-animation" />
-            <div className="absolute bottom-10 left-10 w-32 h-32 bg-gradient-to-br from-cyan-500/20 to-blue-500/20 rounded-full blur-3xl floating-animation" style={{ animationDelay: '-3s' }} />
-            <div className="absolute top-1/2 right-1/4 w-20 h-20 bg-gradient-to-br from-pink-500/20 to-purple-500/20 rounded-full blur-2xl floating-animation" style={{ animationDelay: '-5s' }} />
+            <div className="absolute top-10 right-10 w-24 h-24 bg-gradient-to-br from-primary/20 to-purple-500/20 rounded-full blur-2xl floating-animation" aria-hidden="true" />
+            <div className="absolute bottom-10 left-10 w-32 h-32 bg-gradient-to-br from-cyan-500/20 to-blue-500/20 rounded-full blur-3xl floating-animation" style={{ animationDelay: '-3s' }} aria-hidden="true" />
+            <div className="absolute top-1/2 right-1/4 w-20 h-20 bg-gradient-to-br from-pink-500/20 to-purple-500/20 rounded-full blur-2xl floating-animation" style={{ animationDelay: '-5s' }} aria-hidden="true" />
             
-            <div className="text-center mb-16 relative z-10">
-              <Badge variant="secondary" className="mb-6 px-4 py-2 text-sm font-medium glass-effect border border-primary/20 shadow-lg">
-                <Rocket className="w-4 h-4 mr-2" />
-                Powered by Advanced AI
-              </Badge>
-              
-              <h1 className="text-5xl md:text-7xl lg:text-8xl font-display font-bold mb-8 leading-none">
-                <span className="gradient-text">Generate Perfect</span>
-                <br />
-                <span className="text-foreground">Twitter Replies</span>
-                <br />
-                <span className="text-foreground">Instantly</span>
-              </h1>
-              
-              <p className="text-xl md:text-2xl text-muted-foreground mb-8 max-w-3xl mx-auto leading-relaxed">
-                Transform your social media engagement with AI that creates authentic, 
-                contextual replies in seconds. <span className="text-foreground font-semibold">No more writer's block.</span>
-              </p>
-
-              <div className="flex items-center justify-center gap-2 mb-12">
-                <Users className="w-5 h-5 text-primary" />
-                <span className="text-lg font-semibold">
-                  <span className="text-primary gradient-text text-2xl font-bold">{activeUsers.toLocaleString()}+</span>
-                  <span className="text-muted-foreground ml-2">Active Users</span>
-                </span>
-              </div>
-
-              <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-16">
-                <Button 
-                  size="lg"
-                  onClick={() => window.location.href = '/login'}
-                  className="h-14 px-8 text-lg bg-gradient-to-r from-primary to-primary/80 text-white shadow-2xl hover-lift pulse-glow border-0 font-semibold"
-                  data-testid="button-start-trial"
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center relative z-10">
+              {/* Left Column: Title, Subtitle, CTAs, Stats */}
+              <div className="text-center lg:text-left">
+                <motion.h1 
+                  id="hero-heading" 
+                  className="text-4xl md:text-6xl lg:text-7xl font-calibri font-bold mb-8 leading-tight tracking-tight"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
                 >
-                  <Sparkles className="w-5 h-5 mr-3" />
-                  Start Free Trial
-                  <ArrowRight className="w-5 h-5 ml-3" />
-                </Button>
+                  <motion.span 
+                    className="gradient-text-shimmer block mb-3"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 1, ease: [0.16, 1, 0.3, 1], delay: 0.2 }}
+                  >
+                    Never Waste Time
+                  </motion.span>
+                  <motion.span 
+                    className="gradient-text-shimmer block mb-3 text-5xl md:text-7xl lg:text-8xl"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 1, ease: [0.16, 1, 0.3, 1], delay: 0.4 }}
+                  >
+                    On X Replies
+                  </motion.span>
+                  <motion.span 
+                    className="gradient-text-shimmer block text-4xl md:text-6xl lg:text-7xl"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 1, ease: [0.16, 1, 0.3, 1], delay: 0.6 }}
+                  >
+                    Again
+                  </motion.span>
+                </motion.h1>
                 
-                <div className="flex items-center space-x-3 text-sm text-muted-foreground">
-                  <CheckCircle className="w-4 h-4 text-primary" />
-                  <span>No credit card required</span>
-                  <CheckCircle className="w-4 h-4 text-primary" />
-                  <span>7-day trial</span>
-                </div>
+                <motion.p 
+                  className="text-xl md:text-2xl text-muted-foreground mb-8 max-w-3xl lg:max-w-none leading-relaxed"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.8, delay: 0.8 }}
+                >
+                  Transform your X engagement with AI that creates authentic, 
+                  contextual replies in seconds. <span className="text-foreground font-semibold">No more writer's block.</span>
+                </motion.p>
+
+                <motion.div 
+                  className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start items-center mb-8"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.8, delay: 1.2 }}
+                >
+                  <Button 
+                    size="lg"
+                    onClick={() => window.location.href = '/login'}
+                    className="h-14 px-8 text-lg bg-gradient-to-r from-primary to-primary/80 text-white shadow-2xl hover-lift pulse-glow-primary magnetic-button ripple-effect border-0 font-semibold"
+                    data-testid="button-start-trial"
+                  >
+                    <Sparkles className="w-5 h-5 mr-3" />
+                    Start Free Trial
+                    <ArrowRight className="w-5 h-5 ml-3" />
+                  </Button>
+                  
+                  <div className="flex items-center space-x-3 text-sm text-muted-foreground">
+                    <CheckCircle className="w-4 h-4 text-primary" />
+                    <span>No credit card required</span>
+                    <CheckCircle className="w-4 h-4 text-primary" />
+                    <span>7-day trial</span>
+                  </div>
+                </motion.div>
+
               </div>
 
-              {/* Quick Stats */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-4xl mx-auto">
-                <Card className="glass-effect border border-primary/20 p-4 hover-lift">
-                  <div className="text-3xl font-bold text-primary mb-1">50K+</div>
-                  <div className="text-sm text-muted-foreground">Replies Generated</div>
+              {/* Right Column: Tweet/Reply Demo */}
+              <motion.div
+                className="relative"
+                initial={{ opacity: 0, x: 50 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.8, delay: 0.6 }}
+              >
+                <Card className="modern-glass border border-border/50 p-6 rounded-2xl shadow-xl card-modern overflow-hidden">
+                  <AnimatePresence mode="wait">
+                    {/* Original Tweet Card */}
+                    <motion.div
+                      key={`tweet-${currentExampleIndex}`}
+                      className="mb-4 pb-4 border-b border-border/50"
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 10 }}
+                      transition={{ duration: 0.4 }}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center flex-shrink-0 shadow-lg">
+                          <Sparkles className="w-5 h-5 text-white" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-sm font-medium text-muted-foreground">
+                              {exampleReplies[currentExampleIndex].username}
+                            </span>
+                            <MessageCircle className="w-4 h-4 text-muted-foreground" />
+                          </div>
+                          <p className="text-base text-foreground leading-relaxed">
+                            {exampleReplies[currentExampleIndex].tweet}
+                          </p>
+                        </div>
+                      </div>
+                    </motion.div>
+                  </AnimatePresence>
+
+                  {/* Connection Line */}
+                  <div className="flex items-center justify-center mb-4">
+                    <div className="w-px h-8 bg-gradient-to-b from-primary/50 to-primary/20" />
+                  </div>
+
+                  {/* AI Reply Card */}
+                  <AnimatePresence mode="wait">
+                    <motion.div
+                      key={`reply-${currentExampleIndex}`}
+                      className="relative"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      transition={{ duration: 0.4, delay: 0.1 }}
+                    >
+                      <div className="absolute -inset-1 bg-gradient-to-r from-primary/20 to-primary/10 rounded-xl blur-sm opacity-50 pulse-glow-primary" />
+                      <div className="relative bg-card/50 rounded-xl p-4 border border-primary/20">
+                        <div className="flex items-start gap-3">
+                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center flex-shrink-0 shadow-lg">
+                            <Sparkles className="w-5 h-5 text-white" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-sm font-semibold text-primary">
+                                TweetReplyAI
+                              </span>
+                              <Badge variant="secondary" className="text-xs bg-primary/10 text-primary border-primary/20">
+                                AI
+                              </Badge>
+                            </div>
+                            <p className="text-base text-foreground leading-relaxed">
+                              {exampleReplies[currentExampleIndex].reply}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  </AnimatePresence>
                 </Card>
-                <Card className="glass-effect border border-primary/20 p-4 hover-lift">
-                  <div className="text-3xl font-bold text-primary mb-1">99.9%</div>
-                  <div className="text-sm text-muted-foreground">Uptime</div>
-                </Card>
-                <Card className="glass-effect border border-primary/20 p-4 hover-lift">
-                  <div className="text-3xl font-bold text-primary mb-1">&lt;2s</div>
-                  <div className="text-sm text-muted-foreground">Response Time</div>
-                </Card>
-                <Card className="glass-effect border border-primary/20 p-4 hover-lift">
-                  <div className="text-3xl font-bold text-primary mb-1">5★</div>
-                  <div className="text-sm text-muted-foreground">User Rating</div>
-                </Card>
-              </div>
+              </motion.div>
             </div>
+
+            {/* Quick Stats - Below Split Layout */}
+            <motion.div 
+              className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-4xl mx-auto mt-12"
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 1.4 }}
+            >
+              {[
+                { value: "50K+", label: "Replies Generated" },
+                { value: "99.9%", label: "Uptime" },
+                { value: "<2s", label: "Response Time" },
+                { value: "5★", label: "User Rating" }
+              ].map((stat, index) => (
+                <motion.div
+                  key={index}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.5, delay: 1.6 + index * 0.1 }}
+                >
+                  <Card className="glass-depth border border-primary/20 p-4 micro-lift card-modern hover-glow-primary">
+                    <div className="text-3xl font-bold text-primary mb-1 gradient-text">{stat.value}</div>
+                    <div className="text-sm text-muted-foreground">{stat.label}</div>
+                  </Card>
+                </motion.div>
+              ))}
+            </motion.div>
           </div>
         </div>
       </section>
 
-      {/* Example Replies Carousel */}
-      <motion.section 
-        initial={{ opacity: 0, y: 20 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
-        viewport={{ once: true }}
-        className="section-padding bg-gradient-to-b from-background to-muted/5"
-      >
-        <div className="container">
-          <div className="max-w-3xl mx-auto">
-            <div className="overflow-hidden" ref={emblaRef}>
-              <div className="flex">
-                {exampleReplies.map((example, index) => (
-                  <div key={index} className="flex-[0_0_100%] min-w-0 px-4">
-                    <Card className="neomorphic border-0 p-8 max-w-2xl mx-auto">
-                      <div className="space-y-4">
-                        <div className="flex gap-3 justify-end">
-                          <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-muted/50">
-                            <div className="text-xs text-muted-foreground mb-1">{example.username}</div>
-                            <p className="text-sm">{example.tweet}</p>
-                          </div>
-                          <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
-                            <MessageCircle className="w-4 h-4" />
-                          </div>
-                        </div>
-                        <div className="flex gap-3">
-                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center flex-shrink-0">
-                            <Sparkles className="w-4 h-4 text-white" />
-                          </div>
-                          <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-primary/10">
-                            <div className="text-xs text-primary mb-1">TweetReply AI</div>
-                            <p className="text-sm">{example.reply}</p>
-                          </div>
-                        </div>
-                      </div>
-                    </Card>
-                  </div>
-                ))}
-              </div>
-            </div>
+      {/* 
+        ============================================
+        SOCIAL PROOF SECTIONS - COMMENTED OUT
+        ============================================
+        These sections were removed as part of content authenticity updates.
+        They contain placeholder content that should be replaced with real data.
+        Uncomment and update when real company logos or press mentions are available.
+        ============================================
+      */}
 
-            <div className="flex justify-center gap-2 mt-6">
-              {exampleReplies.map((_, index) => (
-                <button
-                  key={index}
-                  className={`w-2 h-2 rounded-full transition-all duration-300 ${
-                    index === selectedIndex ? 'bg-primary w-8' : 'bg-muted-foreground/30'
-                  }`}
-                  onClick={() => emblaApi?.scrollTo(index)}
-                  aria-label={`Go to slide ${index + 1}`}
-                />
-              ))}
-            </div>
-          </div>
-
-        </div>
-      </motion.section>
-
-      {/* Trusted By Section */}
+      {/* 
+        Trusted By Section - TO BE RESTORED
+        Replace placeholder companies with real customer logos when available.
+        TODO: Add real company logos or replace with generic "Trusted by 5,000+ users"
+      */}
+      {/* 
       <motion.section 
         initial={{ opacity: 0, y: 20 }}
         whileInView={{ opacity: 1, y: 0 }}
@@ -367,8 +589,14 @@ export default function Landing() {
           </div>
         </div>
       </motion.section>
+      */}
 
-      {/* As Seen On Section */}
+      {/* 
+        As Seen On / Featured In The Press Section - TO BE RESTORED
+        Replace fake press mentions with real press coverage when available.
+        TODO: Add real press logos or remove if no press coverage exists
+      */}
+      {/* 
       <motion.section 
         initial={{ opacity: 0, y: 20 }}
         whileInView={{ opacity: 1, y: 0 }}
@@ -387,21 +615,21 @@ export default function Landing() {
             </h2>
           </div>
           <div className="grid md:grid-cols-3 gap-6 max-w-3xl mx-auto">
-            <Card className="neomorphic border-0 p-6 text-center hover-lift">
+            <Card className="neomorphic border-0 p-6 text-center hover-lift card-modern">
               <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center mx-auto mb-4">
                 <Star className="w-6 h-6 text-white" />
               </div>
               <p className="font-semibold text-lg mb-1">Product Hunt</p>
               <p className="text-sm text-muted-foreground">#1 Product of the Day</p>
             </Card>
-            <Card className="neomorphic border-0 p-6 text-center hover-lift">
+            <Card className="neomorphic border-0 p-6 text-center hover-lift card-modern">
               <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-green-600 rounded-xl flex items-center justify-center mx-auto mb-4">
                 <TrendingUp className="w-6 h-6 text-white" />
               </div>
               <p className="font-semibold text-lg mb-1">TechCrunch</p>
               <p className="text-sm text-muted-foreground">Featured Startup</p>
             </Card>
-            <Card className="neomorphic border-0 p-6 text-center hover-lift">
+            <Card className="neomorphic border-0 p-6 text-center hover-lift card-modern">
               <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center mx-auto mb-4">
                 <Zap className="w-6 h-6 text-white" />
               </div>
@@ -411,6 +639,7 @@ export default function Landing() {
           </div>
         </div>
       </motion.section>
+      */}
 
       {/* Product Tour */}
       <section id="features" className="section-padding bg-gradient-to-b from-muted/5 to-muted/10">
@@ -418,160 +647,80 @@ export default function Landing() {
           <div className="text-center mb-16">
             <Badge variant="secondary" className="mb-4 glass-effect border border-primary/20">
               <Rocket className="w-4 h-4 mr-2" />
-              Three Ways to Use TweetReply
+              Three Ways to Use TweetReplyAI
             </Badge>
             <h2 className="text-4xl md:text-5xl font-display font-bold mb-6">
-              Choose Your <span className="gradient-text">Perfect Workflow</span>
+              Choose Your <span className="gradient-text">Perfect X Workflow</span>
             </h2>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Whether you prefer web, extension, or advanced AI customization, we've got you covered.
+              Generate perfect X replies with our AI-powered tools. Whether you prefer web, extension, or advanced AI customization, we've got you covered.
             </p>
           </div>
 
           <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
-            {/* Web App */}
-            <Card className="neomorphic border-0 hover-lift group overflow-hidden relative">
-              <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-purple-500/10 opacity-0 group-hover:opacity-100 smooth-transition" />
-              <CardContent className="p-8 text-center relative z-10">
-                <div className="w-16 h-16 bg-gradient-to-br from-primary to-primary/60 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-xl group-hover:scale-110 group-hover:rotate-3 smooth-transition">
-                  <MessageCircle className="w-8 h-8 text-white" />
-                </div>
-                <h3 className="text-2xl font-display font-semibold mb-3 text-foreground">Web Application</h3>
-                <p className="text-muted-foreground mb-6 leading-relaxed">
-                  Paste tweet text and generate replies instantly with our powerful web interface
-                </p>
-                <div className="flex items-center justify-center text-sm text-muted-foreground">
-                  <CheckCircle className="w-4 h-4 mr-2 text-primary" />
-                  <span>Mobile-friendly design</span>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Chrome Extension */}
-            <Card className="neomorphic border-0 hover-lift group overflow-hidden relative">
-              <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/10 via-transparent to-blue-500/10 opacity-0 group-hover:opacity-100 smooth-transition" />
-              <CardContent className="p-8 text-center relative z-10">
-                <div className="w-16 h-16 bg-gradient-to-br from-cyan-500 to-blue-500 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-xl group-hover:scale-110 group-hover:rotate-3 smooth-transition">
-                  <Download className="w-8 h-8 text-white" />
-                </div>
-                <h3 className="text-2xl font-display font-semibold mb-3 text-foreground">Chrome Extension</h3>
-                <p className="text-muted-foreground mb-6 leading-relaxed">
-                  Generate replies directly on X (Twitter) with seamless integration
-                </p>
-                <div className="flex items-center justify-center text-sm text-muted-foreground">
-                  <CheckCircle className="w-4 h-4 mr-2 text-primary" />
-                  <span>One-click integration</span>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Natural Contextual Replies */}
-            <Card className="neomorphic border-0 hover-lift group overflow-hidden relative">
-              <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 via-transparent to-pink-500/10 opacity-0 group-hover:opacity-100 smooth-transition" />
-              <CardContent className="p-8 text-center relative z-10">
-                <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-xl group-hover:scale-110 group-hover:rotate-3 smooth-transition">
-                  <Heart className="w-8 h-8 text-white" />
-                </div>
-                <h3 className="text-2xl font-display font-semibold mb-3 text-foreground">Natural, Human-like Replies</h3>
-                <p className="text-muted-foreground mb-6 leading-relaxed">
-                  Understands tone, humor, and context to make every reply sound authentically you
-                </p>
-                <div className="flex items-center justify-center text-sm text-muted-foreground">
-                  <CheckCircle className="w-4 h-4 mr-2 text-primary" />
-                  <span>Contextual & authentic</span>
-                </div>
-              </CardContent>
-            </Card>
+            {[
+              {
+                icon: MessageCircle,
+                title: "Web Application",
+                description: "Paste X tweet text and generate replies instantly with our powerful web interface. Perfect for desktop and mobile users.",
+                feature: "Mobile-friendly design",
+                gradient: "from-primary/10 via-transparent to-purple-500/10",
+                iconGradient: "from-primary to-primary/60"
+              },
+              {
+                icon: Download,
+                title: "Chrome Extension",
+                description: "Generate replies directly on X with seamless integration. Works perfectly on the X platform.",
+                feature: "One-click integration",
+                gradient: "from-cyan-500/10 via-transparent to-blue-500/10",
+                iconGradient: "from-cyan-500 to-blue-500"
+              },
+              {
+                icon: Heart,
+                title: "Natural, Human-like Replies",
+                description: "Understands tone, humor, and context to make every reply sound authentically you",
+                feature: "Contextual & authentic",
+                gradient: "from-purple-500/10 via-transparent to-pink-500/10",
+                iconGradient: "from-purple-500 to-pink-500"
+              }
+            ].map((feature, index) => {
+              const IconComponent = feature.icon;
+              return (
+                <motion.div
+                  key={index}
+                  initial={{ opacity: 0, y: 30 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.6, delay: index * 0.1 }}
+                  viewport={{ once: true }}
+                >
+                  <Card className="neomorphic border-0 card-3d group overflow-hidden relative">
+                    <div className={`absolute inset-0 bg-gradient-to-br ${feature.gradient} opacity-0 group-hover:opacity-100 smooth-transition`} />
+                    <CardContent className="p-8 text-center relative z-10">
+                      <motion.div 
+                        className={`w-16 h-16 bg-gradient-to-br ${feature.iconGradient} rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-xl group-hover:scale-110 group-hover:rotate-3 smooth-transition`}
+                        aria-hidden="true"
+                        whileHover={{ scale: 1.1, rotate: 5 }}
+                        transition={{ type: "spring", stiffness: 300 }}
+                      >
+                        <IconComponent className="w-8 h-8 text-white" />
+                      </motion.div>
+                      <h3 className="text-2xl font-display font-semibold mb-3 text-foreground">{feature.title}</h3>
+                      <p className="text-muted-foreground mb-6 leading-relaxed">
+                        {feature.description}
+                      </p>
+                      <div className="flex items-center justify-center text-sm text-muted-foreground">
+                        <CheckCircle className="w-4 h-4 mr-2 text-primary" aria-hidden="true" />
+                        <span>{feature.feature}</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              );
+            })}
           </div>
         </div>
       </section>
 
-      {/* Interactive Live Demo */}
-      <motion.section 
-        initial={{ opacity: 0, scale: 0.95 }}
-        whileInView={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.7 }}
-        viewport={{ once: true }}
-        className="section-padding bg-background"
-      >
-        <div className="container">
-          <div className="text-center mb-16">
-            <Badge variant="secondary" className="mb-4 glass-effect border border-primary/20">
-              <Brain className="w-4 h-4 mr-2" />
-              Try It Live
-            </Badge>
-            <h2 className="text-4xl md:text-5xl font-display font-bold mb-6">
-              See <span className="gradient-text">AI Magic</span> in Action
-            </h2>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Type any tweet below and watch TweetReply generate a perfect response instantly
-            </p>
-          </div>
-
-          <div className="max-w-3xl mx-auto">
-            <Card className="neomorphic border-0 p-8">
-              <div className="space-y-6">
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Enter a Tweet</label>
-                  <textarea
-                    className="w-full p-4 rounded-xl border border-border bg-background resize-none focus:outline-none focus:ring-2 focus:ring-primary/50 smooth-transition"
-                    placeholder="Example: Just launched our new AI-powered app! What do you think?"
-                    rows={3}
-                    value={demoTweet}
-                    onChange={(e) => {
-                      setDemoTweet(e.target.value);
-                      generateDemoReply(e.target.value);
-                    }}
-                    data-testid="input-demo-tweet"
-                  />
-                </div>
-
-                {demoReply && (
-                  <div className="bg-primary/5 rounded-xl p-6 border border-primary/20 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                    <div className="flex items-start gap-3">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center flex-shrink-0">
-                        <Sparkles className="w-5 h-5 text-white" />
-                      </div>
-                      <div>
-                        <div className="text-xs text-primary mb-1 font-semibold">TweetReply AI Generated</div>
-                        <p className="text-foreground">{demoReply}</p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {!demoReply && demoTweet && (
-                  <div className="bg-muted/30 rounded-xl p-6 border border-border/50">
-                    <div className="flex items-center gap-2">
-                      <div className="animate-spin w-4 h-4 border-2 border-primary border-t-transparent rounded-full" />
-                      <span className="text-sm text-muted-foreground">Generating reply...</span>
-                    </div>
-                  </div>
-                )}
-
-                {!demoTweet && (
-                  <div className="text-center text-sm text-muted-foreground">
-                    <Sparkles className="w-4 h-4 inline mr-2" />
-                    Start typing to see AI-generated replies appear instantly
-                  </div>
-                )}
-              </div>
-            </Card>
-
-            <div className="text-center mt-8">
-              <Button
-                onClick={() => window.location.href = '/login'}
-                size="lg"
-                className="bg-gradient-to-r from-primary to-primary/80 text-white shadow-xl hover-lift border-0 font-semibold"
-                data-testid="button-demo-cta"
-              >
-                Get Full Access Now
-                <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
-            </div>
-          </div>
-        </div>
-      </motion.section>
 
       {/* Before/After Engagement Metrics */}
       <motion.section 
@@ -597,55 +746,73 @@ export default function Landing() {
 
           <div className="grid md:grid-cols-2 gap-12 max-w-5xl mx-auto">
             {/* Before */}
-            <Card className="neomorphic border-0 p-8 relative overflow-hidden">
-              <div className="absolute top-4 right-4">
-                <Badge variant="secondary" className="bg-red-500/10 text-red-600 border-red-500/20">Before</Badge>
-              </div>
-              <div className="space-y-6 mt-8">
-                <div>
-                  <div className="text-sm text-muted-foreground mb-2">Weekly Replies</div>
-                  <div className="text-4xl font-bold text-foreground">45</div>
+            <motion.div
+              initial={{ opacity: 0, x: -30 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.6 }}
+              viewport={{ once: true }}
+            >
+              <Card className="neomorphic border-0 p-8 relative overflow-hidden card-modern">
+                <div className="absolute top-4 right-4">
+                  <Badge variant="secondary" className="bg-red-500/10 text-red-600 border-red-500/20">Before</Badge>
                 </div>
-                <div>
-                  <div className="text-sm text-muted-foreground mb-2">Time Spent</div>
-                  <div className="text-4xl font-bold text-foreground">8 hrs</div>
+                <div className="space-y-6 mt-8">
+                  {[
+                    { label: "Weekly Replies", value: "45" },
+                    { label: "Time Spent", value: "8 hrs" },
+                    { label: "Engagement Rate", value: "2.3%" }
+                  ].map((metric, index) => (
+                    <motion.div
+                      key={index}
+                      initial={{ opacity: 0, y: 10 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.4, delay: 0.3 + index * 0.1 }}
+                      viewport={{ once: true }}
+                    >
+                      <div className="text-sm text-muted-foreground mb-2">{metric.label}</div>
+                      <div className="text-4xl font-bold text-foreground gradient-text">{metric.value}</div>
+                    </motion.div>
+                  ))}
                 </div>
-                <div>
-                  <div className="text-sm text-muted-foreground mb-2">Engagement Rate</div>
-                  <div className="text-4xl font-bold text-foreground">2.3%</div>
-                </div>
-              </div>
-            </Card>
+              </Card>
+            </motion.div>
 
             {/* After */}
-            <Card className="neomorphic border-0 p-8 relative overflow-hidden border-2 border-primary/30">
-              <div className="absolute top-4 right-4">
-                <Badge className="bg-green-500/10 text-green-600 border-green-500/20">After</Badge>
-              </div>
-              <div className="space-y-6 mt-8">
-                <div>
-                  <div className="text-sm text-muted-foreground mb-2">Weekly Replies</div>
-                  <div className="flex items-baseline gap-2">
-                    <div className="text-4xl font-bold text-primary">320</div>
-                    <Badge variant="secondary" className="bg-green-500/10 text-green-600 border-green-500/20">+611%</Badge>
-                  </div>
+            <motion.div
+              initial={{ opacity: 0, x: 30 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.6 }}
+              viewport={{ once: true }}
+            >
+              <Card className="neomorphic border-0 p-8 relative overflow-hidden border-2 border-primary/30 card-modern hover-glow-primary">
+                <div className="absolute top-4 right-4">
+                  <Badge className="bg-green-500/10 text-green-600 border-green-500/20">After</Badge>
                 </div>
-                <div>
-                  <div className="text-sm text-muted-foreground mb-2">Time Spent</div>
-                  <div className="flex items-baseline gap-2">
-                    <div className="text-4xl font-bold text-primary">2 hrs</div>
-                    <Badge variant="secondary" className="bg-green-500/10 text-green-600 border-green-500/20">-75%</Badge>
-                  </div>
+                <div className="space-y-6 mt-8">
+                  {[
+                    { label: "Weekly Replies", value: "320", change: "+611%" },
+                    { label: "Time Spent", value: "2 hrs", change: "-75%" },
+                    { label: "Engagement Rate", value: "7.9%", change: "+243%" }
+                  ].map((metric, index) => (
+                    <motion.div
+                      key={index}
+                      initial={{ opacity: 0, y: 10 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.4, delay: 0.5 + index * 0.1 }}
+                      viewport={{ once: true }}
+                    >
+                      <div className="text-sm text-muted-foreground mb-2">{metric.label}</div>
+                      <div className="flex items-baseline gap-2">
+                        <div className="text-4xl font-bold text-primary gradient-text">{metric.value}</div>
+                        <Badge variant="secondary" className="bg-green-500/10 text-green-600 border-green-500/20">
+                          {metric.change}
+                        </Badge>
+                      </div>
+                    </motion.div>
+                  ))}
                 </div>
-                <div>
-                  <div className="text-sm text-muted-foreground mb-2">Engagement Rate</div>
-                  <div className="flex items-baseline gap-2">
-                    <div className="text-4xl font-bold text-primary">7.9%</div>
-                    <Badge variant="secondary" className="bg-green-500/10 text-green-600 border-green-500/20">+243%</Badge>
-                  </div>
-                </div>
-              </div>
-            </Card>
+              </Card>
+            </motion.div>
           </div>
         </div>
       </motion.section>
@@ -681,7 +848,7 @@ export default function Landing() {
               <div className="flex">
                 {testimonials.map((testimonial, index) => (
                   <div key={index} className="flex-[0_0_100%] min-w-0">
-                    <Card className="neomorphic border-0 p-10 relative overflow-hidden mx-4">
+                    <Card className="neomorphic border-0 p-10 relative overflow-hidden mx-4 card-modern">
                       <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-purple-500/5" />
                       <div className="relative z-10">
                         <div className="flex items-center justify-center mb-6">
@@ -730,105 +897,239 @@ export default function Landing() {
               Frequently Asked Questions
             </Badge>
             <h2 className="text-4xl md:text-5xl font-display font-bold mb-6">
-              Everything You <span className="gradient-text">Need to Know</span>
+              Everything You <span className="gradient-text">Need to Know</span> About X Reply Generation
             </h2>
           </div>
           
           <div className="max-w-3xl mx-auto">
             <Accordion type="single" collapsible className="space-y-4">
-              {faqs.map((faq, index) => (
-                <AccordionItem 
-                  key={index} 
-                  value={`item-${index}`}
-                  className="border-0"
-                >
-                  <Card className="neomorphic border-0 overflow-hidden">
-                    <AccordionTrigger 
-                      className="px-6 py-4 hover:no-underline hover:bg-primary/5 smooth-transition"
-                      data-testid={`faq-question-${index}`}
-                    >
-                      <span className="text-lg font-semibold text-left">{faq.question}</span>
-                    </AccordionTrigger>
-                    <AccordionContent className="px-6 pb-4">
-                      <p className="text-muted-foreground leading-relaxed" data-testid={`faq-answer-${index}`}>
-                        {faq.answer}
-                      </p>
-                    </AccordionContent>
-                  </Card>
-                </AccordionItem>
-              ))}
+              {faqs.map((faq, index) => {
+                const IconComponent = faq.icon === 'Zap' ? Zap : 
+                                   faq.icon === 'MessageCircle' ? MessageCircle :
+                                   faq.icon === 'Brain' ? Brain :
+                                   faq.icon === 'Sparkles' ? Sparkles :
+                                   Shield;
+                return (
+                  <AccordionItem 
+                    key={index} 
+                    value={`item-${index}`}
+                    className="border-0"
+                  >
+                    <Card className="neomorphic border-0 overflow-hidden card-modern">
+                      <AccordionTrigger 
+                        className="px-6 py-4 hover:no-underline hover:bg-primary/5 smooth-transition"
+                        data-testid={`faq-question-${index}`}
+                        aria-label={`Toggle FAQ: ${faq.question}`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <IconComponent className="w-5 h-5 text-primary flex-shrink-0" aria-hidden="true" />
+                          <span className="text-lg font-semibold text-left">{faq.question}</span>
+                        </div>
+                      </AccordionTrigger>
+                      <AccordionContent className="px-6 pb-4">
+                        <p className="text-muted-foreground leading-relaxed pl-8" data-testid={`faq-answer-${index}`}>
+                          {faq.answer}
+                        </p>
+                      </AccordionContent>
+                    </Card>
+                  </AccordionItem>
+                );
+              })}
             </Accordion>
           </div>
         </div>
       </section>
 
       {/* Final CTA */}
-      <section className="section-padding">
+      <motion.section 
+        className="section-padding"
+        initial={{ opacity: 0 }}
+        whileInView={{ opacity: 1 }}
+        transition={{ duration: 0.8 }}
+        viewport={{ once: true }}
+      >
         <div className="container">
-          <Card className="neomorphic border-0 p-12 md:p-16 text-center relative overflow-hidden max-w-5xl mx-auto">
-            <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-purple-500/10" />
-            <div className="absolute top-10 right-10 w-32 h-32 bg-gradient-to-br from-primary/20 to-purple-500/20 rounded-full blur-3xl" />
-            <div className="absolute bottom-10 left-10 w-40 h-40 bg-gradient-to-br from-cyan-500/20 to-blue-500/20 rounded-full blur-3xl" />
+          <Card className="neomorphic border-0 p-12 md:p-16 text-center relative overflow-hidden max-w-5xl mx-auto card-modern hover-glow-primary">
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-purple-500/10 mesh-overlay" />
+            <motion.div 
+              className="absolute top-10 right-10 w-32 h-32 bg-gradient-to-br from-primary/20 to-purple-500/20 rounded-full blur-3xl floating-animation-enhanced"
+              animate={{ 
+                scale: [1, 1.2, 1],
+                opacity: [0.3, 0.5, 0.3]
+              }}
+              transition={{ 
+                duration: 4,
+                repeat: Infinity,
+                ease: "easeInOut"
+              }}
+            />
+            <motion.div 
+              className="absolute bottom-10 left-10 w-40 h-40 bg-gradient-to-br from-cyan-500/20 to-blue-500/20 rounded-full blur-3xl floating-animation-enhanced"
+              animate={{ 
+                scale: [1, 1.3, 1],
+                opacity: [0.3, 0.5, 0.3]
+              }}
+              transition={{ 
+                duration: 5,
+                repeat: Infinity,
+                ease: "easeInOut",
+                delay: 1
+              }}
+            />
             
             <div className="relative z-10">
-              <Badge variant="secondary" className="mb-6 glass-effect border border-primary/20 shadow-lg">
-                <Heart className="w-4 h-4 mr-2 text-primary" />
-                Join 5,000+ Creators
-              </Badge>
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6 }}
+                viewport={{ once: true }}
+              >
+                <Badge variant="secondary" className="mb-6 glass-depth border border-primary/20 shadow-lg pulse-glow-primary">
+                  <Heart className="w-4 h-4 mr-2 text-primary" />
+                  Join 5,000+ Creators
+                </Badge>
+              </motion.div>
               
-              <h2 className="text-4xl md:text-6xl font-display font-bold mb-6">
-                Let Every Tweet Spark <span className="gradient-text">a Conversation</span> ✨
-              </h2>
+              <motion.h2 
+                className="text-4xl md:text-6xl font-display font-bold mb-6"
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8, delay: 0.2 }}
+                viewport={{ once: true }}
+              >
+                Let Every X Tweet Spark <span className="gradient-text-shimmer">a Conversation</span> ✨
+              </motion.h2>
               
-              <p className="text-xl text-muted-foreground mb-10 max-w-2xl mx-auto leading-relaxed">
-                More than 5,000 creators trust TweetReply to help them stay authentic while scaling their engagement. Your voice, amplified.
-              </p>
+              <motion.p 
+                className="text-xl text-muted-foreground mb-10 max-w-2xl mx-auto leading-relaxed"
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8, delay: 0.4 }}
+                viewport={{ once: true }}
+              >
+                More than 5,000 creators trust TweetReplyAI to generate perfect X replies, helping them stay authentic while scaling their engagement. Your voice, amplified with AI.
+              </motion.p>
               
-              <div className="flex flex-col sm:flex-row gap-6 justify-center items-center mb-8">
+              <motion.div 
+                className="flex flex-col sm:flex-row gap-6 justify-center items-center mb-8"
+                initial={{ opacity: 0, scale: 0.9 }}
+                whileInView={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.6, delay: 0.6 }}
+                viewport={{ once: true }}
+              >
                 <Button 
                   size="lg"
                   onClick={() => window.location.href = '/login'}
-                  className="h-16 px-10 text-lg bg-gradient-to-r from-primary to-primary/80 text-white shadow-2xl hover-lift pulse-glow border-0 font-semibold"
+                  className="h-16 px-10 text-lg bg-gradient-to-r from-primary to-primary/80 text-white shadow-2xl hover-lift pulse-glow-primary magnetic-button ripple-effect border-0 font-semibold"
                   data-testid="button-final-cta"
                 >
                   <Sparkles className="w-6 h-6 mr-3" />
                   Start Free Trial
                   <ArrowRight className="w-6 h-6 ml-3" />
                 </Button>
-              </div>
+              </motion.div>
 
-              <div className="grid md:grid-cols-3 gap-6 max-w-3xl mx-auto">
-                <div className="flex items-center justify-center space-x-2 text-sm text-muted-foreground">
-                  <Shield className="w-4 h-4 text-primary" />
-                  <span>Secure & Private</span>
-                </div>
-                <div className="flex items-center justify-center space-x-2 text-sm text-muted-foreground">
-                  <CheckCircle className="w-4 h-4 text-primary" />
-                  <span>Cancel Anytime</span>
-                </div>
-                <div className="flex items-center justify-center space-x-2 text-sm text-muted-foreground">
-                  <Sparkles className="w-4 h-4 text-primary" />
-                  <span>AI-Powered</span>
-                </div>
-              </div>
+              <motion.div 
+                className="grid md:grid-cols-3 gap-6 max-w-3xl mx-auto"
+                initial={{ opacity: 0 }}
+                whileInView={{ opacity: 1 }}
+                transition={{ duration: 0.6, delay: 0.8 }}
+                viewport={{ once: true }}
+              >
+                {[
+                  { icon: Shield, text: "Secure & Private" },
+                  { icon: CheckCircle, text: "Cancel Anytime" },
+                  { icon: Sparkles, text: "AI-Powered" }
+                ].map((item, index) => {
+                  const IconComponent = item.icon;
+                  return (
+                    <motion.div
+                      key={index}
+                      className="flex items-center justify-center space-x-2 text-sm text-muted-foreground"
+                      initial={{ opacity: 0, y: 10 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.4, delay: 0.9 + index * 0.1 }}
+                      viewport={{ once: true }}
+                    >
+                      <IconComponent className="w-4 h-4 text-primary" />
+                      <span>{item.text}</span>
+                    </motion.div>
+                  );
+                })}
+              </motion.div>
             </div>
           </Card>
         </div>
-      </section>
+      </motion.section>
+
+      </main>
 
       {/* Footer */}
-      <footer className="border-t border-border/50 mt-20">
+      <footer className="border-t border-border/50 mt-20" role="contentinfo">
         <div className="container py-12">
-          <div className="text-center">
-            <div className="flex items-center justify-center space-x-2 mb-4">
-              <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center shadow-lg">
-                <Sparkles className="w-3 h-3 text-white" />
+          <div className="grid md:grid-cols-4 gap-8 mb-8">
+            <div className="md:col-span-2">
+              <div className="flex items-center space-x-2 mb-4">
+                <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center shadow-lg" aria-hidden="true">
+                  <Sparkles className="w-3 h-3 text-white" />
+                </div>
+                <span className="font-display font-bold text-lg">TweetReplyAI</span>
               </div>
-              <span className="font-display font-bold text-lg">TweetReply</span>
+              <p className="text-muted-foreground text-sm max-w-md">
+                AI-powered X reply generator that helps you create authentic, contextual replies in seconds. Generate perfect X replies automatically. Transform your social media engagement.
+              </p>
             </div>
-            <p className="text-muted-foreground">
-              © 2024 TweetReply. All rights reserved. Powered by advanced AI technology.
-            </p>
+            
+            <div>
+              <h3 className="font-semibold mb-4">Product</h3>
+              <ul className="space-y-2 text-sm">
+                <li>
+                  <a href="#features" className="text-muted-foreground hover:text-foreground smooth-transition focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2">
+                    Features
+                  </a>
+                </li>
+                <li>
+                  <a href="#pricing" className="text-muted-foreground hover:text-foreground smooth-transition focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2">
+                    Pricing
+                  </a>
+                </li>
+                <li>
+                  <a href="/login" className="text-muted-foreground hover:text-foreground smooth-transition focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2">
+                    Get Started
+                  </a>
+                </li>
+              </ul>
+            </div>
+            
+            <div>
+              <h3 className="font-semibold mb-4">Legal</h3>
+              <ul className="space-y-2 text-sm">
+                <li>
+                  <a href="/privacy" className="text-muted-foreground hover:text-foreground smooth-transition focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2">
+                    Privacy Policy
+                  </a>
+                </li>
+                <li>
+                  <a href="/terms" className="text-muted-foreground hover:text-foreground smooth-transition focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2">
+                    Terms of Service
+                  </a>
+                </li>
+              </ul>
+            </div>
+          </div>
+          
+          <div className="border-t border-border/50 pt-8">
+            <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+              <p className="text-muted-foreground text-sm">
+                © {new Date().getFullYear()} TweetReplyAI. All rights reserved. Powered by advanced AI technology.
+              </p>
+              <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                <span className="flex items-center gap-1">
+                  <Shield className="w-4 h-4" aria-hidden="true" />
+                  Secure & Private
+                </span>
+              </div>
+            </div>
           </div>
         </div>
       </footer>

@@ -39,6 +39,8 @@
   --sidebar-ring: hsl(217.2, 91.2%, 59.8%);
   --font-sans: 'Satoshi', 'Inter', system-ui, -apple-system, sans-serif;
   --font-display: 'Clash Display', 'Inter', system-ui, sans-serif;
+  --font-inter: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-calibri: 'Calibri', 'Candara', 'Segoe', 'Segoe UI', 'Optima', Arial, sans-serif;
   --font-mono: 'JetBrains Mono', 'SF Mono', monospace;
   --radius: 16px;
   
@@ -57,6 +59,9 @@
   --gradient-primary: linear-gradient(135deg, hsl(221, 83%, 53%) 0%, hsl(262, 83%, 58%) 50%, hsl(221, 83%, 53%) 100%);
   --gradient-secondary: linear-gradient(135deg, hsl(210, 40%, 98%) 0%, hsl(220, 13%, 91%) 100%);
   --gradient-accent: linear-gradient(135deg, hsl(262, 83%, 58%) 0%, hsl(291, 84%, 61%) 100%);
+  --gradient-hero: linear-gradient(135deg, hsl(221, 83%, 53%) 0%, hsl(262, 83%, 58%) 30%, hsl(291, 84%, 61%) 60%, hsl(221, 83%, 53%) 100%);
+  --gradient-glow: radial-gradient(ellipse at center, hsla(221, 83%, 53%, 0.4) 0%, transparent 70%);
+  --gradient-mesh: linear-gradient(135deg, hsla(221, 83%, 53%, 0.1) 0%, hsla(262, 83%, 58%, 0.1) 25%, hsla(291, 84%, 61%, 0.1) 50%, hsla(221, 83%, 53%, 0.1) 75%, hsla(262, 83%, 58%, 0.1) 100%);
   
   --shadow-sm: 0 1px 2px 0 hsla(0, 0%, 0%, 0.05);
   --shadow-md: 0 4px 6px -1px hsla(0, 0%, 0%, 0.1), 0 2px 4px -1px hsla(0, 0%, 0%, 0.06);
@@ -70,6 +75,23 @@
   --blur-lg: 16px;
   --blur-xl: 24px;
   --blur-2xl: 40px;
+
+  /* Modern color enhancements */
+  --primary-hover: hsl(221, 83%, 58%);
+  --primary-active: hsl(221, 83%, 48%);
+  --success: hsl(142, 76%, 36%);
+  --warning: hsl(38, 92%, 50%);
+  --info: hsl(199, 89%, 48%);
+  
+  /* Enhanced contrast ratios */
+  --text-primary: hsl(222, 15%, 15%);
+  --text-secondary: hsl(215, 16%, 47%);
+  --text-muted: hsl(215, 16%, 60%);
+  
+  /* Modern animation timing */
+  --ease-out-expo: cubic-bezier(0.19, 1, 0.22, 1);
+  --ease-in-out-back: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 @layer base {
@@ -88,35 +110,22 @@
     @apply font-display font-bold tracking-tight text-shadow-sm;
     text-wrap: balance;
     line-height: 1.1;
+    letter-spacing: -0.02em;
   }
   
   h2, h3, h4, h5, h6 {
     @apply font-display font-semibold tracking-tight;
     text-wrap: balance;
+    letter-spacing: -0.01em;
   }
   
   p {
     @apply leading-relaxed;
     text-wrap: pretty;
+    letter-spacing: 0.01em;
   }
   
-  /* Custom scrollbar */
-  ::-webkit-scrollbar {
-    width: 8px;
-  }
-  
-  ::-webkit-scrollbar-track {
-    background: var(--background);
-  }
-  
-  ::-webkit-scrollbar-thumb {
-    background: var(--muted-foreground);
-    border-radius: 4px;
-  }
-  
-  ::-webkit-scrollbar-thumb:hover {
-    background: var(--primary);
-  }
+  /* Custom scrollbar removed - using default browser scrollbar */
 }
 
 /* Premium Design Elements */
@@ -242,9 +251,31 @@
 
 .hero-gradient {
   background: 
-    radial-gradient(ellipse 80% 50% at 50% -20%, hsla(221, 83%, 53%, 0.1), transparent),
-    radial-gradient(ellipse 60% 80% at 80% 50%, hsla(262, 83%, 58%, 0.08), transparent),
+    radial-gradient(ellipse 80% 50% at 50% -20%, hsla(221, 83%, 53%, 0.15), transparent),
+    radial-gradient(ellipse 60% 80% at 80% 50%, hsla(262, 83%, 58%, 0.12), transparent),
+    radial-gradient(ellipse 40% 40% at 20% 70%, hsla(291, 84%, 61%, 0.1), transparent),
     radial-gradient(ellipse 100% 100% at 50% 50%, hsla(0, 0%, 100%, 1));
+  position: relative;
+  overflow: hidden;
+}
+
+.hero-gradient::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--gradient-mesh);
+  background-size: 200% 200%;
+  animation: mesh-animation 20s ease infinite;
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+@keyframes mesh-animation {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
 }
 
 .section-padding {
@@ -272,6 +303,14 @@
 /* Typography Enhancements */
 .font-display {
   font-family: var(--font-display);
+}
+
+.font-inter {
+  font-family: var(--font-inter);
+}
+
+.font-calibri {
+  font-family: var(--font-calibri);
 }
 
 .text-shadow-sm {
@@ -319,4 +358,541 @@
   .section-padding {
     padding: 6rem 0;
   }
+}
+
+/* Modern Design Enhancements */
+
+/* Improved focus states for accessibility */
+*:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Skip to content link */
+.skip-to-content {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: var(--primary);
+  color: white;
+  padding: 8px 16px;
+  z-index: 100;
+  border-radius: 4px;
+  text-decoration: none;
+  transition: top 0.3s;
+}
+
+.skip-to-content:focus {
+  top: 0;
+}
+
+/* Enhanced glassmorphism */
+.modern-glass {
+  backdrop-filter: blur(20px) saturate(180%);
+  background: hsla(0, 0%, 100%, 0.72);
+  border: 1px solid hsla(214, 32%, 91%, 0.6);
+  box-shadow: 
+    0 8px 32px 0 hsla(0, 0%, 0%, 0.1),
+    inset 0 1px 0 hsla(0, 0%, 100%, 0.9);
+}
+
+/* Modern gradient borders */
+.modern-gradient-border {
+  position: relative;
+  background: var(--background);
+  border-radius: var(--radius);
+}
+
+.modern-gradient-border::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 2px;
+  background: linear-gradient(135deg, var(--primary), hsl(262, 83%, 58%));
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+
+/* Smooth scroll animations */
+@supports (scroll-behavior: smooth) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+/* Reduced motion support */
+/* Fixed: Enhanced accessibility by including all new animation classes */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  
+  .floating-animation,
+  .pulse-glow,
+  .rotate-slow,
+  .pulse-glow-primary,
+  .floating-animation-enhanced,
+  .gradient-text-shimmer,
+  .mesh-animation,
+  .particle-float,
+  .shimmer,
+  .skeleton-loading,
+  .fadeIn,
+  .slideInLeft,
+  .slideInRight,
+  .slideInUp,
+  .floatEnhanced,
+  .typewriter,
+  .blink,
+  .gradient-shift,
+  .shimmer-text {
+    animation: none !important;
+  }
+  
+  /* Disable 3D transforms for reduced motion */
+  .card-3d:hover {
+    transform: translateY(-4px) scale(1.01) !important;
+  }
+  
+  /* Disable hover transforms */
+  .hover-lift:hover,
+  .hover-scale:hover,
+  .micro-lift:hover {
+    transform: none !important;
+  }
+}
+
+/* Modern micro-interactions */
+.micro-lift {
+  transition: transform 0.2s var(--ease-out-expo), box-shadow 0.2s var(--ease-out-expo);
+}
+
+.micro-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px hsla(0, 0%, 0%, 0.15);
+}
+
+.micro-lift:active {
+  transform: translateY(0);
+}
+
+/* Enhanced button states */
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* Modern skeleton loading */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    hsl(210, 40%, 98%) 0%,
+    hsl(210, 40%, 95%) 50%,
+    hsl(210, 40%, 98%) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-loading 1.5s ease-in-out infinite;
+}
+
+@keyframes skeleton-loading {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* Enhanced animations with will-change */
+/* Fixed: Optimized will-change usage - only applies during animation */
+.animate-on-scroll {
+  /* Will-change is added dynamically when animation starts */
+}
+
+.animate-on-scroll.animating {
+  will-change: transform, opacity;
+}
+
+.animate-on-scroll.animated {
+  will-change: auto;
+}
+
+/* Modern card hover effects */
+/* Fixed: Optimized will-change usage - only applies during hover for better performance */
+.card-modern {
+  transition: all 0.3s var(--ease-out-expo);
+}
+
+.card-modern:hover {
+  will-change: transform;
+  transform: translateY(-4px) scale(1.01);
+  box-shadow: 0 20px 40px hsla(0, 0%, 0%, 0.1);
+}
+
+.card-modern:not(:hover) {
+  will-change: auto;
+}
+
+/* Improved touch targets for mobile */
+@media (max-width: 768px) {
+  button,
+  a,
+  input,
+  textarea,
+  select {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* Font display optimization */
+@font-face {
+  font-family: 'Satoshi';
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Clash Display';
+  font-display: swap;
+}
+
+/* Enhanced backdrop blur support */
+@supports (backdrop-filter: blur(20px)) {
+  .glass-effect {
+    backdrop-filter: blur(20px) saturate(180%);
+  }
+}
+
+@supports not (backdrop-filter: blur(20px)) {
+  .glass-effect {
+    background: hsla(0, 0%, 100%, 0.95);
+  }
+}
+
+/* Modern scroll indicators */
+.scroll-indicator {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  background: hsla(221, 83%, 53%, 0.1);
+  z-index: 1000;
+}
+
+.scroll-indicator::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: var(--scroll-progress, 0%);
+  background: var(--gradient-primary);
+  transition: width 0.1s ease-out;
+}
+
+/* Enhanced gradient text */
+.gradient-text-modern {
+  background: linear-gradient(135deg, var(--primary) 0%, hsl(262, 83%, 58%) 50%, hsl(291, 84%, 61%) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  background-size: 200% 200%;
+  animation: gradient-shift 3s ease infinite;
+}
+
+@keyframes gradient-shift {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+/* Soothing gradient text - matches Add to Chrome button colors (blue-500 to indigo-600) */
+/* Removed shimmer and fast animations for a more calming, professional look */
+.gradient-text-shimmer {
+  background: linear-gradient(135deg, hsl(217, 91%, 53%) 0%, hsl(239, 84%, 67%) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  /* Gentle, slow gradient shift for subtle movement */
+  background-size: 200% 200%;
+  animation: gentle-gradient-shift 8s ease-in-out infinite;
+  position: relative;
+}
+
+/* Gentle, slow gradient animation - very subtle and soothing */
+@keyframes gentle-gradient-shift {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+/* Magnetic button effect */
+.magnetic-button {
+  position: relative;
+  transition: transform 0.2s var(--ease-out-expo);
+}
+
+.magnetic-button:hover {
+  transform: translateY(-2px) scale(1.02);
+}
+
+/* Ripple effect */
+.ripple-effect {
+  position: relative;
+  overflow: hidden;
+}
+
+.ripple-effect::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: hsla(221, 83%, 53%, 0.3);
+  transform: translate(-50%, -50%);
+  transition: width 0.6s, height 0.6s;
+}
+
+.ripple-effect:active::after {
+  width: 300px;
+  height: 300px;
+}
+
+/* 3D card transform */
+.card-3d {
+  transform-style: preserve-3d;
+  transition: transform 0.3s var(--ease-out-expo);
+}
+
+.card-3d:hover {
+  transform: perspective(1000px) rotateY(5deg) rotateX(-5deg) translateY(-8px);
+}
+
+/* Animated particles background */
+.particles-bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.particle {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  background: var(--primary);
+  border-radius: 50%;
+  opacity: 0.3;
+  animation: particle-float 20s infinite ease-in-out;
+}
+
+@keyframes particle-float {
+  0%, 100% {
+    transform: translateY(0) translateX(0);
+    opacity: 0.3;
+  }
+  50% {
+    transform: translateY(-100px) translateX(50px);
+    opacity: 0.6;
+  }
+}
+
+/* Scroll progress indicator removed */
+
+/* Enhanced pulse glow */
+.pulse-glow-primary {
+  animation: pulseGlowPrimary 3s ease-in-out infinite;
+}
+
+@keyframes pulseGlowPrimary {
+  0%, 100% { 
+    box-shadow: 0 0 20px hsla(221, 83%, 53%, 0.4), 0 0 40px hsla(221, 83%, 53%, 0.2);
+  }
+  50% { 
+    box-shadow: 0 0 40px hsla(221, 83%, 53%, 0.8), 0 0 60px hsla(221, 83%, 53%, 0.4), 0 0 80px hsla(221, 83%, 53%, 0.2);
+  }
+}
+
+/* Stagger animation utility */
+.stagger-item {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.6s var(--ease-out-expo), transform 0.6s var(--ease-out-expo);
+}
+
+.stagger-item.animate {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Number rolling animation */
+.number-roll {
+  display: inline-block;
+  transition: all 0.3s ease;
+}
+
+/* Enhanced hover glow */
+.hover-glow-primary {
+  transition: box-shadow 0.3s var(--ease-out-expo);
+}
+
+.hover-glow-primary:hover {
+  box-shadow: 0 0 30px hsla(221, 83%, 53%, 0.5), 0 0 60px hsla(221, 83%, 53%, 0.3);
+}
+
+/* Parallax effect */
+/* Fixed: Optimized will-change - only apply when elements are actively animating */
+.parallax-slow,
+.parallax-medium,
+.parallax-fast {
+  transform: translateZ(0);
+}
+
+/* Only apply will-change when element is actively being animated */
+.parallax-slow.parallax-active,
+.parallax-medium.parallax-active,
+.parallax-fast.parallax-active {
+  will-change: transform;
+}
+
+/* Smooth fade-in */
+.fade-in {
+  opacity: 0;
+  animation: fadeIn 0.8s var(--ease-out-expo) forwards;
+}
+
+@keyframes fadeIn {
+  to { opacity: 1; }
+}
+
+/* Slide-in animations */
+.slide-in-left {
+  opacity: 0;
+  transform: translateX(-30px);
+  animation: slideInLeft 0.8s var(--ease-out-expo) forwards;
+}
+
+.slide-in-right {
+  opacity: 0;
+  transform: translateX(30px);
+  animation: slideInRight 0.8s var(--ease-out-expo) forwards;
+}
+
+.slide-in-up {
+  opacity: 0;
+  transform: translateY(30px);
+  animation: slideInUp 0.8s var(--ease-out-expo) forwards;
+}
+
+@keyframes slideInLeft {
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideInRight {
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideInUp {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Enhanced floating animation */
+.floating-animation-enhanced {
+  animation: floatEnhanced 8s ease-in-out infinite;
+}
+
+@keyframes floatEnhanced {
+  0%, 100% { 
+    transform: translateY(0px) rotate(0deg);
+  }
+  25% { 
+    transform: translateY(-15px) rotate(2deg);
+  }
+  50% { 
+    transform: translateY(-8px) rotate(-1deg);
+  }
+  75% { 
+    transform: translateY(-20px) rotate(1deg);
+  }
+}
+
+/* Typewriter effect */
+.typewriter {
+  overflow: hidden;
+  border-right: 2px solid var(--primary);
+  white-space: nowrap;
+  animation: typewriter 3s steps(40) infinite, blink 0.75s step-end infinite;
+}
+
+@keyframes typewriter {
+  from { width: 0; }
+  to { width: 100%; }
+}
+
+@keyframes blink {
+  from, to { border-color: transparent; }
+  50% { border-color: var(--primary); }
+}
+
+/* Enhanced glassmorphism with depth */
+.glass-depth {
+  backdrop-filter: blur(24px) saturate(180%);
+  background: hsla(0, 0%, 100%, 0.75);
+  border: 1px solid hsla(214, 32%, 91%, 0.6);
+  box-shadow: 
+    0 8px 32px 0 hsla(0, 0%, 0%, 0.12),
+    inset 0 1px 0 hsla(0, 0%, 100%, 0.9),
+    0 0 0 1px hsla(0, 0%, 100%, 0.5);
+}
+
+/* Mesh gradient overlay */
+.mesh-overlay {
+  position: relative;
+}
+
+.mesh-overlay::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--gradient-mesh);
+  background-size: 200% 200%;
+  animation: mesh-animation 15s ease infinite;
+  opacity: 0.4;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.mesh-overlay > * {
+  position: relative;
+  z-index: 1;
 }

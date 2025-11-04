@@ -1,0 +1,24 @@
+# robots.txt for TweetReply (tweetreplyai.com)
+# Allow all search engines to crawl the site
+
+User-agent: *
+Allow: /
+
+# Disallow admin and internal paths
+Disallow: /api/
+Disallow: /admin/
+Disallow: /_next/
+Disallow: /dist/
+
+# Allow important pages
+Allow: /
+Allow: /pricing
+Allow: /privacy
+Allow: /login
+
+# Sitemap location
+Sitemap: https://tweetreplyai.com/sitemap.xml
+
+# Crawl-delay (optional, helps with server load)
+# Crawl-delay: 1
+
