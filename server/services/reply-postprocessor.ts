@@ -4,13 +4,19 @@
  */
 
 // Configuration for removable start phrases - easily extensible
-const START_PHRASES = ["Couldn't agree more", "Preach"];
+const START_PHRASES = ["Couldn't agree more", "Preach", "Spot on"];
 
 // Configuration for filtered sentence starts - easily extensible
-const FILTERED_SENTENCE_STARTS = ["Love", "That's"];
+const FILTERED_SENTENCE_STARTS = ["Love", "That's", "Appreciate"];
 
 // Configuration for words that disqualify sentences - easily extensible
-const DISQUALIFYING_WORDS = ["simplification"];
+const DISQUALIFYING_WORDS = ["simplification", "Can't wait to see"];
+
+// Configuration for word replacements with random alternatives
+const WORD_REPLACEMENTS: Record<string, string[]> = {
+  "Congrats": ["Congrats", "Congratulation", "Congo", "Nice", "Great", "Awesome"],
+  "key": ["key", "important", "essential", "crucial", "vital", "critical"]
+};
 
 // Configuration for banned patterns (from previous postprocessing) - easily extensible
 const BANNED_PATTERNS = [
@@ -56,8 +62,7 @@ export class ReplyPostProcessor {
     processed = this.limitWordCount(processed, MAX_WORDS); // Previous rule: Limit to 50 words
     
     // Step 6: Apply new format cleanup rules (always executed)
-    processed = this.replaceDashes(processed); // Rule 2
-    processed = this.removeDoubleQuotes(processed); // Rule 4
+    processed = this.applyFormatCleanup(processed);
 
     // Step 7: Apply removal operations (only if original had >= 5 words)
     if (hasMinWords) {
@@ -69,23 +74,23 @@ export class ReplyPostProcessor {
       processed = this.removeFilteredStartWords(processed);
     }
 
-    // Step 8: Normalize whitespace
+    // Step 8: Remove ending punctuation and normalize whitespace
+    processed = this.removeEndingPunctuation(processed);
     processed = this.normalizeWhitespace(processed);
 
     // Step 9: Final validation - check if processed has minimum words
     const processedWordCount = this.countWords(processed);
     if (processedWordCount < MIN_WORDS_FOR_REMOVAL) {
       // Return original with all cleanup applied (previous rules + new format cleanup)
+      const originalWithBasicCleanup = this.limitWordCount(
+        this.removeBannedPatterns(
+          this.removeWrapperQuotes(originalReply)
+        ),
+        MAX_WORDS
+      );
       const originalWithCleanup = this.normalizeWhitespace(
-        this.removeDoubleQuotes(
-          this.replaceDashes(
-            this.limitWordCount(
-              this.removeBannedPatterns(
-                this.removeWrapperQuotes(originalReply)
-              ),
-              MAX_WORDS
-            )
-          )
+        this.removeEndingPunctuation(
+          this.applyFormatCleanup(originalWithBasicCleanup)
         )
       );
       return originalWithCleanup.trim() || originalReply;
@@ -186,24 +191,34 @@ export class ReplyPostProcessor {
    * Rule 2: Replace dashes/em dashes with spaces
    * Finds - or — between words and replaces with space
    * Replaces ALL dashes between words, including in hyphenated words
+   * Preserves dashes between two digits (e.g., "9-5" stays "9-5")
    */
   private replaceDashes(text: string): string {
     if (!text) {
       return text;
     }
 
-    // Replace em dash (—) and en dash (–) with space (these are always punctuation)
+    // First: Replace em dash (—) and en dash (–) between digits with regular dash
+    // Pattern: digit[—–]digit → digit-digit (e.g., "9—5" → "9-5")
     let cleaned = text
+      .replace(/(\d)[—–](\d)/g, "$1-$2"); // Em/en dash between digits
+
+    // Replace remaining em dash (—) and en dash (–) with space (these are always punctuation)
+    cleaned = cleaned
       .replace(/—/g, " ") // Em dash
       .replace(/–/g, " "); // En dash
 
     // Replace regular dash (-) that appears between word characters
-    // Pattern: word-char dash word-char (e.g., "short-term" → "short term")
-    // This matches dashes between letters/numbers, which covers hyphenated words
-    
-    // Replace dash between word characters: "short-term" → "short term"
-    // Use word boundary to ensure we're replacing dashes between words
-    cleaned = cleaned.replace(/(\w)-(\w)/g, "$1 $2");
+    // BUT preserve dashes between two digits (e.g., "9-5" stays "9-5")
+    // Pattern: word-char dash word-char, but exclude digit-digit pattern
+    cleaned = cleaned.replace(/(\w)-(\w)/g, (match, before, after) => {
+      // If both are digits, preserve the dash
+      if (/\d/.test(before) && /\d/.test(after)) {
+        return match; // Keep "9-5" as is
+      }
+      // Otherwise replace with space
+      return `${before} ${after}`;
+    });
     
     // Replace dash between spaces: "word - word" → "word word"
     cleaned = cleaned.replace(/\s+-\s+/g, " ");
@@ -219,7 +234,7 @@ export class ReplyPostProcessor {
 
   /**
    * Remove filtered start words at the beginning of entire reply
-   * Checks if the entire reply (not just sentences) starts with filtered words
+   * Removes the entire first sentence if it starts with filtered words (e.g., "That's", "Love")
    */
   private removeFilteredStartWords(text: string): string {
     if (!text || !text.trim()) {
@@ -228,14 +243,30 @@ export class ReplyPostProcessor {
     
     let cleaned = text.trim();
     
+    // Check if reply starts with any filtered word (case-insensitive)
     for (const startWord of FILTERED_SENTENCE_STARTS) {
-      const escaped = this.escapeRegex(startWord);
-      // Match word at start of entire reply, followed by space, punctuation, or end
-      const startRegex = new RegExp(`^${escaped}(\\s|[.,!?:;]|$)`, "i");
-      if (startRegex.test(cleaned)) {
-        // Remove the word and following punctuation/space
-        cleaned = cleaned.replace(startRegex, "").trim();
-        break; // Only remove first matching word
+      const lowerCleaned = cleaned.toLowerCase();
+      const lowerStartWord = startWord.toLowerCase();
+      
+      if (lowerCleaned.startsWith(lowerStartWord)) {
+        // Check what follows the word - must be space, punctuation, or nothing
+        const afterWord = cleaned.substring(startWord.length);
+        if (afterWord.length === 0 || /^[\s.,!?:;]/.test(afterWord)) {
+          // Find the first sentence boundary (period, exclamation, question mark)
+          // followed by space or end of string
+          const sentenceEndRegex = /[.!?](\s+|$)/;
+          const match = cleaned.match(sentenceEndRegex);
+          
+          if (match && match.index !== undefined) {
+            // Remove entire first sentence including punctuation
+            // Match.index is the position of the punctuation, + match[0].length includes the space
+            cleaned = cleaned.substring(match.index + match[0].length).trim();
+          } else {
+            // No sentence-ending punctuation found, remove everything
+            cleaned = '';
+          }
+          break; // Only remove first matching sentence
+        }
       }
     }
     
@@ -309,13 +340,25 @@ export class ReplyPostProcessor {
         }
       }
 
-      // Check if sentence contains disqualifying words
+      // Check if sentence contains disqualifying words or phrases
       if (!shouldRemove) {
         for (const word of DISQUALIFYING_WORDS) {
-          const wordRegex = new RegExp(`\\b${this.escapeRegex(word)}\\b`, "i");
-          if (wordRegex.test(sentenceText)) {
-            shouldRemove = true;
-            break;
+          // For multi-word phrases, use simple case-insensitive contains check
+          // For single words, use word boundary
+          if (word.includes(" ")) {
+            // Multi-word phrase (e.g., "Can't wait to see")
+            const phraseRegex = new RegExp(this.escapeRegex(word), "i");
+            if (phraseRegex.test(sentenceText)) {
+              shouldRemove = true;
+              break;
+            }
+          } else {
+            // Single word - use word boundary
+            const wordRegex = new RegExp(`\\b${this.escapeRegex(word)}\\b`, "i");
+            if (wordRegex.test(sentenceText)) {
+              shouldRemove = true;
+              break;
+            }
           }
         }
       }
@@ -344,6 +387,24 @@ export class ReplyPostProcessor {
   }
 
   /**
+   * Helper method: Apply all format cleanup rules
+   * Centralizes format cleanup logic for reuse in fallback scenarios
+   */
+  private applyFormatCleanup(text: string): string {
+    if (!text) {
+      return text;
+    }
+    let cleaned = text;
+    cleaned = this.replaceDashes(cleaned); // Rule 2: Replace dashes, preserve digits
+    cleaned = this.replaceSemicolons(cleaned); // Replace semicolons with commas
+    cleaned = this.removeSingleQuotes(cleaned); // Remove quotes around words
+    cleaned = this.replaceWordsRandomly(cleaned); // Replace Congrats/key randomly
+    cleaned = this.replaceAmpersands(cleaned); // Replace & with 'and' if 2+ occurrences
+    cleaned = this.removeDoubleQuotes(cleaned); // Rule 4: Remove double quotes
+    return cleaned;
+  }
+
+  /**
    * Rule 4: Remove double quotes
    * Removes all " characters from the reply
    */
@@ -352,6 +413,96 @@ export class ReplyPostProcessor {
       return text;
     }
     return text.replace(/"/g, "");
+  }
+
+  /**
+   * Replace semicolons with commas
+   */
+  private replaceSemicolons(text: string): string {
+    if (!text) {
+      return text;
+    }
+    return text.replace(/;/g, ",");
+  }
+
+  /**
+   * Remove single quotes around words
+   * Removes single quotes that enclose words (e.g., 'curious' → curious)
+   * Safely avoids matching apostrophes in contractions like "don't" or "it's"
+   * 
+   * Pattern ensures quotes are surrounded by non-word characters (spaces, punctuation, start/end)
+   * This prevents matching apostrophes inside contractions where letters are adjacent
+   */
+  private removeSingleQuotes(text: string): string {
+    if (!text) {
+      return text;
+    }
+    // Match 'word' where:
+    // - Before first quote: start of string, space, or punctuation (not a letter)
+    // - After second quote: end of string, space, or punctuation (not a letter)
+    // This ensures we're matching complete quoted words, not apostrophes in contractions
+    // Pattern: (start|space|punctuation) quote word quote (end|space|punctuation)
+    return text.replace(/(?<=^|\s|[.,!?:;])'(\w+)'(?=$|\s|[.,!?:;])/g, "$1");
+  }
+
+  /**
+   * Replace words with random alternatives
+   * Randomly replaces occurrences of words in WORD_REPLACEMENTS with alternatives
+   */
+  private replaceWordsRandomly(text: string): string {
+    if (!text) {
+      return text;
+    }
+
+    let cleaned = text;
+
+    for (const [word, alternatives] of Object.entries(WORD_REPLACEMENTS)) {
+      // Create regex with word boundary to avoid partial matches (case-insensitive)
+      const wordRegex = new RegExp(`\\b${this.escapeRegex(word)}\\b`, "gi");
+      
+      // Replace each occurrence with a random alternative
+      cleaned = cleaned.replace(wordRegex, () => {
+        const randomIndex = Math.floor(Math.random() * alternatives.length);
+        return alternatives[randomIndex];
+      });
+    }
+
+    return cleaned;
+  }
+
+  /**
+   * Replace ampersands with 'and' if there are 2+ occurrences
+   * Excludes HTML entities like &amp;, &lt;, &gt; from count and replacement
+   */
+  private replaceAmpersands(text: string): string {
+    if (!text) {
+      return text;
+    }
+
+    // Count standalone & (not part of HTML entities like &amp;)
+    // Negative lookahead: & not followed by alphanumeric characters and semicolon
+    const ampersandRegex = /&(?![a-zA-Z]+;)/g;
+    const ampersandMatches = text.match(ampersandRegex);
+    const ampersandCount = ampersandMatches ? ampersandMatches.length : 0;
+    
+    // If 2 or more, replace only standalone & with 'and' (preserve HTML entities)
+    if (ampersandCount >= 2) {
+      return text.replace(ampersandRegex, "and");
+    }
+
+    return text;
+  }
+
+  /**
+   * Remove ending punctuation
+   * Removes trailing punctuation marks (., !, ?, :, ;, ,)
+   */
+  private removeEndingPunctuation(text: string): string {
+    if (!text) {
+      return text;
+    }
+    // Remove trailing punctuation marks
+    return text.replace(/[.,!?:;]+$/, "");
   }
 
   /**
