@@ -4,11 +4,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { PricingCards } from "@/components/pricing-cards";
 import { useAuth } from "@/hooks/useAuth";
-import { Sparkles, Zap, ArrowRight, CheckCircle, Rocket, Brain, MessageCircle, Download, Crown, Star, Shield, ChevronRight, TrendingUp, Chrome, Heart, Users, Menu, X, Copy, Check, Building2, Award } from "lucide-react";
+import { Sparkles, Zap, ArrowRight, CheckCircle, Rocket, Brain, MessageCircle, Download, Crown, Star, Shield, ChevronRight, TrendingUp, Chrome, Heart, Users, Menu, X, Copy, Check, Building2, Award, Clock, LayoutGrid, DollarSign, HelpCircle, Plus, Minus } from "lucide-react";
 import useEmblaCarousel from 'embla-carousel-react';
 import Autoplay from 'embla-carousel-autoplay';
 import { useCallback, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { generateStats, initializeStats, type Stats } from '@/utils/stats-generator';
 
 // Constants for better maintainability
 const SCROLL_THRESHOLD = 0.5; // Threshold for showing sticky CTA (50% of hero height)
@@ -17,53 +18,111 @@ const DEMO_REPLY_DELAY = 800; // Delay before showing demo reply (ms)
 
 export default function Landing() {
   const { isAuthenticated } = useAuth();
-  const [activeUsers, setActiveUsers] = useState(0);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showStickyCTA, setShowStickyCTA] = useState(false);
   const [currentExampleIndex, setCurrentExampleIndex] = useState(0);
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [activeNavSection, setActiveNavSection] = useState<string | null>(null);
+  const [openFAQ, setOpenFAQ] = useState<string | null>(null);
   
-  useEffect(() => {
-    const target = 5000;
-    const duration = 2000;
-    const steps = 60;
-    const increment = target / steps;
-    let current = 0;
-    
-    const timer = setInterval(() => {
-      current += increment;
-      if (current >= target) {
-        setActiveUsers(target);
-        clearInterval(timer);
-      } else {
-        setActiveUsers(Math.floor(current));
-      }
-    }, duration / steps);
-    
-    return () => clearInterval(timer);
-  }, []);
+  // TODO: Interactive Live Demo - Commented out for future use
+  // const [demoTweet, setDemoTweet] = useState("");
+  // const [demoReply, setDemoReply] = useState("");
+  // const [copiedReply, setCopiedReply] = useState(false);
 
   const exampleReplies = [
     {
       username: "@elonmusk",
       tweet: "Thinking about building XPhone.",
-      reply: "If it comes with a Dogecoin wallet, I'm in 😂"
+      reply: "If it comes with a Dogecoin wallet, I'm in 😂",
+      icon: Rocket,
+      iconGradient: "from-orange-500 to-amber-500",
+      usernameColor: "text-orange-600",
+      usernameEmoji: "🚀",
+      cardGradient: "from-orange-500/5 to-amber-500/5",
+      borderColor: "border-orange-500/20"
     },
     {
       username: "@ProductHunt",
       tweet: "What's the best productivity tool you've discovered this year?",
-      reply: "TweetReplyAI ironically! Saves me hours crafting authentic replies daily 🚀"
+      reply: "TweetReplyAI ironically! Saves me hours crafting authentic replies daily 🚀",
+      icon: TrendingUp,
+      iconGradient: "from-green-500 to-emerald-500",
+      usernameColor: "text-green-600",
+      usernameEmoji: "🔥",
+      cardGradient: "from-green-500/5 to-emerald-500/5",
+      borderColor: "border-green-500/20"
     },
     {
       username: "@TechCrunch",
       tweet: "AI is changing how we work. Thoughts?",
-      reply: "Game changer for engagement! AI handles the replies, we focus on strategy ⚡"
+      reply: "Game changer for engagement! AI handles the replies, we focus on strategy ⚡",
+      icon: Zap,
+      iconGradient: "from-blue-500 to-indigo-500",
+      usernameColor: "text-blue-600",
+      usernameEmoji: "⚡",
+      cardGradient: "from-blue-500/5 to-indigo-500/5",
+      borderColor: "border-blue-500/20"
     },
     {
       username: "@ycombinator",
       tweet: "Just launched our startup! Any advice for first-time founders?",
-      reply: "Congrats! Build in public, engage authentically, and ship fast. You've got this! 🎉"
+      reply: "Congrats! Build in public, engage authentically, and ship fast. You've got this! 🎉",
+      icon: Crown,
+      iconGradient: "from-purple-500 to-pink-500",
+      usernameColor: "text-purple-600",
+      usernameEmoji: "👑",
+      cardGradient: "from-purple-500/5 to-pink-500/5",
+      borderColor: "border-purple-500/20"
     }
   ];
+
+  // TODO: Interactive Live Demo - Commented out for future use
+  // const exampleTweets = [
+  //   "Just launched our new AI-powered app! What do you think?",
+  //   "Thinking about building XPhone. Thoughts?",
+  //   "What's the best productivity tool you've discovered this year?",
+  //   "AI is changing how we work. Your thoughts?"
+  // ];
+
+  // Initialize and update stats
+  // Fixed: Optimized update checking to reduce unnecessary localStorage reads
+  useEffect(() => {
+    // Initialize stats on mount
+    initializeStats();
+    // Set initial stats immediately
+    const initialStats = generateStats();
+    setStats(initialStats);
+    
+    // Fixed: Calculate milliseconds until next hour for more efficient checking
+    const now = Date.now();
+    const nextHour = Math.ceil(now / (60 * 60 * 1000)) * (60 * 60 * 1000);
+    const msUntilNextHour = nextHour - now;
+    
+    let statsInterval: NodeJS.Timeout | null = null;
+    
+    // Set timeout for next hour, then set up hourly interval
+    const timeout = setTimeout(() => {
+      // Update immediately when hour changes
+      setStats(generateStats());
+      
+      // Then set up hourly interval
+      statsInterval = setInterval(() => {
+        setStats(generateStats());
+      }, 60 * 60 * 1000); // Check every hour
+    }, msUntilNextHour);
+    
+    // Also check every 5 minutes as a fallback (in case tab was inactive)
+    const fallbackInterval = setInterval(() => {
+      setStats(generateStats());
+    }, 5 * 60 * 1000); // Check every 5 minutes
+    
+    return () => {
+      clearTimeout(timeout);
+      if (statsInterval) clearInterval(statsInterval);
+      clearInterval(fallbackInterval);
+    };
+  }, []);
 
   // Auto-cycle through example replies
   useEffect(() => {
@@ -77,18 +136,33 @@ export default function Landing() {
   const testimonials = [
     {
       quote: "TweetReplyAI completely transformed how I engage on X. I save hours every week and my engagement has skyrocketed. The AI responses feel completely natural!",
-      author: "Sarah Chen",
-      role: "Marketing Director"
+      author: "Alex Thompson",
+      role: "Marketing Director",
+      rating: 5,
+      verified: true,
+      avatar: "AT",
+      gradient: "from-blue-500 to-cyan-500",
+      colorTheme: "blue"
     },
     {
       quote: "As a solo founder, TweetReplyAI helps me maintain authentic connections without spending all day on social media. It's like having a social media manager in my pocket!",
-      author: "Michael Rodriguez",
-      role: "Startup Founder"
+      author: "Arjun Patel",
+      role: "Startup Founder",
+      rating: 5,
+      verified: true,
+      avatar: "AP",
+      gradient: "from-purple-500 to-pink-500",
+      colorTheme: "purple"
     },
     {
-      quote: "The quality of replies is incredible. Our community engagement has tripled, and people can't tell it's AI-assisted. Game changer for content creators!",
-      author: "Emily Watson",
-      role: "Content Creator"
+      quote: "The quality of replies is incredible. Our community engagement has tripled, and people can't tell it's AI assisted. Game changer for content creators!",
+      author: "Jessica Martinez",
+      role: "Content Creator",
+      rating: 5,
+      verified: true,
+      avatar: "JM",
+      gradient: "from-orange-500 to-amber-500",
+      colorTheme: "orange"
     }
   ];
 
@@ -109,46 +183,106 @@ export default function Landing() {
     };
   }, [testimonialEmblaApi, onTestimonialSelect]);
 
+  // FAQ color theme configurations
+  const faqColorThemes = {
+    blue: {
+      iconGradient: "from-blue-500 to-cyan-500",
+      cardGradient: "from-blue-500/5 to-cyan-500/5",
+      borderColor: "border-blue-500/20",
+      hoverBorder: "hover:border-blue-500/40",
+      textColor: "text-blue-600",
+      iconBg: "bg-gradient-to-br from-blue-500 to-cyan-500"
+    },
+    green: {
+      iconGradient: "from-green-500 to-emerald-500",
+      cardGradient: "from-green-500/5 to-emerald-500/5",
+      borderColor: "border-green-500/20",
+      hoverBorder: "hover:border-green-500/40",
+      textColor: "text-green-600",
+      iconBg: "bg-gradient-to-br from-green-500 to-emerald-500"
+    },
+    purple: {
+      iconGradient: "from-purple-500 to-pink-500",
+      cardGradient: "from-purple-500/5 to-pink-500/5",
+      borderColor: "border-purple-500/20",
+      hoverBorder: "hover:border-purple-500/40",
+      textColor: "text-purple-600",
+      iconBg: "bg-gradient-to-br from-purple-500 to-pink-500"
+    },
+    orange: {
+      iconGradient: "from-orange-500 to-amber-500",
+      cardGradient: "from-orange-500/5 to-amber-500/5",
+      borderColor: "border-orange-500/20",
+      hoverBorder: "hover:border-orange-500/40",
+      textColor: "text-orange-600",
+      iconBg: "bg-gradient-to-br from-orange-500 to-amber-500"
+    }
+  };
+
   const faqs = [
     {
       question: "How do the reply quotas work?",
       answer: "Your quota resets automatically based on your plan. Trial users get 10 replies per day, weekly subscribers get 700 replies every 7 days, and monthly subscribers get 3,000 replies every 30 days.",
-      icon: "Zap"
+      icon: "Zap",
+      category: "quota",
+      emoji: "💰",
+      colorTheme: "blue" as keyof typeof faqColorThemes
     },
     {
       question: "Can I use both the extension and web app?",
       answer: "Yes! Your subscription covers both the Chrome extension and the mobile-friendly web interface. Your quota is shared across both platforms.",
-      icon: "MessageCircle"
+      icon: "MessageCircle",
+      category: "usage",
+      emoji: "🚀",
+      colorTheme: "green" as keyof typeof faqColorThemes
     },
     {
-      question: "How authentic are the AI-generated replies?",
-      answer: "Our AI is trained to generate human-like, contextual replies under 25 words. Most users post our suggestions without any edits. We avoid generic AI clichés and hashtags.",
-      icon: "Brain"
+      question: "How authentic are the AI generated replies?",
+      answer: "Our AI is trained to generate human-like, contextual replies. Most users post our suggestions without any edits. We avoid generic AI clichés and hashtags.",
+      icon: "Brain",
+      category: "ai",
+      emoji: "🧠",
+      colorTheme: "purple" as keyof typeof faqColorThemes
     },
     {
       question: "What AI models do you use?",
       answer: "We use the latest GPT and Gemini models, automatically selecting the best model based on tweet complexity for optimal results.",
-      icon: "Sparkles"
+      icon: "Sparkles",
+      category: "ai",
+      emoji: "🤖",
+      colorTheme: "purple" as keyof typeof faqColorThemes
     },
     {
       question: "Can I cancel anytime?",
       answer: "Absolutely! You can cancel your subscription at any time. Your plan will remain active until the end of your current billing cycle.",
-      icon: "Shield"
+      icon: "Shield",
+      category: "security",
+      emoji: "🔒",
+      colorTheme: "orange" as keyof typeof faqColorThemes
     },
     {
       question: "Is my data secure?",
       answer: "Yes, we take privacy seriously. Your tweets and replies are processed securely and we never store your personal data. All data transmission is encrypted.",
-      icon: "Shield"
+      icon: "Shield",
+      category: "security",
+      emoji: "🛡️",
+      colorTheme: "orange" as keyof typeof faqColorThemes
     },
     {
       question: "How fast are replies generated?",
       answer: "Our AI typically generates replies in under 2 seconds. The actual time may vary slightly based on tweet complexity and server load.",
-      icon: "Zap"
+      icon: "Zap",
+      category: "ai",
+      emoji: "⚡",
+      colorTheme: "purple" as keyof typeof faqColorThemes
     },
     {
       question: "Can I customize the tone of replies?",
       answer: "Currently, our AI automatically detects the tone and context of the original tweet. We're working on tone customization features for future releases.",
-      icon: "MessageCircle"
+      icon: "MessageCircle",
+      category: "usage",
+      emoji: "⚙️",
+      colorTheme: "green" as keyof typeof faqColorThemes
     }
   ];
 
@@ -211,6 +345,95 @@ export default function Landing() {
     };
   }, []);
 
+  // Track active navigation section based on scroll position
+  useEffect(() => {
+    const handleNavScroll = () => {
+      const sections = ['features', 'pricing', 'faq'];
+      const scrollPosition = window.scrollY + 150; // Offset for better UX
+
+      for (const section of sections) {
+        const element = document.getElementById(section);
+        if (element) {
+          const { offsetTop, offsetHeight } = element;
+          if (scrollPosition >= offsetTop && scrollPosition < offsetTop + offsetHeight) {
+            setActiveNavSection(section);
+            return;
+          }
+        }
+      }
+      setActiveNavSection(null);
+    };
+
+    window.addEventListener('scroll', handleNavScroll, { passive: true });
+    handleNavScroll(); // Initial calculation
+    
+    return () => {
+      window.removeEventListener('scroll', handleNavScroll);
+    };
+  }, []);
+
+  // TODO: Interactive Live Demo - Commented out for future use
+  // const generateDemoReply = (tweet: string) => {
+  //   if (!tweet.trim()) {
+  //     setDemoReply("");
+  //     return;
+  //   }
+  //   
+  //   const demoReplies = [
+  //     "That's a great perspective! I totally agree 💯",
+  //     "Interesting take! Have you considered the impact on... 🤔",
+  //     "This is exactly what I've been thinking about lately!",
+  //     "Love this! More people need to hear about it 🚀",
+  //     "Thanks for sharing! This really resonated with me ✨"
+  //   ];
+  //   
+  //   setTimeout(() => {
+  //     const randomReply = demoReplies[Math.floor(Math.random() * demoReplies.length)];
+  //     setDemoReply(randomReply);
+  //   }, DEMO_REPLY_DELAY);
+  // };
+
+  // const handleExampleTweetClick = (tweet: string) => {
+  //   setDemoTweet(tweet);
+  //   generateDemoReply(tweet);
+  // };
+
+  // const handleCopyReply = async () => {
+  //   if (!demoReply) return;
+  //   
+  //   try {
+  //     // Fixed: Added fallback for older browsers that don't support Clipboard API
+  //     if (navigator.clipboard && navigator.clipboard.writeText) {
+  //       // Modern Clipboard API (requires HTTPS or localhost)
+  //       await navigator.clipboard.writeText(demoReply);
+  //     } else {
+  //       // Fallback for older browsers or non-HTTPS contexts
+  //       const textArea = document.createElement('textarea');
+  //       textArea.value = demoReply;
+  //       textArea.style.position = 'fixed';
+  //       textArea.style.left = '-999999px';
+  //       textArea.style.top = '-999999px';
+  //       document.body.appendChild(textArea);
+  //       textArea.focus();
+  //       textArea.select();
+  //       
+  //       try {
+  //         document.execCommand('copy');
+  //       } catch (err) {
+  //         console.error('Fallback copy failed:', err);
+  //         throw err;
+  //       } finally {
+  //         document.body.removeChild(textArea);
+  //       }
+  //     }
+  //     
+  //     setCopiedReply(true);
+  //     setTimeout(() => setCopiedReply(false), COPY_SUCCESS_DURATION);
+  //   } catch (err) {
+  //     console.error('Failed to copy:', err);
+  //     // Could show user-friendly error message here
+  //   }
+  // };
 
   return (
     <div className="min-h-screen bg-background">
@@ -221,23 +444,24 @@ export default function Landing() {
 
       {/* Navigation */}
       <nav 
-        className="sticky top-0 z-50 glass-effect border-b border-border/50 backdrop-blur-xl"
+        className="sticky top-0 z-50 backdrop-blur-xl bg-gradient-to-r from-blue-50/60 via-purple-50/60 to-blue-50/60 border-b border-blue-200/30 shadow-md"
         aria-label="Main navigation"
       >
-        <div className="container flex items-center justify-between h-16">
+        <div className="container flex items-center justify-between h-16 md:h-18">
+          {/* Left: Logo and Add to Chrome */}
           <div className="flex items-center space-x-4">
             <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center shadow-lg" aria-hidden="true">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center shadow-lg shadow-primary/20" aria-hidden="true">
                 <Sparkles className="w-4 h-4 text-white" />
               </div>
-              <span className="font-display font-bold text-xl">TweetReplyAI</span>
+              <span className="font-display font-bold text-xl bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">TweetReplyAI</span>
             </div>
             
             <Button 
               onClick={() => {
                 window.open('https://chromewebstore.google.com/detail/tweetreply-ai-powered-twi/nhpilcnghmcdhcbhndmemiggfekmdgem', '_blank');
               }}
-              className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl hover-lift border-0 font-medium shadow-md hidden sm:flex"
+              className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl hover-lift border-0 font-medium shadow-md hover:shadow-xl hover:shadow-blue-500/20 hover:scale-105 transition-all duration-300 hidden sm:flex"
               data-testid="button-add-to-chrome"
               size="sm"
               aria-label="Add TweetReplyAI to Chrome"
@@ -247,24 +471,114 @@ export default function Landing() {
             </Button>
           </div>
           
-          <div className="flex items-center space-x-6">
+          {/* Center: Navigation Links */}
+          <div className="absolute left-1/2 transform -translate-x-1/2 flex items-center space-x-2 md:space-x-3">
             <a 
               href="#features" 
-              className="text-muted-foreground hover:text-foreground smooth-transition text-sm font-medium hidden md:block focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+              className={`group relative flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-all duration-300 hidden md:flex focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 ${
+                activeNavSection === 'features'
+                  ? 'bg-gradient-to-r from-green-500/10 to-emerald-500/10 text-green-700 shadow-md border border-green-500/20'
+                  : 'text-muted-foreground hover:bg-muted/30 hover:scale-105'
+              }`}
               aria-label="Navigate to Features section"
+              onClick={(e) => {
+                e.preventDefault();
+                const element = document.getElementById('features');
+                element?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }}
             >
-              Features
+              <LayoutGrid className={`w-4 h-4 transition-all duration-300 ${
+                activeNavSection === 'features' 
+                  ? 'text-green-600' 
+                  : 'text-muted-foreground group-hover:text-transparent group-hover:bg-gradient-to-r group-hover:from-blue-400 group-hover:to-green-400 group-hover:bg-clip-text'
+              }`} />
+              <span className={`transition-all duration-300 ${
+                activeNavSection === 'features'
+                  ? ''
+                  : 'group-hover:text-transparent group-hover:bg-gradient-to-r group-hover:from-blue-400 group-hover:to-green-400 group-hover:bg-clip-text'
+              }`}>Features</span>
+              {activeNavSection === 'features' && (
+                <motion.div
+                  layoutId="activeNavIndicator-features"
+                  className="absolute inset-0 bg-gradient-to-r from-green-500/10 to-emerald-500/10 rounded-full -z-10"
+                  initial={false}
+                  transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                />
+              )}
             </a>
             <a 
               href="#pricing" 
-              className="text-muted-foreground hover:text-foreground smooth-transition text-sm font-medium hidden md:block focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+              className={`group relative flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-all duration-300 hidden md:flex focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 ${
+                activeNavSection === 'pricing'
+                  ? 'bg-gradient-to-r from-pink-500/10 via-rose-500/10 to-red-500/10 text-rose-700 shadow-md border border-pink-500/20'
+                  : 'text-muted-foreground hover:bg-muted/30 hover:scale-105'
+              }`}
               aria-label="Navigate to Pricing section"
+              onClick={(e) => {
+                e.preventDefault();
+                const element = document.getElementById('pricing');
+                element?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }}
             >
-              Pricing
+              <DollarSign className={`w-4 h-4 transition-all duration-300 ${
+                activeNavSection === 'pricing' 
+                  ? 'text-rose-600' 
+                  : 'text-muted-foreground group-hover:text-transparent group-hover:bg-gradient-to-r group-hover:from-pink-400 group-hover:to-rose-400 group-hover:bg-clip-text'
+              }`} />
+              <span className={`transition-all duration-300 ${
+                activeNavSection === 'pricing'
+                  ? ''
+                  : 'group-hover:text-transparent group-hover:bg-gradient-to-r group-hover:from-pink-400 group-hover:to-rose-400 group-hover:bg-clip-text'
+              }`}>Pricing</span>
+              {activeNavSection === 'pricing' && (
+                <motion.div
+                  layoutId="activeNavIndicator-pricing"
+                  className="absolute inset-0 bg-gradient-to-r from-pink-500/10 via-rose-500/10 to-red-500/10 rounded-full -z-10"
+                  initial={false}
+                  transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                />
+              )}
             </a>
+            <a 
+              href="#faq" 
+              className={`group relative flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-all duration-300 hidden md:flex focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 ${
+                activeNavSection === 'faq'
+                  ? 'bg-gradient-to-r from-blue-500/10 via-indigo-500/10 to-purple-500/10 text-indigo-700 shadow-md border border-blue-500/20'
+                  : 'text-muted-foreground hover:bg-muted/30 hover:scale-105'
+              }`}
+              aria-label="Navigate to FAQ section"
+              onClick={(e) => {
+                e.preventDefault();
+                const element = document.getElementById('faq');
+                element?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }}
+            >
+              <HelpCircle className={`w-4 h-4 transition-all duration-300 ${
+                activeNavSection === 'faq' 
+                  ? 'text-indigo-600' 
+                  : 'text-muted-foreground group-hover:text-transparent group-hover:bg-gradient-to-r group-hover:from-blue-400 group-hover:to-purple-400 group-hover:bg-clip-text'
+              }`} />
+              <span className={`transition-all duration-300 ${
+                activeNavSection === 'faq'
+                  ? ''
+                  : 'group-hover:text-transparent group-hover:bg-gradient-to-r group-hover:from-blue-400 group-hover:to-purple-400 group-hover:bg-clip-text'
+              }`}>FAQs</span>
+              {activeNavSection === 'faq' && (
+                <motion.div
+                  layoutId="activeNavIndicator-faq"
+                  className="absolute inset-0 bg-gradient-to-r from-blue-500/10 via-indigo-500/10 to-purple-500/10 rounded-full -z-10"
+                  initial={false}
+                  transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                />
+              )}
+            </a>
+          </div>
+          
+          {/* Right: Get Started Button and Mobile Menu */}
+          <div className="flex items-center space-x-2">
             <Button 
               onClick={() => window.location.href = '/login'}
-              className="bg-gradient-to-r from-primary to-primary/80 text-white shadow-lg hover-lift border-0 font-semibold hidden sm:flex"
+              className="bg-gradient-to-r from-primary to-primary/80 text-white shadow-lg hover:shadow-xl hover:shadow-primary/20 hover:scale-105 transition-all duration-300 border-0 font-semibold hidden sm:flex"
               data-testid="button-signin"
               aria-label="Get started with TweetReplyAI"
             >
@@ -292,14 +606,14 @@ export default function Landing() {
 
         {/* Mobile menu */}
         {mobileMenuOpen && (
-          <div className="md:hidden border-t border-border/50 bg-background/95 backdrop-blur-xl">
+          <div className="md:hidden border-t border-blue-200/30 bg-gradient-to-r from-blue-50/60 via-purple-50/60 to-blue-50/60 backdrop-blur-xl">
             <div className="container py-4 space-y-3">
               <Button
                 onClick={() => {
                   window.open('https://chromewebstore.google.com/detail/tweetreply-ai-powered-twi/nhpilcnghmcdhcbhndmemiggfekmdgem', '_blank');
                   setMobileMenuOpen(false);
                 }}
-                className="w-full justify-start bg-gradient-to-r from-blue-500 to-indigo-600 text-white"
+                className="w-full justify-start bg-gradient-to-r from-blue-500 to-indigo-600 text-white hover:shadow-lg hover:shadow-blue-500/20 transition-all duration-300"
                 size="sm"
               >
                 <Chrome className="w-4 h-4 mr-2" />
@@ -308,23 +622,30 @@ export default function Landing() {
               <a 
                 href="#features" 
                 onClick={() => setMobileMenuOpen(false)}
-                className="block px-4 py-2 text-sm text-muted-foreground hover:text-foreground smooth-transition"
+                className="block px-4 py-2 rounded-md text-sm text-muted-foreground hover:text-transparent hover:bg-gradient-to-r hover:from-blue-400 hover:to-green-400 hover:bg-clip-text hover:bg-muted/20 transition-all duration-300"
               >
                 Features
               </a>
               <a 
                 href="#pricing" 
                 onClick={() => setMobileMenuOpen(false)}
-                className="block px-4 py-2 text-sm text-muted-foreground hover:text-foreground smooth-transition"
+                className="block px-4 py-2 rounded-md text-sm text-muted-foreground hover:text-transparent hover:bg-gradient-to-r hover:from-pink-400 hover:to-rose-400 hover:bg-clip-text hover:bg-muted/20 transition-all duration-300"
               >
                 Pricing
+              </a>
+              <a 
+                href="#faq" 
+                onClick={() => setMobileMenuOpen(false)}
+                className="block px-4 py-2 rounded-md text-sm text-muted-foreground hover:text-transparent hover:bg-gradient-to-r hover:from-blue-400 hover:to-purple-400 hover:bg-clip-text hover:bg-muted/20 transition-all duration-300"
+              >
+                FAQs
               </a>
               <Button
                 onClick={() => {
                   window.location.href = '/login';
                   setMobileMenuOpen(false);
                 }}
-                className="w-full justify-start bg-gradient-to-r from-primary to-primary/80 text-white"
+                className="w-full justify-start bg-gradient-to-r from-primary to-primary/80 text-white hover:shadow-lg hover:shadow-primary/20 transition-all duration-300"
                 size="sm"
               >
                 Get Started
@@ -442,27 +763,39 @@ export default function Landing() {
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.8, delay: 0.6 }}
               >
-                <Card className="modern-glass border border-border/50 p-6 rounded-2xl shadow-xl card-modern overflow-hidden">
+                <Card className="modern-glass border border-border/50 p-6 rounded-2xl shadow-xl card-modern overflow-hidden relative">
                   <AnimatePresence mode="wait">
                     {/* Original Tweet Card */}
                     <motion.div
                       key={`tweet-${currentExampleIndex}`}
-                      className="mb-4 pb-4 border-b border-border/50"
+                      className={`mb-4 pb-4 border-b-2 rounded-xl p-4 relative overflow-hidden ${exampleReplies[currentExampleIndex].borderColor}`}
                       initial={{ opacity: 0, y: -10 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: 10 }}
                       transition={{ duration: 0.4 }}
                     >
-                      <div className="flex items-start gap-3">
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center flex-shrink-0 shadow-lg">
-                          <Sparkles className="w-5 h-5 text-white" />
+                      {/* User-specific gradient background */}
+                      <div className={`absolute inset-0 bg-gradient-to-br ${exampleReplies[currentExampleIndex].cardGradient} opacity-50`} />
+                      
+                      <div className="relative z-10 flex items-start gap-3">
+                        {/* User-specific icon with gradient */}
+                        <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${exampleReplies[currentExampleIndex].iconGradient} flex items-center justify-center flex-shrink-0 shadow-xl`}>
+                          {(() => {
+                            const UserIcon = exampleReplies[currentExampleIndex].icon;
+                            return <UserIcon className="w-6 h-6 text-white" />;
+                          })()}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="text-sm font-medium text-muted-foreground">
-                              {exampleReplies[currentExampleIndex].username}
-                            </span>
-                            <MessageCircle className="w-4 h-4 text-muted-foreground" />
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className={`text-base font-semibold ${exampleReplies[currentExampleIndex].usernameColor}`}>
+                                {exampleReplies[currentExampleIndex].username}
+                              </span>
+                              <span className="text-base opacity-80" aria-hidden="true">
+                                {exampleReplies[currentExampleIndex].usernameEmoji}
+                              </span>
+                            </div>
+                            <MessageCircle className={`w-4 h-4 ${exampleReplies[currentExampleIndex].usernameColor} opacity-60`} />
                           </div>
                           <p className="text-base text-foreground leading-relaxed">
                             {exampleReplies[currentExampleIndex].tweet}
@@ -472,9 +805,9 @@ export default function Landing() {
                     </motion.div>
                   </AnimatePresence>
 
-                  {/* Connection Line */}
+                  {/* Connection Line - Enhanced with user-specific gradient */}
                   <div className="flex items-center justify-center mb-4">
-                    <div className="w-px h-8 bg-gradient-to-b from-primary/50 to-primary/20" />
+                    <div className={`relative w-px h-10 bg-gradient-to-b ${exampleReplies[currentExampleIndex].iconGradient} opacity-50 animate-pulse`} />
                   </div>
 
                   {/* AI Reply Card */}
@@ -487,22 +820,30 @@ export default function Landing() {
                       exit={{ opacity: 0, y: -10 }}
                       transition={{ duration: 0.4, delay: 0.1 }}
                     >
-                      <div className="absolute -inset-1 bg-gradient-to-r from-primary/20 to-primary/10 rounded-xl blur-sm opacity-50 pulse-glow-primary" />
-                      <div className="relative bg-card/50 rounded-xl p-4 border border-primary/20">
-                        <div className="flex items-start gap-3">
-                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center flex-shrink-0 shadow-lg">
-                            <Sparkles className="w-5 h-5 text-white" />
+                      {/* Enhanced glow effect */}
+                      <div className="absolute -inset-1 bg-gradient-to-r from-primary/30 to-primary/15 rounded-xl blur-sm opacity-60 pulse-glow-primary" />
+                      
+                      {/* AI Reply Card with enhanced styling */}
+                      <div className="relative bg-gradient-to-br from-primary/10 via-primary/5 to-primary/10 rounded-xl p-4 border-2 border-primary/30 shadow-lg">
+                        {/* Subtle mesh overlay */}
+                        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent rounded-xl opacity-50" />
+                        
+                        <div className="relative z-10 flex items-start gap-3">
+                          {/* Enhanced TweetReplyAI icon */}
+                          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center flex-shrink-0 shadow-xl">
+                            <Sparkles className="w-6 h-6 text-white" />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="text-sm font-semibold text-primary">
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="text-base font-semibold text-primary">
                                 TweetReplyAI
                               </span>
-                              <Badge variant="secondary" className="text-xs bg-primary/10 text-primary border-primary/20">
+                              <Badge variant="secondary" className="text-xs bg-primary/20 text-primary border-primary/30 font-semibold">
                                 AI
                               </Badge>
+                              <span className="text-base opacity-80" aria-hidden="true">✨</span>
                             </div>
-                            <p className="text-base text-foreground leading-relaxed">
+                            <p className="text-base text-foreground leading-relaxed font-medium">
                               {exampleReplies[currentExampleIndex].reply}
                             </p>
                           </div>
@@ -521,28 +862,246 @@ export default function Landing() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, delay: 1.4 }}
             >
-              {[
-                { value: "50K+", label: "Replies Generated" },
-                { value: "99.9%", label: "Uptime" },
-                { value: "<2s", label: "Response Time" },
-                { value: "5★", label: "User Rating" }
-              ].map((stat, index) => (
-                <motion.div
-                  key={index}
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ duration: 0.5, delay: 1.6 + index * 0.1 }}
-                >
-                  <Card className="glass-depth border border-primary/20 p-4 micro-lift card-modern hover-glow-primary">
-                    <div className="text-3xl font-bold text-primary mb-1 gradient-text">{stat.value}</div>
-                    <div className="text-sm text-muted-foreground">{stat.label}</div>
-                  </Card>
-                </motion.div>
-              ))}
+              {stats && [
+                { 
+                  value: stats.repliesGenerated.formatted, 
+                  label: "Replies Generated",
+                  icon: Zap,
+                  emoji: "💬",
+                  subtitle: stats.repliesGenerated.weeklyIncrease,
+                  gradient: "from-blue-500 to-cyan-500",
+                  borderColor: "border-blue-500/20",
+                  hoverBorder: "hover:border-blue-500/40",
+                  textGradient: "bg-gradient-to-r from-blue-600 to-cyan-600",
+                  bgGradient: "from-blue-500/5 to-cyan-500/5",
+                  badgeColor: "text-blue-600"
+                },
+                { 
+                  value: stats.impressions.formatted, 
+                  label: "Impressions",
+                  icon: TrendingUp,
+                  emoji: "📈",
+                  gradient: "from-indigo-500 to-purple-500",
+                  borderColor: "border-purple-500/20",
+                  hoverBorder: "hover:border-purple-500/40",
+                  textGradient: "bg-gradient-to-r from-indigo-600 to-purple-600",
+                  bgGradient: "from-indigo-500/5 to-purple-500/5",
+                  badgeColor: "text-purple-600"
+                },
+                { 
+                  value: stats.engagementsBoost.formatted, 
+                  label: "Engagements Boost",
+                  icon: Rocket,
+                  emoji: "🚀",
+                  gradient: "from-emerald-500 to-green-500",
+                  borderColor: "border-green-500/20",
+                  hoverBorder: "hover:border-green-500/40",
+                  textGradient: "bg-gradient-to-r from-emerald-600 to-green-600",
+                  bgGradient: "from-emerald-500/5 to-green-500/5",
+                  badgeColor: "text-green-600"
+                },
+                { 
+                  value: stats.hoursSaved.formatted, 
+                  label: "Hours Saved",
+                  icon: Clock,
+                  emoji: "⏱️",
+                  gradient: "from-orange-500 to-amber-500",
+                  borderColor: "border-orange-500/20",
+                  hoverBorder: "hover:border-orange-500/40",
+                  textGradient: "bg-gradient-to-r from-orange-600 to-amber-600",
+                  bgGradient: "from-orange-500/5 to-amber-500/5",
+                  badgeColor: "text-orange-600"
+                }
+              ].map((stat, index) => {
+                const IconComponent = stat.icon;
+                return (
+                  <motion.div
+                    key={index}
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 0.5, delay: 1.6 + index * 0.1 }}
+                  >
+                    {/* Fixed: Added aria-label for better accessibility */}
+                    <Card 
+                      className={`glass-depth border-2 ${stat.borderColor} ${stat.hoverBorder} p-6 md:p-8 micro-lift card-modern relative overflow-hidden group transition-all duration-300`}
+                      aria-label={`${stat.label}: ${stat.value}${stat.subtitle ? `, ${stat.subtitle}` : ''}`}
+                    >
+                      {/* Subtle gradient background */}
+                      <div className={`absolute inset-0 bg-gradient-to-br ${stat.bgGradient} opacity-50 group-hover:opacity-70 transition-opacity duration-300`} />
+                      
+                      <div className="relative z-10">
+                        {/* Icon and Value Row */}
+                        <div className="flex items-center gap-3 md:gap-4 mb-3">
+                          {/* Icon with gradient background */}
+                          {/* Fixed: Use custom stat-icon-container class for maintainability */}
+                          <div className={`stat-icon-container w-12 h-12 md:w-14 md:h-14 rounded-xl bg-gradient-to-br ${stat.gradient} flex items-center justify-center shadow-lg`}>
+                            <IconComponent className="w-6 h-6 md:w-7 md:h-7 text-white" />
+                          </div>
+                          {/* Value with gradient text */}
+                          {/* Fixed: Use custom stat-value-text class for consistent typography */}
+                          {/* Fixed: Added padding-right to prevent K/M clipping with bg-clip-text */}
+                          <div className={`stat-value-text text-4xl md:text-5xl ${stat.textGradient} bg-clip-text text-transparent pr-1`}>
+                            {stat.value}
+                          </div>
+                        </div>
+                        
+                        {/* Label with emoji */}
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-base md:text-lg font-semibold text-foreground">{stat.label}</span>
+                          <span className="text-base md:text-lg opacity-80" aria-hidden="true">{stat.emoji}</span>
+                        </div>
+                        
+                        {/* Weekly Increase Badge */}
+                        {stat.subtitle && (
+                          <div className={`mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r ${stat.bgGradient} border ${stat.borderColor} text-xs md:text-sm font-semibold stat-weekly-badge`}>
+                            <TrendingUp className={`w-3 h-3 ${stat.badgeColor}`} />
+                            <span className={stat.badgeColor}>{stat.subtitle}</span>
+                          </div>
+                        )}
+                      </div>
+                    </Card>
+                  </motion.div>
+                );
+              })}
             </motion.div>
           </div>
         </div>
       </section>
+
+      {/* 
+        ============================================
+        INTERACTIVE LIVE DEMO SECTION - COMMENTED OUT
+        ============================================
+        This section allows users to enter tweets and see AI-generated replies.
+        It was removed but kept in memory for future restoration.
+        Uncomment when needed.
+        ============================================
+      */}
+      {/* 
+      <motion.section 
+        initial={{ opacity: 0, scale: 0.95 }}
+        whileInView={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.7 }}
+        viewport={{ once: true }}
+        className="section-padding bg-background"
+      >
+        <div className="container">
+          <div className="text-center mb-16">
+            <Badge variant="secondary" className="mb-4 glass-effect border border-primary/20">
+              <Brain className="w-4 h-4 mr-2" />
+              Try It Live
+            </Badge>
+            <h2 className="text-4xl md:text-5xl font-display font-bold mb-6">
+              See <span className="gradient-text">AI Magic</span> for X Replies
+            </h2>
+            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+              Type any X tweet below and watch TweetReplyAI generate a perfect response instantly. Generate authentic X replies automatically.
+            </p>
+          </div>
+
+          <div className="max-w-3xl mx-auto">
+            <Card className="neomorphic border-0 p-8 card-modern">
+              <div className="space-y-6">
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Enter an X Tweet</label>
+                  <textarea
+                    className="w-full p-4 rounded-xl border border-border bg-background resize-none focus:outline-none focus:ring-2 focus:ring-primary/50 smooth-transition"
+                    placeholder="Example: Just launched our new AI-powered app! What do you think?"
+                    aria-label="Enter an X tweet to generate AI reply"
+                    rows={3}
+                    value={demoTweet}
+                    onChange={(e) => {
+                      setDemoTweet(e.target.value);
+                      generateDemoReply(e.target.value);
+                    }}
+                    data-testid="input-demo-tweet"
+                  />
+                </div>
+
+                {demoReply && (
+                  <div className="bg-primary/5 rounded-xl p-6 border border-primary/20 animate-in fade-in slide-in-from-bottom-4 duration-500" role="region" aria-live="polite" aria-label="Generated reply">
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center flex-shrink-0" aria-hidden="true">
+                        <Sparkles className="w-5 h-5 text-white" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="text-xs text-primary font-semibold">TweetReplyAI Generated</div>
+                          <Button
+                            onClick={handleCopyReply}
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            aria-label="Copy reply to clipboard"
+                          >
+                            {copiedReply ? (
+                              <Check className="w-4 h-4 text-primary" />
+                            ) : (
+                              <Copy className="w-4 h-4" />
+                            )}
+                          </Button>
+                        </div>
+                        <p className="text-foreground">{demoReply}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {!demoReply && demoTweet && (
+                  <div className="bg-muted/30 rounded-xl p-6 border border-border/50">
+                    <div className="flex items-center gap-2">
+                      <div className="animate-spin w-4 h-4 border-2 border-primary border-t-transparent rounded-full" />
+                      <span className="text-sm text-muted-foreground">Generating reply...</span>
+                    </div>
+                  </div>
+                )}
+
+                {!demoTweet && (
+                  <div>
+                    <div className="text-center text-sm text-muted-foreground mb-4">
+                      <Sparkles className="w-4 h-4 inline mr-2" aria-hidden="true" />
+                      Start typing to see AI-generated replies appear instantly
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {exampleTweets.map((tweet, idx) => (
+                        <motion.button
+                          key={idx}
+                          onClick={() => handleExampleTweetClick(tweet)}
+                          className="text-left p-3 rounded-lg border border-border/50 hover:border-primary/50 hover:bg-primary/5 smooth-transition text-sm text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 micro-lift"
+                          aria-label={`Try example tweet: ${tweet.substring(0, 30)}...`}
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                        >
+                          "{tweet.substring(0, 50)}..."
+                        </motion.button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </Card>
+
+            <motion.div 
+              className="text-center mt-8"
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6 }}
+              viewport={{ once: true }}
+            >
+              <Button
+                onClick={() => window.location.href = '/login'}
+                size="lg"
+                className="bg-gradient-to-r from-primary to-primary/80 text-white shadow-xl hover-lift pulse-glow-primary magnetic-button ripple-effect border-0 font-semibold"
+                data-testid="button-demo-cta"
+              >
+                Get Full Access Now
+                <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
+            </motion.div>
+          </div>
+        </div>
+      </motion.section>
+      */}
 
       {/* 
         ============================================
@@ -557,7 +1116,7 @@ export default function Landing() {
       {/* 
         Trusted By Section - TO BE RESTORED
         Replace placeholder companies with real customer logos when available.
-        TODO: Add real company logos or replace with generic "Trusted by 5,000+ users"
+        TODO: Add real company logos or replace with generic "Trusted by users"
       */}
       {/* 
       <motion.section 
@@ -653,7 +1212,7 @@ export default function Landing() {
               Choose Your <span className="gradient-text">Perfect X Workflow</span>
             </h2>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Generate perfect X replies with our AI-powered tools. Whether you prefer web, extension, or advanced AI customization, we've got you covered.
+              Generate perfect X replies with our AI driven tools. Whether you prefer web, extension, or advanced AI customization, we've got you covered.
             </p>
           </div>
 
@@ -740,7 +1299,7 @@ export default function Landing() {
               See The <span className="gradient-text">Engagement Boost</span>
             </h2>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Average metrics from our 5,000+ active users
+              Average metrics from our active users
             </p>
           </div>
 
@@ -768,6 +1327,7 @@ export default function Landing() {
                       whileInView={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.4, delay: 0.3 + index * 0.1 }}
                       viewport={{ once: true }}
+                      className="text-center"
                     >
                       <div className="text-sm text-muted-foreground mb-2">{metric.label}</div>
                       <div className="text-4xl font-bold text-foreground gradient-text">{metric.value}</div>
@@ -800,9 +1360,10 @@ export default function Landing() {
                       whileInView={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.4, delay: 0.5 + index * 0.1 }}
                       viewport={{ once: true }}
+                      className="text-center"
                     >
                       <div className="text-sm text-muted-foreground mb-2">{metric.label}</div>
-                      <div className="flex items-baseline gap-2">
+                      <div className="flex items-baseline gap-2 justify-center">
                         <div className="text-4xl font-bold text-primary gradient-text">{metric.value}</div>
                         <Badge variant="secondary" className="bg-green-500/10 text-green-600 border-green-500/20">
                           {metric.change}
@@ -820,79 +1381,157 @@ export default function Landing() {
       {/* Pricing Section */}
       <section id="pricing" className="section-padding bg-gradient-to-b from-background to-muted/10">
         <div className="container">
-          <div className="text-center mb-16">
-            <Badge variant="secondary" className="mb-6 px-4 py-2 text-sm font-medium glass-effect border border-primary/20 shadow-lg">
-              <Crown className="w-4 h-4 mr-2" />
-              Simple, Transparent Pricing
-            </Badge>
-            
-            <h2 className="text-5xl md:text-6xl font-display font-bold mb-8 leading-none">
-              <span className="gradient-text">Choose Your Plan</span>
-            </h2>
-            
-            <p className="text-xl md:text-2xl text-muted-foreground mb-4 max-w-3xl mx-auto leading-relaxed">
-              Start with a free trial, then pick the plan that fits your needs. 
-              <span className="text-foreground font-semibold"> No hidden fees, cancel anytime.</span>
-            </p>
-          </div>
+          <Card className="relative overflow-hidden border border-border/50 bg-gradient-to-br from-background via-muted/5 to-background backdrop-blur-xl shadow-2xl rounded-3xl p-6 md:p-8">
+            <CardContent className="p-0">
+              <div className="text-center mb-16">
+                <Badge variant="secondary" className="mb-6 px-4 py-2 text-sm font-medium glass-effect border border-primary/20 shadow-lg">
+                  <Crown className="w-4 h-4 mr-2" />
+                  Simple, Transparent Pricing 💎
+                </Badge>
+                
+                <h2 className="text-5xl md:text-6xl font-display font-bold mb-8 leading-none">
+                  <span className="gradient-text">Choose Your Plan</span>
+                </h2>
+                
+                <p className="text-xl md:text-2xl text-muted-foreground mb-4 max-w-3xl mx-auto leading-relaxed">
+                  Start with a free trial, then pick the plan that fits your needs. 
+                  <span className="text-foreground font-semibold"> No hidden fees, cancel anytime.</span>
+                </p>
+              </div>
 
-          <PricingCards />
+              <PricingCards />
+            </CardContent>
+          </Card>
         </div>
       </section>
 
       {/* Testimonials Carousel */}
-      <section className="section-padding">
+      <motion.section 
+        className="section-padding bg-gradient-to-b from-background via-background to-muted/5"
+        initial={{ opacity: 0, y: 30 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.8 }}
+        viewport={{ once: true }}
+      >
         <div className="container">
-          <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-16">
+            <Badge variant="secondary" className="mb-4 glass-effect border border-primary/20 shadow-lg">
+              <Heart className="w-4 h-4 mr-2" />
+              What Our Users Say
+            </Badge>
+            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+              See how TweetReplyAI is transforming X engagement for creators, founders, and marketers worldwide.
+            </p>
+          </div>
+
+          <div className="max-w-5xl mx-auto">
             <div className="overflow-hidden" ref={testimonialEmblaRef}>
               <div className="flex">
                 {testimonials.map((testimonial, index) => (
-                  <div key={index} className="flex-[0_0_100%] min-w-0">
-                    <Card className="neomorphic border-0 p-10 relative overflow-hidden mx-4 card-modern">
-                      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-purple-500/5" />
-                      <div className="relative z-10">
-                        <div className="flex items-center justify-center mb-6">
-                          <div className="flex space-x-1">
-                            {[...Array(5)].map((_, i) => (
-                              <Star key={i} className="w-6 h-6 text-yellow-400 fill-current" />
-                            ))}
+                  <div key={index} className="flex-[0_0_100%] min-w-0 px-4">
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ duration: 0.5, delay: index * 0.1 }}
+                    >
+                      <Card className="modern-glass border border-border/50 p-8 md:p-10 relative overflow-hidden card-modern hover-lift group transition-all duration-300">
+                        {/* Gradient Background Overlay */}
+                        <div className={`absolute inset-0 bg-gradient-to-br ${testimonial.gradient} opacity-5 group-hover:opacity-10 transition-opacity duration-300`} />
+                        
+                        {/* Subtle Mesh Texture */}
+                        <div className="absolute inset-0 opacity-[0.03] bg-[radial-gradient(circle_at_50%_50%,rgba(0,0,0,0.5),transparent_50%)]" />
+                        
+                        {/* Enhanced Shadow Layer */}
+                        <div className="absolute inset-0 shadow-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" 
+                          style={{ boxShadow: `0 20px 60px -15px rgba(var(--primary-rgb), 0.3)` }} />
+                        
+                        <div className="relative z-10">
+                          {/* Star Rating */}
+                          <div className="flex items-center justify-center mb-6">
+                            <div className="flex space-x-1">
+                              {[...Array(5)].map((_, i) => (
+                                <motion.div
+                                  key={i}
+                                  initial={{ opacity: 0, scale: 0 }}
+                                  animate={{ opacity: 1, scale: 1 }}
+                                  transition={{ duration: 0.3, delay: 0.2 + i * 0.1 }}
+                                >
+                                  <Star className="w-7 h-7 md:w-8 md:h-8 text-yellow-400 fill-yellow-400 drop-shadow-sm" />
+                                </motion.div>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Quote Text */}
+                          <blockquote className="text-xl md:text-2xl lg:text-3xl text-center text-foreground leading-relaxed mb-8 font-medium relative">
+                            <span className="absolute -top-4 -left-2 md:-top-6 md:-left-4 text-6xl md:text-8xl font-serif text-primary/10 leading-none">"</span>
+                            <span className="relative z-10">{testimonial.quote}</span>
+                            <span className="absolute -bottom-8 -right-2 md:-bottom-10 md:-right-4 text-6xl md:text-8xl font-serif text-primary/10 leading-none">"</span>
+                          </blockquote>
+
+                          {/* Author Info */}
+                          <div className="flex items-center justify-center gap-4">
+                            {/* Avatar */}
+                            <motion.div
+                              className={`w-16 h-16 md:w-20 md:h-20 rounded-full bg-gradient-to-br ${testimonial.gradient} flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300`}
+                              whileHover={{ scale: 1.1, rotate: 5 }}
+                              transition={{ type: "spring", stiffness: 300 }}
+                            >
+                              <span className="text-white text-xl md:text-2xl font-bold">{testimonial.avatar}</span>
+                            </motion.div>
+
+                            {/* Author Details */}
+                            <div className="flex-1 text-center md:text-left">
+                              <div className="flex items-center justify-center md:justify-start gap-2 mb-1">
+                                <span className={`text-lg md:text-xl font-bold bg-gradient-to-r ${testimonial.gradient} bg-clip-text text-transparent`}>
+                                  {testimonial.author}
+                                </span>
+                                {testimonial.verified && (
+                                  <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20 text-xs">
+                                    <Shield className="w-3 h-3 mr-1" />
+                                    Verified
+                                  </Badge>
+                                )}
+                              </div>
+                              <div className="text-sm md:text-base text-muted-foreground">
+                                {testimonial.role}
+                              </div>
+                            </div>
                           </div>
                         </div>
-                        <blockquote className="text-xl md:text-2xl text-center text-foreground leading-relaxed mb-6">
-                          "{testimonial.quote}"
-                        </blockquote>
-                        <div className="text-center">
-                          <div className="font-semibold text-foreground">{testimonial.author}</div>
-                          <div className="text-sm text-muted-foreground">{testimonial.role}</div>
-                        </div>
-                      </div>
-                    </Card>
+                      </Card>
+                    </motion.div>
                   </div>
                 ))}
               </div>
             </div>
             
-            <div className="flex justify-center gap-2 mt-6">
+            {/* Enhanced Pagination */}
+            <div className="flex justify-center items-center gap-3 mt-8">
               {testimonials.map((_, index) => (
-                <button
+                <motion.button
                   key={index}
-                  className={`w-2 h-2 rounded-full transition-all duration-300 ${
-                    index === testimonialIndex ? 'bg-primary w-8' : 'bg-muted-foreground/30'
+                  className={`rounded-full transition-all duration-300 ${
+                    index === testimonialIndex 
+                      ? `bg-gradient-to-r ${testimonials[index].gradient} w-10 h-3` 
+                      : 'bg-muted-foreground/30 w-3 h-3 hover:bg-muted-foreground/50'
                   }`}
                   onClick={() => testimonialEmblaApi?.scrollTo(index)}
                   aria-label={`Go to testimonial ${index + 1}`}
+                  whileHover={{ scale: 1.2 }}
+                  whileTap={{ scale: 0.9 }}
                 />
               ))}
             </div>
           </div>
         </div>
-      </section>
+      </motion.section>
 
       {/* FAQ Section */}
-      <section className="section-padding bg-gradient-to-b from-background to-muted/10">
+      <section id="faq" className="section-padding bg-gradient-to-b from-background to-muted/10">
         <div className="container">
           <div className="text-center mb-16">
-            <Badge variant="secondary" className="mb-4 glass-effect border border-primary/20">
+            <Badge variant="secondary" className="mb-4 glass-effect border border-primary/20 shadow-lg">
               <Star className="w-4 h-4 mr-2" />
               Frequently Asked Questions
             </Badge>
@@ -902,40 +1541,76 @@ export default function Landing() {
           </div>
           
           <div className="max-w-3xl mx-auto">
-            <Accordion type="single" collapsible className="space-y-4">
-              {faqs.map((faq, index) => {
-                const IconComponent = faq.icon === 'Zap' ? Zap : 
-                                   faq.icon === 'MessageCircle' ? MessageCircle :
-                                   faq.icon === 'Brain' ? Brain :
-                                   faq.icon === 'Sparkles' ? Sparkles :
-                                   Shield;
-                return (
-                  <AccordionItem 
-                    key={index} 
-                    value={`item-${index}`}
-                    className="border-0"
-                  >
-                    <Card className="neomorphic border-0 overflow-hidden card-modern">
-                      <AccordionTrigger 
-                        className="px-6 py-4 hover:no-underline hover:bg-primary/5 smooth-transition"
-                        data-testid={`faq-question-${index}`}
-                        aria-label={`Toggle FAQ: ${faq.question}`}
+            <Card className="relative overflow-hidden border border-border/50 bg-gradient-to-br from-background via-muted/5 to-background backdrop-blur-xl shadow-2xl rounded-3xl">
+              <CardContent className="p-6 md:p-8">
+                <Accordion 
+                  type="single" 
+                  collapsible 
+                  className="space-y-4"
+                  value={openFAQ || undefined}
+                  onValueChange={(value) => setOpenFAQ(value)}
+                >
+                  {faqs.map((faq, index) => {
+                    const IconComponent = faq.icon === 'Zap' ? Zap : 
+                                       faq.icon === 'MessageCircle' ? MessageCircle :
+                                       faq.icon === 'Brain' ? Brain :
+                                       faq.icon === 'Sparkles' ? Sparkles :
+                                       Shield;
+                    const isOpen = openFAQ === `item-${index}`;
+                    return (
+                      <AccordionItem 
+                        key={index} 
+                        value={`item-${index}`}
+                        className="border-0"
                       >
-                        <div className="flex items-center gap-3">
-                          <IconComponent className="w-5 h-5 text-primary flex-shrink-0" aria-hidden="true" />
-                          <span className="text-lg font-semibold text-left">{faq.question}</span>
-                        </div>
-                      </AccordionTrigger>
-                      <AccordionContent className="px-6 pb-4">
-                        <p className="text-muted-foreground leading-relaxed pl-8" data-testid={`faq-answer-${index}`}>
-                          {faq.answer}
-                        </p>
-                      </AccordionContent>
-                    </Card>
-                  </AccordionItem>
-                );
-              })}
-            </Accordion>
+                        <Card className="relative overflow-hidden border border-border/50 bg-gradient-to-br from-primary/5 via-primary/3 to-primary/5 hover:from-primary/8 hover:via-primary/5 hover:to-primary/8 backdrop-blur-sm shadow-md hover:shadow-lg transition-all duration-300 group hover:border-primary/40 rounded-xl">
+                          <div className="relative z-10">
+                            <AccordionTrigger 
+                              className="px-6 py-5 hover:no-underline hover:bg-transparent transition-all duration-200 group/trigger [&>svg]:hidden"
+                              data-testid={`faq-question-${index}`}
+                              aria-label={`Toggle FAQ: ${faq.question}`}
+                            >
+                              <div className="flex items-center gap-4 w-full text-left">
+                                {/* Modern Icon with primary gradient */}
+                                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg flex-shrink-0 group-hover:scale-105 transition-transform duration-200">
+                                  <IconComponent className="w-6 h-6 text-white" aria-hidden="true" />
+                                </div>
+                                
+                                {/* Question text */}
+                                <div className="flex-1 pt-1">
+                                  <span className="text-lg font-semibold text-foreground group-hover:text-primary transition-colors duration-200">
+                                    {faq.question}
+                                  </span>
+                                </div>
+                                
+                                {/* Plus/Minus button */}
+                                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center transition-all duration-200 group-hover:bg-primary/20">
+                                  {isOpen ? (
+                                    <Minus className="w-5 h-5 text-primary" />
+                                  ) : (
+                                    <Plus className="w-5 h-5 text-primary" />
+                                  )}
+                                </div>
+                              </div>
+                            </AccordionTrigger>
+                            
+                            <AccordionContent className="px-6 pb-5">
+                              <div className="flex items-start gap-4">
+                                {/* Spacer for icon alignment */}
+                                <div className="w-12 flex-shrink-0" />
+                                <p className="text-muted-foreground leading-relaxed text-base" data-testid={`faq-answer-${index}`}>
+                                  {faq.answer}
+                                </p>
+                              </div>
+                            </AccordionContent>
+                          </div>
+                        </Card>
+                      </AccordionItem>
+                    );
+                  })}
+                </Accordion>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </section>
@@ -986,7 +1661,7 @@ export default function Landing() {
               >
                 <Badge variant="secondary" className="mb-6 glass-depth border border-primary/20 shadow-lg pulse-glow-primary">
                   <Heart className="w-4 h-4 mr-2 text-primary" />
-                  Join 5,000+ Creators
+                  Join Creators
                 </Badge>
               </motion.div>
               
@@ -1007,7 +1682,7 @@ export default function Landing() {
                 transition={{ duration: 0.8, delay: 0.4 }}
                 viewport={{ once: true }}
               >
-                More than 5,000 creators trust TweetReplyAI to generate perfect X replies, helping them stay authentic while scaling their engagement. Your voice, amplified with AI.
+                Creators trust TweetReplyAI to generate perfect X replies, helping them stay authentic while scaling their engagement. Your voice, amplified with AI.
               </motion.p>
               
               <motion.div 
@@ -1039,7 +1714,7 @@ export default function Landing() {
                 {[
                   { icon: Shield, text: "Secure & Private" },
                   { icon: CheckCircle, text: "Cancel Anytime" },
-                  { icon: Sparkles, text: "AI-Powered" }
+                  { icon: Sparkles, text: "AI Enhanced" }
                 ].map((item, index) => {
                   const IconComponent = item.icon;
                   return (
@@ -1076,7 +1751,7 @@ export default function Landing() {
                 <span className="font-display font-bold text-lg">TweetReplyAI</span>
               </div>
               <p className="text-muted-foreground text-sm max-w-md">
-                AI-powered X reply generator that helps you create authentic, contextual replies in seconds. Generate perfect X replies automatically. Transform your social media engagement.
+                AI driven X reply generator that helps you create authentic, contextual replies in seconds. Generate perfect X replies automatically. Transform your social media engagement.
               </p>
             </div>
             

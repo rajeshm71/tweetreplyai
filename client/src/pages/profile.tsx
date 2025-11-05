@@ -173,7 +173,7 @@ export default function ProfilePage() {
             <CardContent>
               <div className="space-y-4">
                 <p className="text-sm text-muted-foreground">
-                  Get instant AI-powered reply suggestions while browsing Twitter/X. The extension integrates seamlessly with your TweetReply account.
+                  Get instant AI generated reply suggestions while browsing Twitter/X. The extension integrates seamlessly with your TweetReply account.
                 </p>
                 <div className="flex items-center gap-3">
                   <Button

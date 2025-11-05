@@ -896,3 +896,42 @@ a:focus-visible {
   position: relative;
   z-index: 1;
 }
+
+/* Enhanced Stat Cards Styling */
+/* Fixed: Removed unused gradient classes - using inline Tailwind classes for better flexibility */
+
+.stat-value-text {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  /* Fixed: Ensure K/M suffixes are visible with bg-clip-text */
+  display: inline-block;
+  padding-right: 0.125rem;
+}
+
+/* Fixed: Enhanced icon container with proper hover effects */
+.stat-icon-container {
+  transition: transform 0.3s var(--ease-out-expo), box-shadow 0.3s var(--ease-out-expo);
+}
+
+.stat-icon-container:hover {
+  transform: scale(1.1) rotate(3deg);
+  box-shadow: 0 8px 16px hsla(0, 0%, 0%, 0.2);
+}
+
+/* Group hover for icon container (when card is hovered) */
+.group:hover .stat-icon-container {
+  transform: scale(1.1) rotate(3deg);
+}
+
+.stat-weekly-badge {
+  backdrop-filter: blur(8px);
+  border: 1px solid;
+  transition: all 0.3s var(--ease-out-expo);
+}
+
+.stat-weekly-badge:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px hsla(0, 0%, 0%, 0.1);
+}

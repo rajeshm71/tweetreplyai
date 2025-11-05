@@ -5,7 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Check } from "lucide-react";
+import { Check, Sparkles, Rocket, Crown, Gift, TrendingUp, Star } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
 
@@ -13,6 +13,46 @@ export function PricingCards() {
   const { isAuthenticated } = useAuth();
   const { toast } = useToast();
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
+
+  // Pricing tier color configurations
+  const pricingTiers = {
+    trial: {
+      icon: Sparkles,
+      iconGradient: "from-blue-500 to-cyan-500",
+      emoji: "🎁",
+      cardGradient: "from-blue-500/5 to-cyan-500/5",
+      borderColor: "border-blue-500/20",
+      hoverBorder: "hover:border-blue-500/40",
+      textColor: "text-blue-600",
+      priceGradient: "bg-gradient-to-r from-blue-600 to-cyan-600",
+      buttonGradient: "from-blue-500 to-cyan-500",
+      badgeColor: "bg-blue-500/10 text-blue-600 border-blue-500/20"
+    },
+    weekly: {
+      icon: Rocket,
+      iconGradient: "from-green-500 to-emerald-500",
+      emoji: "🚀",
+      cardGradient: "from-green-500/5 to-emerald-500/5",
+      borderColor: "border-green-500/20",
+      hoverBorder: "hover:border-green-500/40",
+      textColor: "text-green-600",
+      priceGradient: "bg-gradient-to-r from-green-600 to-emerald-600",
+      buttonGradient: "from-green-500 to-emerald-500",
+      badgeColor: "bg-gradient-to-r from-green-500/20 to-emerald-500/20 text-green-700 border-green-500/30"
+    },
+    monthly: {
+      icon: Crown,
+      iconGradient: "from-purple-500 to-pink-500",
+      emoji: "👑",
+      cardGradient: "from-purple-500/5 to-pink-500/5",
+      borderColor: "border-purple-500/20",
+      hoverBorder: "hover:border-purple-500/40",
+      textColor: "text-purple-600",
+      priceGradient: "bg-gradient-to-r from-purple-600 to-pink-600",
+      buttonGradient: "from-purple-500 to-pink-500",
+      badgeColor: "bg-purple-500/10 text-purple-600 border-purple-500/20"
+    }
+  };
 
   const checkoutMutation = useMutation({
     mutationFn: async (planCode: string) => {
@@ -58,36 +98,56 @@ export function PricingCards() {
   return (
     <div className="grid md:grid-cols-3 gap-8 max-w-4xl mx-auto">
       {/* Free Trial */}
-      <Card>
-        <CardContent className="p-8">
+      <Card className={`relative overflow-hidden border-2 ${pricingTiers.trial.borderColor} ${pricingTiers.trial.hoverBorder} transition-all duration-300 group`}>
+        {/* Gradient background */}
+        <div className={`absolute inset-0 bg-gradient-to-br ${pricingTiers.trial.cardGradient} opacity-50 group-hover:opacity-70 transition-opacity duration-300`} />
+        
+        <CardContent className="p-8 relative z-10">
           <div className="text-center mb-6">
-            <h3 className="text-xl font-semibold mb-2">Free Trial</h3>
-            <div className="text-3xl font-bold mb-2">10 replies</div>
+            {/* Icon */}
+            <div className="flex justify-center mb-4">
+              <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${pricingTiers.trial.iconGradient} flex items-center justify-center shadow-xl`}>
+                {(() => {
+                  const IconComponent = pricingTiers.trial.icon;
+                  return <IconComponent className="w-6 h-6 text-white" />;
+                })()}
+              </div>
+            </div>
+            
+            {/* Tier name with emoji */}
+            <h3 className={`text-xl font-semibold mb-2 ${pricingTiers.trial.textColor} flex items-center justify-center gap-2`}>
+              <span>Free Trial</span>
+              <span className="text-base opacity-80" aria-hidden="true">{pricingTiers.trial.emoji}</span>
+            </h3>
+            
+            {/* Price with gradient */}
+            <div className={`text-3xl font-bold mb-2 ${pricingTiers.trial.priceGradient} bg-clip-text text-transparent`}>
+              10 replies
+            </div>
             <div className="text-muted-foreground">per day for 7 days</div>
           </div>
           
           <div className="space-y-4 mb-8">
             <div className="flex items-center space-x-3">
-              <Check className="w-4 h-4 text-green-600 flex-shrink-0" />
+              <Check className={`w-4 h-4 ${pricingTiers.trial.textColor} flex-shrink-0`} />
               <span className="text-sm">70 total replies during trial</span>
             </div>
             <div className="flex items-center space-x-3">
-              <Check className="w-4 h-4 text-green-600 flex-shrink-0" />
+              <Check className={`w-4 h-4 ${pricingTiers.trial.textColor} flex-shrink-0`} />
               <span className="text-sm">Chrome extension access</span>
             </div>
             <div className="flex items-center space-x-3">
-              <Check className="w-4 h-4 text-green-600 flex-shrink-0" />
+              <Check className={`w-4 h-4 ${pricingTiers.trial.textColor} flex-shrink-0`} />
               <span className="text-sm">Mobile web interface</span>
             </div>
             <div className="flex items-center space-x-3">
-              <Check className="w-4 h-4 text-green-600 flex-shrink-0" />
-              <span className="text-sm">AI-powered replies (≤25 words)</span>
+              <Check className={`w-4 h-4 ${pricingTiers.trial.textColor} flex-shrink-0`} />
+              <span className="text-sm">AI generated replies</span>
             </div>
           </div>
           
           <Button 
-            variant="secondary" 
-            className="w-full font-medium" 
+            className={`w-full font-medium bg-gradient-to-r ${pricingTiers.trial.buttonGradient} text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300`}
             disabled
             data-testid="button-trial-signup"
           >
@@ -97,48 +157,71 @@ export function PricingCards() {
       </Card>
 
       {/* Weekly Plan */}
-      <Card className="border-2 border-primary relative shadow-[0_0_30px_rgba(var(--primary-rgb),0.3)] hover:shadow-[0_0_40px_rgba(var(--primary-rgb),0.4)] transition-shadow duration-300">
-        <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-          <Badge className="bg-primary text-primary-foreground">
-            Most Popular
+      <Card className={`relative overflow-visible border-2 ${pricingTiers.weekly.borderColor} ${pricingTiers.weekly.hoverBorder} transition-all duration-300 group shadow-[0_0_30px_rgba(34,197,94,0.2)] hover:shadow-[0_0_40px_rgba(34,197,94,0.3)]`}>
+        {/* Enhanced Most Popular badge - Redesigned for better visibility */}
+        <div className="absolute -top-4 left-1/2 transform -translate-x-1/2 z-50">
+          <Badge className="bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-500 text-white border-2 border-amber-600 shadow-2xl font-bold px-4 py-1.5 text-sm whitespace-nowrap animate-pulse">
+            ⭐ Most Popular
           </Badge>
         </div>
         
-        <CardContent className="p-8">
+        {/* Gradient background with glow */}
+        <div className={`absolute inset-0 bg-gradient-to-br ${pricingTiers.weekly.cardGradient} opacity-50 group-hover:opacity-70 transition-opacity duration-300`} />
+        <div className="absolute inset-0 bg-gradient-to-r from-green-500/10 to-emerald-500/10 opacity-30 blur-xl" />
+        
+        <CardContent className="p-8 relative z-10 pt-10">
           <div className="text-center mb-6">
-            <h3 className="text-xl font-semibold mb-2">Weekly</h3>
-            <div className="text-3xl font-bold mb-2">$2.99</div>
+            {/* Icon */}
+            <div className="flex justify-center mb-4">
+              <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${pricingTiers.weekly.iconGradient} flex items-center justify-center shadow-xl`}>
+                {(() => {
+                  const IconComponent = pricingTiers.weekly.icon;
+                  return <IconComponent className="w-6 h-6 text-white" />;
+                })()}
+              </div>
+            </div>
+            
+            {/* Tier name with emoji */}
+            <h3 className={`text-xl font-semibold mb-2 ${pricingTiers.weekly.textColor} flex items-center justify-center gap-2`}>
+              <span>Weekly</span>
+              <span className="text-base opacity-80" aria-hidden="true">{pricingTiers.weekly.emoji}</span>
+            </h3>
+            
+            {/* Price with gradient */}
+            <div className={`text-3xl font-bold mb-2 ${pricingTiers.weekly.priceGradient} bg-clip-text text-transparent`}>
+              $3.99
+            </div>
             <div className="text-muted-foreground">700 replies per week</div>
           </div>
           
           <div className="space-y-4 mb-8">
             <div className="flex items-center space-x-3">
-              <Check className="w-4 h-4 text-green-600 flex-shrink-0" />
+              <Check className={`w-4 h-4 ${pricingTiers.weekly.textColor} flex-shrink-0`} />
               <span className="text-sm">700 replies every 7 days</span>
             </div>
             <div className="flex items-center space-x-3">
-              <Check className="w-4 h-4 text-green-600 flex-shrink-0" />
+              <Check className={`w-4 h-4 ${pricingTiers.weekly.textColor} flex-shrink-0`} />
               <span className="text-sm">All trial features</span>
             </div>
             <div className="flex items-center space-x-3">
-              <Check className="w-4 h-4 text-green-600 flex-shrink-0" />
+              <Check className={`w-4 h-4 ${pricingTiers.weekly.textColor} flex-shrink-0`} />
               <span className="text-sm">Priority AI model access</span>
             </div>
             <div className="flex items-center space-x-3">
-              <Check className="w-4 h-4 text-green-600 flex-shrink-0" />
+              <Check className={`w-4 h-4 ${pricingTiers.weekly.textColor} flex-shrink-0`} />
               <span className="text-sm">Email support</span>
             </div>
           </div>
           
           <Button 
-            className="w-full font-medium" 
+            className={`w-full font-medium bg-gradient-to-r ${pricingTiers.weekly.buttonGradient} text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300`}
             onClick={() => handleSubscribe('weekly')}
             disabled={loadingPlan === 'weekly'}
             data-testid="button-subscribe-weekly"
           >
             {loadingPlan === 'weekly' ? (
               <>
-                <div className="animate-spin w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full mr-2" />
+                <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full mr-2" />
                 Loading...
               </>
             ) : (
@@ -149,42 +232,63 @@ export function PricingCards() {
       </Card>
 
       {/* Monthly Plan */}
-      <Card>
-        <CardContent className="p-8">
+      <Card className={`relative overflow-hidden border-2 ${pricingTiers.monthly.borderColor} ${pricingTiers.monthly.hoverBorder} transition-all duration-300 group`}>
+        {/* Gradient background */}
+        <div className={`absolute inset-0 bg-gradient-to-br ${pricingTiers.monthly.cardGradient} opacity-50 group-hover:opacity-70 transition-opacity duration-300`} />
+        
+        <CardContent className="p-8 relative z-10">
           <div className="text-center mb-6">
-            <h3 className="text-xl font-semibold mb-2">Monthly</h3>
-            <div className="text-3xl font-bold mb-2">$9.99</div>
+            {/* Icon */}
+            <div className="flex justify-center mb-4">
+              <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${pricingTiers.monthly.iconGradient} flex items-center justify-center shadow-xl`}>
+                {(() => {
+                  const IconComponent = pricingTiers.monthly.icon;
+                  return <IconComponent className="w-6 h-6 text-white" />;
+                })()}
+              </div>
+            </div>
+            
+            {/* Tier name with emoji */}
+            <h3 className={`text-xl font-semibold mb-2 ${pricingTiers.monthly.textColor} flex items-center justify-center gap-2`}>
+              <span>Monthly</span>
+              <span className="text-base opacity-80" aria-hidden="true">{pricingTiers.monthly.emoji}</span>
+            </h3>
+            
+            {/* Price with gradient */}
+            <div className={`text-3xl font-bold mb-2 ${pricingTiers.monthly.priceGradient} bg-clip-text text-transparent`}>
+              $9.99
+            </div>
             <div className="text-muted-foreground">3,000 replies per month</div>
           </div>
           
           <div className="space-y-4 mb-8">
             <div className="flex items-center space-x-3">
-              <Check className="w-4 h-4 text-green-600 flex-shrink-0" />
+              <Check className={`w-4 h-4 ${pricingTiers.monthly.textColor} flex-shrink-0`} />
               <span className="text-sm">3,000 replies every 30 days</span>
             </div>
             <div className="flex items-center space-x-3">
-              <Check className="w-4 h-4 text-green-600 flex-shrink-0" />
+              <Check className={`w-4 h-4 ${pricingTiers.monthly.textColor} flex-shrink-0`} />
               <span className="text-sm">All weekly features</span>
             </div>
             <div className="flex items-center space-x-3">
-              <Check className="w-4 h-4 text-green-600 flex-shrink-0" />
+              <Check className={`w-4 h-4 ${pricingTiers.monthly.textColor} flex-shrink-0`} />
               <span className="text-sm">Best value per reply</span>
             </div>
             <div className="flex items-center space-x-3">
-              <Check className="w-4 h-4 text-green-600 flex-shrink-0" />
+              <Check className={`w-4 h-4 ${pricingTiers.monthly.textColor} flex-shrink-0`} />
               <span className="text-sm">Priority support</span>
             </div>
           </div>
           
           <Button 
-            className="w-full font-medium" 
+            className={`w-full font-medium bg-gradient-to-r ${pricingTiers.monthly.buttonGradient} text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300`}
             onClick={() => handleSubscribe('monthly')}
             disabled={loadingPlan === 'monthly'}
             data-testid="button-subscribe-monthly"
           >
             {loadingPlan === 'monthly' ? (
               <>
-                <div className="animate-spin w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full mr-2" />
+                <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full mr-2" />
                 Loading...
               </>
             ) : (

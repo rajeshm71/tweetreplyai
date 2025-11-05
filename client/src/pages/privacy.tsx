@@ -73,7 +73,7 @@ export default function PrivacyPolicy() {
                   <div className="bg-gray-50 p-4 rounded-lg">
                     <h3 className="text-lg font-semibold text-gray-800 mb-2">Primary Uses</h3>
                     <ul className="list-disc list-inside text-gray-700 space-y-1">
-                      <li>Service Provision: To provide AI-powered reply generation services</li>
+                      <li>Service Provision: To provide AI driven reply generation services</li>
                       <li>Authentication: To maintain your login session and verify your identity</li>
                       <li>Quota Management: To enforce usage limits and subscription tiers</li>
                       <li>Service Improvement: To analyze usage patterns and improve our AI models</li>

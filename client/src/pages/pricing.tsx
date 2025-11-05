@@ -19,8 +19,8 @@ export default function Pricing() {
       answer: "Yes! Your subscription covers both the Chrome extension and the mobile-friendly web interface. Your quota is shared across both platforms."
     },
     {
-      question: "How authentic are the AI-generated replies?",
-      answer: "Our AI is trained to generate human-like, contextual replies under 25 words. Most users post our suggestions without any edits. We avoid generic AI clichés and hashtags."
+      question: "How authentic are the AI generated replies?",
+      answer: "Our AI is trained to generate human-like, contextual replies. Most users post our suggestions without any edits. We avoid generic AI clichés and hashtags."
     },
     {
       question: "What AI models do you use?",

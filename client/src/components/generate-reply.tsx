@@ -576,7 +576,7 @@ export function GenerateReply() {
         {/* Usage Info */}
         <div className="mt-2 text-xs text-muted-foreground text-center">
           <Sparkles className="w-3 h-3 inline mr-1" />
-          Powered by AI • Authentic replies under 25 words • Press Enter to send
+          Powered by AI • Authentic replies • Press Enter to send
         </div>
       </div>
 
@@ -651,7 +651,7 @@ export function GenerateReply() {
           <SheetHeader>
             <SheetTitle>Improve Your Draft</SheetTitle>
             <SheetDescription>
-              Get AI-powered suggestions to improve your reply
+              Get AI generated suggestions to improve your reply
             </SheetDescription>
           </SheetHeader>
           <div className="mt-4 space-y-4">

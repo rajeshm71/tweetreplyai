@@ -79,8 +79,8 @@ export default function Home() {
       answer: "Yes! Your subscription covers both the Chrome extension and the mobile-friendly web interface. Your quota is shared across both platforms."
     },
     {
-      question: "How authentic are the AI-generated replies?",
-      answer: "Our AI is trained to generate human-like, contextual replies under 25 words. Most users post our suggestions without any edits. We avoid generic AI clichés and hashtags."
+      question: "How authentic are the AI generated replies?",
+      answer: "Our AI is trained to generate human-like, contextual replies. Most users post our suggestions without any edits. We avoid generic AI clichés and hashtags."
     },
     {
       question: "What AI models do you use?",
@@ -118,7 +118,7 @@ export default function Home() {
               </h1>
               
               <p className="text-xl md:text-2xl text-muted-foreground mb-12 max-w-3xl mx-auto leading-relaxed">
-                AI-powered reply generation for Twitter/X. 
+                AI generated reply generation for Twitter/X. 
                 <span className="text-foreground font-semibold"> Create authentic, engaging responses in seconds.</span>
               </p>
 
@@ -357,7 +357,7 @@ export default function Home() {
               </h2>
               
               <p className="text-xl text-muted-foreground mb-10 max-w-2xl mx-auto leading-relaxed">
-                Join professionals who are already boosting their engagement with AI-powered responses.
+                Join professionals who are already boosting their engagement with AI driven responses.
               </p>
               
               <div className="flex flex-col sm:flex-row gap-6 justify-center items-center mb-8">
@@ -386,7 +386,7 @@ export default function Home() {
                 </div>
                 <div className="flex items-center justify-center space-x-2 text-sm text-muted-foreground">
                   <Sparkles className="w-4 h-4 text-primary" />
-                  <span>AI-Powered</span>
+                  <span>AI Driven</span>
                 </div>
               </div>
             </div>
