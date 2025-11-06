@@ -36,6 +36,14 @@
     <priority>0.5</priority>
   </url>
   
+  <!-- Terms of Service -->
+  <url>
+    <loc>https://tweetreplyai.com/terms</loc>
+    <lastmod>2025-01-27</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  
   <!-- App Page (for authenticated users) -->
   <url>
     <loc>https://tweetreplyai.com/app</loc>

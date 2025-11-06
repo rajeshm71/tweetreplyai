@@ -294,20 +294,27 @@ function updateStats(): StoredStats {
   const repliesIncrement = randomBetween(50, 200);
   const impressionsIncrement = randomBetween(5000, 15000);
   const engagementsIncrement = randomBetween(2, 8);
-  const hoursIncrement = randomBetween(0.1, 0.5);
   
   // Fixed: Validate increments are finite numbers
   const safeRepliesIncrement = Number.isFinite(repliesIncrement) ? repliesIncrement : 0;
   const safeImpressionsIncrement = Number.isFinite(impressionsIncrement) ? impressionsIncrement : 0;
   const safeEngagementsIncrement = Number.isFinite(engagementsIncrement) ? engagementsIncrement : 0;
-  const safeHoursIncrement = Number.isFinite(hoursIncrement) ? hoursIncrement : 0;
+  
+  // Calculate hours saved based on total replies generated
+  // Assumption: ~1.2 minutes saved per reply on average (manual: ~1.5-2 min, AI: ~0.2-0.3 min)
+  // For 100 replies: 100 * 1.2 / 60 = 2.0 hours (realistic)
+  // Add small random variation (±0.1 min per reply) for realism: 1.1-1.3 min per reply
+  // For 100 replies: 110-130 minutes = 1.83-2.17 hours
+  const totalReplies = Math.max(0, current.repliesGenerated + safeRepliesIncrement);
+  const minutesSavedPerReply = randomBetween(1.1, 1.3); // minutes (small variation for realism)
+  const hoursSaved = (totalReplies * minutesSavedPerReply) / 60;
   
   // Update values
   const updated: StoredStats = {
-    repliesGenerated: Math.max(0, current.repliesGenerated + safeRepliesIncrement),
+    repliesGenerated: totalReplies,
     impressions: Math.max(0, current.impressions + safeImpressionsIncrement),
     engagementsBoost: Math.max(0, current.engagementsBoost + safeEngagementsIncrement),
-    hoursSaved: Math.max(0, current.hoursSaved + safeHoursIncrement),
+    hoursSaved: Number.isFinite(hoursSaved) && hoursSaved >= 0 ? hoursSaved : 0,
     timestamp: Date.now()
   };
   

@@ -1,4 +1,4 @@
-import { MessageCircle, User, Settings, LogOut, Home, Download } from "lucide-react";
+import { User, Settings, LogOut, Home, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -10,6 +10,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { UsageBadge } from "@/components/usage-badge";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { Logo } from "@/components/logo";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
@@ -22,16 +24,9 @@ export function AppHeader() {
 
   const handleLogout = async () => {
     try {
-      const response = await apiRequest('POST', '/api/auth/logout');
-      const data = await response.json();
-      
-      if (data.redirectUrl) {
-        // Replit OAuth logout - redirect to Replit end session
-        window.location.href = data.redirectUrl;
-      } else {
-        // Local/Google logout - just redirect to landing
-        window.location.href = '/';
-      }
+      await apiRequest('POST', '/api/auth/logout');
+      // Redirect to landing page
+      window.location.href = '/';
     } catch (error) {
       toast({
         title: "Error",
@@ -91,56 +86,54 @@ export function AppHeader() {
   };
 
   return (
-    <header className="border-b border-border bg-card sticky top-0 z-50">
+    <header className="navbar-modern sticky top-0 z-50" role="banner">
       <div className="max-w-7xl mx-auto px-4 py-3 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center">
-          {/* Logo and Nav */}
+          {/* Logo and Nav - Sprint 1: Modernized, Sprint 5: Added accessibility */}
           <div className="flex items-center space-x-6">
-            <div 
-              className="flex items-center space-x-3 cursor-pointer hover:opacity-80 transition-opacity" 
-              onClick={() => setLocation('/')}
-            >
-              <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-                <MessageCircle className="w-4 h-4 text-primary-foreground" />
-              </div>
-              <span className="text-lg font-semibold hidden sm:block">TweetReply</span>
-            </div>
+            <Logo showText={true} className="hidden sm:flex" />
+            <Logo showText={false} className="sm:hidden" />
             
-            <nav className="hidden md:flex items-center space-x-1">
+            <nav className="hidden md:flex items-center space-x-2" role="navigation" aria-label="Main navigation">
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => setLocation('/')}
-                className="flex items-center gap-2"
+                className="flex items-center gap-2 rounded-lg transition-all duration-300 hover:bg-primary/10 hover:text-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 data-testid="button-nav-home"
+                aria-label="Navigate to home page"
               >
-                <Home className="w-4 h-4" />
+                <Home className="w-4 h-4" aria-hidden="true" />
                 <span>Home</span>
               </Button>
               
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => window.open('https://chrome.google.com/webstore', '_blank')}
-                className="flex items-center gap-2"
+                onClick={() => window.open('https://chromewebstore.google.com/detail/tweetreply-ai-powered-twi/nhpilcnghmcdhcbhndmemiggfekmdgem', '_blank')}
+                className="flex items-center gap-2 rounded-lg transition-all duration-300 hover:bg-primary/10 hover:text-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 data-testid="button-nav-extension"
+                aria-label="Download Chrome extension (opens in new tab)"
               >
-                <Download className="w-4 h-4" />
+                <Download className="w-4 h-4" aria-hidden="true" />
                 <span>Extension</span>
               </Button>
             </nav>
           </div>
 
-          {/* Right side: Usage, Billing, Profile */}
+          {/* Right side: Usage, Billing, Theme Toggle, Profile - Sprint 3: Added theme toggle */}
           <div className="flex items-center space-x-3">
             <UsageBadge />
+            
+            <ThemeToggle />
             
             <Button 
               variant="outline" 
               size="sm"
               onClick={handleBilling}
-              className="hidden sm:flex"
+              className="hidden sm:flex rounded-lg transition-all duration-300 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               data-testid="button-manage-billing"
+              aria-label="Manage billing and subscription"
             >
               Manage billing
             </Button>
@@ -149,18 +142,20 @@ export function AppHeader() {
               <DropdownMenuTrigger asChild>
                 <Button 
                   variant="ghost" 
-                  className="relative h-9 w-9 rounded-full"
+                  className="relative h-9 w-9 rounded-full focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   data-testid="button-user-menu"
+                  aria-label={`User menu for ${getUserDisplayName()}`}
+                  aria-haspopup="menu"
                 >
                   <Avatar className="h-9 w-9">
                     <AvatarImage src={user?.profileImageUrl} alt={getUserDisplayName()} />
-                    <AvatarFallback className="bg-primary text-primary-foreground">
+                    <AvatarFallback className="bg-primary text-primary-foreground" aria-hidden="true">
                       {getUserInitials()}
                     </AvatarFallback>
                   </Avatar>
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-56" align="end" forceMount>
+              <DropdownMenuContent className="w-56" align="end" forceMount role="menu" aria-label="User menu">
                 <DropdownMenuLabel className="font-normal">
                   <div className="flex flex-col space-y-1">
                     <p className="text-sm font-medium leading-none" data-testid="text-user-name">
@@ -177,21 +172,21 @@ export function AppHeader() {
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => setLocation('/profile')} data-testid="menu-item-profile">
-                  <User className="mr-2 h-4 w-4" />
+                <DropdownMenuItem onClick={() => setLocation('/profile')} data-testid="menu-item-profile" role="menuitem" aria-label="View profile">
+                  <User className="mr-2 h-4 w-4" aria-hidden="true" />
                   <span>Profile</span>
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setLocation('/settings')} data-testid="menu-item-settings">
-                  <Settings className="mr-2 h-4 w-4" />
+                <DropdownMenuItem onClick={() => setLocation('/settings')} data-testid="menu-item-settings" role="menuitem" aria-label="View settings">
+                  <Settings className="mr-2 h-4 w-4" aria-hidden="true" />
                   <span>Settings</span>
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleBilling} className="sm:hidden" data-testid="menu-item-billing">
-                  <Settings className="mr-2 h-4 w-4" />
+                <DropdownMenuItem onClick={handleBilling} className="sm:hidden" data-testid="menu-item-billing" role="menuitem" aria-label="Manage billing">
+                  <Settings className="mr-2 h-4 w-4" aria-hidden="true" />
                   <span>Manage Billing</span>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleLogout} data-testid="menu-item-logout">
-                  <LogOut className="mr-2 h-4 w-4" />
+                <DropdownMenuItem onClick={handleLogout} data-testid="menu-item-logout" role="menuitem" aria-label="Log out">
+                  <LogOut className="mr-2 h-4 w-4" aria-hidden="true" />
                   <span>Logout</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>

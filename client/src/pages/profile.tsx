@@ -44,8 +44,6 @@ export default function ProfilePage() {
     switch (provider.toLowerCase()) {
       case 'google':
         return <SiGoogle className="w-4 h-4" />;
-      case 'replit':
-        return <MessageCircle className="w-4 h-4" />;
       case 'local':
         return <Mail className="w-4 h-4" />;
       default:
@@ -57,8 +55,6 @@ export default function ProfilePage() {
     switch (provider.toLowerCase()) {
       case 'google':
         return 'Google OAuth';
-      case 'replit':
-        return 'Replit OAuth';
       case 'local':
         return 'Email & Password';
       default:

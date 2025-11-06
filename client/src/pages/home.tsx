@@ -1,15 +1,18 @@
-import { Link } from "wouter";
+import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
-import { Sparkles, Zap, TrendingUp, ArrowRight, Star, CheckCircle, Brain, Rocket, Crown, Shield, ChevronRight, Palette, MessageCircle, Download } from "lucide-react";
+import { TrendingUp, Download, X, History, BarChart3, Settings, User, Chrome } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { PricingCards } from "@/components/pricing-cards";
 import { AppHeader } from "@/components/app-header";
 import { useToast } from "@/hooks/use-toast";
-import { useEffect } from "react";
+import { useEffect, useState, useRef } from "react";
+// Sprint 4: Lazy load heavy component
+import { lazy, Suspense } from "react";
+import type { GenerateReplyRef } from "@/components/generate-reply";
+const GenerateReply = lazy(() => import("@/components/generate-reply").then(module => ({ default: module.GenerateReply })));
+import { motion, AnimatePresence } from "framer-motion";
+import { useReducedMotion } from "@/hooks/use-reduced-motion";
 
 type Usage = {
   today: number;
@@ -17,25 +20,27 @@ type Usage = {
   thisMonth: number;
 };
 
-function UsageBadge() {
-  const { data: usage } = useQuery<Usage>({
-    queryKey: ["/api/usage"],
-    retry: false,
-  });
-
-  if (!usage) return null;
-
-  return (
-    <Badge variant="secondary" className="glass-effect border border-primary/20">
-      <Zap className="w-3 h-3 mr-1" />
-      {usage.today} today
-    </Badge>
-  );
-}
+const CHROME_EXTENSION_URL = "https://chromewebstore.google.com/detail/tweetreply-ai-powered-twi/nhpilcnghmcdhcbhndmemiggfekmdgem";
 
 export default function Home() {
   const { user, isLoading } = useAuth();
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
+  const generateReplyRef = useRef<GenerateReplyRef>(null);
+  const prefersReducedMotion = useReducedMotion();
+  
+  // Fix: Add localStorage error handling for SSR safety
+  const [isBannerDismissed, setIsBannerDismissed] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        return localStorage.getItem('chrome-extension-banner-dismissed') === 'true';
+      } catch (error) {
+        console.warn('Failed to read localStorage:', error);
+        return false;
+      }
+    }
+    return false;
+  });
 
   const { data: usage } = useQuery<Usage>({
     queryKey: ["/api/usage"],
@@ -52,11 +57,24 @@ export default function Home() {
         variant: "destructive",
       });
       setTimeout(() => {
-        window.location.href = "/api/login";
+        window.location.href = "/login";
       }, 500);
       return;
     }
   }, [user, isLoading, toast]);
+
+  // Fix: Add localStorage error handling
+  const handleDismissBanner = () => {
+    setIsBannerDismissed(true);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('chrome-extension-banner-dismissed', 'true');
+      } catch (error) {
+        console.warn('Failed to save to localStorage:', error);
+        // Still dismiss the banner even if localStorage fails
+      }
+    }
+  };
 
   if (isLoading) {
     return (
@@ -69,347 +87,197 @@ export default function Home() {
     );
   }
 
-  const faqs = [
-    {
-      question: "How do the reply quotas work?",
-      answer: "Your quota resets automatically based on your plan. Trial users get 10 replies per day, weekly subscribers get 700 replies every 7 days, and monthly subscribers get 3,000 replies every 30 days."
-    },
-    {
-      question: "Can I use both the extension and web app?",
-      answer: "Yes! Your subscription covers both the Chrome extension and the mobile-friendly web interface. Your quota is shared across both platforms."
-    },
-    {
-      question: "How authentic are the AI generated replies?",
-      answer: "Our AI is trained to generate human-like, contextual replies. Most users post our suggestions without any edits. We avoid generic AI clichés and hashtags."
-    },
-    {
-      question: "What AI models do you use?",
-      answer: "We use the latest GPT and Gemini models, automatically selecting the best model based on tweet complexity for optimal results."
-    },
-    {
-      question: "Can I cancel anytime?",
-      answer: "Absolutely! You can cancel your subscription at any time. Your plan will remain active until the end of your current billing cycle."
-    }
-  ];
-
   return (
     <div className="min-h-screen bg-background">
+      {/* Sprint 3: Skip to content link for accessibility */}
+      <a href="#main-content" className="skip-to-content">
+        Skip to main content
+      </a>
       <AppHeader />
 
-      {/* Hero Section */}
-      <section className="relative overflow-hidden">
-        <div className="hero-gradient grid-pattern">
-          <div className="container section-padding relative">
-            {/* Floating Elements */}
-            <div className="absolute top-10 right-10 w-24 h-24 bg-gradient-to-br from-primary/20 to-purple-500/20 rounded-full blur-2xl floating-animation" />
-            <div className="absolute bottom-10 left-10 w-32 h-32 bg-gradient-to-br from-cyan-500/20 to-blue-500/20 rounded-full blur-3xl floating-animation" style={{ animationDelay: '-3s' }} />
-            <div className="absolute top-1/2 right-1/4 w-20 h-20 bg-gradient-to-br from-pink-500/20 to-purple-500/20 rounded-full blur-2xl floating-animation" style={{ animationDelay: '-5s' }} />
-            
-            <div className="text-center mb-16 relative z-10">
-              <Badge variant="secondary" className="mb-6 px-4 py-2 text-sm font-medium glass-effect border border-primary/20 shadow-lg">
-                <Star className="w-4 h-4 mr-2" />
-                {(user as any)?.firstName ? `Welcome back, ${(user as any).firstName}!` : 'Welcome back!'}
-              </Badge>
-              
-              <h1 className="text-5xl md:text-7xl lg:text-8xl font-display font-bold mb-8 leading-none">
-                <span className="gradient-text">Generate Amazing</span>
-                <br />
-                <span className="text-foreground">Replies Now</span>
-              </h1>
-              
-              <p className="text-xl md:text-2xl text-muted-foreground mb-12 max-w-3xl mx-auto leading-relaxed">
-                AI generated reply generation for Twitter/X. 
-                <span className="text-foreground font-semibold"> Create authentic, engaging responses in seconds.</span>
-              </p>
-
-              <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+      {/* Chrome Extension Download Banner - Sprint 1: Modernized with better integration */}
+      <AnimatePresence>
+        {!isBannerDismissed && (
+        <motion.div 
+          initial={{ opacity: 0, y: prefersReducedMotion ? 0 : -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: prefersReducedMotion ? 0 : -20 }}
+          transition={{ duration: prefersReducedMotion ? 0 : 0.3 }}
+          className="bg-gradient-to-r from-blue-500 via-purple-500 to-blue-600 text-white border-b border-blue-400/30 shadow-lg"
+        >
+          <div className="container mx-auto px-4 py-3 sm:py-4">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4">
+              <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0 w-full sm:w-auto">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg transition-all duration-300 hover:scale-110 hover:bg-white/30">
+                  <Chrome className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-xs sm:text-sm md:text-base truncate">
+                    Generate replies directly on X/Twitter
+                  </p>
+                  <p className="text-[10px] sm:text-xs md:text-sm text-white/90 opacity-90 truncate">
+                    Install our Chrome extension for seamless integration
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0 w-full sm:w-auto justify-end">
                 <Button 
-                  asChild 
-                  size="lg"
-                  className="h-14 px-8 text-lg bg-gradient-to-r from-primary to-primary/80 text-white shadow-2xl hover-lift pulse-glow border-0 font-semibold"
-                  data-testid="button-get-started"
+                  onClick={() => window.open(CHROME_EXTENSION_URL, '_blank')}
+                  className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white hover:from-blue-600 hover:to-indigo-700 font-semibold h-8 sm:h-9 px-3 sm:px-4 text-xs sm:text-sm flex-1 sm:flex-initial rounded-lg shadow-md hover:shadow-lg hover:shadow-blue-500/20 transition-all duration-300 hover:scale-105 active:scale-95"
+                  data-testid="button-chrome-extension-banner"
                 >
-                  <Link href="/app">
-                    <Sparkles className="w-5 h-5 mr-3" />
-                    Start Generating
-                    <ArrowRight className="w-5 h-5 ml-3" />
-                  </Link>
+                  <Download className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                  Add to Chrome
                 </Button>
-                
-                {usage && (
-                  <div className="flex items-center space-x-3 text-sm text-muted-foreground">
-                    <CheckCircle className="w-4 h-4 text-primary" />
-                    <span>You've generated <strong className="text-foreground">{usage.thisMonth}</strong> replies this month</span>
-                  </div>
-                )}
+                <Button 
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleDismissBanner}
+                  className="text-white hover:bg-white/20 h-8 w-8 sm:h-9 sm:w-9 rounded-lg transition-all duration-300"
+                  aria-label="Dismiss banner"
+                >
+                  <X className="w-3 h-3 sm:w-4 sm:h-4" />
+                </Button>
               </div>
             </div>
           </div>
-        </div>
-      </section>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {/* Product Tour */}
-      <section className="section-padding bg-gradient-to-b from-background to-muted/10">
-        <div className="container">
-          <div className="text-center mb-16">
-            <Badge variant="secondary" className="mb-4 glass-effect border border-primary/20">
-              <Rocket className="w-4 h-4 mr-2" />
-              Three Ways to Use TweetReply
-            </Badge>
-            <h2 className="text-4xl md:text-5xl font-display font-bold mb-6">
-              Choose Your <span className="gradient-text">Perfect Workflow</span>
-            </h2>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Whether you prefer web, extension, or advanced AI customization, we've got you covered.
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
-            {/* Web App */}
-            <Card className="neomorphic border-0 hover-lift group overflow-hidden relative">
-              <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-purple-500/10 opacity-0 group-hover:opacity-100 smooth-transition" />
-              <CardContent className="p-8 text-center relative z-10">
-                <div className="w-16 h-16 bg-gradient-to-br from-primary to-primary/60 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-xl group-hover:scale-110 group-hover:rotate-3 smooth-transition">
-                  <MessageCircle className="w-8 h-8 text-white" />
+      {/* Main Dashboard Content - Sprint 3: Added main landmark for accessibility */}
+      <main id="main-content" className="container mx-auto px-4 py-8 max-w-7xl" role="main">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_350px] gap-8">
+          {/* Left Column: GenerateReply Component (70% on desktop) - Fix: Use ref to trigger sheets */}
+          <div className="min-w-0" data-generate-reply>
+            <Suspense fallback={
+              <div className="min-h-[600px] flex items-center justify-center" role="status" aria-label="Loading reply generator">
+                <div className="flex flex-col items-center gap-4">
+                  <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" aria-hidden="true" />
+                  <p className="text-sm text-muted-foreground">Loading reply generator...</p>
                 </div>
-                <h3 className="text-2xl font-display font-semibold mb-3 text-foreground">Web Application</h3>
-                <p className="text-muted-foreground mb-6 leading-relaxed">
-                  Paste tweet text and generate replies instantly with our powerful web interface
-                </p>
-                <Button 
-                  asChild 
-                  variant="outline"
-                  className="w-full glass-effect border-primary/30 hover:bg-primary/10 smooth-transition group-hover:border-primary"
-                  data-testid="link-web-app"
-                >
-                  <Link href="/app">
-                    Open Web App
-                    <ChevronRight className="w-4 h-4 ml-2 group-hover:translate-x-1 smooth-transition" />
-                  </Link>
-                </Button>
-              </CardContent>
-            </Card>
-
-            {/* Chrome Extension */}
-            <Card className="neomorphic border-0 hover-lift group overflow-hidden relative">
-              <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/10 via-transparent to-blue-500/10 opacity-0 group-hover:opacity-100 smooth-transition" />
-              <CardContent className="p-8 text-center relative z-10">
-                <div className="w-16 h-16 bg-gradient-to-br from-cyan-500 to-blue-500 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-xl group-hover:scale-110 group-hover:rotate-3 smooth-transition">
-                  <Download className="w-8 h-8 text-white" />
-                </div>
-                <h3 className="text-2xl font-display font-semibold mb-3 text-foreground">Chrome Extension</h3>
-                <p className="text-muted-foreground mb-6 leading-relaxed">
-                  Generate replies directly on X (Twitter) with seamless integration
-                </p>
-                <Button 
-                  variant="outline"
-                  asChild 
-                  className="w-full glass-effect border-cyan-500/30 hover:bg-cyan-500/10 smooth-transition group-hover:border-cyan-500"
-                >
-                  <a href="/extension.zip" download data-testid="button-download-extension">
-                    Download Extension
-                    <ChevronRight className="w-4 h-4 ml-2 group-hover:translate-x-1 smooth-transition" />
-                  </a>
-                </Button>
-              </CardContent>
-            </Card>
-
-            {/* AI Models */}
-            <Card className="neomorphic border-0 hover-lift group overflow-hidden relative">
-              <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 via-transparent to-pink-500/10 opacity-0 group-hover:opacity-100 smooth-transition" />
-              <CardContent className="p-8 text-center relative z-10">
-                <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-xl group-hover:scale-110 group-hover:rotate-3 smooth-transition">
-                  <Brain className="w-8 h-8 text-white" />
-                </div>
-                <h3 className="text-2xl font-display font-semibold mb-3 text-foreground">AI Model Selection</h3>
-                <p className="text-muted-foreground mb-6 leading-relaxed">
-                  Choose from GPT-4o, Gemini, and more for custom reply styles
-                </p>
-                <Button 
-                  asChild
-                  variant="outline" 
-                  className="w-full glass-effect border-purple-500/30 hover:bg-purple-500/10 smooth-transition group-hover:border-purple-500"
-                  data-testid="button-explore-models"
-                >
-                  <Link href="/app">
-                    Explore Models
-                    <ChevronRight className="w-4 h-4 ml-2 group-hover:translate-x-1 smooth-transition" />
-                  </Link>
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      </section>
-
-      {/* Usage Stats - Compact */}
-      {usage && (
-        <section className="section-padding">
-          <div className="container">
-            <div className="max-w-4xl mx-auto">
-              <div className="text-center mb-12">
-                <Badge variant="secondary" className="mb-4 glass-effect border border-primary/20">
-                  <TrendingUp className="w-4 h-4 mr-2" />
-                  Your Activity
-                </Badge>
-                <h2 className="text-3xl md:text-4xl font-display font-bold">Quick Stats</h2>
               </div>
-              
-              <div className="grid grid-cols-3 gap-6">
-                <Card className="glass-effect border border-primary/20 hover-lift p-6 text-center group">
-                  <div className="text-5xl font-bold text-primary mb-2 group-hover:scale-110 smooth-transition">{usage.today}</div>
-                  <div className="text-sm font-medium text-muted-foreground">Today</div>
-                </Card>
-                <Card className="glass-effect border border-primary/20 hover-lift p-6 text-center group">
-                  <div className="text-5xl font-bold text-primary mb-2 group-hover:scale-110 smooth-transition">{usage.thisWeek}</div>
-                  <div className="text-sm font-medium text-muted-foreground">This Week</div>
-                </Card>
-                <Card className="glass-effect border border-primary/20 hover-lift p-6 text-center group">
-                  <div className="text-5xl font-bold text-primary mb-2 group-hover:scale-110 smooth-transition">{usage.thisMonth}</div>
-                  <div className="text-sm font-medium text-muted-foreground">This Month</div>
-                </Card>
-              </div>
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* Pricing Section */}
-      <section className="section-padding bg-gradient-to-b from-background to-muted/10">
-        <div className="container">
-          <div className="text-center mb-16">
-            <Badge variant="secondary" className="mb-6 px-4 py-2 text-sm font-medium glass-effect border border-primary/20 shadow-lg">
-              <Crown className="w-4 h-4 mr-2" />
-              Simple, Transparent Pricing
-            </Badge>
-            
-            <h2 className="text-5xl md:text-6xl font-display font-bold mb-8 leading-none">
-              <span className="gradient-text">Choose Your Plan</span>
-            </h2>
-            
-            <p className="text-xl md:text-2xl text-muted-foreground mb-4 max-w-3xl mx-auto leading-relaxed">
-              Start with a free trial, then pick the plan that fits your needs. 
-              <span className="text-foreground font-semibold"> No hidden fees, cancel anytime.</span>
-            </p>
+            }>
+              <GenerateReply ref={generateReplyRef} />
+            </Suspense>
           </div>
 
-          <PricingCards />
+          {/* Right Column: Quick Stats + Quick Access (30% on desktop) */}
+          <div className="space-y-6">
+            {/* Quick Stats - Sprint 2: Modernized with enhanced styling */}
+            {usage && (
+              <motion.div
+                initial={{ opacity: 0, y: prefersReducedMotion ? 0 : 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: prefersReducedMotion ? 0 : 0.5, delay: prefersReducedMotion ? 0 : 0.2 }}
+              >
+                <Card className="card-modern-enhanced border border-primary/20 bg-gradient-to-br from-card to-card/50">
+                  <CardContent className="p-6">
+                    <div className="flex items-center gap-2 mb-4">
+                      <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-purple-600 flex items-center justify-center shadow-md">
+                        <TrendingUp className="w-4 h-4 text-white" />
+                      </div>
+                      <h3 className="font-semibold text-lg">Quick Stats</h3>
+                    </div>
+                    <div className="space-y-3">
+                      <motion.div 
+                        className="flex items-center justify-between p-4 bg-gradient-to-br from-muted/50 to-muted/30 rounded-xl border border-border/50 hover:border-primary/30 transition-all duration-300 hover:shadow-md"
+                        whileHover={prefersReducedMotion ? {} : { scale: 1.02 }}
+                        transition={{ duration: prefersReducedMotion ? 0 : 0.2 }}
+                      >
+                        <div>
+                          <p className="text-sm text-muted-foreground font-medium">Today</p>
+                          <p className="text-2xl font-bold text-primary mt-1">{usage.today}</p>
+                        </div>
+                      </motion.div>
+                      <motion.div 
+                        className="flex items-center justify-between p-4 bg-gradient-to-br from-muted/50 to-muted/30 rounded-xl border border-border/50 hover:border-primary/30 transition-all duration-300 hover:shadow-md"
+                        whileHover={prefersReducedMotion ? {} : { scale: 1.02 }}
+                        transition={{ duration: prefersReducedMotion ? 0 : 0.2 }}
+                      >
+                        <div>
+                          <p className="text-sm text-muted-foreground font-medium">This Week</p>
+                          <p className="text-2xl font-bold text-primary mt-1">{usage.thisWeek}</p>
+                        </div>
+                      </motion.div>
+                      <motion.div 
+                        className="flex items-center justify-between p-4 bg-gradient-to-br from-muted/50 to-muted/30 rounded-xl border border-border/50 hover:border-primary/30 transition-all duration-300 hover:shadow-md"
+                        whileHover={prefersReducedMotion ? {} : { scale: 1.02 }}
+                        transition={{ duration: prefersReducedMotion ? 0 : 0.2 }}
+                      >
+                        <div>
+                          <p className="text-sm text-muted-foreground font-medium">This Month</p>
+                          <p className="text-2xl font-bold text-primary mt-1">{usage.thisMonth}</p>
         </div>
-      </section>
-
-      {/* FAQ Section */}
-      <section className="section-padding">
-        <div className="container">
-          <div className="text-center mb-16">
-            <Badge variant="secondary" className="mb-4 glass-effect border border-primary/20">
-              <Star className="w-4 h-4 mr-2" />
-              Frequently Asked Questions
-            </Badge>
-            <h2 className="text-4xl md:text-5xl font-display font-bold mb-6">
-              Everything You <span className="gradient-text">Need to Know</span>
-            </h2>
+                      </motion.div>
           </div>
-          
-          <div className="max-w-3xl mx-auto">
-            <Accordion type="single" collapsible className="space-y-4">
-              {faqs.map((faq, index) => (
-                <AccordionItem 
-                  key={index} 
-                  value={`item-${index}`}
-                  className="border-0"
-                >
-                  <Card className="neomorphic border-0 overflow-hidden">
-                    <AccordionTrigger 
-                      className="px-6 py-4 hover:no-underline hover:bg-primary/5 smooth-transition"
-                      data-testid={`faq-question-${index}`}
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )}
+
+            {/* Quick Access Cards - Sprint 2: Modernized with enhanced styling */}
+            <motion.div
+              initial={{ opacity: 0, y: prefersReducedMotion ? 0 : 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: prefersReducedMotion ? 0 : 0.5, delay: prefersReducedMotion ? 0 : 0.3 }}
+            >
+              <Card className="card-modern-enhanced border border-primary/20 bg-gradient-to-br from-card to-card/50">
+                <CardContent className="p-6">
+                  <h3 className="font-semibold text-lg mb-4">Quick Access</h3>
+                  <div className="space-y-2">
+                    {/* Sprint 1: Modernized buttons with smooth transitions */}
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-start h-auto py-3 px-4 rounded-lg hover:bg-gradient-to-r hover:from-primary/10 hover:to-purple-600/10 transition-all duration-300 hover:shadow-md hover:-translate-x-1"
+                      onClick={() => {
+                        const generateReplyElement = document.querySelector('[data-generate-reply]');
+                        if (generateReplyElement) {
+                          generateReplyElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }
+                        generateReplyRef.current?.openHistory();
+                      }}
                     >
-                      <span className="text-lg font-semibold text-left">{faq.question}</span>
-                    </AccordionTrigger>
-                    <AccordionContent className="px-6 pb-4">
-                      <p className="text-muted-foreground leading-relaxed" data-testid={`faq-answer-${index}`}>
-                        {faq.answer}
-                      </p>
-                    </AccordionContent>
-                  </Card>
-                </AccordionItem>
-              ))}
-            </Accordion>
-          </div>
-        </div>
-      </section>
-
-      {/* Final CTA */}
-      <section className="section-padding">
-        <div className="container">
-          <Card className="neomorphic border-0 p-12 md:p-16 text-center relative overflow-hidden max-w-5xl mx-auto">
-            <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-purple-500/10" />
-            <div className="absolute top-10 right-10 w-32 h-32 bg-gradient-to-br from-primary/20 to-purple-500/20 rounded-full blur-3xl" />
-            <div className="absolute bottom-10 left-10 w-40 h-40 bg-gradient-to-br from-cyan-500/20 to-blue-500/20 rounded-full blur-3xl" />
-            
-            <div className="relative z-10">
-              <Badge variant="secondary" className="mb-6 glass-effect border border-primary/20 shadow-lg">
-                <Rocket className="w-4 h-4 mr-2" />
-                Ready to Transform Your Social Media?
-              </Badge>
-              
-              <h2 className="text-4xl md:text-6xl font-display font-bold mb-6">
-                Start Creating <span className="gradient-text">Amazing Replies</span>
-              </h2>
-              
-              <p className="text-xl text-muted-foreground mb-10 max-w-2xl mx-auto leading-relaxed">
-                Join professionals who are already boosting their engagement with AI driven responses.
-              </p>
-              
-              <div className="flex flex-col sm:flex-row gap-6 justify-center items-center mb-8">
+                      <History className="w-5 h-5 mr-3 text-primary" />
+                      <span>Reply History</span>
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-start h-auto py-3 px-4 rounded-lg hover:bg-gradient-to-r hover:from-primary/10 hover:to-purple-600/10 transition-all duration-300 hover:shadow-md hover:-translate-x-1"
+                      onClick={() => {
+                        const generateReplyElement = document.querySelector('[data-generate-reply]');
+                        if (generateReplyElement) {
+                          generateReplyElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }
+                        generateReplyRef.current?.openAnalytics();
+                      }}
+                    >
+                      <BarChart3 className="w-5 h-5 mr-3 text-primary" />
+                      <span>Analytics</span>
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-start h-auto py-3 px-4 rounded-lg hover:bg-gradient-to-r hover:from-primary/10 hover:to-purple-600/10 transition-all duration-300 hover:shadow-md hover:-translate-x-1"
+                      onClick={() => setLocation('/settings')}
+                    >
+                      <Settings className="w-5 h-5 mr-3 text-primary" />
+                      <span>Settings</span>
+                    </Button>
                 <Button 
-                  size="lg"
-                  asChild
-                  className="h-16 px-10 text-lg bg-gradient-to-r from-primary to-primary/80 text-white shadow-2xl hover-lift pulse-glow border-0 font-semibold"
-                  data-testid="button-final-cta"
-                >
-                  <Link href="/app">
-                    <Sparkles className="w-6 h-6 mr-3" />
-                    Open Web App
-                    <ArrowRight className="w-6 h-6 ml-3" />
-                  </Link>
+                      variant="ghost"
+                      className="w-full justify-start h-auto py-3 px-4 rounded-lg hover:bg-gradient-to-r hover:from-primary/10 hover:to-purple-600/10 transition-all duration-300 hover:shadow-md hover:-translate-x-1"
+                      onClick={() => setLocation('/profile')}
+                    >
+                      <User className="w-5 h-5 mr-3 text-primary" />
+                      <span>Profile</span>
                 </Button>
               </div>
-
-              <div className="grid md:grid-cols-3 gap-6 max-w-3xl mx-auto">
-                <div className="flex items-center justify-center space-x-2 text-sm text-muted-foreground">
-                  <Shield className="w-4 h-4 text-primary" />
-                  <span>Secure & Private</span>
-                </div>
-                <div className="flex items-center justify-center space-x-2 text-sm text-muted-foreground">
-                  <CheckCircle className="w-4 h-4 text-primary" />
-                  <span>Cancel Anytime</span>
-                </div>
-                <div className="flex items-center justify-center space-x-2 text-sm text-muted-foreground">
-                  <Sparkles className="w-4 h-4 text-primary" />
-                  <span>AI Driven</span>
-                </div>
-              </div>
-            </div>
+                </CardContent>
           </Card>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="border-t border-border/50 mt-20">
-        <div className="container py-12">
-          <div className="text-center">
-            <div className="flex items-center justify-center space-x-2 mb-4">
-              <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center shadow-lg">
-                <Sparkles className="w-3 h-3 text-white" />
-              </div>
-              <span className="font-display font-bold text-lg">TweetReply</span>
-            </div>
-            <p className="text-muted-foreground">
-              © 2024 TweetReply. All rights reserved. Powered by advanced AI technology.
-            </p>
+            </motion.div>
           </div>
         </div>
-      </footer>
+      </main>
     </div>
   );
 }

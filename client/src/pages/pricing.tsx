@@ -142,7 +142,7 @@ export default function Pricing() {
             <div className="relative z-10">
               <Badge variant="secondary" className="mb-4 glass-effect border border-primary/20">
                 <Rocket className="w-4 h-4 mr-2" />
-                Ready to Get Started?
+                Ready to Start Replying?
               </Badge>
               <h2 className="text-4xl md:text-5xl font-display font-bold mb-6">
                 Start Your <span className="gradient-text">Free Trial</span> Today
@@ -184,7 +184,7 @@ export default function Pricing() {
               <span className="font-display font-bold text-lg">TweetReply</span>
             </div>
             <p className="text-muted-foreground">
-              © 2024 TweetReply. All rights reserved. Powered by advanced AI technology.
+              © 2024 TweetReply. All rights reserved.
             </p>
           </div>
         </div>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, forwardRef, useImperativeHandle } from "react";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,13 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sparkles, Copy, Check, ThumbsUp, ThumbsDown, Clock, Zap, Send, User, Bot, Settings, Brain } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
+import { useReducedMotion } from "@/hooks/use-reduced-motion";
+
+// Expose methods to parent components via ref
+export interface GenerateReplyRef {
+  openHistory: () => void;
+  openAnalytics: () => void;
+}
 
 interface GenerateReplyResponse {
   reply: string;
@@ -96,7 +103,7 @@ interface QualityMetrics {
   lowQualityCount: number;
 }
 
-export function GenerateReply() {
+export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
   const [tweetText, setTweetText] = useState("");
   const [selectedModel, setSelectedModel] = useState<string>("gpt-4o-mini");
   const [selectedPrompt, setSelectedPrompt] = useState<string>("default");
@@ -109,6 +116,13 @@ export function GenerateReply() {
   const [draftText, setDraftText] = useState("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const prefersReducedMotion = useReducedMotion();
+
+  // Expose methods to parent components via ref
+  useImperativeHandle(ref, () => ({
+    openHistory: () => setShowHistory(true),
+    openAnalytics: () => setShowAnalytics(true),
+  }));
 
   // Fetch available models
   const { data: modelsData, isLoading: modelsLoading } = useQuery<{openai: ModelInfo[], gemini: ModelInfo[], groq: ModelInfo[]}>({
@@ -308,47 +322,55 @@ export function GenerateReply() {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-12rem)] max-w-4xl mx-auto">
-      {/* Action Buttons Header */}
-      <div className="border-b border-border p-4 flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Generate Reply</h2>
-        <div className="flex gap-2">
+    <Card className="card-modern-enhanced border border-primary/20 bg-gradient-to-br from-card to-card/50 min-h-[600px] max-h-[calc(100vh-12rem)] max-w-4xl mx-auto flex flex-col overflow-hidden">
+      {/* Action Buttons Header - Sprint 1: Modernized, Sprint 3: Added accessibility */}
+      <div className="border-b border-border/50 p-4 flex items-center justify-between bg-gradient-to-r from-background/50 to-background" role="toolbar" aria-label="Reply generation actions">
+        <h2 className="text-lg font-semibold bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">Generate Reply</h2>
+        <div className="flex gap-2" role="group" aria-label="Action buttons">
           <Button
             variant="outline"
             size="sm"
             onClick={() => setShowHistory(true)}
+            className="rounded-lg transition-all duration-300 hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             data-testid="button-show-history"
+            aria-label="View reply history"
           >
-            <Clock className="w-4 h-4 mr-2" />
+            <Clock className="w-4 h-4 mr-2" aria-hidden="true" />
             History
           </Button>
           <Button
             variant="outline"
             size="sm"
             onClick={() => setShowImprove(true)}
+            className="rounded-lg transition-all duration-300 hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             data-testid="button-show-improve"
+            aria-label="Improve draft reply"
           >
-            <Sparkles className="w-4 h-4 mr-2" />
+            <Sparkles className="w-4 h-4 mr-2" aria-hidden="true" />
             Improve Draft
           </Button>
           <Button
             variant="outline"
             size="sm"
             onClick={() => setShowAnalytics(true)}
+            className="rounded-lg transition-all duration-300 hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             data-testid="button-show-analytics"
+            aria-label="View analytics and insights"
           >
-            <Brain className="w-4 h-4 mr-2" />
+            <Brain className="w-4 h-4 mr-2" aria-hidden="true" />
             Analytics
           </Button>
         </div>
       </div>
-      {/* Chat Messages Area */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-6">
+      {/* Chat Messages Area - Sprint 2: Modernized empty state, Sprint 3: Added accessibility */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-6" role="log" aria-live="polite" aria-label="Reply generation messages">
         {messages.length === 0 ? (
-          <div className="text-center text-muted-foreground py-12">
-            <Bot className="w-12 h-12 mx-auto mb-4 text-primary/50" />
-            <h3 className="text-lg font-medium mb-2">Ready to Generate Replies!</h3>
-            <p>Paste a tweet text below and I'll create an authentic reply for you.</p>
+          <div className="empty-state-modern" role="status" aria-label="Ready to generate replies">
+            <div className="empty-state-icon" aria-hidden="true">
+              <Bot className="w-10 h-10 text-white" />
+            </div>
+            <h3 className="text-xl font-semibold mb-2 text-foreground">Ready to Generate Replies!</h3>
+            <p className="text-muted-foreground max-w-md">Paste a tweet text below and I'll create an authentic reply for you.</p>
           </div>
         ) : (
           messages.map((message) => (
@@ -416,18 +438,18 @@ export function GenerateReply() {
           ))
         )}
         
-        {/* Loading Message */}
+        {/* Loading Message - Sprint 3: Added accessibility */}
         {generateMutation.isPending && (
-          <div className="flex gap-3 justify-start">
-            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+          <div className="flex gap-3 justify-start" role="status" aria-live="polite" aria-label="Generating reply">
+            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0" aria-hidden="true">
               <Bot className="w-4 h-4 text-primary" />
             </div>
             <div className="bg-muted/50 text-foreground mr-12 rounded-2xl px-4 py-3">
               <div className="flex items-center space-x-2">
-                <div className="flex space-x-1">
-                  <div className="w-2 h-2 bg-primary/60 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <div className="w-2 h-2 bg-primary/60 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <div className="w-2 h-2 bg-primary/60 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                <div className="flex space-x-1" aria-hidden="true">
+                  <div className={`w-2 h-2 bg-primary/60 rounded-full ${prefersReducedMotion ? '' : 'animate-bounce'}`} style={prefersReducedMotion ? {} : { animationDelay: '0ms' }} />
+                  <div className={`w-2 h-2 bg-primary/60 rounded-full ${prefersReducedMotion ? '' : 'animate-bounce'}`} style={prefersReducedMotion ? {} : { animationDelay: '150ms' }} />
+                  <div className={`w-2 h-2 bg-primary/60 rounded-full ${prefersReducedMotion ? '' : 'animate-bounce'}`} style={prefersReducedMotion ? {} : { animationDelay: '300ms' }} />
                 </div>
                 <span className="text-xs text-muted-foreground">Generating reply...</span>
               </div>
@@ -550,6 +572,8 @@ export function GenerateReply() {
               onChange={(e) => setTweetText(e.target.value)}
               className="min-h-[60px] max-h-[120px] resize-none border-0 bg-muted/50 focus-visible:ring-1"
               data-testid="input-tweet-text"
+              aria-label="Tweet text input"
+              aria-describedby="tweet-input-help"
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();
@@ -557,16 +581,19 @@ export function GenerateReply() {
                 }
               }}
             />
+            <span id="tweet-input-help" className="sr-only">Press Enter to generate reply, Shift+Enter for new line</span>
           </div>
           <Button
             onClick={handleGenerate}
             disabled={generateMutation.isPending || !tweetText.trim()}
             size="icon"
-            className="self-end h-[60px] w-[60px] rounded-xl"
+            className="self-end h-[60px] w-[60px] rounded-xl bg-gradient-to-r from-primary to-purple-600 hover:from-primary/90 hover:to-purple-600/90 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 active:scale-95 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             data-testid="button-generate-reply"
+            aria-label={generateMutation.isPending ? "Generating reply..." : "Generate reply"}
+            aria-disabled={generateMutation.isPending || !tweetText.trim()}
           >
             {generateMutation.isPending ? (
-              <div className="animate-spin w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full" />
+              <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
             ) : (
               <Send className="w-5 h-5" />
             )}
@@ -721,29 +748,39 @@ export function GenerateReply() {
           <ScrollArea className="h-[calc(100vh-8rem)] mt-4">
             <div className="space-y-6">
               {/* Quality Metrics */}
-              {metricsData && (
+              {metricsData && metricsData.metrics && (
                 <Card>
                   <CardContent className="p-4">
                     <h3 className="font-semibold mb-3">Quality Metrics</h3>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <p className="text-xs text-muted-foreground">Average Score</p>
-                        <p className="text-2xl font-bold">{metricsData.metrics.averageScore.toFixed(0)}</p>
+                        <p className="text-2xl font-bold">
+                          {metricsData.metrics.averageScore != null 
+                            ? metricsData.metrics.averageScore.toFixed(0) 
+                            : '0'}
+                        </p>
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground">Total Replies</p>
-                        <p className="text-2xl font-bold">{metricsData.metrics.totalReplies}</p>
+                        <p className="text-2xl font-bold">
+                          {metricsData.metrics.totalReplies ?? 0}
+                        </p>
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground">High Quality</p>
-                        <p className="text-2xl font-bold text-green-600">{metricsData.metrics.highQualityCount}</p>
+                        <p className="text-2xl font-bold text-green-600">
+                          {metricsData.metrics.highQualityCount ?? 0}
+                        </p>
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground">Low Quality</p>
-                        <p className="text-2xl font-bold text-red-600">{metricsData.metrics.lowQualityCount}</p>
+                        <p className="text-2xl font-bold text-red-600">
+                          {metricsData.metrics.lowQualityCount ?? 0}
+                        </p>
                       </div>
                     </div>
-                    {metricsData.recommendations.length > 0 && (
+                    {metricsData.recommendations && metricsData.recommendations.length > 0 && (
                       <div className="mt-4">
                         <p className="text-sm font-medium mb-2">Recommendations:</p>
                         <ul className="text-xs space-y-1">
@@ -765,19 +802,19 @@ export function GenerateReply() {
                     <div className="space-y-3">
                       <div className="flex justify-between items-center">
                         <span className="text-sm">Total Feedback</span>
-                        <Badge>{analyticsData.totalFeedback}</Badge>
+                        <Badge>{analyticsData.totalFeedback ?? 0}</Badge>
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-sm">Positive</span>
-                        <Badge variant="default">{analyticsData.positiveCount}</Badge>
+                        <Badge variant="default">{analyticsData.positiveCount ?? 0}</Badge>
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-sm">Negative</span>
-                        <Badge variant="destructive">{analyticsData.negativeCount}</Badge>
+                        <Badge variant="destructive">{analyticsData.negativeCount ?? 0}</Badge>
                       </div>
                     </div>
                     
-                    {analyticsData.topModels.length > 0 && (
+                    {analyticsData.topModels && analyticsData.topModels.length > 0 && (
                       <div className="mt-4">
                         <p className="text-sm font-medium mb-2">Top Models:</p>
                         {analyticsData.topModels.map((model, i) => (
@@ -795,6 +832,8 @@ export function GenerateReply() {
           </ScrollArea>
         </SheetContent>
       </Sheet>
-    </div>
+    </Card>
   );
-}
+});
+
+GenerateReply.displayName = "GenerateReply";

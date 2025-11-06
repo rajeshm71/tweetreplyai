@@ -2,7 +2,9 @@ import { useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { AppHeader } from "@/components/app-header";
-import { GenerateReply } from "@/components/generate-reply";
+// Sprint 4: Lazy load heavy component
+import { lazy, Suspense } from "react";
+const GenerateReply = lazy(() => import("@/components/generate-reply").then(module => ({ default: module.GenerateReply })));
 
 export default function AppPage() {
   const { isLoading, isAuthenticated } = useAuth();
@@ -44,7 +46,16 @@ export default function AppPage() {
           </p>
         </div>
 
-        <GenerateReply />
+        <Suspense fallback={
+          <div className="min-h-[600px] flex items-center justify-center" role="status" aria-label="Loading reply generator">
+            <div className="flex flex-col items-center gap-4">
+              <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" aria-hidden="true" />
+              <p className="text-sm text-muted-foreground">Loading reply generator...</p>
+            </div>
+          </div>
+        }>
+          <GenerateReply />
+        </Suspense>
       </div>
     </div>
   );
