@@ -59,6 +59,25 @@ export class UnifiedAIRouter {
     }
   }
 
+  async improveDraft(tweetText: string, draftReply: string, modelPreference?: string): Promise<ReplyResponse> {
+    // For now, only OpenAI supports improveDraft
+    // Default to GPT-4o-mini if no preference
+    const modelKey = modelPreference || "gpt-4o-mini";
+    const provider = this.getProviderForModel(modelKey);
+    
+    console.log(`🔧 [AI Router] improveDraft called - Model: ${modelKey}, Provider: ${provider || 'unknown'}`);
+    console.log(`📝 [AI Router] Tweet text: "${tweetText.substring(0, 50)}..."`);
+    console.log(`📝 [AI Router] Draft reply: "${draftReply.substring(0, 50)}..."`);
+    
+    if (provider === "openai") {
+      return openaiRouter.improveDraft(tweetText, draftReply, modelKey);
+    }
+    
+    // Fallback to OpenAI if provider doesn't support improvement
+    console.log(`⚠️ [AI Router] Provider ${provider} doesn't support improveDraft, falling back to OpenAI`);
+    return openaiRouter.improveDraft(tweetText, draftReply, "gpt-4o-mini");
+  }
+
   // Get all available models from all providers
   getAllModels(): ModelInfo[] {
     const openaiModels = openaiRouter.getAvailableModels().map(model => ({

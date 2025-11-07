@@ -344,6 +344,28 @@ export class SupabaseStorage implements IStorage {
     } as UsageCounter;
   }
 
+  async updateUsageCounter(counterId: string, updates: Partial<UsageCounter>): Promise<void> {
+    // Map camelCase fields to snake_case database columns
+    const dbUpdates: any = {
+      updated_at: new Date().toISOString()
+    };
+    
+    if (updates.planCode !== undefined) dbUpdates.plan_code = updates.planCode;
+    if (updates.limit !== undefined) dbUpdates.limit = updates.limit;
+    if (updates.repliesUsed !== undefined) dbUpdates.replies_used = updates.repliesUsed;
+    if (updates.resetAt !== undefined) dbUpdates.reset_at = updates.resetAt.toISOString();
+    
+    const { error } = await supabase
+      .from('usage_counters')
+      .update(dbUpdates)
+      .eq('id', counterId);
+    
+    if (error) {
+      console.error('Supabase updateUsageCounter error:', error);
+      throw error;
+    }
+  }
+
   async incrementUsage(userId: string, periodStart: Date): Promise<UsageCounter> {
     let counter = await this.getUsageCounter(userId, periodStart);
     
@@ -554,13 +576,40 @@ export class SupabaseStorage implements IStorage {
       }
       return undefined;
     }
-    return data as UserPreferences;
+    
+    if (!data) return undefined;
+    
+    // Map database fields to TypeScript interface
+    return {
+      id: data.id,
+      userId: data.user_id,
+      tone: data.tone || 'default',
+      length: data.length || 'default',
+      style: data.style || 'default',
+      topics: data.topics || [],
+      promptStyleEnabled: data.prompt_style_enabled ?? false, // Default to false if null/undefined
+      createdAt: new Date(data.created_at),
+      updatedAt: new Date(data.updated_at),
+    } as UserPreferences;
   }
 
   async upsertUserPreferences(preferences: InsertUserPreferences): Promise<UserPreferences> {
+    // Map TypeScript fields to database columns
+    const dbPreferences = {
+      id: preferences.id,
+      user_id: preferences.userId,
+      tone: preferences.tone,
+      length: preferences.length,
+      style: preferences.style,
+      topics: preferences.topics,
+      prompt_style_enabled: preferences.promptStyleEnabled ?? false, // Default to false if undefined
+      created_at: preferences.createdAt?.toISOString() || new Date().toISOString(),
+      updated_at: preferences.updatedAt?.toISOString() || new Date().toISOString(),
+    };
+    
     const { data, error } = await supabase
       .from('user_preferences')
-      .upsert(preferences, { onConflict: 'user_id' })
+      .upsert(dbPreferences, { onConflict: 'user_id' })
       .select()
       .single();
     
@@ -568,7 +617,19 @@ export class SupabaseStorage implements IStorage {
       console.error('Supabase upsertUserPreferences error (line 461):', error);
       throw error;
     }
-    return data as UserPreferences;
+    
+    // Map database fields back to TypeScript interface
+    return {
+      id: data.id,
+      userId: data.user_id,
+      tone: data.tone || 'default',
+      length: data.length || 'default',
+      style: data.style || 'default',
+      topics: data.topics || [],
+      promptStyleEnabled: data.prompt_style_enabled ?? false,
+      createdAt: new Date(data.created_at),
+      updatedAt: new Date(data.updated_at),
+    } as UserPreferences;
   }
 }
 

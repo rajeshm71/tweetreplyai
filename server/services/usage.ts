@@ -1,5 +1,6 @@
 import { storage } from "../storage.js";
 import { PLANS } from "./stripe.js";
+import { whitelistService } from "./whitelistService.js";
 import type { User, UsageCounter } from "../../shared/types.js";
 import crypto from "crypto";
 
@@ -17,6 +18,9 @@ export interface UsageStatus {
   limit: number;
   resetAt: Date;
   status: 'active' | 'trial' | 'no_access';
+  isWhitelisted?: boolean;
+  upgradeRequired?: boolean;
+  upgradeMessage?: string;
 }
 
 export class UsageService {
@@ -35,7 +39,22 @@ export class UsageService {
     console.log('=== USAGE: resolveActiveWindow called ===');
     console.log('User ID:', user.id);
 
-    // Check for active paid subscription first
+    // Check if user is whitelisted first (highest priority)
+    // Note: getBypassLimit() reads dynamically from BYPASS_USER_LIMIT env var - can be updated without code changes
+    if (whitelistService.isWhitelisted(user.email)) {
+      const bypassLimit = whitelistService.getBypassLimit();
+      const result = {
+        planCode: 'bypass',
+        periodStart: this.getTodayStart(),
+        periodEnd: this.getTodayEnd(),
+        limit: bypassLimit,
+        resetAt: this.getTodayEnd(),
+      };
+      console.log('Returning bypass window for whitelisted user:', result);
+      return result;
+    }
+
+    // Check for active paid subscription
     const activeSubscription = await storage.getActiveSubscription(user.id);
     console.log('Active subscription:', activeSubscription);
     
@@ -55,16 +74,18 @@ export class UsageService {
       }
     }
 
-    // For all other users (trial, no trial, etc.), give a very high limit for testing
-    const fallbackResult = {
-      planCode: 'testing',
+    // For regular users, give trial limit
+    // Note: getTrialLimit() reads dynamically from TRIAL_LIMIT env var - can be updated without code changes
+    const trialLimit = whitelistService.getTrialLimit();
+    const trialResult = {
+      planCode: 'trial',
       periodStart: this.getTodayStart(),
       periodEnd: this.getTodayEnd(),
-      limit: 50000, // Very high limit for testing
+      limit: trialLimit,
       resetAt: this.getTodayEnd(),
     };
-    console.log('Returning fallback testing window:', fallbackResult);
-    return fallbackResult;
+    console.log('Returning trial window:', trialResult);
+    return trialResult;
   }
 
   async getUsageStatus(userId: string): Promise<UsageStatus | null> {
@@ -114,14 +135,69 @@ export class UsageService {
         limit: window.limit,
         resetAt: window.resetAt,
       });
+    } else {
+      // Fix: Update existing counter if limit doesn't match current config
+      // This handles cases where old counters have outdated limits (e.g., 50000 from testing)
+      if (counter.planCode === 'trial' || counter.planCode === 'testing') {
+        const currentTrialLimit = whitelistService.getTrialLimit();
+        if (counter.limit !== currentTrialLimit) {
+          // Update the counter with the current trial limit
+          await storage.updateUsageCounter(counter.id, {
+            limit: currentTrialLimit,
+            planCode: 'trial', // Ensure planCode is 'trial' not 'testing'
+          });
+          const updatedCounter = await storage.getUsageCounter(userId, window.periodStart);
+          if (updatedCounter) {
+            counter = updatedCounter;
+          }
+        }
+      } else if (counter.planCode === 'bypass') {
+        const currentBypassLimit = whitelistService.getBypassLimit();
+        if (counter.limit !== currentBypassLimit) {
+          // Update the counter with the current bypass limit
+          await storage.updateUsageCounter(counter.id, {
+            limit: currentBypassLimit,
+          });
+          const updatedCounter = await storage.getUsageCounter(userId, window.periodStart);
+          if (updatedCounter) {
+            counter = updatedCounter;
+          }
+        }
+      }
     }
+
+    // Ensure counter is defined (should always be at this point)
+    if (!counter) {
+      console.error('Usage counter is undefined after creation/update');
+      return {
+        planCode: 'none',
+        used: 0,
+        limit: 0,
+        resetAt: new Date(),
+        status: 'no_access',
+      };
+    }
+
+    const isWhitelisted = whitelistService.isWhitelisted(user.email);
+    
+    // Use window.limit to ensure we return the current config value, not the old database value
+    // This ensures the frontend always sees the correct limit even if the counter hasn't been updated yet
+    const upgradeRequired = !isWhitelisted && counter.repliesUsed >= window.limit;
+    const upgradeMessage = whitelistService.getUpgradeMessage(
+      isWhitelisted,
+      counter.repliesUsed,
+      window.limit
+    );
 
     const result: UsageStatus = {
       planCode: window.planCode,
       used: counter.repliesUsed,
-      limit: counter.limit,
+      limit: window.limit, // Use window.limit (current config) instead of counter.limit (may be outdated)
       resetAt: counter.resetAt,
       status: 'active',
+      isWhitelisted,
+      upgradeRequired,
+      upgradeMessage,
     };
     
     console.log('Returning usage status:', result);
@@ -131,6 +207,19 @@ export class UsageService {
   async canUseReply(userId: string): Promise<{ canUse: boolean; reason?: string }> {
     console.log('=== USAGE: canUseReply called ===');
     console.log('User ID:', userId);
+    
+    // Fix: Add whitelist check for defense in depth
+    // This ensures whitelisted users always pass, even if called directly
+    const user = await storage.getUser(userId);
+    if (!user) {
+      return { canUse: false, reason: 'user_not_found' };
+    }
+    
+    // Whitelisted users always can use replies
+    if (whitelistService.isWhitelisted(user.email)) {
+      console.log('canUseReply - whitelisted user, returning canUse: true');
+      return { canUse: true };
+    }
     
     const status = await this.getUsageStatus(userId);
     console.log('canUseReply - getUsageStatus result:', status);
@@ -153,6 +242,33 @@ export class UsageService {
     const user = await storage.getUser(userId);
     if (!user) {
       throw new Error('User not found');
+    }
+
+    // Fix: Add whitelist check for defense in depth
+    // Whitelisted users don't consume quota, return current status without incrementing
+    if (whitelistService.isWhitelisted(user.email)) {
+      const window = await this.resolveActiveWindow(user);
+      if (!window) {
+        throw new Error('No active usage window');
+      }
+      
+      // Get or create usage counter without incrementing
+      let counter = await storage.getUsageCounter(userId, window.periodStart);
+      if (!counter) {
+        counter = await storage.createUsageCounter({
+          id: crypto.randomUUID(),
+          userId,
+          planCode: window.planCode,
+          periodStart: window.periodStart,
+          periodEnd: window.periodEnd,
+          repliesUsed: 0,
+          limit: window.limit,
+          resetAt: window.resetAt,
+        });
+      }
+      
+      // Return current counter without incrementing for whitelisted users
+      return counter;
     }
 
     const window = await this.resolveActiveWindow(user);

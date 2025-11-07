@@ -36,6 +36,41 @@ const MIN_WORDS_FOR_REMOVAL = 5;
 
 export class ReplyPostProcessor {
   /**
+   * Light processing for improved drafts - skips aggressive rules that might remove improvements
+   * Only applies basic cleanup: quotes, banned patterns, word count, format cleanup
+   */
+  processReplyLight(rawReply: string): string {
+    // Step 1: Store original reply for fallback (handle null/undefined)
+    if (!rawReply || typeof rawReply !== 'string') {
+      return '';
+    }
+    const originalReply = rawReply.trim();
+
+    // Step 2: Handle empty strings early
+    if (!originalReply) {
+      return '';
+    }
+
+    // Step 3: Start with original reply
+    let processed = originalReply;
+
+    // Step 4: Apply basic cleanup rules only (no aggressive removal)
+    processed = this.removeWrapperQuotes(processed); // Remove quotes if AI wrapped response
+    processed = this.removeBannedPatterns(processed); // Remove hashtags and banned phrases
+    processed = this.limitWordCount(processed, MAX_WORDS); // Limit to 50 words
+    
+    // Step 5: Apply format cleanup rules
+    processed = this.applyFormatCleanup(processed);
+
+    // Step 6: Remove ending punctuation and normalize whitespace
+    processed = this.removeEndingPunctuation(processed);
+    processed = this.normalizeWhitespace(processed);
+
+    // Step 7: Return processed reply
+    return processed.trim() || originalReply;
+  }
+
+  /**
    * Main processing function - applies all rules in optimized order
    */
   processReply(rawReply: string): string {

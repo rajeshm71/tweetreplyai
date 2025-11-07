@@ -1,6 +1,6 @@
 import { Link } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
-import { Sparkles, Check, Star, Zap, ArrowRight, Crown, Rocket } from "lucide-react";
+import { Sparkles, Check, Zap, ArrowRight, Crown, Rocket } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -8,29 +8,6 @@ import { PricingCards } from "@/components/pricing-cards";
 
 export default function Pricing() {
   const { isAuthenticated } = useAuth();
-
-  const faqs = [
-    {
-      question: "How do the reply quotas work?",
-      answer: "Your quota resets automatically based on your plan. Trial users get 10 replies per day, weekly subscribers get 700 replies every 7 days, and monthly subscribers get 3,000 replies every 30 days."
-    },
-    {
-      question: "Can I use both the extension and web app?",
-      answer: "Yes! Your subscription covers both the Chrome extension and the mobile-friendly web interface. Your quota is shared across both platforms."
-    },
-    {
-      question: "How authentic are the AI generated replies?",
-      answer: "Our AI is trained to generate human-like, contextual replies. Most users post our suggestions without any edits. We avoid generic AI clichés and hashtags."
-    },
-    {
-      question: "What AI models do you use?",
-      answer: "We use the latest GPT-5 and GPT-5-mini models from OpenAI, automatically selecting the best model based on tweet complexity for optimal results."
-    },
-    {
-      question: "Can I cancel anytime?",
-      answer: "Absolutely! You can cancel your subscription at any time. Your plan will remain active until the end of your current billing cycle."
-    }
-  ];
 
   return (
     <div className="min-h-screen bg-background">
@@ -95,42 +72,6 @@ export default function Pricing() {
       <section className="section-padding">
         <div className="container">
           <PricingCards />
-        </div>
-      </section>
-
-      {/* FAQ Section */}
-      <section className="section-padding bg-gradient-to-b from-background to-muted/10">
-        <div className="container">
-          <div className="text-center mb-16">
-            <Badge variant="secondary" className="mb-4 glass-effect border border-primary/20">
-              <Star className="w-4 h-4 mr-2" />
-              Frequently Asked Questions
-            </Badge>
-            <h2 className="text-4xl md:text-5xl font-display font-bold mb-6">
-              Everything You <span className="gradient-text">Need to Know</span>
-            </h2>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Get answers to common questions about TweetReply's features, pricing, and functionality.
-            </p>
-          </div>
-          
-          <div className="max-w-4xl mx-auto space-y-6">
-            {faqs.map((faq, index) => (
-              <Card key={index} className="neomorphic border-0 hover-lift group">
-                <CardContent className="p-8">
-                  <div className="flex items-start space-x-4">
-                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center text-primary font-bold text-sm group-hover:scale-110 smooth-transition">
-                      {index + 1}
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="text-xl font-semibold mb-3 text-foreground">{faq.question}</h3>
-                      <p className="text-muted-foreground leading-relaxed text-lg">{faq.answer}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
         </div>
       </section>
 

@@ -1,8 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Clock, AlertCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Clock, AlertCircle, Crown } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { useLocation } from "wouter";
 
 interface UsageStatus {
   planCode: string;
@@ -10,6 +12,9 @@ interface UsageStatus {
   limit: number;
   resetAt: string;
   status: 'active' | 'trial' | 'no_access';
+  isWhitelisted?: boolean;
+  upgradeRequired?: boolean;
+  upgradeMessage?: string;
 }
 
 interface UsageBadgeProps {
@@ -17,6 +22,7 @@ interface UsageBadgeProps {
 }
 
 export function UsageBadge({ showDetails = false }: UsageBadgeProps) {
+  const [, setLocation] = useLocation();
   const { data: usage, isLoading, error } = useQuery<UsageStatus>({
     queryKey: ["/api/usage"],
     refetchInterval: 30000, // Refetch every 30 seconds
@@ -43,6 +49,7 @@ export function UsageBadge({ showDetails = false }: UsageBadgeProps) {
   const isQuotaExceeded = usage.used >= usage.limit;
   const isTrialUser = usage.planCode === 'trial';
   const resetDistance = formatDistanceToNow(new Date(usage.resetAt), { addSuffix: true });
+  const showUpgrade = usage.upgradeRequired && !usage.isWhitelisted;
 
   if (showDetails) {
     return (
@@ -71,6 +78,17 @@ export function UsageBadge({ showDetails = false }: UsageBadgeProps) {
               <Clock className="w-3 h-3" />
               <span>Resets {resetDistance}</span>
             </div>
+
+            {showUpgrade && (
+              <Button
+                onClick={() => setLocation('/pricing')}
+                size="sm"
+                className="w-full bg-gradient-to-r from-primary to-purple-600 hover:from-primary/90 hover:to-purple-600/90"
+              >
+                <Crown className="w-3 h-3 mr-2" />
+                Upgrade to Pro
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>

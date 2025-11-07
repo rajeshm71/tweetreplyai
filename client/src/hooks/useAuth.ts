@@ -8,6 +8,7 @@ export interface User {
   profileImageUrl?: string;
   authProviders: string[];
   emailVerified: boolean;
+  isWhitelisted?: boolean;
 }
 
 export function useAuth() {

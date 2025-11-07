@@ -110,8 +110,12 @@ export class ModelRouter {
     return getPromptConfig(promptVariation);
   }
 
-  private postProcessReply(reply: string): string {
-    // Use comprehensive postprocessor service
+  private postProcessReply(reply: string, isImprovedDraft: boolean = false): string {
+    // For improved drafts, use lighter post-processing to preserve AI improvements
+    if (isImprovedDraft) {
+      return replyPostProcessor.processReplyLight(reply);
+    }
+    // Use comprehensive postprocessor service for regular replies
     return replyPostProcessor.processReply(reply);
   }
 
@@ -220,6 +224,122 @@ export class ModelRouter {
       console.error(`🔧 [OpenAI] Model used: ${modelKey}`);
       console.error(`🔧 [OpenAI] Full error:`, error);
       throw new Error(`Failed to generate reply: ${message}`);
+    }
+  }
+
+  async improveDraft(tweetText: string, draftReply: string, modelPreference?: string): Promise<ReplyResponse> {
+    const startTime = Date.now();
+    const modelKey = this.getModelForTweet(tweetText, modelPreference);
+    const promptConfig = this.getPromptConfig('improve');
+
+    console.log(`🚀 [OpenAI] Starting improvement with model: ${modelKey}`);
+    console.log(`📝 [OpenAI] Tweet text: "${tweetText}"`);
+    console.log(`📝 [OpenAI] Draft reply: "${draftReply}"`);
+
+    // Create custom user prompt for improvement - make it explicit that we're improving the draft
+    const userPrompt = `Original Tweet: "${tweetText}"
+
+User's Draft Reply (needs improvement): "${draftReply}"
+
+IMPORTANT: The user has already written a draft reply above. Your task is to ENHANCE and IMPROVE this specific draft, not write a new reply.
+
+Please:
+1. Fix any spelling errors (e.g., "bt" → "but")
+2. Fix grammar mistakes
+3. Make it more natural and conversational
+4. Improve clarity while keeping the same meaning
+5. Keep it under 200 characters
+6. Preserve the user's intent and message
+
+Return ONLY the improved version of the draft, nothing else.`;
+
+    if (!openai) {
+      console.log("❌ [OpenAI] OpenAI client not configured");
+      return {
+        reply: draftReply, // Return original if AI not configured
+        modelKey: "demo",
+        latencyMs: Date.now() - startTime,
+      };
+    }
+
+    try {
+      // Use responses API only for GPT-5 versions
+      if (modelKey.startsWith("gpt-5") || modelKey.startsWith("gpt-4o")) {
+        const response = await openai.responses.create({
+          model: modelKey,
+          input: [
+            { role: "system", content: promptConfig.systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+          top_p: 1,
+          temperature: 0.7,
+        });
+        console.log(`📝 [OpenAI] Improvement response received:`, response);
+        const rawReply = response.output_text || "";
+        console.log(`🔍 [OpenAI] Raw AI response before post-processing: "${rawReply}"`);
+        const processedReply = this.postProcessReply(rawReply, true); // Pass true to indicate this is an improved draft
+        console.log(`✨ [OpenAI] Post-processed improved reply: "${processedReply}"`);
+        
+        // Validate that improved version is different from original
+        const originalNormalized = draftReply.trim().toLowerCase();
+        const improvedNormalized = processedReply.trim().toLowerCase();
+        if (originalNormalized === improvedNormalized) {
+          console.warn(`⚠️ [OpenAI] Improved version is identical to original draft! Original: "${draftReply}", Improved: "${processedReply}"`);
+        }
+        
+        const latencyMs = Date.now() - startTime;
+
+        return {
+          reply: processedReply,
+          modelKey,
+          tokensIn: response.usage?.input_tokens,
+          tokensOut: response.usage?.output_tokens,
+          latencyMs,
+        };
+      } else {
+        // Use chat completions API for GPT-4 models
+        console.log(
+          `🚀 [OpenAI] Using chat completions for improvement with model: ${modelKey}`,
+        );
+        const response = await openai.chat.completions.create({
+          model: modelKey,
+          messages: [
+            { role: "system", content: promptConfig.systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+          temperature: 0.7,
+          frequency_penalty: 0.5,
+          presence_penalty: 0.5,
+        });
+        console.log(`📝 [OpenAI] Improvement response received:`, response);
+        const rawReply = response.choices[0]?.message?.content || "";
+        console.log(`🔍 [OpenAI] Raw AI response before post-processing: "${rawReply}"`);
+        const processedReply = this.postProcessReply(rawReply, true); // Pass true to indicate this is an improved draft
+        console.log(`✨ [OpenAI] Post-processed improved reply: "${processedReply}"`);
+        
+        // Validate that improved version is different from original
+        const originalNormalized = draftReply.trim().toLowerCase();
+        const improvedNormalized = processedReply.trim().toLowerCase();
+        if (originalNormalized === improvedNormalized) {
+          console.warn(`⚠️ [OpenAI] Improved version is identical to original draft! Original: "${draftReply}", Improved: "${processedReply}"`);
+        }
+        
+        const latencyMs = Date.now() - startTime;
+
+        return {
+          reply: processedReply,
+          modelKey,
+          tokensIn: response.usage?.prompt_tokens,
+          tokensOut: response.usage?.completion_tokens,
+          latencyMs,
+        };
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      console.error(`❌ [OpenAI] Error improving draft: ${message}`);
+      console.error(`🔧 [OpenAI] Model used: ${modelKey}`);
+      console.error(`🔧 [OpenAI] Full error:`, error);
+      throw new Error(`Failed to improve draft: ${message}`);
     }
   }
 

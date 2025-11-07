@@ -5,9 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
-import { Bell, Shield, Trash2, AlertTriangle } from "lucide-react";
-import { useState } from "react";
+import { Bell, Shield, Trash2, AlertTriangle, Settings } from "lucide-react";
+import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import type { UserPreferences } from "@shared/types";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,10 +26,59 @@ import {
 export default function SettingsPage() {
   const { user, isLoading } = useAuth();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [usageAlerts, setUsageAlerts] = useState(true);
+  const [promptStyleEnabled, setPromptStyleEnabled] = useState(false);
+  
+  // Fetch user preferences
+  const { data: userPreferences, isLoading: preferencesLoading } = useQuery<UserPreferences>({
+    queryKey: ["/api/user/preferences"],
+    enabled: !!user,
+    refetchOnWindowFocus: false,
+  });
+  
+  // Update promptStyleEnabled when preferences are loaded
+  useEffect(() => {
+    if (userPreferences) {
+      setPromptStyleEnabled(userPreferences.promptStyleEnabled ?? false);
+    }
+  }, [userPreferences]);
+  
+  // Mutation to update preferences
+  const updatePreferencesMutation = useMutation({
+    mutationFn: async (updates: { promptStyleEnabled: boolean }) => {
+      const response = await apiRequest("PUT", "/api/user/preferences", updates);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: "Failed to update preferences" }));
+        throw new Error(errorData.message || "Failed to update preferences");
+      }
+      return response.json();
+    },
+    onSuccess: (data: UserPreferences) => {
+      // Fix: Update cache and invalidate queries to ensure all components refresh
+      queryClient.setQueryData(["/api/user/preferences"], data);
+      queryClient.invalidateQueries({ queryKey: ["/api/user/preferences"] });
+      toast({
+        title: "Settings Saved",
+        description: "Your preferences have been updated successfully.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update preferences",
+        variant: "destructive",
+      });
+    },
+  });
+  
+  const handlePromptStyleToggle = (checked: boolean) => {
+    setPromptStyleEnabled(checked);
+    updatePreferencesMutation.mutate({ promptStyleEnabled: checked });
+  };
 
-  if (isLoading) {
+  if (isLoading || preferencesLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" />
@@ -114,6 +166,36 @@ export default function SettingsPage() {
                 <Button onClick={handleSaveNotifications} data-testid="button-save-notifications">
                   Save Preferences
                 </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Reply Generation Settings Card */}
+          <Card data-testid="card-reply-generation">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Settings className="w-5 h-5" />
+                <CardTitle>Reply Generation</CardTitle>
+              </div>
+              <CardDescription>
+                Configure how replies are generated
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="prompt-style-enabled">Enable Prompt Style Selection</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Show the Prompt Style dropdown in the reply generator
+                  </p>
+                </div>
+                <Switch
+                  id="prompt-style-enabled"
+                  checked={promptStyleEnabled}
+                  onCheckedChange={handlePromptStyleToggle}
+                  disabled={preferencesLoading || updatePreferencesMutation.isPending}
+                  data-testid="switch-prompt-style-enabled"
+                />
               </div>
             </CardContent>
           </Card>

@@ -1,4 +1,4 @@
-import { useState, forwardRef, useImperativeHandle } from "react";
+import { useState, forwardRef, useImperativeHandle, useEffect, useMemo } from "react";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -10,10 +10,14 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Sparkles, Copy, Check, ThumbsUp, ThumbsDown, Clock, Zap, Send, User, Bot, Settings, Brain } from "lucide-react";
+import { Sparkles, Copy, Check, ThumbsUp, ThumbsDown, Clock, Zap, Send, User, Bot, Settings, Brain, Crown, X, TrendingUp, Feather, Wand2, PenTool, Type, FileText, MessageSquare } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
+import { useLocation } from "wouter";
+import { formatDistanceToNow } from "date-fns";
+import { useAuth } from "@/hooks/useAuth";
+import type { UserPreferences } from "@shared/types";
 
 // Expose methods to parent components via ref
 export interface GenerateReplyRef {
@@ -36,7 +40,7 @@ interface GenerateReplyResponse {
 interface ModelInfo {
   key: string;
   name: string;
-  provider: "openai" | "gemini";
+  provider: "openai" | "gemini" | "groq"; // Fix: Added "groq" to match backend response
   inputCost: number;
   outputCost: number;
   contextWindow: number;
@@ -77,13 +81,18 @@ interface ReplyHistoryEntry {
 interface SuggestImprovementsResponse {
   original: string;
   improved: string;
-  qualityScore: number;
-  issues: string[];
-  suggestions: string[];
-  analysis: {
+  qualityScore?: number;
+  issues?: string[];
+  suggestions?: string[];
+  analysis?: {
     wordCount: number;
     length: number;
     hasEmojis: boolean;
+  };
+  usage?: {
+    used: number;
+    limit: number;
+    resetAt: string;
   };
 }
 
@@ -114,9 +123,27 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
   const [showImprove, setShowImprove] = useState(false);
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [draftText, setDraftText] = useState("");
+  // Fix: Separate state for improve modal tweet text to avoid mutating main input
+  const [improveModalTweetText, setImproveModalTweetText] = useState("");
+  const [dismissedUpgradeBanner, setDismissedUpgradeBanner] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const prefersReducedMotion = useReducedMotion();
+  const [, setLocation] = useLocation();
+  const { user } = useAuth();
+  
+  // Fetch user preferences for Prompt Style visibility
+  // Fix: Added error handling for preferences query failures
+  const { data: userPreferences, error: preferencesError } = useQuery<UserPreferences>({
+    queryKey: ["/api/user/preferences"],
+    enabled: !!user,
+    refetchOnWindowFocus: false,
+    retry: 1, // Retry once on failure
+    onError: (error) => {
+      // Log error but don't break the UI - component will default to hidden (safe fallback)
+      console.error('Failed to load user preferences:', error);
+    },
+  });
 
   // Expose methods to parent components via ref
   useImperativeHandle(ref, () => ({
@@ -124,10 +151,38 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
     openAnalytics: () => setShowAnalytics(true),
   }));
 
+  // Helper function to validate model structure
+  const isValidModel = (model: any): model is ModelInfo => {
+    return (
+      model?.key &&
+      typeof model.key === 'string' &&
+      model?.name &&
+      typeof model.name === 'string' &&
+      typeof model?.inputCost === 'number'
+    );
+  };
+
   // Fetch available models
-  const { data: modelsData, isLoading: modelsLoading } = useQuery<{openai: ModelInfo[], gemini: ModelInfo[], groq: ModelInfo[]}>({
+  const { data: modelsData, isLoading: modelsLoading, error: modelsError } = useQuery<{openai: ModelInfo[], gemini: ModelInfo[], groq: ModelInfo[]}>({
     queryKey: ["/api/models"],
     refetchOnWindowFocus: false,
+    retry: 2, // Fix: Added retry logic for better resilience
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff
+    // Fix: More explicit null handling in select function
+    select: (data) => {
+      if (!data) {
+        return { openai: [], gemini: [], groq: [] };
+      }
+      return {
+        openai: Array.isArray(data.openai) ? data.openai : [],
+        gemini: Array.isArray(data.gemini) ? data.gemini : [],
+        groq: Array.isArray(data.groq) ? data.groq : [],
+      };
+    },
+    onError: (error) => {
+      // Fix: Added error logging for debugging
+      console.error('Failed to load models:', error);
+    },
   });
 
   // Fetch available prompts
@@ -135,6 +190,43 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
     queryKey: ["/api/prompts"],
     refetchOnWindowFocus: false,
   });
+
+  // Fix: Compute available model keys once (memoized for performance)
+  const allAvailableModelKeys = useMemo(() => {
+    if (!modelsData) return [];
+    return [
+      ...(modelsData.openai || []).filter(isValidModel).map(m => m.key),
+      ...(modelsData.gemini || []).filter(isValidModel).map(m => m.key),
+      ...(modelsData.groq || []).filter(isValidModel).map(m => m.key),
+    ];
+  }, [modelsData]);
+
+  // Fix: Synchronize selectedModel with available models after filtering
+  useEffect(() => {
+    if (modelsLoading || !modelsData) return;
+    
+    // If no models available, clear selection
+    if (allAvailableModelKeys.length === 0) {
+      setSelectedModel("");
+      return;
+    }
+    
+    // If selectedModel doesn't exist in available models, set to first available
+    if (!selectedModel || !allAvailableModelKeys.includes(selectedModel)) {
+      setSelectedModel(allAvailableModelKeys[0]);
+    }
+  }, [modelsData, modelsLoading, selectedModel, allAvailableModelKeys, setSelectedModel]);
+
+  // Fix: Add error toast for model loading failures
+  useEffect(() => {
+    if (modelsError) {
+      toast({
+        title: "Error loading AI models",
+        description: modelsError.message || "Failed to fetch available AI models. Please refresh the page.",
+        variant: "destructive",
+      });
+    }
+  }, [modelsError, toast]);
 
   // Fetch reply history
   const { data: historyData, refetch: refetchHistory } = useQuery<{ history: ReplyHistoryEntry[] }>({
@@ -156,6 +248,38 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
     enabled: showAnalytics,
     refetchOnWindowFocus: false,
   });
+
+  // Fetch usage data for counter and upgrade banner
+  interface UsageStatus {
+    planCode: string;
+    used: number;
+    limit: number;
+    resetAt: string;
+    status: 'active' | 'trial' | 'no_access';
+    isWhitelisted?: boolean;
+    upgradeRequired?: boolean;
+    upgradeMessage?: string;
+  }
+
+  const { data: usage } = useQuery<UsageStatus>({
+    queryKey: ["/api/usage"],
+    refetchInterval: 30000, // Refetch every 30 seconds
+    refetchOnWindowFocus: true,
+  });
+
+  // Reset dismissed banner when upgrade requirement changes
+  useEffect(() => {
+    if (usage && !usage.upgradeRequired) {
+      setDismissedUpgradeBanner(false);
+    }
+  }, [usage?.upgradeRequired]);
+
+  // Fix: Pre-populate improve modal tweet text when modal opens
+  useEffect(() => {
+    if (showImprove) {
+      setImproveModalTweetText(tweetText);
+    }
+  }, [showImprove, tweetText]);
 
   const generateMutation = useMutation({
     mutationFn: async (data: { tweet_text: string; model_key?: string; prompt_variation?: string }) => {
@@ -245,15 +369,34 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
   });
 
   const improveMutation = useMutation({
-    mutationFn: async (data: { draft_reply: string; original_tweet?: string }) => {
+    mutationFn: async (data: { draft_reply: string; original_tweet: string }) => {
       const response = await apiRequest("POST", "/api/suggest-improvements", data);
+      if (!response.ok) {
+        // Fix: Improved error handling for non-JSON responses
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch (e) {
+          errorData = { message: response.statusText || "Unknown error" };
+        }
+        if (response.status === 402) {
+          // Quota exceeded
+          const error = new Error(errorData.message || "Quota exceeded");
+          (error as any).status = 402;
+          (error as any).data = errorData;
+          throw error;
+        }
+        throw new Error(errorData.message || "Failed to generate improvements");
+      }
       return response.json();
     },
     onSuccess: (data: SuggestImprovementsResponse) => {
       toast({
         title: "Improvements Generated",
-        description: `Quality Score: ${data.qualityScore}/100`,
+        description: data.qualityScore !== undefined ? `Quality Score: ${data.qualityScore}/100` : "Draft improved successfully",
       });
+      // Refresh usage data
+      queryClient.invalidateQueries({ queryKey: ["/api/usage"] });
     },
     onError: (error: Error) => {
       if (isUnauthorizedError(error)) {
@@ -265,9 +408,21 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
         setTimeout(() => window.location.href = "/api/login", 500);
         return;
       }
+      
+      // Handle quota exceeded
+      if ((error as any).status === 402) {
+        const errorData = (error as any).data;
+        toast({
+          title: "Quota Exceeded",
+          description: errorData.upgradeMessage || "You've used all your replies. Upgrade to continue.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
       toast({
         title: "Error",
-        description: "Failed to generate improvements.",
+        description: error.message || "Failed to generate improvements.",
         variant: "destructive",
       });
     },
@@ -367,7 +522,7 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
         {messages.length === 0 ? (
           <div className="empty-state-modern" role="status" aria-label="Ready to generate replies">
             <div className="empty-state-icon" aria-hidden="true">
-              <Bot className="w-10 h-10 text-white" />
+              <MessageSquare className="w-10 h-10 text-white" />
             </div>
             <h3 className="text-xl font-semibold mb-2 text-foreground">Ready to Generate Replies!</h3>
             <p className="text-muted-foreground max-w-md">Paste a tweet text below and I'll create an authentic reply for you.</p>
@@ -458,90 +613,170 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
         )}
       </div>
 
+      {/* Upgrade Banner Above Input */}
+      {usage && usage.upgradeRequired && !usage.isWhitelisted && !dismissedUpgradeBanner && (
+        <div className="border-t border-border px-4 pt-3 pb-2 animate-in slide-in-from-top-2 duration-300">
+          <Alert className="bg-gradient-to-r from-primary/10 via-purple-600/10 to-primary/10 border-primary/20">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-2">
+                  <Crown className="w-4 h-4 text-primary" />
+                  <AlertDescription className="text-sm font-medium text-foreground m-0">
+                    {usage.upgradeMessage || "You've used all your trial replies. Upgrade to continue generating replies."}
+                  </AlertDescription>
+                </div>
+                <Button
+                  onClick={() => setLocation('/pricing')}
+                  size="sm"
+                  className="mt-2 bg-gradient-to-r from-primary to-purple-600 hover:from-primary/90 hover:to-purple-600/90 text-white font-semibold"
+                >
+                  <Crown className="w-3 h-3 mr-2" />
+                  Upgrade to Pro
+                </Button>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 flex-shrink-0"
+                onClick={() => setDismissedUpgradeBanner(true)}
+                aria-label="Dismiss upgrade banner"
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+          </Alert>
+        </div>
+      )}
+
       {/* Input Area */}
       <div className="border-t border-border p-4">
         {/* Model and Prompt Selection */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-          {/* Model Selection */}
-          <div>
-            <Label htmlFor="model-select" className="text-sm font-medium mb-2 flex items-center">
-              <Brain className="w-4 h-4 mr-2" />
-              AI Model
-            </Label>
-          <Select value={selectedModel} onValueChange={setSelectedModel}>
+        {/* Fix: Extracted grid layout logic for better readability */}
+        {(() => {
+          const showModels = user?.isWhitelisted ?? false;
+          const showPromptStyle = userPreferences?.promptStyleEnabled ?? false;
+          const gridCols = showModels && showPromptStyle ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1';
+          return (
+            <div className={`grid gap-4 mb-4 ${gridCols}`}>
+              {/* Model Selection - Admin only */}
+              {showModels && (
+            <div>
+              <Label htmlFor="model-select" className="text-sm font-medium mb-2 flex items-center">
+                <Brain className="w-4 h-4 mr-2" />
+                AI Model
+              </Label>
+          <Select 
+            value={
+              // Fix: Only set value if selectedModel exists in available models
+              selectedModel && allAvailableModelKeys.includes(selectedModel) 
+                ? selectedModel 
+                : undefined
+            }
+            onValueChange={(value) => {
+              // Fix: Validate value before setting state
+              if (allAvailableModelKeys.includes(value)) {
+                setSelectedModel(value);
+              }
+            }}
+          >
             <SelectTrigger className="w-full" data-testid="select-ai-model">
               <SelectValue placeholder="Select AI model..." />
             </SelectTrigger>
             <SelectContent>
               {modelsLoading ? (
                 <SelectItem value="loading" disabled>Loading models...</SelectItem>
+              ) : modelsError ? (
+                <SelectItem value="error" disabled>Failed to load models. Please refresh.</SelectItem>
               ) : (
                 modelsData && (
                   <>
                     {/* OpenAI Models */}
-                    <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">OpenAI</div>
-                    {modelsData.openai.map((model) => (
-                      <SelectItem key={model.key} value={model.key} data-testid={`model-${model.key}`}>
-                        <div className="flex items-center justify-between w-full">
-                          <div className="flex flex-col">
-                            <span className="font-medium">{model.name}</span>
-                            <span className="text-xs text-muted-foreground">{model.description}</span>
-                          </div>
-                          <Badge variant="outline" className="ml-2 text-xs">
-                            ${model.inputCost.toFixed(2)}/1M
-                          </Badge>
-                        </div>
-                      </SelectItem>
-                    ))}
+                    {modelsData.openai && Array.isArray(modelsData.openai) && modelsData.openai.length > 0 && (
+                      <>
+                        <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">OpenAI</div>
+                        {modelsData.openai
+                          .filter(isValidModel) // Fix: Use extracted validation function for maintainability
+                          .map((model) => (
+                            <SelectItem key={model.key} value={model.key} data-testid={`model-${model.key}`}>
+                              <div className="flex items-center justify-between w-full">
+                                <div className="flex flex-col">
+                                  <span className="font-medium">{model.name || 'Unknown'}</span>
+                                  <span className="text-xs text-muted-foreground">{model.description || ''}</span>
+                                </div>
+                                <Badge variant="outline" className="ml-2 text-xs">
+                                  ${(model.inputCost ?? 0).toFixed(2)}/1M
+                                </Badge>
+                              </div>
+                            </SelectItem>
+                          ))}
+                      </>
+                    )}
                     
                     {/* Gemini Models */}
-                    <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground mt-2">Google Gemini</div>
-                    {modelsData.gemini.map((model) => (
-                      <SelectItem key={model.key} value={model.key} data-testid={`model-${model.key}`}>
-                        <div className="flex items-center justify-between w-full">
-                          <div className="flex flex-col">
-                            <span className="font-medium">{model.name}</span>
-                            <span className="text-xs text-muted-foreground">{model.description}</span>
-                          </div>
-                          <Badge variant="outline" className="ml-2 text-xs">
-                            ${model.inputCost.toFixed(2)}/1M
-                          </Badge>
-                        </div>
-                      </SelectItem>
-                    ))}
+                    {modelsData.gemini && Array.isArray(modelsData.gemini) && modelsData.gemini.length > 0 && (
+                      <>
+                        <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground mt-2">Google Gemini</div>
+                        {modelsData.gemini
+                          .filter(isValidModel) // Fix: Use extracted validation function for maintainability
+                          .map((model) => (
+                            <SelectItem key={model.key} value={model.key} data-testid={`model-${model.key}`}>
+                              <div className="flex items-center justify-between w-full">
+                                <div className="flex flex-col">
+                                  <span className="font-medium">{model.name || 'Unknown'}</span>
+                                  <span className="text-xs text-muted-foreground">{model.description || ''}</span>
+                                </div>
+                                <Badge variant="outline" className="ml-2 text-xs">
+                                  ${(model.inputCost ?? 0).toFixed(2)}/1M
+                                </Badge>
+                              </div>
+                            </SelectItem>
+                          ))}
+                      </>
+                    )}
                     
                     {/* Groq Models */}
-                    {modelsData.groq && modelsData.groq.length > 0 && (
+                    {modelsData.groq && Array.isArray(modelsData.groq) && modelsData.groq.length > 0 && (
                       <>
                         <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground mt-2">Groq</div>
-                        {modelsData.groq.map((model) => (
-                          <SelectItem key={model.key} value={model.key} data-testid={`model-${model.key}`}>
-                            <div className="flex items-center justify-between w-full">
-                              <div className="flex flex-col">
-                                <span className="font-medium">{model.name}</span>
-                                <span className="text-xs text-muted-foreground">{model.description}</span>
+                        {modelsData.groq
+                          .filter(isValidModel) // Fix: Use extracted validation function for maintainability
+                          .map((model) => (
+                            <SelectItem key={model.key} value={model.key} data-testid={`model-${model.key}`}>
+                              <div className="flex items-center justify-between w-full">
+                                <div className="flex flex-col">
+                                  <span className="font-medium">{model.name || 'Unknown'}</span>
+                                  <span className="text-xs text-muted-foreground">{model.description || ''}</span>
+                                </div>
+                                <Badge variant="outline" className="ml-2 text-xs">
+                                  ${(model.inputCost ?? 0).toFixed(2)}/1M
+                                </Badge>
                               </div>
-                              <Badge variant="outline" className="ml-2 text-xs">
-                                ${model.inputCost.toFixed(2)}/1M
-                              </Badge>
-                            </div>
-                          </SelectItem>
-                        ))}
+                            </SelectItem>
+                          ))}
                       </>
+                    )}
+                    
+                    {/* Show message if no models available */}
+                    {(!modelsData.openai || modelsData.openai.length === 0) &&
+                     (!modelsData.gemini || modelsData.gemini.length === 0) &&
+                     (!modelsData.groq || modelsData.groq.length === 0) && (
+                      <SelectItem value="no-models" disabled>No models available</SelectItem>
                     )}
                   </>
                 )
               )}
             </SelectContent>
           </Select>
-          </div>
+            </div>
+          )}
           
-          {/* Prompt Selection */}
-          <div>
-            <Label htmlFor="prompt-select" className="text-sm font-medium mb-2 flex items-center">
-              <Settings className="w-4 h-4 mr-2" />
-              Prompt Style
-            </Label>
+          {/* Prompt Selection - Enabled via settings */}
+          {showPromptStyle && (
+            <div>
+              <Label htmlFor="prompt-select" className="text-sm font-medium mb-2 flex items-center">
+                <Settings className="w-4 h-4 mr-2" />
+                Prompt Style
+              </Label>
             <Select value={selectedPrompt} onValueChange={setSelectedPrompt}>
               <SelectTrigger className="w-full" data-testid="select-prompt-style">
                 <SelectValue placeholder="Select prompt style..." />
@@ -561,8 +796,11 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
                 )}
               </SelectContent>
             </Select>
-          </div>
-        </div>
+            </div>
+              )}
+            </div>
+          );
+        })()}
         
         <div className="flex gap-3">
           <div className="flex-1">
@@ -602,8 +840,7 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
         
         {/* Usage Info */}
         <div className="mt-2 text-xs text-muted-foreground text-center">
-          <Sparkles className="w-3 h-3 inline mr-1" />
-          Powered by AI • Authentic replies • Press Enter to send
+          Authentic replies • Press Enter to send
         </div>
       </div>
 
@@ -678,12 +915,26 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
           <SheetHeader>
             <SheetTitle>Improve Your Draft</SheetTitle>
             <SheetDescription>
-              Get AI generated suggestions to improve your reply
+              Get AI generated suggestions to improve your reply. Original tweet is required.
             </SheetDescription>
           </SheetHeader>
           <div className="mt-4 space-y-4">
+            {/* Original Tweet */}
             <div>
-              <Label htmlFor="draft-text">Your Draft Reply</Label>
+              <Label htmlFor="tweet-text">Original Tweet *</Label>
+              <Textarea
+                id="tweet-text"
+                placeholder="Paste the original tweet here..."
+                value={improveModalTweetText}
+                onChange={(e) => setImproveModalTweetText(e.target.value)}
+                className="min-h-[80px]"
+                readOnly={false}
+              />
+            </div>
+            
+            {/* Draft Reply */}
+            <div>
+              <Label htmlFor="draft-text">Your Draft Reply *</Label>
               <Textarea
                 id="draft-text"
                 placeholder="Paste your draft reply here..."
@@ -692,45 +943,156 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
                 className="min-h-[100px]"
               />
             </div>
+            
             <Button
-              onClick={() => improveMutation.mutate({ draft_reply: draftText })}
-              disabled={!draftText.trim() || improveMutation.isPending}
+              onClick={() => {
+                // Fix: Added input length validation before API call
+                if (!improveModalTweetText.trim()) {
+                  toast({
+                    title: "Tweet Required",
+                    description: "Please enter the original tweet to improve your draft.",
+                    variant: "destructive",
+                  });
+                  return;
+                }
+                if (improveModalTweetText.length > 1000) {
+                  toast({
+                    title: "Tweet Too Long",
+                    description: "Tweet text must be under 1000 characters.",
+                    variant: "destructive",
+                  });
+                  return;
+                }
+                if (!draftText.trim()) {
+                  toast({
+                    title: "Draft Required",
+                    description: "Please enter your draft reply.",
+                    variant: "destructive",
+                  });
+                  return;
+                }
+                if (draftText.length > 500) {
+                  toast({
+                    title: "Draft Too Long",
+                    description: "Draft reply must be under 500 characters.",
+                    variant: "destructive",
+                  });
+                  return;
+                }
+                improveMutation.mutate({ 
+                  draft_reply: draftText,
+                  original_tweet: improveModalTweetText
+                });
+              }}
+              disabled={!draftText.trim() || !improveModalTweetText.trim() || improveMutation.isPending}
               className="w-full"
             >
-              {improveMutation.isPending ? "Analyzing..." : "Get Suggestions"}
+              {improveMutation.isPending ? "Improving..." : "Get Improved Version"}
             </Button>
             
             {improveMutation.data && (
-              <Card>
-                <CardContent className="p-4 space-y-3">
-                  <div>
-                    <p className="text-sm font-medium mb-1">Quality Score</p>
-                    <Badge variant={improveMutation.data.qualityScore >= 70 ? "default" : "destructive"}>
-                      {improveMutation.data.qualityScore}/100
-                    </Badge>
-                  </div>
-                  {improveMutation.data.issues.length > 0 && (
-                    <div>
-                      <p className="text-sm font-medium mb-1">Issues Found:</p>
-                      <ul className="text-xs text-muted-foreground space-y-1">
-                        {improveMutation.data.issues.map((issue, i) => (
-                          <li key={i}>• {issue}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  {improveMutation.data.suggestions.length > 0 && (
-                    <div>
-                      <p className="text-sm font-medium mb-1">Suggestions:</p>
-                      <ul className="text-xs space-y-1">
-                        {improveMutation.data.suggestions.map((suggestion, i) => (
-                          <li key={i}>• {suggestion}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+              <div className="space-y-4">
+                {/* Side-by-Side Comparison */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Original Draft */}
+                  <Card>
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <Label className="text-sm font-semibold">Your Draft</Label>
+                      </div>
+                      <div className="text-sm text-muted-foreground whitespace-pre-wrap break-words">
+                        {improveMutation.data.original}
+                      </div>
+                    </CardContent>
+                  </Card>
+                  
+                  {/* Improved Version */}
+                  <Card className="border-primary/20 bg-primary/5">
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <Label className="text-sm font-semibold">Improved Version</Label>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={async () => {
+                            // Fix: Added loading state to prevent double-clicks
+                            try {
+                              await navigator.clipboard.writeText(improveMutation.data!.improved);
+                              toast({
+                                title: "Copied!",
+                                description: "Improved version copied to clipboard",
+                              });
+                            } catch (error) {
+                              toast({
+                                title: "Error",
+                                description: "Failed to copy to clipboard",
+                                variant: "destructive",
+                              });
+                            }
+                          }}
+                          className="h-6 px-2"
+                          disabled={!improveMutation.data?.improved}
+                        >
+                          <Copy className="w-3 h-3 mr-1" />
+                          Copy
+                        </Button>
+                      </div>
+                      <div className="text-sm whitespace-pre-wrap break-words">
+                        {improveMutation.data.improved}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+                
+                {/* Use Improved Version Button */}
+                <Button
+                  onClick={() => {
+                    setDraftText(improveMutation.data!.improved);
+                    toast({
+                      title: "Updated",
+                      description: "Draft text updated with improved version",
+                    });
+                  }}
+                  className="w-full"
+                  variant="outline"
+                >
+                  Use Improved Version
+                </Button>
+                
+                    {/* Quality Metrics */}
+                    <Card>
+                      <CardContent className="p-4 space-y-3">
+                        {improveMutation.data.qualityScore !== undefined && (
+                          <div>
+                            <p className="text-sm font-medium mb-1">Quality Score</p>
+                            <Badge variant={improveMutation.data.qualityScore >= 70 ? "default" : "destructive"}>
+                              {improveMutation.data.qualityScore}/100
+                            </Badge>
+                          </div>
+                        )}
+                    {improveMutation.data.issues && improveMutation.data.issues.length > 0 && (
+                      <div>
+                        <p className="text-sm font-medium mb-1">Issues Found:</p>
+                        <ul className="text-xs text-muted-foreground space-y-1">
+                          {improveMutation.data.issues.map((issue, i) => (
+                            <li key={i}>• {issue}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {improveMutation.data.suggestions && improveMutation.data.suggestions.length > 0 && (
+                      <div>
+                        <p className="text-sm font-medium mb-1">Suggestions:</p>
+                        <ul className="text-xs space-y-1">
+                          {improveMutation.data.suggestions.map((suggestion, i) => (
+                            <li key={i}>• {suggestion}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
             )}
           </div>
         </SheetContent>

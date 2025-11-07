@@ -156,6 +156,7 @@ export interface UserPreferences {
   length: string;
   style: string;
   topics: string[];
+  promptStyleEnabled: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -167,6 +168,7 @@ export interface InsertUserPreferences {
   length: string;
   style: string;
   topics: string[];
+  promptStyleEnabled: boolean;
   createdAt?: Date;
   updatedAt?: Date;
 }

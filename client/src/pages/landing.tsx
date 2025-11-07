@@ -654,9 +654,10 @@ export default function Landing() {
           <div className="flex items-center space-x-2">
             <Button 
               onClick={() => window.location.href = '/login'}
-              className="bg-gradient-to-r from-primary to-primary/80 text-white border-0 font-semibold shadow-none hover:shadow-none hover:translate-y-0 hover:from-primary hover:to-primary/80 hover:scale-105 transition-all duration-300 hidden sm:flex"
+              className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl border-0 font-medium shadow-md hover:shadow-xl hover:shadow-blue-500/20 hover:scale-105 transition-all duration-300 hidden sm:flex"
               data-testid="button-signin"
               aria-label="Start replying with TweetReplyAI"
+              size="sm"
             >
               Start Replying
               <ArrowRight className="w-4 h-4 ml-2" aria-hidden="true" />
@@ -721,7 +722,7 @@ export default function Landing() {
                   window.location.href = '/login';
                   setMobileMenuOpen(false);
                 }}
-                className="w-full justify-start bg-gradient-to-r from-primary to-primary/80 text-white shadow-none hover:shadow-none hover:translate-y-0 hover:from-primary hover:to-primary/80 hover:scale-105 transition-all duration-300"
+                className="w-full justify-start bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl border-0 font-medium shadow-md hover:shadow-xl hover:shadow-blue-500/20 hover:scale-105 transition-all duration-300"
                 size="sm"
               >
                 Start Replying
@@ -736,8 +737,9 @@ export default function Landing() {
       {showStickyCTA && (
         <div className="fixed bottom-0 left-0 right-0 z-40 md:hidden bg-background/95 backdrop-blur-xl border-t border-border/50 p-4 shadow-lg animate-in slide-in-from-bottom">
           <Button
+            variant="ghost"
             onClick={() => window.location.href = '/login'}
-            className="w-full bg-gradient-to-r from-primary to-primary/80 text-white border-0 font-semibold shadow-none hover:shadow-none hover:translate-y-0 hover:from-primary hover:to-primary/80 hover:scale-105 transition-all duration-300"
+            className="w-full bg-gradient-to-r from-primary to-primary/80 text-white border-0 font-semibold hover:scale-105 transition-all duration-300"
             size="lg"
             aria-label="Start replying with TweetReplyAI"
           >
@@ -812,9 +814,10 @@ export default function Landing() {
                   transition={{ duration: 0.8, delay: 1.2 }}
                 >
                   <Button 
+                    variant="ghost"
                     size="lg"
                     onClick={() => window.location.href = '/login'}
-                    className="h-14 px-8 text-lg bg-gradient-to-r from-primary to-primary/80 text-white border-0 font-semibold shadow-none hover:shadow-none hover:translate-y-0 hover:from-primary hover:to-primary/80 hover:scale-105 transition-all duration-300"
+                    className="h-14 px-8 text-lg bg-gradient-to-r from-primary to-primary/80 text-white border-0 font-semibold hover:scale-105 transition-all duration-300"
                     data-testid="button-start-trial"
                   >
                     <Sparkles className="w-5 h-5 mr-3" />
@@ -1175,9 +1178,10 @@ export default function Landing() {
               viewport={{ once: true }}
             >
               <Button
+                variant="ghost"
                 onClick={() => window.location.href = '/login'}
                 size="lg"
-                className="bg-gradient-to-r from-primary to-primary/80 text-white border-0 font-semibold shadow-none hover:shadow-none hover:translate-y-0 hover:from-primary hover:to-primary/80 hover:scale-105 transition-all duration-300"
+                className="bg-gradient-to-r from-primary to-primary/80 text-white border-0 font-semibold hover:scale-105 transition-all duration-300"
                 data-testid="button-demo-cta"
               >
                 Get Full Access Now
@@ -1755,9 +1759,10 @@ export default function Landing() {
                 viewport={{ once: true }}
               >
                 <Button 
+                  variant="ghost"
                   size="lg"
                   onClick={() => window.location.href = '/login'}
-                  className="h-16 px-10 text-lg bg-gradient-to-r from-primary to-primary/80 text-white border-0 font-semibold shadow-none hover:shadow-none hover:translate-y-0 hover:from-primary hover:to-primary/80 hover:scale-105 transition-all duration-300"
+                  className="h-16 px-10 text-lg bg-gradient-to-r from-primary to-primary/80 text-white border-0 font-semibold hover:scale-105 transition-all duration-300"
                   data-testid="button-final-cta"
                 >
                   <Sparkles className="w-6 h-6 mr-3" />

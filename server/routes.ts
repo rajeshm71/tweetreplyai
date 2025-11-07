@@ -6,10 +6,19 @@ import { aiRouter } from "./services/ai-router.js";
 import { getAvailablePrompts } from "./services/prompts.js";
 import { stripeService, PLANS } from "./services/stripe.js";
 import { usageService } from "./services/usage.js";
+import { whitelistService } from "./services/whitelistService.js";
 import { z, ZodError } from "zod";
 import passport from "passport";
 import session from "express-session";
 import jwt from "jsonwebtoken";
+// Use crypto.randomUUID() instead of uuid package
+const generateId = () => {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  // Fallback for environments without crypto.randomUUID
+  return `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+};
 
 // JWT-based authentication for serverless environments
 const jwtIsAuthenticated = (req: any, res: any, next: any) => {
@@ -102,6 +111,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
         id: user.id,
         email: user.email,
         authProviders: user.authProviders || [],
+        isWhitelisted: whitelistService.isWhitelisted(user.email),
       });
     } catch (error) {
       console.error("Error fetching user:", error);
@@ -283,16 +293,106 @@ export async function registerRoutes(app: Express): Promise<Express> {
   app.get('/api/usage', isAuthenticated, async (req: any, res) => {
     try {
       const userId = getUserId(req);
+      const user = await storage.getUser(userId);
+      
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
       const status = await usageService.getUsageStatus(userId);
       
       if (!status) {
         return res.status(404).json({ message: "User not found" });
       }
 
+      // Debug: Log current config vs database values
+      const todayStart = new Date(new Date().setHours(0, 0, 0, 0));
+      const dbCounter = await storage.getUsageCounter(userId, todayStart);
+      console.log('[Usage Debug]', {
+        userId,
+        email: user.email,
+        isWhitelisted: whitelistService.isWhitelisted(user.email),
+        currentTrialLimit: whitelistService.getTrialLimit(),
+        currentBypassLimit: whitelistService.getBypassLimit(),
+        dbCounterLimit: dbCounter?.limit,
+        dbCounterPlanCode: dbCounter?.planCode,
+        returnedLimit: status.limit,
+        returnedPlanCode: status.planCode,
+      });
+
       res.json(status);
     } catch (error) {
       console.error("Error fetching usage:", error);
       res.status(500).json({ message: "Failed to fetch usage" });
+    }
+  });
+
+  // User preferences routes
+  app.get('/api/user/preferences', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      let preferences = await storage.getUserPreferences(userId);
+      
+      // Create default preferences if none exist
+      if (!preferences) {
+        preferences = await storage.upsertUserPreferences({
+          id: generateId(),
+          userId,
+          tone: 'default',
+          length: 'default',
+          style: 'default',
+          topics: [],
+          promptStyleEnabled: false, // Default to false
+        });
+        console.log(`[User Preferences] Created default preferences for user ${userId}`);
+      }
+      
+      res.json(preferences);
+    } catch (error) {
+      console.error("Error fetching user preferences:", error);
+      res.status(500).json({ message: "Failed to fetch user preferences" });
+    }
+  });
+
+  app.put('/api/user/preferences', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const schema = z.object({
+        tone: z.string().optional(),
+        length: z.string().optional(),
+        style: z.string().optional(),
+        topics: z.array(z.string()).optional(),
+        promptStyleEnabled: z.boolean().optional(),
+      });
+      
+      const updates = schema.parse(req.body);
+      const existing = await storage.getUserPreferences(userId);
+      
+      // Merge existing preferences with updates
+      const updated = await storage.upsertUserPreferences({
+        id: existing?.id || generateId(),
+        userId,
+        tone: updates.tone ?? existing?.tone ?? 'default',
+        length: updates.length ?? existing?.length ?? 'default',
+        style: updates.style ?? existing?.style ?? 'default',
+        topics: updates.topics ?? existing?.topics ?? [],
+        promptStyleEnabled: updates.promptStyleEnabled ?? existing?.promptStyleEnabled ?? false,
+      });
+      
+      console.log(`[User Preferences] Updated preferences for user ${userId}`, { fields: Object.keys(updates) });
+      res.json(updated);
+    } catch (error) {
+      if (error instanceof ZodError) {
+        return res.status(400).json({
+          message: "Validation error",
+          errors: error.errors.map(err => ({
+            field: err.path.join('.'),
+            message: err.message
+          }))
+        });
+      }
+      console.error("Error updating user preferences:", error);
+      res.status(500).json({ message: "Failed to update user preferences" });
     }
   });
 
@@ -330,21 +430,44 @@ export async function registerRoutes(app: Express): Promise<Express> {
         tweet_metadata
       } = schema.parse(req.body);
 
-      // Check if user can use a reply
-      const { canUse, reason } = await usageService.canUseReply(userId);
-      if (!canUse) {
+      // Get user to check whitelist status
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      const isWhitelisted = whitelistService.isWhitelisted(user.email);
+
+      // Whitelisted users bypass quota check
+      // Fix: Improved type safety - replaced 'any' with proper type
+      let updatedCounter: { repliesUsed: number; limit: number; resetAt: Date };
+      if (!isWhitelisted) {
+        // Check if user can use a reply
+        const { canUse, reason } = await usageService.canUseReply(userId);
+        if (!canUse) {
+          const status = await usageService.getUsageStatus(userId);
+          return res.status(402).json({
+            error: reason,
+            message: reason === 'payment_required' ? 'No active plan' : 'Quota exceeded',
+            used: status?.used || 0,
+            limit: status?.limit || 0,
+            resetAt: status?.resetAt || new Date(),
+            upgradeRequired: true,
+            upgradeMessage: whitelistService.getUpgradeMessage(false, status?.used || 0, status?.limit || 0),
+          });
+        }
+        
+        // Consume a reply from quota (only for non-whitelisted users)
+        updatedCounter = await usageService.consumeReply(userId);
+      } else {
+        // Whitelisted users don't consume quota, but we still need to get status for response
         const status = await usageService.getUsageStatus(userId);
-        return res.status(402).json({
-          error: reason,
-          message: reason === 'payment_required' ? 'No active plan' : 'Quota exceeded',
-          used: status?.used || 0,
+        updatedCounter = {
+          repliesUsed: status?.used || 0,
           limit: status?.limit || 0,
           resetAt: status?.resetAt || new Date(),
-        });
+        };
       }
-
-      // Consume a reply from quota
-      const updatedCounter = await usageService.consumeReply(userId);
 
       // Analyze tweet context if not provided
       const { tweetContextAnalyzer } = await import('./services/tweet-context.js');
@@ -789,44 +912,79 @@ export async function registerRoutes(app: Express): Promise<Express> {
     try {
       const userId = getUserId(req);
       
+      // Get user to check whitelist status
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
       const schema = z.object({
         draft_reply: z.string().min(1).max(500),
-        original_tweet: z.string().optional(),
+        original_tweet: z.string().min(1, "Original tweet is required"), // Required, not optional
       });
 
       const { draft_reply, original_tweet } = schema.parse(req.body);
 
-      // Use AI to suggest improvements
-      const { aiRouter } = await import('./services/ai-router.js');
+      // Check usage quota before processing
+      const isWhitelisted = whitelistService.isWhitelisted(user.email);
+      if (!isWhitelisted) {
+        const { canUse, reason } = await usageService.canUseReply(userId);
+        if (!canUse) {
+          const status = await usageService.getUsageStatus(userId);
+          return res.status(402).json({
+            error: reason,
+            message: reason === 'payment_required' ? 'No active plan' : 'Quota exceeded',
+            used: status?.used || 0,
+            limit: status?.limit || 0,
+            resetAt: status?.resetAt || new Date(),
+            upgradeRequired: true,
+            upgradeMessage: whitelistService.getUpgradeMessage(false, status?.used || 0, status?.limit || 0),
+          });
+        }
+      }
+
+      // Use AI to improve the draft
+      // Fix: Removed redundant dynamic import - aiRouter is already imported at top
       const { qualityChecker } = await import('./services/quality-checker.js');
       
-      // Analyze the draft
-      const qualityCheck = qualityChecker.checkQuality(draft_reply, original_tweet || '');
-      const suggestions = qualityChecker.getImprovementSuggestions(draft_reply, original_tweet || '');
-      
-      // Generate an improved version using AI
       let improvedReply = '';
+      let aiError = null;
+      
       try {
-        const improvementResponse = await aiRouter.generateReply({
-          tweetText: original_tweet || 'Improve this reply',
-          modelPreference: 'gpt-4o-mini',
-          promptVariation: 'default',
-        });
-        
-        // Use a custom prompt for improvement
-        const improvementPrompt = `Please improve this draft reply to make it more engaging and natural:
-
-Original tweet: "${original_tweet || 'N/A'}"
-Draft reply: "${draft_reply}"
-
-Make it more conversational, specific, and engaging while keeping it under 200 characters.`;
-
-        // For now, we'll use the quality checker suggestions
-        // In a full implementation, you'd call the AI with the improvement prompt
-        improvedReply = draft_reply; // Placeholder
+        // Use the new improveDraft method
+        const improvementResponse = await aiRouter.improveDraft(
+          original_tweet,
+          draft_reply,
+          'gpt-4o-mini'
+        );
+        improvedReply = improvementResponse.reply;
       } catch (error) {
         console.error('Error generating improvement:', error);
+        aiError = error instanceof Error ? error.message : 'Unknown error';
+        // Don't consume quota if AI generation fails
+        return res.status(500).json({
+          message: "Failed to generate improvement",
+          error: aiError,
+        });
       }
+
+      // Consume usage quota after successful improvement
+      let updatedCounter;
+      if (!isWhitelisted) {
+        updatedCounter = await usageService.consumeReply(userId);
+      } else {
+        // Whitelisted users don't consume quota
+        const status = await usageService.getUsageStatus(userId);
+        updatedCounter = {
+          repliesUsed: status?.used || 0,
+          limit: status?.limit || 0,
+          resetAt: status?.resetAt || new Date(),
+        };
+      }
+      
+      // Analyze the draft for quality metrics
+      const qualityCheck = qualityChecker.checkQuality(draft_reply, original_tweet);
+      const suggestions = qualityChecker.getImprovementSuggestions(draft_reply, original_tweet);
 
       res.json({
         original: draft_reply,
@@ -838,6 +996,11 @@ Make it more conversational, specific, and engaging while keeping it under 200 c
           wordCount: draft_reply.split(/\s+/).length,
           length: draft_reply.length,
           hasEmojis: /[😀😁😂😃😄😅😆😇😈😉😊😋😌😍😎😏😐😑😒😓😔😕😖😗😘😙😚😛😜😝😞😟😠😡😢😣😤😥😦😧😨😩😪😫😬😭😮😯😰😱😲😳😴😵😶😷🙁🙂🙃🙄🙅🙆🙇🙈🙉🙊🙋🙌🙍🙎🙏]/.test(draft_reply),
+        },
+        usage: {
+          used: updatedCounter.repliesUsed,
+          limit: updatedCounter.limit,
+          resetAt: updatedCounter.resetAt,
         }
       });
     } catch (error) {

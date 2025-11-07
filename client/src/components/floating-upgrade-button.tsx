@@ -1,0 +1,52 @@
+import { Crown } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/useAuth";
+import { useQuery } from "@tanstack/react-query";
+import { useLocation } from "wouter";
+
+interface UsageStatus {
+  planCode: string;
+  used: number;
+  limit: number;
+  resetAt: string;
+  status: 'active' | 'trial' | 'no_access';
+  isWhitelisted?: boolean;
+  upgradeRequired?: boolean;
+  upgradeMessage?: string;
+}
+
+export function FloatingUpgradeButton() {
+  const { isAuthenticated, user } = useAuth();
+  const [, setLocation] = useLocation();
+  
+  const { data: usage } = useQuery<UsageStatus>({
+    queryKey: ["/api/usage"],
+    refetchInterval: 30000,
+    enabled: isAuthenticated,
+  });
+
+  // Don't show if user is not authenticated, whitelisted, or already on pricing page
+  if (!isAuthenticated || !user || usage?.isWhitelisted || window.location.pathname === '/pricing') {
+    return null;
+  }
+
+  const handleUpgrade = () => {
+    setLocation('/pricing');
+  };
+
+  return (
+    <div className="fixed bottom-6 right-6 z-50">
+      <Button
+        onClick={handleUpgrade}
+        size="lg"
+        className="rounded-full shadow-2xl bg-gradient-to-r from-primary to-purple-600 hover:from-primary/90 hover:to-purple-600/90 text-white font-semibold px-6 py-6 h-auto transition-all duration-300 hover:scale-110 active:scale-95 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        aria-label="Upgrade to Pro"
+      >
+        <Crown className="w-5 h-5 mr-2" />
+        <span className="hidden sm:inline">Upgrade to Pro</span>
+        <span className="sm:hidden">Upgrade</span>
+      </Button>
+    </div>
+  );
+}
+

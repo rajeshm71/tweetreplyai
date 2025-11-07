@@ -1,10 +1,11 @@
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
-import { TrendingUp, Download, X, History, BarChart3, Settings, User, Chrome } from "lucide-react";
+import { TrendingUp, Download, X, Chrome, Clock, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { AppHeader } from "@/components/app-header";
+import { FloatingUpgradeButton } from "@/components/floating-upgrade-button";
 import { useToast } from "@/hooks/use-toast";
 import { useEffect, useState, useRef } from "react";
 // Sprint 4: Lazy load heavy component
@@ -13,11 +14,23 @@ import type { GenerateReplyRef } from "@/components/generate-reply";
 const GenerateReply = lazy(() => import("@/components/generate-reply").then(module => ({ default: module.GenerateReply })));
 import { motion, AnimatePresence } from "framer-motion";
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
+import { formatDistanceToNow } from "date-fns";
 
 type Usage = {
   today: number;
   thisWeek: number;
   thisMonth: number;
+};
+
+type UsageStatus = {
+  planCode: string;
+  used: number;
+  limit: number;
+  resetAt: string;
+  status: 'active' | 'trial' | 'no_access';
+  isWhitelisted?: boolean;
+  upgradeRequired?: boolean;
+  upgradeMessage?: string;
 };
 
 const CHROME_EXTENSION_URL = "https://chromewebstore.google.com/detail/tweetreply-ai-powered-twi/nhpilcnghmcdhcbhndmemiggfekmdgem";
@@ -45,6 +58,14 @@ export default function Home() {
   const { data: usage } = useQuery<Usage>({
     queryKey: ["/api/usage"],
     retry: false,
+    enabled: !!user,
+  });
+
+  // Fetch usage status for the counter
+  const { data: usageStatus } = useQuery<UsageStatus>({
+    queryKey: ["/api/usage"],
+    refetchInterval: 30000, // Refetch every 30 seconds
+    refetchOnWindowFocus: true,
     enabled: !!user,
   });
 
@@ -164,6 +185,97 @@ export default function Home() {
 
           {/* Right Column: Quick Stats + Quick Access (30% on desktop) */}
           <div className="space-y-6">
+            {/* Usage Counter - Visually Stunning Design */}
+            {usageStatus && (
+              <motion.div
+                initial={{ opacity: 0, y: prefersReducedMotion ? 0 : 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: prefersReducedMotion ? 0 : 0.5, delay: prefersReducedMotion ? 0 : 0.1 }}
+              >
+                <Card className="card-modern-enhanced border border-primary/20 bg-gradient-to-br from-primary/5 via-purple-600/5 to-primary/5 overflow-hidden relative">
+                  {/* Animated Background Gradient */}
+                  <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-purple-600/10 to-primary/10 opacity-50 animate-pulse" />
+                  
+                  <CardContent className="p-6 relative z-10">
+                    {/* Header with Icon */}
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary via-purple-600 to-primary flex items-center justify-center shadow-lg relative overflow-hidden">
+                        <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent" />
+                        <Zap className="w-5 h-5 text-white relative z-10" />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-lg bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">
+                          Usage Limit
+                        </h3>
+                        <p className="text-xs text-muted-foreground">
+                          {usageStatus.planCode === 'trial' ? 'Free Trial' : `${usageStatus.planCode.charAt(0).toUpperCase() + usageStatus.planCode.slice(1)} Plan`}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Usage Numbers */}
+                    <div className="mb-4">
+                      <div className="flex items-baseline justify-between mb-2">
+                        <span className="text-3xl font-bold bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">
+                          {usageStatus.used}
+                        </span>
+                        <span className="text-lg font-semibold text-muted-foreground">
+                          / {usageStatus.limit}
+                        </span>
+                      </div>
+                      
+                      {/* Progress Bar */}
+                      <div className="relative w-full h-3 bg-secondary/50 rounded-full overflow-hidden backdrop-blur-sm">
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{ 
+                            width: `${Math.min((usageStatus.used / usageStatus.limit) * 100, 100)}%` 
+                          }}
+                          transition={{ duration: prefersReducedMotion ? 0 : 1, ease: "easeOut" }}
+                          className={`h-full rounded-full relative overflow-hidden ${
+                            usageStatus.used >= usageStatus.limit 
+                              ? 'bg-gradient-to-r from-destructive to-red-600' 
+                              : usageStatus.used / usageStatus.limit >= 0.8 
+                              ? 'bg-gradient-to-r from-yellow-500 to-orange-500' 
+                              : 'bg-gradient-to-r from-primary via-purple-600 to-primary'
+                          }`}
+                        >
+                          {/* Shimmer Effect */}
+                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer" />
+                        </motion.div>
+                      </div>
+                    </div>
+
+                    {/* Reset Time */}
+                    <div className="flex items-center gap-2 p-3 bg-muted/30 rounded-lg border border-border/50">
+                      <Clock className="w-4 h-4 text-primary flex-shrink-0" />
+                      <span className="text-sm text-muted-foreground">
+                        Resets {formatDistanceToNow(new Date(usageStatus.resetAt), { addSuffix: true })}
+                      </span>
+                    </div>
+
+                    {/* Upgrade CTA (if needed) */}
+                    {usageStatus.upgradeRequired && !usageStatus.isWhitelisted && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: prefersReducedMotion ? 0 : 0.3, delay: prefersReducedMotion ? 0 : 0.2 }}
+                        className="mt-4"
+                      >
+                        <Button
+                          onClick={() => setLocation('/pricing')}
+                          className="w-full bg-gradient-to-r from-primary to-purple-600 hover:from-primary/90 hover:to-purple-600/90 text-white font-semibold shadow-lg hover:shadow-xl transition-all duration-300"
+                        >
+                          <TrendingUp className="w-4 h-4 mr-2" />
+                          Upgrade to Pro
+                        </Button>
+                      </motion.div>
+                    )}
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )}
+
             {/* Quick Stats - Sprint 2: Modernized with enhanced styling */}
             {usage && (
               <motion.div
@@ -215,69 +327,12 @@ export default function Home() {
                 </Card>
               </motion.div>
             )}
-
-            {/* Quick Access Cards - Sprint 2: Modernized with enhanced styling */}
-            <motion.div
-              initial={{ opacity: 0, y: prefersReducedMotion ? 0 : 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: prefersReducedMotion ? 0 : 0.5, delay: prefersReducedMotion ? 0 : 0.3 }}
-            >
-              <Card className="card-modern-enhanced border border-primary/20 bg-gradient-to-br from-card to-card/50">
-                <CardContent className="p-6">
-                  <h3 className="font-semibold text-lg mb-4">Quick Access</h3>
-                  <div className="space-y-2">
-                    {/* Sprint 1: Modernized buttons with smooth transitions */}
-                    <Button
-                      variant="ghost"
-                      className="w-full justify-start h-auto py-3 px-4 rounded-lg hover:bg-gradient-to-r hover:from-primary/10 hover:to-purple-600/10 transition-all duration-300 hover:shadow-md hover:-translate-x-1"
-                      onClick={() => {
-                        const generateReplyElement = document.querySelector('[data-generate-reply]');
-                        if (generateReplyElement) {
-                          generateReplyElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                        }
-                        generateReplyRef.current?.openHistory();
-                      }}
-                    >
-                      <History className="w-5 h-5 mr-3 text-primary" />
-                      <span>Reply History</span>
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      className="w-full justify-start h-auto py-3 px-4 rounded-lg hover:bg-gradient-to-r hover:from-primary/10 hover:to-purple-600/10 transition-all duration-300 hover:shadow-md hover:-translate-x-1"
-                      onClick={() => {
-                        const generateReplyElement = document.querySelector('[data-generate-reply]');
-                        if (generateReplyElement) {
-                          generateReplyElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                        }
-                        generateReplyRef.current?.openAnalytics();
-                      }}
-                    >
-                      <BarChart3 className="w-5 h-5 mr-3 text-primary" />
-                      <span>Analytics</span>
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      className="w-full justify-start h-auto py-3 px-4 rounded-lg hover:bg-gradient-to-r hover:from-primary/10 hover:to-purple-600/10 transition-all duration-300 hover:shadow-md hover:-translate-x-1"
-                      onClick={() => setLocation('/settings')}
-                    >
-                      <Settings className="w-5 h-5 mr-3 text-primary" />
-                      <span>Settings</span>
-                    </Button>
-                <Button 
-                      variant="ghost"
-                      className="w-full justify-start h-auto py-3 px-4 rounded-lg hover:bg-gradient-to-r hover:from-primary/10 hover:to-purple-600/10 transition-all duration-300 hover:shadow-md hover:-translate-x-1"
-                      onClick={() => setLocation('/profile')}
-                    >
-                      <User className="w-5 h-5 mr-3 text-primary" />
-                      <span>Profile</span>
-                </Button>
-              </div>
-                </CardContent>
-          </Card>
-            </motion.div>
           </div>
         </div>
       </main>
+      
+      {/* Floating Upgrade Button */}
+      <FloatingUpgradeButton />
     </div>
   );
 }

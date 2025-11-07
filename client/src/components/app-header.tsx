@@ -1,4 +1,4 @@
-import { User, Settings, LogOut, Home, Download } from "lucide-react";
+import { User, Settings, LogOut, Home, Download, Crown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -117,6 +117,18 @@ export function AppHeader() {
               >
                 <Download className="w-4 h-4" aria-hidden="true" />
                 <span>Extension</span>
+              </Button>
+              
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setLocation('/pricing')}
+                className="flex items-center gap-2 rounded-lg transition-all duration-300 hover:bg-primary/10 hover:text-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                data-testid="button-nav-pricing"
+                aria-label="View pricing plans"
+              >
+                <Crown className="w-4 h-4" aria-hidden="true" />
+                <span>Pricing</span>
               </Button>
             </nav>
           </div>
