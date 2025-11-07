@@ -13,11 +13,15 @@
   ],
   "routes": [
     {
+      "src": "/api/(.*)",
+      "dest": "/dist/prod.js"
+    },
+    {
       "src": "/assets/(.*)",
       "dest": "/dist/public/assets/$1"
     },
     {
-      "src": "/(.*\\.css)$",
+      "src": "/(.*\\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot))$",
       "dest": "/dist/public/$1"
     },
     {
