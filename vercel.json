@@ -15,10 +15,12 @@
     {
       "src": "/api/(.*)",
       "dest": "/dist/prod.js"
-    },
+    }
+  ],
+  "rewrites": [
     {
-      "src": "/(.*)",
-      "dest": "/dist/public/index.html"
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ],
   "env": {
