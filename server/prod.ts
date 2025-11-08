@@ -74,7 +74,10 @@ async function initializeApp() {
   });
 
   // Production mode - only serve static files, no Vite
-  serveStatic(app);
+  // Skip static serving in Vercel - Vercel handles this automatically via @vercel/static
+  if (!process.env.VERCEL) {
+    serveStatic(app);
+  }
   
   isInitialized = true;
 }
