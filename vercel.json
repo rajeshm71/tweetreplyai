@@ -1,24 +1,10 @@
 {
   "version": 2,
   "buildCommand": "npm run vercel-build",
-  "builds": [
+  "rewrites": [
     {
-      "src": "dist/prod.js",
-      "use": "@vercel/node"
-    },
-    {
-      "src": "dist/public/**",
-      "use": "@vercel/static"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "/dist/prod.js"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/dist/public/index.html"
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ],
   "env": {
