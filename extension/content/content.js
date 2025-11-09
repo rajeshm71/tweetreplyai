@@ -788,14 +788,23 @@ class TwitterReplyInjector {
     const promptSelect = this.createPromptSelect();
     container.appendChild(promptSelect);
     
+    // Create button group container for vertical stacking
+    const buttonGroup = document.createElement('div');
+    buttonGroup.className = 'tweetreply-button-group';
+    buttonGroup.style.cssText = `
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    `;
+    
     // Suggest button
-    const button = document.createElement('button');
-    button.className = 'tweetreply-suggest-btn';
-    button.dataset.authPending = 'true'; // Mark as pending initialization
+    const suggestButton = document.createElement('button');
+    suggestButton.className = 'tweetreply-suggest-btn';
+    suggestButton.dataset.authPending = 'true'; // Mark as pending initialization
 
     // Set initial loading state
-    button.disabled = true;
-    button.innerHTML = `
+    suggestButton.disabled = true;
+    suggestButton.innerHTML = `
       <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" style="margin-right: 4px;">
         <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="31.416" stroke-dashoffset="31.416">
           <animate attributeName="stroke-dasharray" dur="2s" values="0 31.416;15.708 15.708;0 31.416;0 31.416" repeatCount="indefinite"/>
@@ -804,22 +813,22 @@ class TwitterReplyInjector {
       </svg>
       <span>Checking...</span>
     `;
-    button.title = 'Checking authentication...';
+    suggestButton.title = 'Checking authentication...';
 
     // Async button state initialization
-    this.updateButtonStateAsync(button);
+    this.updateButtonStateAsync(suggestButton);
 
-    button.addEventListener('click', async (e) => {
+    suggestButton.addEventListener('click', async (e) => {
       e.preventDefault();
       e.stopPropagation();
       
       // Check if in error state - retry loading
-      if (button.dataset.loadError === 'true') {
+      if (suggestButton.dataset.loadError === 'true') {
         console.log('[TweetReply] Retrying button initialization...');
-        delete button.dataset.loadError;
-        button.dataset.authPending = 'true';
-        this.updateButtonState(button); // Show loading
-        await this.updateButtonStateAsync(button); // Retry
+        delete suggestButton.dataset.loadError;
+        suggestButton.dataset.authPending = 'true';
+        this.updateButtonState(suggestButton); // Show loading
+        await this.updateButtonStateAsync(suggestButton); // Retry
         return;
       }
       
@@ -832,13 +841,21 @@ class TwitterReplyInjector {
       console.log('[TweetReply] Button click - Composer container:', composer.getAttribute('data-testid'));
       console.log('[TweetReply] Button click - Actual composer:', actualComposer.contentEditable, actualComposer.className);
 
-      this.handleSuggestReply(actualComposer, button, {
+      this.handleSuggestReply(actualComposer, suggestButton, {
         modelKey: modelSelect.value,
         promptVariation: promptSelect.value
       });
     });
 
-    container.appendChild(button);
+    // Create Improve Reply button
+    const improveButton = this.createImproveButton(composer);
+    
+    // Add both buttons to button group
+    buttonGroup.appendChild(suggestButton);
+    buttonGroup.appendChild(improveButton);
+    
+    // Add button group to container
+    container.appendChild(buttonGroup);
     return container;
   }
 
@@ -1041,6 +1058,53 @@ class TwitterReplyInjector {
     }
   }
 
+  createImproveButton(composer) {
+    const button = document.createElement('button');
+    button.className = 'tweetreply-improve-btn';
+    button.dataset.authPending = 'true'; // Mark as pending initialization
+    button.setAttribute('aria-label', 'Improve current draft reply');
+    
+    // Set initial loading state
+    button.disabled = true;
+    button.innerHTML = `
+      <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" style="margin-right: 4px;">
+        <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="31.416" stroke-dashoffset="31.416">
+          <animate attributeName="stroke-dasharray" dur="2s" values="0 31.416;15.708 15.708;0 31.416;0 31.416" repeatCount="indefinite"/>
+          <animate attributeName="stroke-dashoffset" dur="2s" values="0;-15.708;-31.416;-31.416" repeatCount="indefinite"/>
+        </circle>
+      </svg>
+      <span>Checking...</span>
+    `;
+    button.title = 'Checking authentication...';
+
+    // Async button state initialization
+    this.updateButtonStateAsync(button);
+
+    button.addEventListener('click', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      // Check if in error state - retry loading
+      if (button.dataset.loadError === 'true') {
+        console.log('[TweetReply] Retrying improve button initialization...');
+        delete button.dataset.loadError;
+        button.dataset.authPending = 'true';
+        this.updateButtonState(button); // Show loading
+        await this.updateButtonStateAsync(button); // Retry
+        return;
+      }
+      
+      // Find the actual contenteditable element
+      const actualComposer = composer.querySelector('[contenteditable="true"]') || 
+                             composer.querySelector('.public-DraftEditor-content') ||
+                             composer;
+
+      this.handleImproveReply(actualComposer, button);
+    });
+
+    return button;
+  }
+
   updateButtonState(button) {
     // Don't update if still pending
     if (button.dataset.authPending === 'true') {
@@ -1106,15 +1170,27 @@ class TwitterReplyInjector {
       return;
     }
 
-    // Active state
+    // Active state - check if this is an improve button or suggest button
+    const isImproveButton = button.classList.contains('tweetreply-improve-btn');
     button.disabled = false;
-    button.innerHTML = `
-      <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" style="margin-right: 4px;">
-        <path d="M12 2L13.09 8.26L19 7.27L14.18 12.09L20 17.91L13.09 15.74L12 22L10.91 15.74L4 17.91L8.82 12.09L3 7.27L8.91 8.26L12 2Z"/>
-      </svg>
-      <span>Suggest reply</span>
-    `;
-    button.title = 'Generate an AI reply suggestion';
+    
+    if (isImproveButton) {
+      button.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" style="margin-right: 4px;">
+          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+        </svg>
+        <span>Improve reply</span>
+      `;
+      button.title = 'Improve the current draft reply';
+    } else {
+      button.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" style="margin-right: 4px;">
+          <path d="M12 2L13.09 8.26L19 7.27L14.18 12.09L20 17.91L13.09 15.74L12 22L10.91 15.74L4 17.91L8.82 12.09L3 7.27L8.91 8.26L12 2Z"/>
+        </svg>
+        <span>Suggest reply</span>
+      `;
+      button.title = 'Generate an AI reply suggestion';
+    }
     button.style.opacity = '1';
   }
 
@@ -1246,6 +1322,135 @@ class TwitterReplyInjector {
           break;
         }
       }
+    }
+  }
+
+  async handleImproveReply(composer, button) {
+    if (!this.isAuthenticated) {
+      this.showMessage(composer, 'Please sign in to use TweetReply', 'error');
+      return;
+    }
+
+    if (!this.usageData || this.usageData.used >= this.usageData.limit) {
+      this.showMessage(composer, 'Quota exceeded. Upgrade your plan to continue.', 'error');
+      return;
+    }
+
+    // Extract current draft text from composer
+    let draftText = '';
+    
+    // Try multiple methods to extract text
+    // Method 1: Twitter's Draft.js structure with data-text spans
+    const dataTextSpans = composer.querySelectorAll('[data-text="true"]');
+    if (dataTextSpans.length > 0) {
+      draftText = Array.from(dataTextSpans)
+        .map(span => span.textContent || span.innerText)
+        .join(' ')
+        .trim();
+    }
+    
+    // Method 2: Direct textContent or innerText
+    if (!draftText || draftText.length === 0) {
+      draftText = composer.textContent || composer.innerText || '';
+    }
+    
+    // Method 3: Try to get from contenteditable div
+    if (!draftText || draftText.length === 0) {
+      const contentEditable = composer.querySelector('[contenteditable="true"]');
+      if (contentEditable) {
+        draftText = contentEditable.textContent || contentEditable.innerText || '';
+      }
+    }
+    
+    // Clean up the text
+    draftText = draftText.trim();
+    
+    // Validate draft is not empty
+    if (!draftText || draftText.length === 0) {
+      this.showMessage(composer, 'Please write a draft reply first', 'info');
+      return;
+    }
+    
+    // Show loading state
+    button.disabled = true;
+    const originalText = button.innerHTML;
+    button.innerHTML = `
+      <div class="tweetreply-spinner" style="width: 14px; height: 14px; border: 2px solid #3b82f6; border-top: 2px solid transparent; border-radius: 50%; animation: spin 1s linear infinite; margin-right: 4px;"></div>
+      <span>Improving...</span>
+    `;
+
+    try {
+      // Extract original tweet text
+      const originalTweetText = this.extractTweetText() || '';
+      
+      // Call API to improve draft
+      const response = await this.apiClient.suggestImprovements(draftText, originalTweetText);
+      
+      // Extract improved draft from response
+      // Check different possible response structures
+      let improvedDraft = '';
+      if (typeof response === 'string') {
+        improvedDraft = response;
+      } else if (response && response.improvedDraft) {
+        improvedDraft = response.improvedDraft;
+      } else if (response && response.improved_reply) {
+        improvedDraft = response.improved_reply;
+      } else if (response && response.reply) {
+        improvedDraft = response.reply;
+      } else if (response && response.suggestion) {
+        improvedDraft = response.suggestion;
+      } else {
+        // Fallback: try to get first string value from response
+        improvedDraft = Object.values(response).find(v => typeof v === 'string') || draftText;
+      }
+      
+      if (!improvedDraft || improvedDraft.trim().length === 0) {
+        throw new Error('No improved draft received from API');
+      }
+      
+      // Insert improved text into composer
+      await this.insertReplyIntoComposer(composer, improvedDraft);
+      
+      // Show success message
+      this.showMessage(composer, '✓ Reply improved', 'success');
+      
+      // Update usage data if provided
+      if (response.used !== undefined) {
+        this.usageData = {
+          ...this.usageData,
+          used: response.used,
+          limit: response.limit || this.usageData.limit,
+          resetAt: response.resetAt || this.usageData.resetAt
+        };
+      }
+      
+      // Update all button states
+      this.updateAllButtonStates();
+
+    } catch (error) {
+      console.error('Failed to improve reply:', error);
+      
+      // Parse error message
+      let errorMessage = 'Failed to improve reply';
+      if (error.message.includes('400')) {
+        errorMessage = 'Invalid request. Please try again or refresh the page.';
+      } else if (error.message.includes('401')) {
+        this.isAuthenticated = false;
+        errorMessage = 'Please sign in again';
+      } else if (error.message.includes('402')) {
+        errorMessage = 'Quota exceeded - upgrade your plan';
+      } else if (error.message.includes('Network error')) {
+        errorMessage = 'Network error - check your connection';
+      } else if (error.message) {
+        errorMessage = `Failed to improve reply: ${error.message}`;
+      }
+      
+      this.showMessage(composer, errorMessage, 'error');
+    } finally {
+      // Restore button
+      button.innerHTML = originalText;
+      button.disabled = false;
+      this.updateButtonState(button);
     }
   }
 
@@ -2357,7 +2562,7 @@ class TwitterReplyInjector {
   }
 
   updateAllButtonStates() {
-    document.querySelectorAll('.tweetreply-suggest-btn').forEach(button => {
+    document.querySelectorAll('.tweetreply-suggest-btn, .tweetreply-improve-btn').forEach(button => {
       this.updateButtonState(button);
     });
   }

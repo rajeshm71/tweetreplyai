@@ -970,64 +970,6 @@ body {
   padding: var(--spacing-5);
 }
 
-/* ============================================
-   DRAFT IMPROVEMENT PANEL
-   ============================================ */
-
-#draft-input {
-  width: 100%;
-  min-height: 80px;
-  padding: var(--spacing-2);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  font-size: var(--font-size-base);
-  font-family: inherit;
-  resize: vertical;
-  margin-bottom: var(--spacing-3);
-  background: var(--color-surface);
-  color: var(--color-text-primary);
-  transition: all var(--transition-base);
-  outline: none;
-}
-
-#draft-input:focus {
-  border-color: var(--color-primary-500);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-}
-
-.quality-score-display h4 {
-  margin: var(--spacing-4) 0 var(--spacing-2) 0;
-  color: var(--color-text-primary);
-  font-size: var(--font-size-base);
-  font-weight: var(--font-weight-semibold);
-}
-
-.issues-list,
-.suggestions-list {
-  margin: var(--spacing-4) 0;
-}
-
-.issues-list h4,
-.suggestions-list h4 {
-  margin: 0 0 var(--spacing-2) 0;
-  color: var(--color-text-primary);
-  font-size: var(--font-size-base);
-  font-weight: var(--font-weight-semibold);
-}
-
-.issues-list ul,
-.suggestions-list ul {
-  margin: 0;
-  padding-left: var(--spacing-4);
-}
-
-.issues-list li,
-.suggestions-list li {
-  margin-bottom: var(--spacing-1);
-  font-size: var(--font-size-sm);
-  line-height: var(--line-height-relaxed);
-  color: var(--color-text-secondary);
-}
 
 /* ============================================
    ANALYTICS PANEL

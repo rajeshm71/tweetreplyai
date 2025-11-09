@@ -98,10 +98,22 @@
     background: rgba(29, 155, 240, 0.3);
     border-color: rgba(29, 155, 240, 0.4);
   }
+
+  .tweetreply-improve-btn {
+    background: rgba(147, 197, 253, 0.2);
+    color: rgb(96, 165, 250);
+    border-color: rgba(59, 130, 246, 0.3);
+  }
+  
+  .tweetreply-improve-btn:hover:not(:disabled) {
+    background: rgba(147, 197, 253, 0.3);
+    border-color: rgba(59, 130, 246, 0.4);
+  }
 }
 
 /* Ensure compatibility with Twitter's styles */
 .tweetreply-suggest-btn,
+.tweetreply-improve-btn,
 .tweetreply-message {
   box-sizing: border-box;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -137,6 +149,45 @@
   margin-bottom: 6px; /* keep spacing from native toolbar */
 }
 
+/* Button group styles */
+.tweetreply-button-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Improve button styles */
+.tweetreply-improve-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  background: rgba(147, 197, 253, 0.1);
+  color: rgb(59, 130, 246);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: 16px;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.tweetreply-improve-btn:hover:not(:disabled) {
+  background: rgba(147, 197, 253, 0.15);
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+.tweetreply-improve-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.tweetreply-improve-btn svg {
+  flex-shrink: 0;
+}
+
 .tweetreply-model-select,
 .tweetreply-prompt-select {
   padding: 4px 8px;
@@ -154,7 +205,8 @@
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
-  .tweetreply-suggest-btn {
+  .tweetreply-suggest-btn,
+  .tweetreply-improve-btn {
     padding: 4px 8px;
     font-size: 12px;
   }
