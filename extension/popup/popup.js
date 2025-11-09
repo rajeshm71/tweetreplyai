@@ -107,6 +107,64 @@ class PopupManager {
     if (saveTrackingSettingsBtn) {
       saveTrackingSettingsBtn.addEventListener('click', () => this.saveTrackingSettings());
     }
+    
+    // Keyboard navigation
+    this.setupKeyboardNavigation();
+    
+    // Dark mode initialization
+    this.initializeDarkMode();
+  }
+  
+  setupKeyboardNavigation() {
+    // Escape key to close panels
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        if (!this.settingsPanel?.classList.contains('hidden')) {
+          this.hideSettings();
+        } else if (!this.historyPanel?.classList.contains('hidden')) {
+          this.hideHistory();
+        } else if (!this.improvePanel?.classList.contains('hidden')) {
+          this.hideImprove();
+        } else if (!this.analyticsPanel?.classList.contains('hidden')) {
+          this.hideAnalytics();
+        }
+      }
+    });
+    
+    // Keyboard shortcut for generate reply (Cmd/Ctrl + K)
+    document.addEventListener('keydown', (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        if (this.suggestBtn && !this.suggestBtn.disabled) {
+          this.handleSuggestReply();
+        }
+      }
+    });
+  }
+  
+  initializeDarkMode() {
+    // Check for saved theme preference
+    chrome.storage.local.get(['theme'], (result) => {
+      if (result.theme) {
+        document.documentElement.setAttribute('data-theme', result.theme);
+      } else {
+        // Use system preference
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (prefersDark) {
+          document.documentElement.setAttribute('data-theme', 'dark');
+        }
+      }
+    });
+    
+    // Listen for system theme changes
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+      chrome.storage.local.get(['theme'], (result) => {
+        // Only update if user hasn't manually set a theme
+        if (!result.theme) {
+          document.documentElement.setAttribute('data-theme', e.matches ? 'dark' : 'light');
+        }
+      });
+    });
   }
 
   async initialize() {
@@ -242,6 +300,13 @@ class PopupManager {
     if (this.progressFill) {
       this.progressFill.style.width = `${percentage}%`;
       this.progressFill.classList.toggle('exceeded', isExceeded);
+    }
+    
+    // Update progress bar ARIA attributes
+    const progressBar = document.querySelector('.usage-progress-bar[role="progressbar"]');
+    if (progressBar) {
+      progressBar.setAttribute('aria-valuenow', Math.round(percentage));
+      progressBar.setAttribute('aria-valuetext', `${used} of ${limit} replies used`);
     }
     
     // Update usage numbers
@@ -423,12 +488,25 @@ class PopupManager {
 
   showSettings() {
     this.settingsPanel?.classList.remove('hidden');
-    // Load tracking settings when settings panel is shown
-    this.loadTrackingSettings();
+    if (this.settingsPanel) {
+      this.settingsPanel.style.display = 'flex';
+      this.settingsPanel.setAttribute('aria-hidden', 'false');
+      this.settingsBtn?.setAttribute('aria-expanded', 'true');
+      // Load tracking settings when settings panel is shown
+      this.loadTrackingSettings();
+      // Focus first focusable element
+      const firstInput = this.settingsPanel.querySelector('input, button');
+      firstInput?.focus();
+    }
   }
 
   hideSettings() {
     this.settingsPanel?.classList.add('hidden');
+    if (this.settingsPanel) {
+      this.settingsPanel.style.display = 'none';
+      this.settingsPanel.setAttribute('aria-hidden', 'true');
+      this.settingsBtn?.setAttribute('aria-expanded', 'false');
+    }
   }
 
   // Load reply tracking settings
@@ -497,30 +575,66 @@ class PopupManager {
   showHistory() {
     this.hideAllPanels();
     this.historyPanel?.classList.remove('hidden');
+    if (this.historyPanel) {
+      this.historyPanel.style.display = 'flex';
+      this.historyPanel.setAttribute('aria-hidden', 'false');
+      // Focus close button
+      this.closeHistoryBtn?.focus();
+    }
     this.loadReplyHistory();
   }
 
   hideHistory() {
     this.historyPanel?.classList.add('hidden');
+    if (this.historyPanel) {
+      this.historyPanel.style.display = 'none';
+      this.historyPanel.setAttribute('aria-hidden', 'true');
+    }
+    // Return focus to history button
+    this.historyBtn?.focus();
   }
 
   showImprove() {
     this.hideAllPanels();
     this.improvePanel?.classList.remove('hidden');
+    if (this.improvePanel) {
+      this.improvePanel.style.display = 'flex';
+      this.improvePanel.setAttribute('aria-hidden', 'false');
+      // Focus textarea
+      this.draftInput?.focus();
+    }
   }
 
   hideImprove() {
     this.improvePanel?.classList.add('hidden');
+    if (this.improvePanel) {
+      this.improvePanel.style.display = 'none';
+      this.improvePanel.setAttribute('aria-hidden', 'true');
+    }
+    // Return focus to improve button
+    this.improveBtn?.focus();
   }
 
   showAnalytics() {
     this.hideAllPanels();
     this.analyticsPanel?.classList.remove('hidden');
+    if (this.analyticsPanel) {
+      this.analyticsPanel.style.display = 'flex';
+      this.analyticsPanel.setAttribute('aria-hidden', 'false');
+      // Focus close button
+      this.closeAnalyticsBtn?.focus();
+    }
     this.loadAnalytics();
   }
 
   hideAnalytics() {
     this.analyticsPanel?.classList.add('hidden');
+    if (this.analyticsPanel) {
+      this.analyticsPanel.style.display = 'none';
+      this.analyticsPanel.setAttribute('aria-hidden', 'true');
+    }
+    // Return focus to analytics button
+    this.analyticsBtn?.focus();
   }
 
   hideAllPanels() {
@@ -528,6 +642,24 @@ class PopupManager {
     this.historyPanel?.classList.add('hidden');
     this.improvePanel?.classList.add('hidden');
     this.analyticsPanel?.classList.add('hidden');
+    
+    // Force hide with inline styles
+    if (this.settingsPanel) {
+      this.settingsPanel.style.display = 'none';
+      this.settingsPanel.setAttribute('aria-hidden', 'true');
+    }
+    if (this.historyPanel) {
+      this.historyPanel.style.display = 'none';
+      this.historyPanel.setAttribute('aria-hidden', 'true');
+    }
+    if (this.improvePanel) {
+      this.improvePanel.style.display = 'none';
+      this.improvePanel.setAttribute('aria-hidden', 'true');
+    }
+    if (this.analyticsPanel) {
+      this.analyticsPanel.style.display = 'none';
+      this.analyticsPanel.setAttribute('aria-hidden', 'true');
+    }
   }
 
   async loadReplyHistory() {

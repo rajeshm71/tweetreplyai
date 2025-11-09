@@ -18,47 +18,47 @@
         </div>
         <span class="logo-text">TweetReply</span>
       </div>
-      <button id="settings-btn" class="settings-btn" title="Settings">
-        <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+      <button id="settings-btn" class="settings-btn" title="Settings" aria-label="Open settings" aria-expanded="false">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" aria-hidden="true">
           <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
         </svg>
       </button>
     </div>
 
     <!-- Not Authenticated State -->
-    <div id="not-authenticated" class="state hidden">
+    <div id="not-authenticated" class="state hidden" role="region" aria-label="Authentication required">
       <div class="auth-content">
         <h2>Welcome to TweetReply</h2>
         <p>Sign in to start generating authentic replies to X posts</p>
-        <button id="signin-btn" class="primary-btn">Sign In</button>
+        <button id="signin-btn" class="primary-btn" aria-label="Sign in to TweetReply">Sign In</button>
       </div>
     </div>
 
     <!-- Loading State -->
-    <div id="loading" class="state">
+    <div id="loading" class="state" role="status" aria-live="polite" aria-label="Loading">
       <div class="loading-content">
-        <div class="spinner"></div>
+        <div class="spinner" aria-hidden="true"></div>
         <p>Loading...</p>
       </div>
     </div>
 
     <!-- Authenticated State -->
-    <div id="authenticated" class="state hidden">
+    <div id="authenticated" class="state hidden" role="main" aria-label="TweetReply dashboard">
       <!-- Welcome Header -->
       <div class="welcome-section">
         <div class="user-greeting">
-          <span class="greeting-text">Hi, <span id="user-name">there</span>!</span>
-          <span class="plan-badge" id="plan-badge">Free Plan</span>
+          <span class="greeting-text">Hi, <span id="user-name" aria-label="User name">there</span>!</span>
+          <span class="plan-badge" id="plan-badge" aria-label="Current plan">Free Plan</span>
         </div>
       </div>
 
       <!-- Usage Dashboard Card -->
-      <div class="usage-card">
+      <div class="usage-card" role="region" aria-label="Daily usage statistics">
         <div class="usage-header">
           <span class="usage-title">Daily Usage</span>
-          <span id="usage-percentage" class="usage-percentage">0%</span>
+          <span id="usage-percentage" class="usage-percentage" aria-live="polite">0%</span>
         </div>
-        <div class="usage-progress-bar">
+        <div class="usage-progress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" aria-label="Daily usage progress">
           <div id="progress-fill" class="progress-fill"></div>
         </div>
         <div class="usage-details">
@@ -68,12 +68,12 @@
       </div>
 
       <!-- Primary CTA -->
-      <button id="suggest-btn" class="primary-cta">
-        <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
+      <button id="suggest-btn" class="primary-cta" aria-label="Generate reply for current tweet">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true">
           <path d="M12 2L13.09 8.26L19 7.27L14.18 12.09L20 17.91L13.09 15.74L12 22L10.91 15.74L4 17.91L8.82 12.09L3 7.27L8.91 8.26L12 2Z"/>
         </svg>
         <span>Generate Reply</span>
-        <span class="shortcut-hint">⌘K</span>
+        <span class="shortcut-hint" aria-label="Keyboard shortcut">⌘K</span>
       </button>
 
       <!-- Quick Stats Grid -->
@@ -93,27 +93,27 @@
       </div>
 
       <!-- Quick Actions -->
-      <div class="actions-grid">
-        <button id="history-btn" class="action-card">
-          <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+      <div class="actions-grid" role="navigation" aria-label="Quick actions">
+        <button id="history-btn" class="action-card" aria-label="View reply history">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" aria-hidden="true">
             <path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/>
           </svg>
           <span>History</span>
         </button>
-        <button id="analytics-btn" class="action-card">
-          <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+        <button id="analytics-btn" class="action-card" aria-label="View analytics">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" aria-hidden="true">
             <path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/>
           </svg>
           <span>Analytics</span>
         </button>
-        <button id="improve-btn" class="action-card">
-          <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+        <button id="improve-btn" class="action-card" aria-label="Improve draft reply">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" aria-hidden="true">
             <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
           </svg>
           <span>Improve</span>
         </button>
-        <button id="web-app-btn" class="action-card">
-          <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+        <button id="web-app-btn" class="action-card" aria-label="Open web application">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" aria-hidden="true">
             <path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.11 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/>
           </svg>
           <span>Web App</span>
@@ -122,82 +122,61 @@
 
       <!-- Footer Actions -->
       <div class="footer-actions">
-        <button id="upgrade-cta" class="upgrade-link">
+        <button id="upgrade-cta" class="upgrade-link" aria-label="Upgrade to Pro plan">
           ⚡ Upgrade to Pro
         </button>
       </div>
     </div>
 
     <!-- Quota Exceeded State -->
-    <div id="quota-exceeded" class="state error-state hidden">
+    <div id="quota-exceeded" class="state error-state hidden" role="alert" aria-live="polite" aria-label="Daily limit reached">
       <div class="error-content">
-        <svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24" class="error-icon">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24" class="error-icon" aria-hidden="true">
           <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zM13 17h-2v-2h2v2zm0-4h-2V7h2v6z"/>
         </svg>
         <h3>Daily limit reached</h3>
         <p id="quota-reset-text">Resets in --</p>
-        <button id="upgrade-btn" class="primary-btn">Upgrade plan</button>
+        <button id="upgrade-btn" class="primary-btn" aria-label="Upgrade to Pro plan">Upgrade plan</button>
       </div>
     </div>
 
     <!-- Settings Panel -->
-    <div id="settings-panel" class="settings-panel hidden" style="display: none !important;">
+    <div id="settings-panel" class="settings-panel hidden" style="display: none !important;" role="dialog" aria-modal="true" aria-labelledby="settings-title">
       <div class="settings-header">
-        <h3>Settings</h3>
-        <button id="close-settings" class="close-btn">×</button>
+        <h3 id="settings-title">Settings</h3>
+        <button id="close-settings" class="close-btn" aria-label="Close settings">×</button>
       </div>
       <div class="settings-content">
         <div class="user-info">
           <div class="user-email" id="user-email">user@example.com</div>
         </div>
         <div class="settings-actions">
-          <button id="signout-btn" class="secondary-btn">Sign Out</button>
+          <button id="signout-btn" class="secondary-btn" aria-label="Sign out from TweetReply">Sign Out</button>
         </div>
         
         <!-- Reply Tracking Settings -->
-        <div class="settings-section" style="margin-top: 20px; padding: 16px 0; border-top: 1px solid #e1e8ed;">
-          <h4 style="margin-bottom: 12px; font-size: 14px; font-weight: 600; color: #14171a;">Reply Tracking</h4>
-          <div style="margin-bottom: 16px;">
-            <label style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 13px; color: #657786;">
+        <div class="settings-section">
+          <h4>Reply Tracking</h4>
+          <div>
+            <label for="trackingPeriodDays">
               <span>Tracking Period (days):</span>
-              <input type="number" id="trackingPeriodDays" min="1" max="30" value="7" 
-                     style="width: 50px; padding: 4px 8px; border: 1px solid #e1e8ed; border-radius: 4px; text-align: center;">
+              <input type="number" id="trackingPeriodDays" min="1" max="30" value="7" aria-label="Tracking period in days">
             </label>
-            <small style="display: block; color: #657786; font-size: 11px; margin-top: 4px;">
+            <small>
               Show reply count for tweets within this time period
             </small>
           </div>
-          <button id="saveTrackingSettings" style="
-            width: 100%;
-            padding: 10px 16px;
-            background: #1d9bf0;
-            color: white;
-            border: none;
-            border-radius: 20px;
-            cursor: pointer;
-            font-weight: 600;
-            font-size: 14px;
-            transition: background 0.2s;
-          ">Save Settings</button>
-          <div id="tracking-settings-saved" style="
-            display: none;
-            margin-top: 8px;
-            padding: 8px;
-            background: #10b981;
-            color: white;
-            border-radius: 4px;
-            font-size: 12px;
-            text-align: center;
-          ">Settings saved!</div>
+          <button id="saveTrackingSettings" class="primary-btn">Save Settings</button>
+          <div id="tracking-settings-saved" role="status" aria-live="polite">Settings saved!</div>
         </div>
       </div>
     </div>
 
     <!-- Reply History Panel -->
-    <div id="history-panel" class="panel hidden" style="display: none !important;">
+    <div id="history-panel" class="panel hidden" style="display: none !important;" role="dialog" aria-modal="true" aria-labelledby="history-title">
       <div class="panel-header">
-        <h3>Reply History</h3>
-        <button id="close-history" class="close-btn">×</button>
+        <h3 id="history-title">Reply History</h3>
+        <button id="close-history" class="close-btn" aria-label="Close history panel">×</button>
       </div>
       <div class="panel-content">
         <div id="history-list" class="history-list">
@@ -207,14 +186,15 @@
     </div>
 
     <!-- Draft Improvement Panel -->
-    <div id="improve-panel" class="panel hidden" style="display: none !important;">
+    <div id="improve-panel" class="panel hidden" style="display: none !important;" role="dialog" aria-modal="true" aria-labelledby="improve-title">
       <div class="panel-header">
-        <h3>Improve Draft</h3>
-        <button id="close-improve" class="close-btn">×</button>
+        <h3 id="improve-title">Improve Draft</h3>
+        <button id="close-improve" class="close-btn" aria-label="Close improve panel">×</button>
       </div>
       <div class="panel-content">
-        <textarea id="draft-input" placeholder="Paste your draft reply here..."></textarea>
-        <button id="analyze-btn" class="primary-btn">Analyze</button>
+        <label for="draft-input" class="sr-only">Draft reply text</label>
+        <textarea id="draft-input" placeholder="Paste your draft reply here..." aria-label="Draft reply text"></textarea>
+        <button id="analyze-btn" class="primary-btn" aria-label="Analyze draft reply">Analyze</button>
         <div id="improvement-results" class="hidden">
           <div class="quality-score-display"></div>
           <div class="issues-list"></div>
@@ -224,10 +204,10 @@
     </div>
 
     <!-- Analytics Panel -->
-    <div id="analytics-panel" class="panel hidden" style="display: none !important;">
+    <div id="analytics-panel" class="panel hidden" style="display: none !important;" role="dialog" aria-modal="true" aria-labelledby="analytics-title">
       <div class="panel-header">
-        <h3>Analytics</h3>
-        <button id="close-analytics" class="close-btn">×</button>
+        <h3 id="analytics-title">Analytics</h3>
+        <button id="close-analytics" class="close-btn" aria-label="Close analytics panel">×</button>
       </div>
       <div class="panel-content">
         <div class="metrics-grid">

@@ -2,8 +2,6 @@ import "dotenv/config";
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes.js";
 import { serveStatic, log } from "./static.js";
-import path from "path";
-import fs from "fs";
 
 const app = express();
 app.use(express.json());
@@ -76,30 +74,12 @@ async function initializeApp() {
   });
 
   // Production mode - only serve static files, no Vite
-  // Skip static serving in Vercel - Vercel handles this automatically via @vercel/static
+  // On Vercel, static files are served automatically via rewrites
+  // The serverless function only handles API routes
   if (!process.env.VERCEL) {
     serveStatic(app);
-  } else {
-    // On Vercel, serve index.html for non-API routes (SPA routing)
-    // Static files are served by @vercel/static, but we need to serve index.html for SPA routes
-    app.get('*', (req, res, next) => {
-      // Skip API routes - they're handled by registerRoutes
-      if (req.path.startsWith('/api')) {
-        return next();
-      }
-      // Skip static assets - they're served by @vercel/static
-      if (req.path.startsWith('/assets') || req.path.endsWith('.css') || req.path.endsWith('.js')) {
-        return next();
-      }
-      // Serve index.html for SPA routes
-      const indexPath = path.join(process.cwd(), 'dist', 'public', 'index.html');
-      if (fs.existsSync(indexPath)) {
-        res.sendFile(indexPath);
-      } else {
-        next();
-      }
-    });
   }
+  // On Vercel, rewrites handle SPA routing - no need to serve index.html here
   
   isInitialized = true;
 }
