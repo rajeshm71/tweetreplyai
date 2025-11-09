@@ -850,9 +850,9 @@ class TwitterReplyInjector {
     // Create Improve Reply button
     const improveButton = this.createImproveButton(composer);
     
-    // Add both buttons to button group
-    buttonGroup.appendChild(suggestButton);
+    // Add both buttons to button group - IMPROVE FIRST so it appears above Suggest Reply
     buttonGroup.appendChild(improveButton);
+    buttonGroup.appendChild(suggestButton);
     
     // Add button group to container
     container.appendChild(buttonGroup);
@@ -1383,13 +1383,24 @@ class TwitterReplyInjector {
       // Extract original tweet text
       const originalTweetText = this.extractTweetText() || '';
       
+      console.log('[TweetReply] Improving draft:', {
+        draftLength: draftText.length,
+        originalTweetLength: originalTweetText.length
+      });
+      
       // Call API to improve draft
       const response = await this.apiClient.suggestImprovements(draftText, originalTweetText);
       
+      console.log('[TweetReply] API response received:', response);
+      console.log('[TweetReply] Response keys:', Object.keys(response || {}));
+      
       // Extract improved draft from response
-      // Check different possible response structures
+      // Backend returns: { improved: string, original: string, qualityScore: number, ... }
       let improvedDraft = '';
-      if (typeof response === 'string') {
+      if (response && response.improved) {
+        // This is the correct field name from backend
+        improvedDraft = response.improved;
+      } else if (typeof response === 'string') {
         improvedDraft = response;
       } else if (response && response.improvedDraft) {
         improvedDraft = response.improvedDraft;
@@ -1404,6 +1415,8 @@ class TwitterReplyInjector {
         improvedDraft = Object.values(response).find(v => typeof v === 'string') || draftText;
       }
       
+      console.log('[TweetReply] Extracted improved draft:', improvedDraft);
+      
       if (!improvedDraft || improvedDraft.trim().length === 0) {
         throw new Error('No improved draft received from API');
       }
@@ -1415,7 +1428,16 @@ class TwitterReplyInjector {
       this.showMessage(composer, '✓ Reply improved', 'success');
       
       // Update usage data if provided
-      if (response.used !== undefined) {
+      // Backend returns usage data in response.usage object
+      if (response.usage) {
+        this.usageData = {
+          ...this.usageData,
+          used: response.usage.used,
+          limit: response.usage.limit || this.usageData.limit,
+          resetAt: response.usage.resetAt || this.usageData.resetAt
+        };
+      } else if (response.used !== undefined) {
+        // Fallback for backward compatibility
         this.usageData = {
           ...this.usageData,
           used: response.used,
@@ -1428,7 +1450,12 @@ class TwitterReplyInjector {
       this.updateAllButtonStates();
 
     } catch (error) {
-      console.error('Failed to improve reply:', error);
+      console.error('[TweetReply] Failed to improve reply:', error);
+      console.error('[TweetReply] Error details:', {
+        message: error.message,
+        stack: error.stack,
+        response: error.response
+      });
       
       // Parse error message
       let errorMessage = 'Failed to improve reply';
