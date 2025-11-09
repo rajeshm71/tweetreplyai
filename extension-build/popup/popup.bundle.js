@@ -218,7 +218,6 @@
       this.signinBtn = document.getElementById("signin-btn");
       this.suggestBtn = document.getElementById("suggest-btn");
       this.historyBtn = document.getElementById("history-btn");
-      this.improveBtn = document.getElementById("improve-btn");
       this.analyticsBtn = document.getElementById("analytics-btn");
       this.webAppBtn = document.getElementById("web-app-btn");
       this.billingBtn = document.getElementById("billing-btn");
@@ -228,10 +227,7 @@
       this.closeSettingsBtn = document.getElementById("close-settings");
       this.upgradeCta = document.getElementById("upgrade-cta");
       this.closeHistoryBtn = document.getElementById("close-history");
-      this.closeImproveBtn = document.getElementById("close-improve");
       this.closeAnalyticsBtn = document.getElementById("close-analytics");
-      this.analyzeBtn = document.getElementById("analyze-btn");
-      this.draftInput = document.getElementById("draft-input");
       this.statusDot = document.getElementById("status-dot");
       this.statusText = document.getElementById("status-text");
       this.progressFill = document.getElementById("progress-fill");
@@ -248,14 +244,12 @@
       this.settingsPanel = document.getElementById("settings-panel");
       this.userEmail = document.getElementById("user-email");
       this.historyPanel = document.getElementById("history-panel");
-      this.improvePanel = document.getElementById("improve-panel");
       this.analyticsPanel = document.getElementById("analytics-panel");
     }
     attachEventListeners() {
       this.signinBtn?.addEventListener("click", () => this.handleSignIn());
       this.suggestBtn?.addEventListener("click", () => this.handleSuggestReply());
       this.historyBtn?.addEventListener("click", () => this.showHistory());
-      this.improveBtn?.addEventListener("click", () => this.showImprove());
       this.analyticsBtn?.addEventListener("click", () => this.showAnalytics());
       this.webAppBtn?.addEventListener("click", () => this.handleOpenWebApp());
       this.billingBtn?.addEventListener("click", () => this.handleManageBilling());
@@ -265,13 +259,53 @@
       this.signoutBtn?.addEventListener("click", () => this.handleSignOut());
       this.closeSettingsBtn?.addEventListener("click", () => this.hideSettings());
       this.closeHistoryBtn?.addEventListener("click", () => this.hideHistory());
-      this.closeImproveBtn?.addEventListener("click", () => this.hideImprove());
       this.closeAnalyticsBtn?.addEventListener("click", () => this.hideAnalytics());
-      this.analyzeBtn?.addEventListener("click", () => this.handleAnalyzeDraft());
       const saveTrackingSettingsBtn = document.getElementById("saveTrackingSettings");
       if (saveTrackingSettingsBtn) {
         saveTrackingSettingsBtn.addEventListener("click", () => this.saveTrackingSettings());
       }
+      this.setupKeyboardNavigation();
+      this.initializeDarkMode();
+    }
+    setupKeyboardNavigation() {
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") {
+          if (!this.settingsPanel?.classList.contains("hidden")) {
+            this.hideSettings();
+          } else if (!this.historyPanel?.classList.contains("hidden")) {
+            this.hideHistory();
+          } else if (!this.analyticsPanel?.classList.contains("hidden")) {
+            this.hideAnalytics();
+          }
+        }
+      });
+      document.addEventListener("keydown", (e) => {
+        if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+          e.preventDefault();
+          if (this.suggestBtn && !this.suggestBtn.disabled) {
+            this.handleSuggestReply();
+          }
+        }
+      });
+    }
+    initializeDarkMode() {
+      chrome.storage.local.get(["theme"], (result) => {
+        if (result.theme) {
+          document.documentElement.setAttribute("data-theme", result.theme);
+        } else {
+          const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+          if (prefersDark) {
+            document.documentElement.setAttribute("data-theme", "dark");
+          }
+        }
+      });
+      window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (e) => {
+        chrome.storage.local.get(["theme"], (result) => {
+          if (!result.theme) {
+            document.documentElement.setAttribute("data-theme", e.matches ? "dark" : "light");
+          }
+        });
+      });
     }
     async initialize() {
       try {
@@ -371,6 +405,11 @@
       if (this.progressFill) {
         this.progressFill.style.width = `${percentage}%`;
         this.progressFill.classList.toggle("exceeded", isExceeded);
+      }
+      const progressBar = document.querySelector('.usage-progress-bar[role="progressbar"]');
+      if (progressBar) {
+        progressBar.setAttribute("aria-valuenow", Math.round(percentage));
+        progressBar.setAttribute("aria-valuetext", `${used} of ${limit} replies used`);
       }
       if (this.usageText) {
         this.usageText.textContent = `${used} / ${limit} replies`;
@@ -511,10 +550,22 @@
     }
     showSettings() {
       this.settingsPanel?.classList.remove("hidden");
-      this.loadTrackingSettings();
+      if (this.settingsPanel) {
+        this.settingsPanel.style.display = "flex";
+        this.settingsPanel.setAttribute("aria-hidden", "false");
+        this.settingsBtn?.setAttribute("aria-expanded", "true");
+        this.loadTrackingSettings();
+        const firstInput = this.settingsPanel.querySelector("input, button");
+        firstInput?.focus();
+      }
     }
     hideSettings() {
       this.settingsPanel?.classList.add("hidden");
+      if (this.settingsPanel) {
+        this.settingsPanel.style.display = "none";
+        this.settingsPanel.setAttribute("aria-hidden", "true");
+        this.settingsBtn?.setAttribute("aria-expanded", "false");
+      }
     }
     // Load reply tracking settings
     async loadTrackingSettings() {
@@ -568,31 +619,55 @@
     showHistory() {
       this.hideAllPanels();
       this.historyPanel?.classList.remove("hidden");
+      if (this.historyPanel) {
+        this.historyPanel.style.display = "flex";
+        this.historyPanel.setAttribute("aria-hidden", "false");
+        this.closeHistoryBtn?.focus();
+      }
       this.loadReplyHistory();
     }
     hideHistory() {
       this.historyPanel?.classList.add("hidden");
-    }
-    showImprove() {
-      this.hideAllPanels();
-      this.improvePanel?.classList.remove("hidden");
-    }
-    hideImprove() {
-      this.improvePanel?.classList.add("hidden");
+      if (this.historyPanel) {
+        this.historyPanel.style.display = "none";
+        this.historyPanel.setAttribute("aria-hidden", "true");
+      }
+      this.historyBtn?.focus();
     }
     showAnalytics() {
       this.hideAllPanels();
       this.analyticsPanel?.classList.remove("hidden");
+      if (this.analyticsPanel) {
+        this.analyticsPanel.style.display = "flex";
+        this.analyticsPanel.setAttribute("aria-hidden", "false");
+        this.closeAnalyticsBtn?.focus();
+      }
       this.loadAnalytics();
     }
     hideAnalytics() {
       this.analyticsPanel?.classList.add("hidden");
+      if (this.analyticsPanel) {
+        this.analyticsPanel.style.display = "none";
+        this.analyticsPanel.setAttribute("aria-hidden", "true");
+      }
+      this.analyticsBtn?.focus();
     }
     hideAllPanels() {
       this.settingsPanel?.classList.add("hidden");
       this.historyPanel?.classList.add("hidden");
-      this.improvePanel?.classList.add("hidden");
       this.analyticsPanel?.classList.add("hidden");
+      if (this.settingsPanel) {
+        this.settingsPanel.style.display = "none";
+        this.settingsPanel.setAttribute("aria-hidden", "true");
+      }
+      if (this.historyPanel) {
+        this.historyPanel.style.display = "none";
+        this.historyPanel.setAttribute("aria-hidden", "true");
+      }
+      if (this.analyticsPanel) {
+        this.analyticsPanel.style.display = "none";
+        this.analyticsPanel.setAttribute("aria-hidden", "true");
+      }
     }
     async loadReplyHistory() {
       try {
@@ -632,51 +707,6 @@
         });
         listElement.appendChild(item);
       });
-    }
-    async handleAnalyzeDraft() {
-      const draftText = this.draftInput?.value;
-      if (!draftText?.trim()) return;
-      try {
-        this.analyzeBtn.disabled = true;
-        this.analyzeBtn.textContent = "Analyzing...";
-        const result = await this.apiClient.suggestImprovements(draftText, "");
-        this.displayImprovementResults(result);
-      } catch (error) {
-        console.error("Failed to analyze draft:", error);
-        this.showStatusMessage("Failed to analyze draft", "error");
-      } finally {
-        this.analyzeBtn.disabled = false;
-        this.analyzeBtn.textContent = "Analyze";
-      }
-    }
-    displayImprovementResults(result) {
-      const resultsDiv = document.getElementById("improvement-results");
-      if (!resultsDiv) return;
-      resultsDiv.classList.remove("hidden");
-      const qualityDisplay = resultsDiv.querySelector(".quality-score-display");
-      if (qualityDisplay) {
-        qualityDisplay.innerHTML = `
-        <h4>Quality Score: ${result.qualityScore}/100</h4>
-      `;
-      }
-      const issuesList = resultsDiv.querySelector(".issues-list");
-      if (issuesList && result.issues && result.issues.length > 0) {
-        issuesList.innerHTML = `
-        <h4>Issues:</h4>
-        <ul>${result.issues.map((issue) => `<li>${issue}</li>`).join("")}</ul>
-      `;
-      } else if (issuesList) {
-        issuesList.innerHTML = "";
-      }
-      const suggestionsList = resultsDiv.querySelector(".suggestions-list");
-      if (suggestionsList && result.suggestions && result.suggestions.length > 0) {
-        suggestionsList.innerHTML = `
-        <h4>Suggestions:</h4>
-        <ul>${result.suggestions.map((sug) => `<li>${sug}</li>`).join("")}</ul>
-      `;
-      } else if (suggestionsList) {
-        suggestionsList.innerHTML = "";
-      }
     }
     async loadAnalytics() {
       try {

@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "TweetReply - AI-Powered Twitter Replies",
+  "name": "TweetReply AI Driven Twitter Replies",
   "version": "0.9.3",
   "description": "Generate authentic, human-like replies to Twitter posts with one click using AI.",
   "permissions": [
