@@ -37,23 +37,23 @@
   --color-info: #3b82f6;
   --color-info-light: #dbeafe;
 
-  /* Background Colors - Moderate Dark */
-  --color-background: #1a1f2e;
-  --color-background-secondary: #252b3a;
-  --color-background-tertiary: #2f3544;
-  --color-surface: #252b3a;
-  --color-surface-elevated: #2f3544;
+  /* Background Colors - Light Theme */
+  --color-background: #ffffff;
+  --color-background-secondary: #f9fafb;
+  --color-background-tertiary: #f3f4f6;
+  --color-surface: #ffffff;
+  --color-surface-elevated: #ffffff;
 
-  /* Text Colors - Moderate Dark */
-  --color-text-primary: #e2e8f0;
-  --color-text-secondary: #94a3b8;
-  --color-text-tertiary: #64748b;
+  /* Text Colors - Light Theme */
+  --color-text-primary: #1f2937;
+  --color-text-secondary: #6b7280;
+  --color-text-tertiary: #9ca3af;
   --color-text-inverse: #ffffff;
 
-  /* Border Colors - Moderate Dark */
-  --color-border: #334155;
-  --color-border-light: #475569;
-  --color-border-dark: #64748b;
+  /* Border Colors - Light Theme */
+  --color-border: #e5e7eb;
+  --color-border-light: #f3f4f6;
+  --color-border-dark: #d1d5db;
 
   /* Spacing System (4px base unit) */
   --spacing-1: 4px;
@@ -499,7 +499,7 @@ body {
    ============================================ */
 
 .usage-card {
-  background: rgba(37, 43, 58, 0.7);
+  background: rgba(255, 255, 255, 0.7);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   border-radius: var(--radius-lg);
@@ -615,10 +615,10 @@ body {
 /* Modern Card Base Styles */
 .modern-card {
   position: relative;
-  background: rgba(47, 53, 68, 0.7);
+  background: rgba(255, 255, 255, 0.7);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: var(--radius-lg);
   padding: var(--spacing-5);
   display: flex;
@@ -637,7 +637,7 @@ body {
   cursor: pointer;
   outline: none;
   border: none;
-  background: rgba(47, 53, 68, 0.7);
+  background: rgba(255, 255, 255, 0.7);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   color: var(--color-text-primary);
@@ -665,7 +665,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(55, 65, 81, 0.5);
+  background: rgba(255, 255, 255, 0.5);
   border-radius: var(--radius-md);
   margin-bottom: var(--spacing-2);
   transition: all var(--transition-base);
@@ -675,7 +675,7 @@ body {
 
 .modern-card:hover .card-icon-wrapper {
   transform: scale(1.1) rotate(5deg);
-  background: rgba(55, 65, 81, 0.7);
+  background: rgba(255, 255, 255, 0.8);
 }
 
 .card-icon {
