@@ -743,11 +743,18 @@
       container.appendChild(modelSelect);
       const promptSelect = this.createPromptSelect();
       container.appendChild(promptSelect);
-      const button = document.createElement("button");
-      button.className = "tweetreply-suggest-btn";
-      button.dataset.authPending = "true";
-      button.disabled = true;
-      button.innerHTML = `
+      const buttonGroup = document.createElement("div");
+      buttonGroup.className = "tweetreply-button-group";
+      buttonGroup.style.cssText = `
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    `;
+      const suggestButton = document.createElement("button");
+      suggestButton.className = "tweetreply-suggest-btn";
+      suggestButton.dataset.authPending = "true";
+      suggestButton.disabled = true;
+      suggestButton.innerHTML = `
       <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" style="margin-right: 4px;">
         <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="31.416" stroke-dashoffset="31.416">
           <animate attributeName="stroke-dasharray" dur="2s" values="0 31.416;15.708 15.708;0 31.416;0 31.416" repeatCount="indefinite"/>
@@ -756,28 +763,31 @@
       </svg>
       <span>Checking...</span>
     `;
-      button.title = "Checking authentication...";
-      this.updateButtonStateAsync(button);
-      button.addEventListener("click", async (e) => {
+      suggestButton.title = "Checking authentication...";
+      this.updateButtonStateAsync(suggestButton);
+      suggestButton.addEventListener("click", async (e) => {
         e.preventDefault();
         e.stopPropagation();
-        if (button.dataset.loadError === "true") {
+        if (suggestButton.dataset.loadError === "true") {
           console.log("[TweetReply] Retrying button initialization...");
-          delete button.dataset.loadError;
-          button.dataset.authPending = "true";
-          this.updateButtonState(button);
-          await this.updateButtonStateAsync(button);
+          delete suggestButton.dataset.loadError;
+          suggestButton.dataset.authPending = "true";
+          this.updateButtonState(suggestButton);
+          await this.updateButtonStateAsync(suggestButton);
           return;
         }
         const actualComposer = composer.querySelector('[contenteditable="true"]') || composer.querySelector(".public-DraftEditor-content") || composer;
         console.log("[TweetReply] Button click - Composer container:", composer.getAttribute("data-testid"));
         console.log("[TweetReply] Button click - Actual composer:", actualComposer.contentEditable, actualComposer.className);
-        this.handleSuggestReply(actualComposer, button, {
+        this.handleSuggestReply(actualComposer, suggestButton, {
           modelKey: modelSelect.value,
           promptVariation: promptSelect.value
         });
       });
-      container.appendChild(button);
+      const improveButton = this.createImproveButton(composer);
+      buttonGroup.appendChild(improveButton);
+      buttonGroup.appendChild(suggestButton);
+      container.appendChild(buttonGroup);
       return container;
     }
     async updateButtonStateAsync(button) {
@@ -942,6 +952,39 @@
         return null;
       }
     }
+    createImproveButton(composer) {
+      const button = document.createElement("button");
+      button.className = "tweetreply-improve-btn";
+      button.dataset.authPending = "true";
+      button.setAttribute("aria-label", "Improve current draft reply");
+      button.disabled = true;
+      button.innerHTML = `
+      <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" style="margin-right: 4px;">
+        <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="31.416" stroke-dashoffset="31.416">
+          <animate attributeName="stroke-dasharray" dur="2s" values="0 31.416;15.708 15.708;0 31.416;0 31.416" repeatCount="indefinite"/>
+          <animate attributeName="stroke-dashoffset" dur="2s" values="0;-15.708;-31.416;-31.416" repeatCount="indefinite"/>
+        </circle>
+      </svg>
+      <span>Checking...</span>
+    `;
+      button.title = "Checking authentication...";
+      this.updateButtonStateAsync(button);
+      button.addEventListener("click", async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (button.dataset.loadError === "true") {
+          console.log("[TweetReply] Retrying improve button initialization...");
+          delete button.dataset.loadError;
+          button.dataset.authPending = "true";
+          this.updateButtonState(button);
+          await this.updateButtonStateAsync(button);
+          return;
+        }
+        const actualComposer = composer.querySelector('[contenteditable="true"]') || composer.querySelector(".public-DraftEditor-content") || composer;
+        this.handleImproveReply(actualComposer, button);
+      });
+      return button;
+    }
     updateButtonState(button) {
       if (button.dataset.authPending === "true") {
         return;
@@ -997,14 +1040,25 @@
         button.style.opacity = "0.6";
         return;
       }
+      const isImproveButton = button.classList.contains("tweetreply-improve-btn");
       button.disabled = false;
-      button.innerHTML = `
-      <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" style="margin-right: 4px;">
-        <path d="M12 2L13.09 8.26L19 7.27L14.18 12.09L20 17.91L13.09 15.74L12 22L10.91 15.74L4 17.91L8.82 12.09L3 7.27L8.91 8.26L12 2Z"/>
-      </svg>
-      <span>Suggest reply</span>
-    `;
-      button.title = "Generate an AI reply suggestion";
+      if (isImproveButton) {
+        button.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" style="margin-right: 4px;">
+          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+        </svg>
+        <span>Improve reply</span>
+      `;
+        button.title = "Improve the current draft reply";
+      } else {
+        button.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" style="margin-right: 4px;">
+          <path d="M12 2L13.09 8.26L19 7.27L14.18 12.09L20 17.91L13.09 15.74L12 22L10.91 15.74L4 17.91L8.82 12.09L3 7.27L8.91 8.26L12 2Z"/>
+        </svg>
+        <span>Suggest reply</span>
+      `;
+        button.title = "Generate an AI reply suggestion";
+      }
       button.style.opacity = "1";
     }
     insertButtonInToolbar(toolbar, button) {
@@ -1106,6 +1160,114 @@
             break;
           }
         }
+      }
+    }
+    async handleImproveReply(composer, button) {
+      if (!this.isAuthenticated) {
+        this.showMessage(composer, "Please sign in to use TweetReply", "error");
+        return;
+      }
+      if (!this.usageData || this.usageData.used >= this.usageData.limit) {
+        this.showMessage(composer, "Quota exceeded. Upgrade your plan to continue.", "error");
+        return;
+      }
+      let draftText = "";
+      const dataTextSpans = composer.querySelectorAll('[data-text="true"]');
+      if (dataTextSpans.length > 0) {
+        draftText = Array.from(dataTextSpans).map((span) => span.textContent || span.innerText).join(" ").trim();
+      }
+      if (!draftText || draftText.length === 0) {
+        draftText = composer.textContent || composer.innerText || "";
+      }
+      if (!draftText || draftText.length === 0) {
+        const contentEditable = composer.querySelector('[contenteditable="true"]');
+        if (contentEditable) {
+          draftText = contentEditable.textContent || contentEditable.innerText || "";
+        }
+      }
+      draftText = draftText.trim();
+      if (!draftText || draftText.length === 0) {
+        this.showMessage(composer, "Please write a draft reply first", "info");
+        return;
+      }
+      button.disabled = true;
+      const originalText = button.innerHTML;
+      button.innerHTML = `
+      <div class="tweetreply-spinner" style="width: 14px; height: 14px; border: 2px solid #3b82f6; border-top: 2px solid transparent; border-radius: 50%; animation: spin 1s linear infinite; margin-right: 4px;"></div>
+      <span>Improving...</span>
+    `;
+      try {
+        const originalTweetText = this.extractTweetText() || "";
+        console.log("[TweetReply] Improving draft:", {
+          draftLength: draftText.length,
+          originalTweetLength: originalTweetText.length
+        });
+        const response = await this.apiClient.suggestImprovements(draftText, originalTweetText);
+        console.log("[TweetReply] API response received:", response);
+        console.log("[TweetReply] Response keys:", Object.keys(response || {}));
+        let improvedDraft = "";
+        if (response && response.improved) {
+          improvedDraft = response.improved;
+        } else if (typeof response === "string") {
+          improvedDraft = response;
+        } else if (response && response.improvedDraft) {
+          improvedDraft = response.improvedDraft;
+        } else if (response && response.improved_reply) {
+          improvedDraft = response.improved_reply;
+        } else if (response && response.reply) {
+          improvedDraft = response.reply;
+        } else if (response && response.suggestion) {
+          improvedDraft = response.suggestion;
+        } else {
+          improvedDraft = Object.values(response).find((v) => typeof v === "string") || draftText;
+        }
+        console.log("[TweetReply] Extracted improved draft:", improvedDraft);
+        if (!improvedDraft || improvedDraft.trim().length === 0) {
+          throw new Error("No improved draft received from API");
+        }
+        await this.insertReplyIntoComposer(composer, improvedDraft);
+        this.showMessage(composer, "\u2713 Reply improved", "success");
+        if (response.usage) {
+          this.usageData = {
+            ...this.usageData,
+            used: response.usage.used,
+            limit: response.usage.limit || this.usageData.limit,
+            resetAt: response.usage.resetAt || this.usageData.resetAt
+          };
+        } else if (response.used !== void 0) {
+          this.usageData = {
+            ...this.usageData,
+            used: response.used,
+            limit: response.limit || this.usageData.limit,
+            resetAt: response.resetAt || this.usageData.resetAt
+          };
+        }
+        this.updateAllButtonStates();
+      } catch (error) {
+        console.error("[TweetReply] Failed to improve reply:", error);
+        console.error("[TweetReply] Error details:", {
+          message: error.message,
+          stack: error.stack,
+          response: error.response
+        });
+        let errorMessage = "Failed to improve reply";
+        if (error.message.includes("400")) {
+          errorMessage = "Invalid request. Please try again or refresh the page.";
+        } else if (error.message.includes("401")) {
+          this.isAuthenticated = false;
+          errorMessage = "Please sign in again";
+        } else if (error.message.includes("402")) {
+          errorMessage = "Quota exceeded - upgrade your plan";
+        } else if (error.message.includes("Network error")) {
+          errorMessage = "Network error - check your connection";
+        } else if (error.message) {
+          errorMessage = `Failed to improve reply: ${error.message}`;
+        }
+        this.showMessage(composer, errorMessage, "error");
+      } finally {
+        button.innerHTML = originalText;
+        button.disabled = false;
+        this.updateButtonState(button);
       }
     }
     isComposerVisible(composer) {
@@ -1940,7 +2102,7 @@
       return "low";
     }
     updateAllButtonStates() {
-      document.querySelectorAll(".tweetreply-suggest-btn").forEach((button) => {
+      document.querySelectorAll(".tweetreply-suggest-btn, .tweetreply-improve-btn").forEach((button) => {
         this.updateButtonState(button);
       });
     }

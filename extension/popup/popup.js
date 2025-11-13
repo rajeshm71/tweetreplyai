@@ -32,7 +32,6 @@ class PopupManager {
     
     // Buttons
     this.signinBtn = document.getElementById('signin-btn');
-    this.suggestBtn = document.getElementById('suggest-btn');
     this.historyBtn = document.getElementById('history-btn');
     this.analyticsBtn = document.getElementById('analytics-btn');
     this.webAppBtn = document.getElementById('web-app-btn');
@@ -75,7 +74,6 @@ class PopupManager {
 
   attachEventListeners() {
     this.signinBtn?.addEventListener('click', () => this.handleSignIn());
-    this.suggestBtn?.addEventListener('click', () => this.handleSuggestReply());
     this.historyBtn?.addEventListener('click', () => this.showHistory());
     this.analyticsBtn?.addEventListener('click', () => this.showAnalytics());
     this.webAppBtn?.addEventListener('click', () => this.handleOpenWebApp());
@@ -117,15 +115,6 @@ class PopupManager {
       }
     });
     
-    // Keyboard shortcut for generate reply (Cmd/Ctrl + K)
-    document.addEventListener('keydown', (e) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault();
-        if (this.suggestBtn && !this.suggestBtn.disabled) {
-          this.handleSuggestReply();
-        }
-      }
-    });
   }
   
   initializeDarkMode() {
@@ -320,26 +309,6 @@ class PopupManager {
       this.quotaResetText.textContent = `Resets ${resetDistance}`;
     }
     
-    // Update suggest button state
-    if (this.suggestBtn) {
-      this.suggestBtn.disabled = isExceeded;
-      if (isExceeded) {
-        this.suggestBtn.innerHTML = `
-          <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
-            <path d="M12 2L13.09 8.26L19 7.27L14.18 12.09L20 17.91L13.09 15.74L12 22L10.91 15.74L4 17.91L8.82 12.09L3 7.27L8.91 8.26L12 2Z"/>
-          </svg>
-          <span>Daily limit reached</span>
-        `;
-      } else {
-        this.suggestBtn.innerHTML = `
-          <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
-            <path d="M12 2L13.09 8.26L19 7.27L14.18 12.09L20 17.91L13.09 15.74L12 22L10.91 15.74L4 17.91L8.82 12.09L3 7.27L8.91 8.26L12 2Z"/>
-          </svg>
-          <span>Generate Reply</span>
-          <span class="shortcut-hint">⌘K</span>
-        `;
-      }
-    }
     
     // Update status message
     if (this.statusMessage) {
@@ -387,27 +356,8 @@ class PopupManager {
     }
   }
 
-  async handleSuggestReply() {
-    try {
-      // Get current active tab
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      
-      if (!tab || (!tab.url.includes('twitter.com') && !tab.url.includes('x.com'))) {
-        this.showStatusMessage('Please navigate to X/Twitter to use this feature', 'error');
-        return;
-      }
-      
-      // Send message to content script to trigger reply generation
-      chrome.tabs.sendMessage(tab.id, { action: 'suggestReply' });
-      
-      // Close popup
-      window.close();
-      
-    } catch (error) {
-      console.error('Failed to suggest reply:', error);
-      this.showStatusMessage('Failed to suggest reply', 'error');
-    }
-  }
+  // NOTE: handleSuggestReply() method removed - Generate Reply button was removed from UI
+  // Reply generation is now handled directly in content script via Twitter UI buttons
 
   async handleOpenWebApp() {
     try {
@@ -753,8 +703,11 @@ class PopupManager {
   // New methods for enhanced UI
   updateWelcomeMessage(user) {
     if (this.userName) {
-      const name = user.name || user.email?.split('@')[0] || 'there';
-      this.userName.textContent = name;
+      // Prioritize user.name or user.displayName over username/email
+      const name = user.name || user.displayName || user.email?.split('@')[0] || 'there';
+      // Capitalize first letter
+      const capitalizedName = name.charAt(0).toUpperCase() + name.slice(1);
+      this.userName.textContent = capitalizedName;
     }
   }
 
