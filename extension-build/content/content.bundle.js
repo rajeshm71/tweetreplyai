@@ -785,8 +785,8 @@
         });
       });
       const improveButton = this.createImproveButton(composer);
-      buttonGroup.appendChild(suggestButton);
       buttonGroup.appendChild(improveButton);
+      buttonGroup.appendChild(suggestButton);
       container.appendChild(buttonGroup);
       return container;
     }
@@ -1198,9 +1198,17 @@
     `;
       try {
         const originalTweetText = this.extractTweetText() || "";
+        console.log("[TweetReply] Improving draft:", {
+          draftLength: draftText.length,
+          originalTweetLength: originalTweetText.length
+        });
         const response = await this.apiClient.suggestImprovements(draftText, originalTweetText);
+        console.log("[TweetReply] API response received:", response);
+        console.log("[TweetReply] Response keys:", Object.keys(response || {}));
         let improvedDraft = "";
-        if (typeof response === "string") {
+        if (response && response.improved) {
+          improvedDraft = response.improved;
+        } else if (typeof response === "string") {
           improvedDraft = response;
         } else if (response && response.improvedDraft) {
           improvedDraft = response.improvedDraft;
@@ -1213,12 +1221,20 @@
         } else {
           improvedDraft = Object.values(response).find((v) => typeof v === "string") || draftText;
         }
+        console.log("[TweetReply] Extracted improved draft:", improvedDraft);
         if (!improvedDraft || improvedDraft.trim().length === 0) {
           throw new Error("No improved draft received from API");
         }
         await this.insertReplyIntoComposer(composer, improvedDraft);
         this.showMessage(composer, "\u2713 Reply improved", "success");
-        if (response.used !== void 0) {
+        if (response.usage) {
+          this.usageData = {
+            ...this.usageData,
+            used: response.usage.used,
+            limit: response.usage.limit || this.usageData.limit,
+            resetAt: response.usage.resetAt || this.usageData.resetAt
+          };
+        } else if (response.used !== void 0) {
           this.usageData = {
             ...this.usageData,
             used: response.used,
@@ -1228,7 +1244,12 @@
         }
         this.updateAllButtonStates();
       } catch (error) {
-        console.error("Failed to improve reply:", error);
+        console.error("[TweetReply] Failed to improve reply:", error);
+        console.error("[TweetReply] Error details:", {
+          message: error.message,
+          stack: error.stack,
+          response: error.response
+        });
         let errorMessage = "Failed to improve reply";
         if (error.message.includes("400")) {
           errorMessage = "Invalid request. Please try again or refresh the page.";

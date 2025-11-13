@@ -216,7 +216,6 @@
       this.authenticatedState = document.getElementById("authenticated");
       this.quotaExceededState = document.getElementById("quota-exceeded");
       this.signinBtn = document.getElementById("signin-btn");
-      this.suggestBtn = document.getElementById("suggest-btn");
       this.historyBtn = document.getElementById("history-btn");
       this.analyticsBtn = document.getElementById("analytics-btn");
       this.webAppBtn = document.getElementById("web-app-btn");
@@ -248,7 +247,6 @@
     }
     attachEventListeners() {
       this.signinBtn?.addEventListener("click", () => this.handleSignIn());
-      this.suggestBtn?.addEventListener("click", () => this.handleSuggestReply());
       this.historyBtn?.addEventListener("click", () => this.showHistory());
       this.analyticsBtn?.addEventListener("click", () => this.showAnalytics());
       this.webAppBtn?.addEventListener("click", () => this.handleOpenWebApp());
@@ -276,14 +274,6 @@
             this.hideHistory();
           } else if (!this.analyticsPanel?.classList.contains("hidden")) {
             this.hideAnalytics();
-          }
-        }
-      });
-      document.addEventListener("keydown", (e) => {
-        if ((e.metaKey || e.ctrlKey) && e.key === "k") {
-          e.preventDefault();
-          if (this.suggestBtn && !this.suggestBtn.disabled) {
-            this.handleSuggestReply();
           }
         }
       });
@@ -428,25 +418,6 @@
       if (this.quotaResetText) {
         this.quotaResetText.textContent = `Resets ${resetDistance}`;
       }
-      if (this.suggestBtn) {
-        this.suggestBtn.disabled = isExceeded;
-        if (isExceeded) {
-          this.suggestBtn.innerHTML = `
-          <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
-            <path d="M12 2L13.09 8.26L19 7.27L14.18 12.09L20 17.91L13.09 15.74L12 22L10.91 15.74L4 17.91L8.82 12.09L3 7.27L8.91 8.26L12 2Z"/>
-          </svg>
-          <span>Daily limit reached</span>
-        `;
-        } else {
-          this.suggestBtn.innerHTML = `
-          <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
-            <path d="M12 2L13.09 8.26L19 7.27L14.18 12.09L20 17.91L13.09 15.74L12 22L10.91 15.74L4 17.91L8.82 12.09L3 7.27L8.91 8.26L12 2Z"/>
-          </svg>
-          <span>Generate Reply</span>
-          <span class="shortcut-hint">\u2318K</span>
-        `;
-        }
-      }
       if (this.statusMessage) {
         if (isExceeded) {
           this.statusMessage.textContent = `Daily limit reached. Resets ${resetDistance}`;
@@ -480,20 +451,8 @@
         console.error("Failed to handle sign in:", error);
       }
     }
-    async handleSuggestReply() {
-      try {
-        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        if (!tab || !tab.url.includes("twitter.com") && !tab.url.includes("x.com")) {
-          this.showStatusMessage("Please navigate to X/Twitter to use this feature", "error");
-          return;
-        }
-        chrome.tabs.sendMessage(tab.id, { action: "suggestReply" });
-        window.close();
-      } catch (error) {
-        console.error("Failed to suggest reply:", error);
-        this.showStatusMessage("Failed to suggest reply", "error");
-      }
-    }
+    // NOTE: handleSuggestReply() method removed - Generate Reply button was removed from UI
+    // Reply generation is now handled directly in content script via Twitter UI buttons
     async handleOpenWebApp() {
       try {
         const domains = await this.getDomains();
@@ -776,8 +735,9 @@
     // New methods for enhanced UI
     updateWelcomeMessage(user) {
       if (this.userName) {
-        const name = user.name || user.email?.split("@")[0] || "there";
-        this.userName.textContent = name;
+        const name = user.name || user.displayName || user.email?.split("@")[0] || "there";
+        const capitalizedName = name.charAt(0).toUpperCase() + name.slice(1);
+        this.userName.textContent = capitalizedName;
       }
     }
     updatePlanBadge(user) {

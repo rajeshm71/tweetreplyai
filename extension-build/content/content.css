@@ -1,7 +1,8 @@
 /* TweetReply Content Styles */
 
-/* Suggest button styles */
-.tweetreply-suggest-btn {
+/* Suggest and Improve button styles - both use identical styling */
+.tweetreply-suggest-btn,
+.tweetreply-improve-btn {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -18,17 +19,20 @@
   white-space: nowrap;
 }
 
-.tweetreply-suggest-btn:hover:not(:disabled) {
+.tweetreply-suggest-btn:hover:not(:disabled),
+.tweetreply-improve-btn:hover:not(:disabled) {
   background: rgba(29, 155, 240, 0.15);
   border-color: rgba(29, 155, 240, 0.3);
 }
 
-.tweetreply-suggest-btn:disabled {
+.tweetreply-suggest-btn:disabled,
+.tweetreply-improve-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-.tweetreply-suggest-btn svg {
+.tweetreply-suggest-btn svg,
+.tweetreply-improve-btn svg {
   flex-shrink: 0;
 }
 
@@ -88,13 +92,15 @@
 
 /* Dark mode support */
 @media (prefers-color-scheme: dark) {
-  .tweetreply-suggest-btn {
+  .tweetreply-suggest-btn,
+  .tweetreply-improve-btn {
     background: rgba(29, 155, 240, 0.2);
     color: rgb(29, 155, 240);
     border-color: rgba(29, 155, 240, 0.3);
   }
   
-  .tweetreply-suggest-btn:hover:not(:disabled) {
+  .tweetreply-suggest-btn:hover:not(:disabled),
+  .tweetreply-improve-btn:hover:not(:disabled) {
     background: rgba(29, 155, 240, 0.3);
     border-color: rgba(29, 155, 240, 0.4);
   }
@@ -102,6 +108,7 @@
 
 /* Ensure compatibility with Twitter's styles */
 .tweetreply-suggest-btn,
+.tweetreply-improve-btn,
 .tweetreply-message {
   box-sizing: border-box;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -137,6 +144,13 @@
   margin-bottom: 6px; /* keep spacing from native toolbar */
 }
 
+/* Button group styles */
+.tweetreply-button-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
 .tweetreply-model-select,
 .tweetreply-prompt-select {
   padding: 4px 8px;
@@ -154,7 +168,8 @@
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
-  .tweetreply-suggest-btn {
+  .tweetreply-suggest-btn,
+  .tweetreply-improve-btn {
     padding: 4px 8px;
     font-size: 12px;
   }
