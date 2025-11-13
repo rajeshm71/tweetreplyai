@@ -703,10 +703,35 @@ class PopupManager {
   // New methods for enhanced UI
   updateWelcomeMessage(user) {
     if (this.userName) {
-      // Prioritize user.name or user.displayName over username/email
-      const name = user.name || user.displayName || user.email?.split('@')[0] || 'there';
-      // Capitalize first letter
-      const capitalizedName = name.charAt(0).toUpperCase() + name.slice(1);
+      // Debug: Log user object to see what fields are available
+      console.log('User object for welcome message:', user);
+      
+      // Try to extract name from various possible fields
+      let name = user.name || user.displayName || user.fullName || 
+                 user.firstName || (user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : null);
+      
+      // If no name field exists, extract from email more intelligently
+      if (!name && user.email) {
+        const emailPrefix = user.email.split('@')[0];
+        // Remove numbers and special characters that look like usernames
+        // e.g., "rajeshmane711" -> "rajeshmane" -> "Rajeshmane"
+        const cleanedName = emailPrefix.replace(/[0-9!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/g, '');
+        // If cleaned name is reasonable length (at least 2 chars), use it
+        if (cleanedName.length >= 2) {
+          name = cleanedName;
+        } else {
+          // Fallback to full email prefix if cleaning removed too much
+          name = emailPrefix;
+        }
+      }
+      
+      // Final fallback
+      if (!name) {
+        name = 'there';
+      }
+      
+      // Capitalize first letter only (don't change rest of the name)
+      const capitalizedName = name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
       this.userName.textContent = capitalizedName;
     }
   }
@@ -724,10 +749,15 @@ class PopupManager {
       
       // Update styling based on plan
       this.planBadge.className = 'plan-badge';
+      // Free plan uses CSS default (emerald/green gradient)
+      // Only override for pro and premium plans
       if (plan === 'pro') {
         this.planBadge.style.background = 'linear-gradient(135deg, #10B981, #059669)';
       } else if (plan === 'premium') {
         this.planBadge.style.background = 'linear-gradient(135deg, #8B5CF6, #7C3AED)';
+      } else {
+        // Ensure free plan uses CSS default (remove any inline styles)
+        this.planBadge.style.background = '';
       }
     }
   }
