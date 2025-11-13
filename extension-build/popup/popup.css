@@ -730,15 +730,15 @@ body {
   --card-gradient-start: #6B8E6F;
   --card-gradient-end: #8FA68F;
   --card-accent: #6B8E6F;
-  --card-bg: rgba(107, 142, 111, 0.08);
+  --card-bg: rgba(107, 142, 111, 0.12);
   --card-icon-color: #6B8E6F;
   --card-text-color: #4A6B4E;
-  border: 1px solid rgba(107, 142, 111, 0.15);
+  border: 1px solid rgba(107, 142, 111, 0.22);
 }
 
 .modern-card[data-theme="today"] .card-gradient-overlay {
   background: linear-gradient(135deg, var(--card-gradient-start), var(--card-gradient-end));
-  opacity: 0.06;
+  opacity: 0.09;
 }
 
 .modern-card[data-theme="today"] .card-icon {
@@ -759,15 +759,15 @@ body {
   --card-gradient-start: #4A5568;
   --card-gradient-end: #5A6B7A;
   --card-accent: #4A5568;
-  --card-bg: rgba(74, 85, 104, 0.08);
+  --card-bg: rgba(74, 85, 104, 0.12);
   --card-icon-color: #4A5568;
   --card-text-color: #2D3748;
-  border: 1px solid rgba(74, 85, 104, 0.15);
+  border: 1px solid rgba(74, 85, 104, 0.22);
 }
 
 .modern-card[data-theme="quality"] .card-gradient-overlay {
   background: linear-gradient(135deg, var(--card-gradient-start), var(--card-gradient-end));
-  opacity: 0.06;
+  opacity: 0.09;
 }
 
 .modern-card[data-theme="quality"] .card-icon {
@@ -788,15 +788,15 @@ body {
   --card-gradient-start: #A67C5A;
   --card-gradient-end: #B8946F;
   --card-accent: #A67C5A;
-  --card-bg: rgba(166, 124, 90, 0.08);
+  --card-bg: rgba(166, 124, 90, 0.12);
   --card-icon-color: #A67C5A;
   --card-text-color: #8B6B47;
-  border: 1px solid rgba(166, 124, 90, 0.15);
+  border: 1px solid rgba(166, 124, 90, 0.22);
 }
 
 .modern-card[data-theme="history"] .card-gradient-overlay {
   background: linear-gradient(135deg, var(--card-gradient-start), var(--card-gradient-end));
-  opacity: 0.06;
+  opacity: 0.09;
 }
 
 .modern-card[data-theme="history"] .card-icon {
@@ -817,15 +817,15 @@ body {
   --card-gradient-start: #3D4F6B;
   --card-gradient-end: #4E6B8A;
   --card-accent: #3D4F6B;
-  --card-bg: rgba(61, 79, 107, 0.08);
+  --card-bg: rgba(61, 79, 107, 0.12);
   --card-icon-color: #3D4F6B;
   --card-text-color: #2C3E50;
-  border: 1px solid rgba(61, 79, 107, 0.15);
+  border: 1px solid rgba(61, 79, 107, 0.22);
 }
 
 .modern-card[data-theme="analytics"] .card-gradient-overlay {
   background: linear-gradient(135deg, var(--card-gradient-start), var(--card-gradient-end));
-  opacity: 0.06;
+  opacity: 0.09;
 }
 
 .modern-card[data-theme="analytics"] .card-icon {
@@ -937,16 +937,16 @@ body {
 }
 
 .plan-badge {
-  background: rgba(74, 85, 104, 0.08);
-  color: #4A5568;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(5, 150, 105, 0.15));
+  color: #059669;
   padding: var(--spacing-2) var(--spacing-4);
   border-radius: var(--radius-lg);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-bold);
-  border: 1px solid rgba(74, 85, 104, 0.2);
+  border: 1px solid rgba(16, 185, 129, 0.3);
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  box-shadow: 0 1px 3px rgba(74, 85, 104, 0.1);
+  box-shadow: 0 2px 4px rgba(16, 185, 129, 0.2);
 }
 
 /* ============================================

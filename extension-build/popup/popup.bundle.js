@@ -735,8 +735,21 @@
     // New methods for enhanced UI
     updateWelcomeMessage(user) {
       if (this.userName) {
-        const name = user.name || user.displayName || user.email?.split("@")[0] || "there";
-        const capitalizedName = name.charAt(0).toUpperCase() + name.slice(1);
+        console.log("User object for welcome message:", user);
+        let name = user.name || user.displayName || user.fullName || user.firstName || (user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : null);
+        if (!name && user.email) {
+          const emailPrefix = user.email.split("@")[0];
+          const cleanedName = emailPrefix.replace(/[0-9!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/g, "");
+          if (cleanedName.length >= 2) {
+            name = cleanedName;
+          } else {
+            name = emailPrefix;
+          }
+        }
+        if (!name) {
+          name = "there";
+        }
+        const capitalizedName = name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
         this.userName.textContent = capitalizedName;
       }
     }
@@ -754,6 +767,8 @@
           this.planBadge.style.background = "linear-gradient(135deg, #10B981, #059669)";
         } else if (plan === "premium") {
           this.planBadge.style.background = "linear-gradient(135deg, #8B5CF6, #7C3AED)";
+        } else {
+          this.planBadge.style.background = "";
         }
       }
     }
