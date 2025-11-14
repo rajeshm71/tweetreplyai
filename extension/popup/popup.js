@@ -425,7 +425,7 @@ class PopupManager {
   showSettings() {
     this.settingsPanel?.classList.remove('hidden');
     if (this.settingsPanel) {
-      this.settingsPanel.style.display = 'flex';
+      // CSS now handles display: flex, so we don't need inline style
       this.settingsPanel.setAttribute('aria-hidden', 'false');
       this.settingsBtn?.setAttribute('aria-expanded', 'true');
       // Load tracking settings when settings panel is shown
@@ -512,7 +512,7 @@ class PopupManager {
     this.hideAllPanels();
     this.historyPanel?.classList.remove('hidden');
     if (this.historyPanel) {
-      this.historyPanel.style.display = 'flex';
+      // CSS now handles display: flex, so we don't need inline style
       this.historyPanel.setAttribute('aria-hidden', 'false');
       // Focus close button
       this.closeHistoryBtn?.focus();
@@ -534,7 +534,7 @@ class PopupManager {
     this.hideAllPanels();
     this.analyticsPanel?.classList.remove('hidden');
     if (this.analyticsPanel) {
-      this.analyticsPanel.style.display = 'flex';
+      // CSS now handles display: flex, so we don't need inline style
       this.analyticsPanel.setAttribute('aria-hidden', 'false');
       // Focus close button
       this.closeAnalyticsBtn?.focus();
