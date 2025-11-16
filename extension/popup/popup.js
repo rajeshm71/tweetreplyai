@@ -7,6 +7,7 @@ class PopupManager {
     this.apiClient = new ApiClient();
     this.currentState = 'loading';
     this.usageData = null;
+    this.qualityMetrics = null;
     
     this.initializeElements();
     this.attachEventListeners();
@@ -164,6 +165,8 @@ class PopupManager {
       // Load user data and usage
       await this.loadUserData();
       await this.loadUsageData();
+      // Load quality metrics in parallel (don't block on it)
+      this.loadQualityMetrics().catch(err => console.error('Quality metrics load failed:', err));
       
       // Check if quota is exceeded
       if (this.usageData && this.usageData.used >= this.usageData.limit) {
@@ -224,6 +227,17 @@ class PopupManager {
     } catch (error) {
       console.error('Failed to load usage data:', error);
       this.usageData = null;
+    }
+  }
+
+  async loadQualityMetrics() {
+    try {
+      this.qualityMetrics = await this.apiClient.getQualityMetrics(30);
+      // Update quick stats after loading quality metrics
+      this.updateQuickStats();
+    } catch (error) {
+      console.error('Failed to load quality metrics:', error);
+      this.qualityMetrics = null;
     }
   }
 
@@ -621,33 +635,59 @@ class PopupManager {
 
   async loadAnalytics() {
     try {
-      const metrics = await this.apiClient.getQualityMetrics();
+      // Fix: Use consistent 30-day parameter to match loadQualityMetrics()
+      const metrics = await this.apiClient.getQualityMetrics(30);
       this.displayAnalytics(metrics);
     } catch (error) {
       console.error('Failed to load analytics:', error);
+      // Fix: Show empty state on error instead of leaving stale data
+      this.displayAnalytics({ metrics: {}, recommendations: [] });
     }
   }
 
   displayAnalytics(data) {
-    if (data.metrics) {
-      const avgQuality = document.getElementById('avg-quality');
-      const totalReplies = document.getElementById('total-replies');
-      const highQuality = document.getElementById('high-quality');
-      
-      if (avgQuality) avgQuality.textContent = data.metrics.averageScore || '-';
-      if (totalReplies) totalReplies.textContent = data.metrics.totalReplies || '-';
-      if (highQuality) highQuality.textContent = data.metrics.highQualityCount || '-';
+    // Handle null/undefined data
+    if (!data) {
+      data = {};
+    }
+
+    const avgQuality = document.getElementById('avg-quality');
+    const totalReplies = document.getElementById('total-replies');
+    const highQuality = document.getElementById('high-quality');
+    
+    // Safely extract metrics with fallback values
+    const metrics = data.metrics || {};
+    
+    // Format average score - handle both decimal (0-1) and percentage (0-100) formats
+    if (avgQuality) {
+      // Fix: Use extracted helper method to eliminate code duplication
+      // Note: displayAnalytics uses '-' for empty, but formatQualityScore returns '--'
+      // Using formatQualityScore for consistency, but could normalize if needed
+      const formatted = this.formatQualityScore(metrics.averageScore);
+      avgQuality.textContent = formatted === '--' ? '-' : formatted;
+    }
+    
+    // Display total replies
+    if (totalReplies) {
+      totalReplies.textContent = metrics.totalReplies ?? '-';
+    }
+    
+    // Display high quality count
+    if (highQuality) {
+      highQuality.textContent = metrics.highQualityCount ?? '-';
     }
     
     // Display recommendations
     const recommendationsList = document.getElementById('recommendations-list');
-    if (recommendationsList && data.recommendations && data.recommendations.length > 0) {
-      recommendationsList.innerHTML = `
-        <h4>Recommendations:</h4>
-        <ul>${data.recommendations.map(rec => `<li>${rec}</li>`).join('')}</ul>
-      `;
-    } else if (recommendationsList) {
-      recommendationsList.innerHTML = '';
+    if (recommendationsList) {
+      if (data.recommendations && Array.isArray(data.recommendations) && data.recommendations.length > 0) {
+        recommendationsList.innerHTML = `
+          <h4>Recommendations:</h4>
+          <ul>${data.recommendations.map(rec => `<li>${this.escapeHtml(rec)}</li>`).join('')}</ul>
+        `;
+      } else {
+        recommendationsList.innerHTML = '';
+      }
     }
   }
 
@@ -763,18 +803,20 @@ class PopupManager {
   }
 
   updateQuickStats() {
-    if (!this.usageData) return;
-
-    const { used } = this.usageData;
-    
-    // Update today's replies
+    // Update today's replies - show 0 if usageData is null
+    const used = this.usageData?.used ?? 0;
     if (this.todayReplies) {
       this.todayReplies.textContent = used;
     }
 
-    // Update success rate (placeholder - would need actual data)
+    // Update success rate from quality metrics
     if (this.successRate) {
-      this.successRate.textContent = '--';
+      if (this.qualityMetrics && this.qualityMetrics.metrics) {
+        // Fix: Use extracted helper method to eliminate code duplication
+        this.successRate.textContent = this.formatQualityScore(this.qualityMetrics.metrics.averageScore);
+      } else {
+        this.successRate.textContent = '--';
+      }
     }
 
     // Update time saved (placeholder - would need actual data)
@@ -791,6 +833,21 @@ class PopupManager {
       const remainingMinutes = minutes % 60;
       return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
     }
+  }
+
+  /**
+   * Formats quality score as percentage.
+   * Handles both decimal (0-1) and percentage (0-100) formats.
+   * Returns '--' for null/undefined values.
+   * @param {number|null|undefined} avgScore - The average quality score
+   * @returns {string} Formatted score as percentage or '--'
+   */
+  formatQualityScore(avgScore) {
+    if (avgScore === null || avgScore === undefined) {
+      return '--';
+    }
+    // Format as percentage if it's a decimal (0-1), otherwise show as-is
+    return avgScore < 1 ? `${Math.round(avgScore * 100)}%` : `${Math.round(avgScore)}%`;
   }
 }
 
