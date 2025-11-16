@@ -512,7 +512,7 @@ class PopupManager {
     this.hideAllPanels();
     this.historyPanel?.classList.remove('hidden');
     if (this.historyPanel) {
-      // CSS now handles display: flex, so we don't need inline style
+      this.historyPanel.style.display = 'flex';
       this.historyPanel.setAttribute('aria-hidden', 'false');
       // Focus close button
       this.closeHistoryBtn?.focus();
@@ -534,7 +534,7 @@ class PopupManager {
     this.hideAllPanels();
     this.analyticsPanel?.classList.remove('hidden');
     if (this.analyticsPanel) {
-      // CSS now handles display: flex, so we don't need inline style
+      this.analyticsPanel.style.display = 'flex';
       this.analyticsPanel.setAttribute('aria-hidden', 'false');
       // Focus close button
       this.closeAnalyticsBtn?.focus();
