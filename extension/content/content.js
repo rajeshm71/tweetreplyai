@@ -1277,6 +1277,15 @@ class TwitterReplyInjector {
         resetAt: response.resetAt
       };
 
+      // Notify popup about usage update so it can refresh
+      try {
+        chrome.runtime.sendMessage({ action: 'usageUpdated' }).catch(() => {
+          // Ignore errors if popup is not open
+        });
+      } catch (error) {
+        // Ignore errors if popup is not open
+      }
+
       // Show success message
       this.showMessage(composer, '✓ Reply inserted', 'success');
 
@@ -1444,6 +1453,17 @@ class TwitterReplyInjector {
           limit: response.limit || this.usageData.limit,
           resetAt: response.resetAt || this.usageData.resetAt
         };
+      }
+      
+      // Notify popup about usage update so it can refresh
+      if (response.usage || response.used !== undefined) {
+        try {
+          chrome.runtime.sendMessage({ action: 'usageUpdated' }).catch(() => {
+            // Ignore errors if popup is not open
+          });
+        } catch (error) {
+          // Ignore errors if popup is not open
+        }
       }
       
       // Update all button states

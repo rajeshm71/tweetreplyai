@@ -9,9 +9,20 @@ class PopupManager {
     this.usageData = null;
     this.qualityMetrics = null;
     
+    // Refresh intervals for periodic data updates
+    this.usageDataInterval = null;
+    this.qualityMetricsInterval = null;
+    this.analyticsRefreshInterval = null;
+    
+    // Event handler references for proper cleanup (fix: prevent memory leaks)
+    this.focusHandler = null;
+    this.visibilityHandler = null;
+    this.beforeunloadHandler = null;
+    
     this.initializeElements();
     this.attachEventListeners();
     this.setupAuthListener();
+    this.setupDataRefresh();
     this.initialize();
   }
 
@@ -22,6 +33,167 @@ class PopupManager {
         this.initialize(); // Refresh UI when auth syncs
       }
     });
+  }
+
+  setupDataRefresh() {
+    // Setup periodic refresh for usage data (every 30 seconds)
+    this.startUsageDataRefresh();
+    
+    // Setup periodic refresh for quality metrics (every 30 seconds)
+    this.startQualityMetricsRefresh();
+    
+    // Setup window focus listener to refresh data when popup is reopened
+    this.setupFocusRefresh();
+    
+    // Setup message listener for usage updates from content script
+    this.setupUsageUpdateListener();
+    
+    // Setup cleanup on popup close
+    this.setupCleanup();
+  }
+
+  startUsageDataRefresh() {
+    // Clear existing interval if any
+    if (this.usageDataInterval) {
+      clearInterval(this.usageDataInterval);
+    }
+    
+    // Refresh usage data every 30 seconds
+    this.usageDataInterval = setInterval(async () => {
+      if (this.currentState === 'authenticated') {
+        try {
+          await this.loadUsageData();
+          this.updateUsageDisplay();
+          // Fix: Update quick stats cards (Today card) after usage refresh
+          this.updateQuickStats();
+          // Also refresh quality metrics after usage updates
+          this.loadQualityMetrics().catch(err => console.error('Quality metrics refresh failed:', err));
+        } catch (error) {
+          console.error('Failed to refresh usage data:', error);
+        }
+      }
+    }, 30000); // 30 seconds
+  }
+
+  startQualityMetricsRefresh() {
+    // Clear existing interval if any
+    if (this.qualityMetricsInterval) {
+      clearInterval(this.qualityMetricsInterval);
+    }
+    
+    // Refresh quality metrics every 30 seconds
+    this.qualityMetricsInterval = setInterval(async () => {
+      if (this.currentState === 'authenticated') {
+        try {
+          await this.loadQualityMetrics();
+        } catch (error) {
+          console.error('Failed to refresh quality metrics:', error);
+        }
+      }
+    }, 30000); // 30 seconds
+  }
+
+  setupFocusRefresh() {
+    // Fix: Store handler references for proper cleanup to prevent memory leaks
+    this.focusHandler = async () => {
+      if (this.currentState === 'authenticated') {
+        try {
+          await this.loadUsageData();
+          this.updateUsageDisplay();
+          // Fix: Update quick stats cards (Today card) after usage refresh
+          this.updateQuickStats();
+          // Refresh quality metrics as well
+          this.loadQualityMetrics().catch(err => console.error('Quality metrics refresh failed:', err));
+        } catch (error) {
+          console.error('Failed to refresh data on focus:', error);
+        }
+      }
+    };
+    
+    // Fix: Store handler reference for proper cleanup
+    this.visibilityHandler = async () => {
+      if (!document.hidden && this.currentState === 'authenticated') {
+        try {
+          await this.loadUsageData();
+          this.updateUsageDisplay();
+          // Fix: Update quick stats cards (Today card) after usage refresh
+          this.updateQuickStats();
+          this.loadQualityMetrics().catch(err => console.error('Quality metrics refresh failed:', err));
+        } catch (error) {
+          console.error('Failed to refresh data on visibility change:', error);
+        }
+      }
+    };
+    
+    // Refresh data when popup regains focus (user reopens it)
+    window.addEventListener('focus', this.focusHandler);
+    
+    // Also listen for visibility changes (when popup is shown/hidden)
+    document.addEventListener('visibilitychange', this.visibilityHandler);
+  }
+
+  setupUsageUpdateListener() {
+    // Listen for usage update messages from content script
+    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+      if (message.action === 'usageUpdated' || message.action === 'replyGenerated') {
+        // Immediately refresh usage data when reply is generated
+        this.loadUsageData().then(() => {
+          this.updateUsageDisplay();
+          // Fix: Update quick stats cards (Today card) after usage refresh
+          this.updateQuickStats();
+          // Also refresh quality metrics since new replies affect quality
+          this.loadQualityMetrics().catch(err => console.error('Quality metrics refresh failed:', err));
+        }).catch(error => {
+          console.error('Failed to refresh usage after reply generation:', error);
+        });
+      }
+      return true; // Keep message channel open for async response
+    });
+  }
+
+  setupCleanup() {
+    // Fix: Store handler reference for proper cleanup
+    this.beforeunloadHandler = () => {
+      this.cleanup();
+    };
+    
+    // Cleanup intervals when popup is closed
+    // Note: beforeunload may not fire reliably in Chrome extension popups,
+    // but we set it up as a best-effort cleanup mechanism
+    window.addEventListener('beforeunload', this.beforeunloadHandler);
+    
+    // Fix: Removed redundant visibility listener - setupFocusRefresh() already handles visibility changes
+    // The visibility handler in setupFocusRefresh() is sufficient for refresh logic
+  }
+
+  cleanup() {
+    // Clear all intervals
+    if (this.usageDataInterval) {
+      clearInterval(this.usageDataInterval);
+      this.usageDataInterval = null;
+    }
+    if (this.qualityMetricsInterval) {
+      clearInterval(this.qualityMetricsInterval);
+      this.qualityMetricsInterval = null;
+    }
+    if (this.analyticsRefreshInterval) {
+      clearInterval(this.analyticsRefreshInterval);
+      this.analyticsRefreshInterval = null;
+    }
+    
+    // Fix: Remove event listeners to prevent memory leaks
+    if (this.focusHandler) {
+      window.removeEventListener('focus', this.focusHandler);
+      this.focusHandler = null;
+    }
+    if (this.visibilityHandler) {
+      document.removeEventListener('visibilitychange', this.visibilityHandler);
+      this.visibilityHandler = null;
+    }
+    if (this.beforeunloadHandler) {
+      window.removeEventListener('beforeunload', this.beforeunloadHandler);
+      this.beforeunloadHandler = null;
+    }
   }
 
   initializeElements() {
@@ -176,6 +348,8 @@ class PopupManager {
       }
       
       this.updateUsageDisplay();
+      // Fix: Update quick stats cards (Today card) after usage refresh
+      this.updateQuickStats();
       
     } catch (error) {
       console.error('Failed to initialize popup:', error);
@@ -554,6 +728,8 @@ class PopupManager {
       this.closeAnalyticsBtn?.focus();
     }
     this.loadAnalytics();
+    // Start auto-refresh for analytics panel when it's open
+    this.startAnalyticsAutoRefresh();
   }
 
   hideAnalytics() {
@@ -562,8 +738,36 @@ class PopupManager {
       this.analyticsPanel.style.display = 'none';
       this.analyticsPanel.setAttribute('aria-hidden', 'true');
     }
+    // Stop auto-refresh when panel is closed
+    this.stopAnalyticsAutoRefresh();
     // Return focus to analytics button
     this.analyticsBtn?.focus();
+  }
+
+  startAnalyticsAutoRefresh() {
+    // Clear existing interval if any
+    if (this.analyticsRefreshInterval) {
+      clearInterval(this.analyticsRefreshInterval);
+    }
+    
+    // Refresh analytics data every 30 seconds while panel is open
+    this.analyticsRefreshInterval = setInterval(async () => {
+      // Only refresh if panel is visible (not hidden)
+      if (this.analyticsPanel && !this.analyticsPanel.classList.contains('hidden')) {
+        try {
+          await this.loadAnalytics();
+        } catch (error) {
+          console.error('Failed to auto-refresh analytics:', error);
+        }
+      }
+    }, 30000); // 30 seconds
+  }
+
+  stopAnalyticsAutoRefresh() {
+    if (this.analyticsRefreshInterval) {
+      clearInterval(this.analyticsRefreshInterval);
+      this.analyticsRefreshInterval = null;
+    }
   }
 
   hideAllPanels() {

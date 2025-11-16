@@ -198,6 +198,7 @@
       this.apiClient = new ApiClient();
       this.currentState = "loading";
       this.usageData = null;
+      this.qualityMetrics = null;
       this.initializeElements();
       this.attachEventListeners();
       this.setupAuthListener();
@@ -311,6 +312,7 @@
         }
         await this.loadUserData();
         await this.loadUsageData();
+        this.loadQualityMetrics().catch((err) => console.error("Quality metrics load failed:", err));
         if (this.usageData && this.usageData.used >= this.usageData.limit) {
           this.setState("quota-exceeded");
         } else {
@@ -356,6 +358,15 @@
       } catch (error) {
         console.error("Failed to load usage data:", error);
         this.usageData = null;
+      }
+    }
+    async loadQualityMetrics() {
+      try {
+        this.qualityMetrics = await this.apiClient.getQualityMetrics(30);
+        this.updateQuickStats();
+      } catch (error) {
+        console.error("Failed to load quality metrics:", error);
+        this.qualityMetrics = null;
       }
     }
     setState(state) {
@@ -510,7 +521,6 @@
     showSettings() {
       this.settingsPanel?.classList.remove("hidden");
       if (this.settingsPanel) {
-        this.settingsPanel.style.display = "flex";
         this.settingsPanel.setAttribute("aria-hidden", "false");
         this.settingsBtn?.setAttribute("aria-expanded", "true");
         this.loadTrackingSettings();
@@ -669,29 +679,41 @@
     }
     async loadAnalytics() {
       try {
-        const metrics = await this.apiClient.getQualityMetrics();
+        const metrics = await this.apiClient.getQualityMetrics(30);
         this.displayAnalytics(metrics);
       } catch (error) {
         console.error("Failed to load analytics:", error);
+        this.displayAnalytics({ metrics: {}, recommendations: [] });
       }
     }
     displayAnalytics(data) {
-      if (data.metrics) {
-        const avgQuality = document.getElementById("avg-quality");
-        const totalReplies = document.getElementById("total-replies");
-        const highQuality = document.getElementById("high-quality");
-        if (avgQuality) avgQuality.textContent = data.metrics.averageScore || "-";
-        if (totalReplies) totalReplies.textContent = data.metrics.totalReplies || "-";
-        if (highQuality) highQuality.textContent = data.metrics.highQualityCount || "-";
+      if (!data) {
+        data = {};
+      }
+      const avgQuality = document.getElementById("avg-quality");
+      const totalReplies = document.getElementById("total-replies");
+      const highQuality = document.getElementById("high-quality");
+      const metrics = data.metrics || {};
+      if (avgQuality) {
+        const formatted = this.formatQualityScore(metrics.averageScore);
+        avgQuality.textContent = formatted === "--" ? "-" : formatted;
+      }
+      if (totalReplies) {
+        totalReplies.textContent = metrics.totalReplies ?? "-";
+      }
+      if (highQuality) {
+        highQuality.textContent = metrics.highQualityCount ?? "-";
       }
       const recommendationsList = document.getElementById("recommendations-list");
-      if (recommendationsList && data.recommendations && data.recommendations.length > 0) {
-        recommendationsList.innerHTML = `
-        <h4>Recommendations:</h4>
-        <ul>${data.recommendations.map((rec) => `<li>${rec}</li>`).join("")}</ul>
-      `;
-      } else if (recommendationsList) {
-        recommendationsList.innerHTML = "";
+      if (recommendationsList) {
+        if (data.recommendations && Array.isArray(data.recommendations) && data.recommendations.length > 0) {
+          recommendationsList.innerHTML = `
+          <h4>Recommendations:</h4>
+          <ul>${data.recommendations.map((rec) => `<li>${this.escapeHtml(rec)}</li>`).join("")}</ul>
+        `;
+        } else {
+          recommendationsList.innerHTML = "";
+        }
       }
     }
     truncate(text, maxLength) {
@@ -735,8 +757,21 @@
     // New methods for enhanced UI
     updateWelcomeMessage(user) {
       if (this.userName) {
-        const name = user.name || user.displayName || user.email?.split("@")[0] || "there";
-        const capitalizedName = name.charAt(0).toUpperCase() + name.slice(1);
+        console.log("User object for welcome message:", user);
+        let name = user.name || user.displayName || user.fullName || user.firstName || (user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : null);
+        if (!name && user.email) {
+          const emailPrefix = user.email.split("@")[0];
+          const cleanedName = emailPrefix.replace(/[0-9!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/g, "");
+          if (cleanedName.length >= 2) {
+            name = cleanedName;
+          } else {
+            name = emailPrefix;
+          }
+        }
+        if (!name) {
+          name = "there";
+        }
+        const capitalizedName = name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
         this.userName.textContent = capitalizedName;
       }
     }
@@ -754,17 +789,22 @@
           this.planBadge.style.background = "linear-gradient(135deg, #10B981, #059669)";
         } else if (plan === "premium") {
           this.planBadge.style.background = "linear-gradient(135deg, #8B5CF6, #7C3AED)";
+        } else {
+          this.planBadge.style.background = "";
         }
       }
     }
     updateQuickStats() {
-      if (!this.usageData) return;
-      const { used } = this.usageData;
+      const used = this.usageData?.used ?? 0;
       if (this.todayReplies) {
         this.todayReplies.textContent = used;
       }
       if (this.successRate) {
-        this.successRate.textContent = "--";
+        if (this.qualityMetrics && this.qualityMetrics.metrics) {
+          this.successRate.textContent = this.formatQualityScore(this.qualityMetrics.metrics.averageScore);
+        } else {
+          this.successRate.textContent = "--";
+        }
       }
       if (this.timeSaved) {
         this.timeSaved.textContent = "--";
@@ -778,6 +818,19 @@
         const remainingMinutes = minutes % 60;
         return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
       }
+    }
+    /**
+     * Formats quality score as percentage.
+     * Handles both decimal (0-1) and percentage (0-100) formats.
+     * Returns '--' for null/undefined values.
+     * @param {number|null|undefined} avgScore - The average quality score
+     * @returns {string} Formatted score as percentage or '--'
+     */
+    formatQualityScore(avgScore) {
+      if (avgScore === null || avgScore === void 0) {
+        return "--";
+      }
+      return avgScore < 1 ? `${Math.round(avgScore * 100)}%` : `${Math.round(avgScore)}%`;
     }
   };
   document.addEventListener("DOMContentLoaded", () => {
