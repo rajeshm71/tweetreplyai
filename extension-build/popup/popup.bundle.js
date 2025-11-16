@@ -578,6 +578,7 @@
       this.hideAllPanels();
       this.historyPanel?.classList.remove("hidden");
       if (this.historyPanel) {
+        this.historyPanel.style.display = "flex";
         this.historyPanel.setAttribute("aria-hidden", "false");
         this.closeHistoryBtn?.focus();
       }
@@ -595,6 +596,7 @@
       this.hideAllPanels();
       this.analyticsPanel?.classList.remove("hidden");
       if (this.analyticsPanel) {
+        this.analyticsPanel.style.display = "flex";
         this.analyticsPanel.setAttribute("aria-hidden", "false");
         this.closeAnalyticsBtn?.focus();
       }
