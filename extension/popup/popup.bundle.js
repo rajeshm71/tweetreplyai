@@ -199,9 +199,16 @@
       this.currentState = "loading";
       this.usageData = null;
       this.qualityMetrics = null;
+      this.usageDataInterval = null;
+      this.qualityMetricsInterval = null;
+      this.analyticsRefreshInterval = null;
+      this.focusHandler = null;
+      this.visibilityHandler = null;
+      this.beforeunloadHandler = null;
       this.initializeElements();
       this.attachEventListeners();
       this.setupAuthListener();
+      this.setupDataRefresh();
       this.initialize();
     }
     setupAuthListener() {
@@ -210,6 +217,118 @@
           this.initialize();
         }
       });
+    }
+    setupDataRefresh() {
+      this.startUsageDataRefresh();
+      this.startQualityMetricsRefresh();
+      this.setupFocusRefresh();
+      this.setupUsageUpdateListener();
+      this.setupCleanup();
+    }
+    startUsageDataRefresh() {
+      if (this.usageDataInterval) {
+        clearInterval(this.usageDataInterval);
+      }
+      this.usageDataInterval = setInterval(async () => {
+        if (this.currentState === "authenticated") {
+          try {
+            await this.loadUsageData();
+            this.updateUsageDisplay();
+            this.updateQuickStats();
+            this.loadQualityMetrics().catch((err) => console.error("Quality metrics refresh failed:", err));
+          } catch (error) {
+            console.error("Failed to refresh usage data:", error);
+          }
+        }
+      }, 3e4);
+    }
+    startQualityMetricsRefresh() {
+      if (this.qualityMetricsInterval) {
+        clearInterval(this.qualityMetricsInterval);
+      }
+      this.qualityMetricsInterval = setInterval(async () => {
+        if (this.currentState === "authenticated") {
+          try {
+            await this.loadQualityMetrics();
+          } catch (error) {
+            console.error("Failed to refresh quality metrics:", error);
+          }
+        }
+      }, 3e4);
+    }
+    setupFocusRefresh() {
+      this.focusHandler = async () => {
+        if (this.currentState === "authenticated") {
+          try {
+            await this.loadUsageData();
+            this.updateUsageDisplay();
+            this.updateQuickStats();
+            this.loadQualityMetrics().catch((err) => console.error("Quality metrics refresh failed:", err));
+          } catch (error) {
+            console.error("Failed to refresh data on focus:", error);
+          }
+        }
+      };
+      this.visibilityHandler = async () => {
+        if (!document.hidden && this.currentState === "authenticated") {
+          try {
+            await this.loadUsageData();
+            this.updateUsageDisplay();
+            this.updateQuickStats();
+            this.loadQualityMetrics().catch((err) => console.error("Quality metrics refresh failed:", err));
+          } catch (error) {
+            console.error("Failed to refresh data on visibility change:", error);
+          }
+        }
+      };
+      window.addEventListener("focus", this.focusHandler);
+      document.addEventListener("visibilitychange", this.visibilityHandler);
+    }
+    setupUsageUpdateListener() {
+      chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+        if (message.action === "usageUpdated" || message.action === "replyGenerated") {
+          this.loadUsageData().then(() => {
+            this.updateUsageDisplay();
+            this.updateQuickStats();
+            this.loadQualityMetrics().catch((err) => console.error("Quality metrics refresh failed:", err));
+          }).catch((error) => {
+            console.error("Failed to refresh usage after reply generation:", error);
+          });
+        }
+        return true;
+      });
+    }
+    setupCleanup() {
+      this.beforeunloadHandler = () => {
+        this.cleanup();
+      };
+      window.addEventListener("beforeunload", this.beforeunloadHandler);
+    }
+    cleanup() {
+      if (this.usageDataInterval) {
+        clearInterval(this.usageDataInterval);
+        this.usageDataInterval = null;
+      }
+      if (this.qualityMetricsInterval) {
+        clearInterval(this.qualityMetricsInterval);
+        this.qualityMetricsInterval = null;
+      }
+      if (this.analyticsRefreshInterval) {
+        clearInterval(this.analyticsRefreshInterval);
+        this.analyticsRefreshInterval = null;
+      }
+      if (this.focusHandler) {
+        window.removeEventListener("focus", this.focusHandler);
+        this.focusHandler = null;
+      }
+      if (this.visibilityHandler) {
+        document.removeEventListener("visibilitychange", this.visibilityHandler);
+        this.visibilityHandler = null;
+      }
+      if (this.beforeunloadHandler) {
+        window.removeEventListener("beforeunload", this.beforeunloadHandler);
+        this.beforeunloadHandler = null;
+      }
     }
     initializeElements() {
       this.loadingState = document.getElementById("loading");
@@ -319,6 +438,7 @@
           this.setState("authenticated");
         }
         this.updateUsageDisplay();
+        this.updateQuickStats();
       } catch (error) {
         console.error("Failed to initialize popup:", error);
         this.setState("not-authenticated");
@@ -612,6 +732,7 @@
         this.closeAnalyticsBtn?.focus();
       }
       this.loadAnalytics();
+      this.startAnalyticsAutoRefresh();
     }
     hideAnalytics() {
       this.analyticsPanel?.classList.add("hidden");
@@ -619,7 +740,28 @@
         this.analyticsPanel.style.display = "none";
         this.analyticsPanel.setAttribute("aria-hidden", "true");
       }
+      this.stopAnalyticsAutoRefresh();
       this.analyticsBtn?.focus();
+    }
+    startAnalyticsAutoRefresh() {
+      if (this.analyticsRefreshInterval) {
+        clearInterval(this.analyticsRefreshInterval);
+      }
+      this.analyticsRefreshInterval = setInterval(async () => {
+        if (this.analyticsPanel && !this.analyticsPanel.classList.contains("hidden")) {
+          try {
+            await this.loadAnalytics();
+          } catch (error) {
+            console.error("Failed to auto-refresh analytics:", error);
+          }
+        }
+      }, 3e4);
+    }
+    stopAnalyticsAutoRefresh() {
+      if (this.analyticsRefreshInterval) {
+        clearInterval(this.analyticsRefreshInterval);
+        this.analyticsRefreshInterval = null;
+      }
     }
     hideAllPanels() {
       this.settingsPanel?.classList.add("hidden");
