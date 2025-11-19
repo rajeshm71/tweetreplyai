@@ -429,50 +429,34 @@ export async function registerRoutes(app: Express): Promise<Express> {
         tweet_metadata
       } = schema.parse(req.body);
 
-      // Get user to check whitelist status
+      // Get user for validation
       const user = await storage.getUser(userId);
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
-      
-      const isWhitelisted = whitelistService.isWhitelisted(user.email);
 
-      // Whitelisted users bypass quota check
-      // Fix: Improved type safety - replaced 'any' with proper type
-      let updatedCounter: { repliesUsed: number; limit: number; resetAt: Date };
-      if (!isWhitelisted) {
-        // Check if user can use a reply
-        const { canUse, reason } = await usageService.canUseReply(userId);
-        if (!canUse) {
-          const status = await usageService.getUsageStatus(userId);
-          return res.status(402).json({
-            error: reason,
-            message: reason === 'payment_required' ? 'No active plan' : 'Quota exceeded',
-            used: status?.used || 0,
-            limit: status?.limit || 0,
-            resetAt: status?.resetAt || new Date(),
-            upgradeRequired: true,
-            upgradeMessage: whitelistService.getUpgradeMessage(false, status?.used || 0, status?.limit || 0),
-          });
-        }
-        
-        // Consume a reply from quota (only for non-whitelisted users)
-        console.log('[API-DEBUG] /api/generate-reply - About to call consumeReply for userId:', userId);
-        updatedCounter = await usageService.consumeReply(userId);
-        console.log('[API-DEBUG] /api/generate-reply - After consumeReply, updatedCounter:', {
-          repliesUsed: updatedCounter.repliesUsed,
-          limit: updatedCounter.limit
-        });
-      } else {
-        console.log('[API-DEBUG] /api/generate-reply - User is whitelisted, not consuming quota');
-        // Whitelisted users don't consume quota, but we still need to get status for response
+      // Check if user can generate reply (applies to ALL users including whitelisted)
+      const { canUse, reason } = await usageService.canUseReply(userId);
+      if (!canUse) {
         const status = await usageService.getUsageStatus(userId);
-        updatedCounter = {
-          repliesUsed: status?.used || 0,
+        return res.status(402).json({
+          error: reason,
+          message: reason === 'payment_required' ? 'No active plan' : 'Quota exceeded',
+          used: status?.used || 0,
           limit: status?.limit || 0,
           resetAt: status?.resetAt || new Date(),
-        };
+          upgradeRequired: true,
+          upgradeMessage: whitelistService.getUpgradeMessage(false, status?.used || 0, status?.limit || 0),
+        });
       }
+      
+      // Consume a reply from quota (applies to ALL users including whitelisted)
+      console.log('[API-DEBUG] /api/generate-reply - About to call consumeReply for userId:', userId);
+      const updatedCounter = await usageService.consumeReply(userId);
+      console.log('[API-DEBUG] /api/generate-reply - After consumeReply, updatedCounter:', {
+        repliesUsed: updatedCounter.repliesUsed,
+        limit: updatedCounter.limit
+      });
 
       // Analyze tweet context if not provided
       const { tweetContextAnalyzer } = await import('./services/tweet-context.js');

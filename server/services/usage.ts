@@ -218,19 +218,12 @@ export class UsageService {
     console.log('=== USAGE: canUseReply called ===');
     console.log('User ID:', userId);
     
-    // Fix: Add whitelist check for defense in depth
-    // This ensures whitelisted users always pass, even if called directly
     const user = await storage.getUser(userId);
     if (!user) {
       return { canUse: false, reason: 'user_not_found' };
     }
     
-    // Whitelisted users always can use replies
-    if (whitelistService.isWhitelisted(user.email)) {
-      console.log('canUseReply - whitelisted user, returning canUse: true');
-      return { canUse: true };
-    }
-    
+    // Check usage for ALL users (including whitelisted)
     const status = await this.getUsageStatus(userId);
     console.log('canUseReply - getUsageStatus result:', status);
     
@@ -258,41 +251,13 @@ export class UsageService {
     }
     console.log('[USAGE-DEBUG] consumeReply - user email:', user.email);
 
-    // Fix: Add whitelist check for defense in depth
-    // Whitelisted users don't consume quota, return current status without incrementing
-    if (whitelistService.isWhitelisted(user.email)) {
-      console.log('[USAGE-DEBUG] consumeReply - User is WHITELISTED, not incrementing');
-      const window = await this.resolveActiveWindow(user);
-      if (!window) {
-        throw new Error('No active usage window');
-      }
-      
-      // Get or create usage counter without incrementing
-      let counter = await storage.getUsageCounter(userId, window.periodStart);
-      if (!counter) {
-        counter = await storage.createUsageCounter({
-          id: crypto.randomUUID(),
-          userId,
-          planCode: window.planCode,
-          periodStart: window.periodStart,
-          periodEnd: window.periodEnd,
-          repliesUsed: 0,
-          limit: window.limit,
-          resetAt: window.resetAt,
-        });
-      }
-      
-      // Return current counter without incrementing for whitelisted users
-      return counter;
-    }
-
     const window = await this.resolveActiveWindow(user);
     if (!window) {
       throw new Error('No active usage window');
     }
     console.log('[USAGE-DEBUG] consumeReply - window.periodStart:', window.periodStart.toISOString());
 
-    // Get or create usage counter
+    // Get or create usage counter (applies to ALL users including whitelisted)
     console.log('[USAGE-DEBUG] consumeReply - Looking up counter...');
     let counter = await storage.getUsageCounter(userId, window.periodStart);
     if (!counter) {
@@ -312,13 +277,13 @@ export class UsageService {
       console.log('[USAGE-DEBUG] consumeReply - Counter FOUND:', { id: counter.id, repliesUsed: counter.repliesUsed, limit: counter.limit });
     }
 
-    // Check limit before incrementing
+    // Check limit before incrementing (applies to ALL users including whitelisted)
     if (counter.repliesUsed >= counter.limit) {
       console.log('[USAGE-DEBUG] consumeReply - QUOTA EXCEEDED, not incrementing');
       throw new Error('Quota exceeded');
     }
 
-    // Increment usage atomically
+    // Increment usage atomically (for ALL users including whitelisted)
     console.log('[USAGE-DEBUG] consumeReply - About to call incrementUsage for periodStart:', window.periodStart.toISOString());
     const updatedCounter = await storage.incrementUsage(userId, window.periodStart);
     console.log('[USAGE-DEBUG] consumeReply - After incrementUsage:', { id: updatedCounter.id, repliesUsed: updatedCounter.repliesUsed });
