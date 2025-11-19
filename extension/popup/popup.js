@@ -405,14 +405,19 @@ class PopupManager {
   }
 
   async loadQualityMetrics() {
+    const startTime = Date.now();
+    console.log('[LOG][Quality] loadQualityMetrics() invoked at', new Date(startTime).toISOString());
     try {
+      console.log('[LOG][Quality] -> requesting /api/quality/metrics?days=30');
       const response = await this.apiClient.getQualityMetrics(30);
+      console.log('[LOG][Quality] <- response received in', Date.now() - startTime, 'ms:', response);
       this.processQualityMetricsResponse(response);
       // Update quick stats after loading quality metrics
       this.updateQuickStats();
       return response;
     } catch (error) {
-      console.error('[ERROR] Failed to load quality metrics:', error);
+      console.error('[ERROR][Quality] loadQualityMetrics failed:', error);
+      console.error('[ERROR][Quality] stack:', error?.stack);
       this.processQualityMetricsResponse(null);
       return null;
     }
@@ -422,18 +427,32 @@ class PopupManager {
     this.qualityMetricsResponse = response;
 
     if (!response) {
-      console.warn('[WARN] No quality metrics response available');
+      console.warn('[WARN][Quality] No quality metrics response available');
       this.qualityMetrics = null;
       this.qualityRecommendations = [];
       return;
     }
 
     const { metrics = null, recommendations = [] } = response;
+    console.log('[LOG][Quality] Raw response payload:', response);
+    if (metrics) {
+      console.log('[LOG][Quality] Extracted metrics:', {
+        avg: metrics.avg_quality_score,
+        high: metrics.high_quality_replies,
+        low: metrics.low_quality_replies,
+        regen: metrics.regeneration_rate
+      });
+    } else {
+      console.warn('[WARN][Quality] Metrics object missing in response');
+    }
+    console.log('[LOG][Quality] Recommendations count:', Array.isArray(recommendations) ? recommendations.length : 0,
+      'Sample:', Array.isArray(recommendations) ? recommendations.slice(0, 3) : recommendations);
+
     this.qualityMetrics = metrics;
     this.qualityRecommendations = Array.isArray(recommendations) ? recommendations : [];
 
-    console.log('[DEBUG] Normalized quality metrics:', this.qualityMetrics);
-    console.log('[DEBUG] Normalized recommendations:', this.qualityRecommendations);
+    console.log('[DEBUG][Quality] Normalized metrics stored:', this.qualityMetrics);
+    console.log('[DEBUG][Quality] Normalized recommendations stored:', this.qualityRecommendations);
   }
 
   setState(state) {
@@ -859,26 +878,37 @@ class PopupManager {
   }
 
   async loadAnalytics(forceRefresh = false) {
+    console.log('[LOG][Analytics] loadAnalytics() called. forceRefresh =', forceRefresh);
     try {
+      const usingCache = !!this.qualityMetricsResponse && !forceRefresh;
+      console.log('[LOG][Analytics] Cached response available?', !!this.qualityMetricsResponse, 'Using cache?', usingCache);
+
       if (!this.qualityMetricsResponse || forceRefresh) {
+        const startTime = Date.now();
+        console.log('[LOG][Analytics] -> requesting /api/quality/metrics?days=30 (refresh needed)');
         const response = await this.apiClient.getQualityMetrics(30);
+        console.log('[LOG][Analytics] <- response received in', Date.now() - startTime, 'ms:', response);
         this.processQualityMetricsResponse(response);
         this.updateQuickStats();
       }
+
       this.displayAnalytics(this.qualityMetricsResponse);
     } catch (error) {
-      console.error('Failed to load analytics:', error);
+      console.error('[ERROR][Analytics] loadAnalytics failed:', error);
+      console.error('[ERROR][Analytics] stack:', error?.stack);
       // Fix: Show empty state on error instead of leaving stale data
       this.displayAnalytics({ metrics: {}, recommendations: [] });
     }
   }
 
   displayAnalytics(data) {
-    console.log('[DEBUG] displayAnalytics called with:', data);
+    console.log('[LOG][Analytics] displayAnalytics invoked with data:', data);
+    console.log('[LOG][Analytics] Cached metrics at time of render:', this.qualityMetricsResponse);
     
     // Handle null/undefined data
     if (!data) {
       data = {};
+      console.warn('[WARN][Analytics] displayAnalytics received null data, defaulting to empty object');
     }
 
     const avgQuality = document.getElementById('avg-quality');
@@ -888,17 +918,18 @@ class PopupManager {
     // Safely extract metrics with fallback values
     const metrics = data.metrics || this.qualityMetrics || {};
     const recommendations = data.recommendations ?? this.qualityRecommendations ?? [];
-    console.log('[DEBUG] Analytics metrics:', metrics);
+    console.log('[LOG][Analytics] Metrics after fallback:', metrics);
+    console.log('[LOG][Analytics] Recommendations count:', recommendations.length, 'Sample:', recommendations.slice(0, 3));
     
     // Display average quality score (50-100 scale)
     if (avgQuality) {
       const avgScore = metrics.avg_quality_score;
       if (avgScore !== undefined && avgScore !== null) {
         const score = Math.round(avgScore);
-        console.log('[DEBUG] Displaying analytics avg quality:', score);
+        console.log('[LOG][Analytics] Displaying avg quality:', score);
         avgQuality.textContent = score.toString();
       } else {
-        console.log('[DEBUG] No avg quality score, showing -');
+        console.warn('[WARN][Analytics] avg_quality_score missing, rendering "-"');
         avgQuality.textContent = '-';
       }
     }
@@ -909,10 +940,11 @@ class PopupManager {
       const low = metrics.low_quality_replies ?? 0;
       const computedTotal = high + low;
       const total = metrics.totalReplies ?? computedTotal;
-      console.log('[DEBUG] Total replies calculated:', total, '(high:', high, 'low:', low, ')');
+      console.log('[LOG][Analytics] Total replies stats:', { high, low, computedTotal, provided: metrics.totalReplies, used: total });
       if (total !== undefined && total !== null) {
         totalReplies.textContent = total.toString();
       } else {
+        console.warn('[WARN][Analytics] total replies undefined, rendering "-"');
         totalReplies.textContent = '-';
       }
     }
@@ -920,19 +952,26 @@ class PopupManager {
     // Display high quality count
     if (highQuality) {
       const highCount = metrics.high_quality_replies;
-      console.log('[DEBUG] High quality count:', highCount);
-      highQuality.textContent = highCount !== undefined && highCount !== null ? highCount.toString() : '-';
+      console.log('[LOG][Analytics] High quality count value:', highCount);
+      if (highCount !== undefined && highCount !== null) {
+        highQuality.textContent = highCount.toString();
+      } else {
+        console.warn('[WARN][Analytics] high_quality_replies missing, rendering "-"');
+        highQuality.textContent = '-';
+      }
     }
     
     // Display recommendations
     const recommendationsList = document.getElementById('recommendations-list');
     if (recommendationsList) {
       if (recommendations.length > 0) {
+        console.log('[LOG][Analytics] Rendering', recommendations.length, 'recommendations');
         recommendationsList.innerHTML = `
           <h4>Recommendations:</h4>
           <ul>${recommendations.map(rec => `<li>${this.escapeHtml(rec)}</li>`).join('')}</ul>
         `;
       } else {
+        console.log('[LOG][Analytics] No recommendations to display');
         recommendationsList.innerHTML = '';
       }
     }
@@ -1054,25 +1093,29 @@ class PopupManager {
     const used = this.usageData?.used ?? 0;
     if (this.todayReplies) {
       this.todayReplies.textContent = used;
+      console.log('[LOG][QuickStats] Today replies updated to', used);
+    } else {
+      console.warn('[WARN][QuickStats] todayReplies element missing');
     }
 
     // Update success rate from quality metrics (50-100 scale)
     if (this.successRate) {
-      console.log('[DEBUG] updateQuickStats - qualityMetrics:', this.qualityMetrics);
-      console.log('[DEBUG] updateQuickStats - has metrics?:', !!this.qualityMetrics);
-      console.log('[DEBUG] updateQuickStats - avg_quality_score:',
-        this.qualityMetrics?.avg_quality_score);
+      console.log('[LOG][QuickStats] updateQuickStats invoked with metrics:', this.qualityMetrics);
+      console.log('[LOG][QuickStats] usageData used replies:', used);
+      console.log('[LOG][QuickStats] successRate element exists?', !!this.successRate);
       
       if (this.qualityMetrics && this.qualityMetrics.avg_quality_score !== undefined &&
           this.qualityMetrics.avg_quality_score !== null) {
         // Display as integer (50-100 scale) - even 0 is valid
         const score = Math.round(this.qualityMetrics.avg_quality_score);
-        console.log('[DEBUG] Displaying quality score:', score);
+        console.log('[LOG][QuickStats] Displaying quality score:', score);
         this.successRate.textContent = score.toString();
       } else {
-        console.log('[DEBUG] No quality metrics available, showing --');
+        console.warn('[WARN][QuickStats] No quality metrics available, falling back to --');
         this.successRate.textContent = '--';
       }
+
+      console.log('[LOG][QuickStats] successRate text now:', this.successRate.textContent);
     }
 
     // Update time saved (placeholder - would need actual data)
