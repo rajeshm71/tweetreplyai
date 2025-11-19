@@ -407,10 +407,14 @@ class PopupManager {
   async loadQualityMetrics() {
     try {
       this.qualityMetrics = await this.apiClient.getQualityMetrics(30);
+      console.log('[DEBUG] Quality metrics loaded:', this.qualityMetrics);
+      console.log('[DEBUG] Avg score:', this.qualityMetrics?.metrics?.avg_quality_score);
+      console.log('[DEBUG] High quality:', this.qualityMetrics?.metrics?.high_quality_replies);
+      console.log('[DEBUG] Low quality:', this.qualityMetrics?.metrics?.low_quality_replies);
       // Update quick stats after loading quality metrics
       this.updateQuickStats();
     } catch (error) {
-      console.error('Failed to load quality metrics:', error);
+      console.error('[ERROR] Failed to load quality metrics:', error);
       this.qualityMetrics = null;
     }
   }
@@ -850,6 +854,8 @@ class PopupManager {
   }
 
   displayAnalytics(data) {
+    console.log('[DEBUG] displayAnalytics called with:', data);
+    
     // Handle null/undefined data
     if (!data) {
       data = {};
@@ -861,24 +867,34 @@ class PopupManager {
     
     // Safely extract metrics with fallback values
     const metrics = data.metrics || {};
+    console.log('[DEBUG] Analytics metrics:', metrics);
     
-    // Display average quality score (0-100 scale)
+    // Display average quality score (50-100 scale)
     if (avgQuality) {
       if (metrics.avg_quality_score !== undefined && metrics.avg_quality_score !== null) {
-        avgQuality.textContent = Math.round(metrics.avg_quality_score).toString();
+        const score = Math.round(metrics.avg_quality_score);
+        console.log('[DEBUG] Displaying analytics avg quality:', score);
+        avgQuality.textContent = score.toString();
       } else {
+        console.log('[DEBUG] No avg quality score, showing -');
         avgQuality.textContent = '-';
       }
     }
     
-    // Display total replies
+    // Display total replies - calculate from high + low quality counts
     if (totalReplies) {
-      totalReplies.textContent = metrics.totalReplies ?? '-';
+      const high = metrics.high_quality_replies || 0;
+      const low = metrics.low_quality_replies || 0;
+      const total = high + low;
+      console.log('[DEBUG] Total replies calculated:', total, '(high:', high, 'low:', low, ')');
+      totalReplies.textContent = total > 0 ? total.toString() : '-';
     }
     
     // Display high quality count
     if (highQuality) {
-      highQuality.textContent = metrics.highQualityCount ?? '-';
+      const highCount = metrics.high_quality_replies;
+      console.log('[DEBUG] High quality count:', highCount);
+      highQuality.textContent = highCount !== undefined && highCount !== null ? highCount.toString() : '-';
     }
     
     // Display recommendations
@@ -1015,11 +1031,19 @@ class PopupManager {
 
     // Update success rate from quality metrics (50-100 scale)
     if (this.successRate) {
-      if (this.qualityMetrics && this.qualityMetrics.avg_quality_score !== undefined) {
-        // Display as integer (50-100 scale)
-        const score = Math.round(this.qualityMetrics.avg_quality_score);
+      console.log('[DEBUG] updateQuickStats - qualityMetrics:', this.qualityMetrics);
+      console.log('[DEBUG] updateQuickStats - has metrics?:', !!this.qualityMetrics?.metrics);
+      console.log('[DEBUG] updateQuickStats - avg_quality_score:', 
+        this.qualityMetrics?.metrics?.avg_quality_score);
+      
+      if (this.qualityMetrics && this.qualityMetrics.metrics && 
+          this.qualityMetrics.metrics.avg_quality_score !== undefined) {
+        // Display as integer (50-100 scale) - even 0 is valid
+        const score = Math.round(this.qualityMetrics.metrics.avg_quality_score);
+        console.log('[DEBUG] Displaying quality score:', score);
         this.successRate.textContent = score.toString();
       } else {
+        console.log('[DEBUG] No quality metrics available, showing --');
         this.successRate.textContent = '--';
       }
     }
