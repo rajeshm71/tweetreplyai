@@ -292,37 +292,36 @@ export async function registerRoutes(app: Express): Promise<Express> {
   // Usage and quota routes
   app.get('/api/usage', isAuthenticated, async (req: any, res) => {
     try {
+      console.log('[API-DEBUG] ========== GET /api/usage START ==========');
       const userId = getUserId(req);
+      console.log('[API-DEBUG] /api/usage - userId:', userId);
+      
       const user = await storage.getUser(userId);
       
       if (!user) {
+        console.log('[API-DEBUG] /api/usage - User not found');
         return res.status(404).json({ message: "User not found" });
       }
 
+      console.log('[API-DEBUG] /api/usage - user email:', user.email);
       const status = await usageService.getUsageStatus(userId);
       
       if (!status) {
+        console.log('[API-DEBUG] /api/usage - Status not found');
         return res.status(404).json({ message: "User not found" });
       }
 
-      // Debug: Log current config vs database values
-      const todayStart = new Date(new Date().setHours(0, 0, 0, 0));
-      const dbCounter = await storage.getUsageCounter(userId, todayStart);
-      console.log('[Usage Debug]', {
-        userId,
-        email: user.email,
-        isWhitelisted: whitelistService.isWhitelisted(user.email),
-        currentTrialLimit: whitelistService.getTrialLimit(),
-        currentBypassLimit: whitelistService.getBypassLimit(),
-        dbCounterLimit: dbCounter?.limit,
-        dbCounterPlanCode: dbCounter?.planCode,
-        returnedLimit: status.limit,
-        returnedPlanCode: status.planCode,
+      console.log('[API-DEBUG] /api/usage - Returning status:', {
+        planCode: status.planCode,
+        used: status.used,
+        limit: status.limit,
+        status: status.status
       });
+      console.log('[API-DEBUG] ========== GET /api/usage END ==========');
 
       res.json(status);
     } catch (error) {
-      console.error("Error fetching usage:", error);
+      console.error("[API-DEBUG] /api/usage - ERROR:", error);
       res.status(500).json({ message: "Failed to fetch usage" });
     }
   });
@@ -458,8 +457,14 @@ export async function registerRoutes(app: Express): Promise<Express> {
         }
         
         // Consume a reply from quota (only for non-whitelisted users)
+        console.log('[API-DEBUG] /api/generate-reply - About to call consumeReply for userId:', userId);
         updatedCounter = await usageService.consumeReply(userId);
+        console.log('[API-DEBUG] /api/generate-reply - After consumeReply, updatedCounter:', {
+          repliesUsed: updatedCounter.repliesUsed,
+          limit: updatedCounter.limit
+        });
       } else {
+        console.log('[API-DEBUG] /api/generate-reply - User is whitelisted, not consuming quota');
         // Whitelisted users don't consume quota, but we still need to get status for response
         const status = await usageService.getUsageStatus(userId);
         updatedCounter = {

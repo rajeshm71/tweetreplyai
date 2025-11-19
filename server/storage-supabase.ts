@@ -274,19 +274,36 @@ export class SupabaseStorage implements IStorage {
 
   // Usage counter operations
   async getUsageCounter(userId: string, periodStart: Date): Promise<UsageCounter | undefined> {
+    const periodStartISO = periodStart.toISOString();
+    console.log('[STORAGE-DEBUG] getUsageCounter - Query params:', {
+      userId,
+      periodStartISO,
+      periodStartTime: periodStart.getTime()
+    });
+    
     const { data, error } = await supabase
       .from('usage_counters')
       .select('id, user_id, plan_code, period_start, period_end, replies_used, limit, reset_at, created_at, updated_at')
       .eq('user_id', userId)
-      .eq('period_start', periodStart.toISOString())
+      .eq('period_start', periodStartISO)
       .single();
     
     if (error) {
       if (error.code !== 'PGRST116') {
-        console.error('Supabase getUsageCounter error (line 300):', error);
+        console.error('[STORAGE-DEBUG] getUsageCounter - ERROR:', error);
+      } else {
+        console.log('[STORAGE-DEBUG] getUsageCounter - NOT FOUND (no matching counter)');
       }
       return undefined;
     }
+
+    console.log('[STORAGE-DEBUG] getUsageCounter - FOUND:', {
+      id: data.id,
+      period_start: data.period_start,
+      replies_used: data.replies_used,
+      limit: data.limit,
+      plan_code: data.plan_code
+    });
 
     // Map database fields to our UsageCounter interface
     return {
@@ -367,12 +384,29 @@ export class SupabaseStorage implements IStorage {
   }
 
   async incrementUsage(userId: string, periodStart: Date): Promise<UsageCounter> {
+    console.log('[STORAGE-DEBUG] ========== incrementUsage START ==========');
+    console.log('[STORAGE-DEBUG] incrementUsage - userId:', userId);
+    console.log('[STORAGE-DEBUG] incrementUsage - periodStart:', periodStart.toISOString());
+    
     let counter = await this.getUsageCounter(userId, periodStart);
     
     if (!counter) {
       // This should not happen as getUsageStatus creates the counter if it doesn't exist
+      console.error('[STORAGE-DEBUG] incrementUsage - COUNTER NOT FOUND!');
       throw new Error('Usage counter not found - this should be created by getUsageStatus first');
     } else {
+      console.log('[STORAGE-DEBUG] incrementUsage - Counter before update:', {
+        id: counter.id,
+        currentRepliesUsed: counter.repliesUsed,
+        willBecome: counter.repliesUsed + 1
+      });
+      
+      const periodStartISO = periodStart.toISOString();
+      console.log('[STORAGE-DEBUG] incrementUsage - UPDATE query WHERE:', {
+        user_id: userId,
+        period_start: periodStartISO
+      });
+      
       const { data, error } = await supabase
         .from('usage_counters')
         .update({ 
@@ -380,14 +414,26 @@ export class SupabaseStorage implements IStorage {
           updated_at: new Date().toISOString()
         })
         .eq('user_id', userId)
-        .eq('period_start', periodStart.toISOString())
+        .eq('period_start', periodStartISO)
         .select('id, user_id, plan_code, period_start, period_end, replies_used, limit, reset_at, created_at, updated_at')
         .single();
       
       if (error) {
-        console.error('Supabase incrementUsage error (line 340):', error);
+        console.error('[STORAGE-DEBUG] incrementUsage - UPDATE FAILED:', error);
         throw error;
       }
+
+      if (!data) {
+        console.error('[STORAGE-DEBUG] incrementUsage - UPDATE returned NO DATA (no rows matched)');
+        throw new Error('Failed to increment usage - no rows affected');
+      }
+
+      console.log('[STORAGE-DEBUG] incrementUsage - UPDATE SUCCESS:', {
+        id: data.id,
+        period_start: data.period_start,
+        replies_used: data.replies_used,
+        limit: data.limit
+      });
 
       // Map database fields back to our UsageCounter interface
       counter = {
@@ -404,6 +450,8 @@ export class SupabaseStorage implements IStorage {
       } as UsageCounter;
     }
     
+    console.log('[STORAGE-DEBUG] incrementUsage - Returning counter with repliesUsed:', counter.repliesUsed);
+    console.log('[STORAGE-DEBUG] ========== incrementUsage END ==========');
     return counter;
   }
 

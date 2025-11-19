@@ -26,7 +26,13 @@ export interface UsageStatus {
 export class UsageService {
   private getTodayStart(): Date {
     const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    console.log('[USAGE-DEBUG] getTodayStart called:', {
+      now: now.toISOString(),
+      todayStart: todayStart.toISOString(),
+      todayStartTime: todayStart.getTime()
+    });
+    return todayStart;
   }
 
   private getTodayEnd(): Date {
@@ -123,8 +129,10 @@ export class UsageService {
     }
 
     // Get or create usage counter for this period
+    console.log('[USAGE-DEBUG] getUsageStatus - Looking up counter with periodStart:', window.periodStart.toISOString());
     let counter = await storage.getUsageCounter(userId, window.periodStart);
     if (!counter) {
+      console.log('[USAGE-DEBUG] getUsageStatus - Counter NOT FOUND, creating new');
       counter = await storage.createUsageCounter({
         id: crypto.randomUUID(),
         userId,
@@ -135,7 +143,9 @@ export class UsageService {
         limit: window.limit,
         resetAt: window.resetAt,
       });
+      console.log('[USAGE-DEBUG] getUsageStatus - Created counter:', { id: counter.id, repliesUsed: counter.repliesUsed, periodStart: counter.periodStart.toISOString() });
     } else {
+      console.log('[USAGE-DEBUG] getUsageStatus - Counter FOUND:', { id: counter.id, repliesUsed: counter.repliesUsed, limit: counter.limit, periodStart: counter.periodStart.toISOString() });
       // Fix: Update existing counter if limit doesn't match current config
       // This handles cases where old counters have outdated limits (e.g., 50000 from testing)
       if (counter.planCode === 'trial' || counter.planCode === 'testing') {
@@ -239,14 +249,19 @@ export class UsageService {
   }
 
   async consumeReply(userId: string): Promise<UsageCounter> {
+    console.log('[USAGE-DEBUG] ========== consumeReply START ==========');
+    console.log('[USAGE-DEBUG] consumeReply - userId:', userId);
+    
     const user = await storage.getUser(userId);
     if (!user) {
       throw new Error('User not found');
     }
+    console.log('[USAGE-DEBUG] consumeReply - user email:', user.email);
 
     // Fix: Add whitelist check for defense in depth
     // Whitelisted users don't consume quota, return current status without incrementing
     if (whitelistService.isWhitelisted(user.email)) {
+      console.log('[USAGE-DEBUG] consumeReply - User is WHITELISTED, not incrementing');
       const window = await this.resolveActiveWindow(user);
       if (!window) {
         throw new Error('No active usage window');
@@ -275,10 +290,13 @@ export class UsageService {
     if (!window) {
       throw new Error('No active usage window');
     }
+    console.log('[USAGE-DEBUG] consumeReply - window.periodStart:', window.periodStart.toISOString());
 
     // Get or create usage counter
+    console.log('[USAGE-DEBUG] consumeReply - Looking up counter...');
     let counter = await storage.getUsageCounter(userId, window.periodStart);
     if (!counter) {
+      console.log('[USAGE-DEBUG] consumeReply - Counter NOT FOUND, creating new');
       counter = await storage.createUsageCounter({
         id: crypto.randomUUID(),
         userId,
@@ -289,15 +307,23 @@ export class UsageService {
         limit: window.limit,
         resetAt: window.resetAt,
       });
+      console.log('[USAGE-DEBUG] consumeReply - Created counter:', { id: counter.id, repliesUsed: counter.repliesUsed });
+    } else {
+      console.log('[USAGE-DEBUG] consumeReply - Counter FOUND:', { id: counter.id, repliesUsed: counter.repliesUsed, limit: counter.limit });
     }
 
     // Check limit before incrementing
     if (counter.repliesUsed >= counter.limit) {
+      console.log('[USAGE-DEBUG] consumeReply - QUOTA EXCEEDED, not incrementing');
       throw new Error('Quota exceeded');
     }
 
     // Increment usage atomically
-    return await storage.incrementUsage(userId, window.periodStart);
+    console.log('[USAGE-DEBUG] consumeReply - About to call incrementUsage for periodStart:', window.periodStart.toISOString());
+    const updatedCounter = await storage.incrementUsage(userId, window.periodStart);
+    console.log('[USAGE-DEBUG] consumeReply - After incrementUsage:', { id: updatedCounter.id, repliesUsed: updatedCounter.repliesUsed });
+    console.log('[USAGE-DEBUG] ========== consumeReply END ==========');
+    return updatedCounter;
   }
 
   async initializeTrialForUser(userId: string): Promise<void> {
