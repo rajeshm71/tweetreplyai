@@ -1,13 +1,13 @@
 // New interfaces for detailed quality scoring
 export interface QualityParameter {
   name: string;
-  score: number; // 0-10
+  score: number; // 5-10 (minimum 5 points per parameter)
   maxScore: number; // Always 10
   reason: string;
 }
 
 export interface DetailedQualityCheckResult {
-  totalScore: number; // 0-100
+  totalScore: number; // 50-100 (10 parameters × 5-10 points)
   passed: boolean; // >= 60
   parameters: QualityParameter[];
   issues: string[]; // Reasons for low scores
@@ -53,22 +53,23 @@ export class QualityChecker {
   ]);
 
   // ========== PARAMETER 1: Length Appropriateness ==========
+  // Score range: 5-10 points (minimum 5)
   private scoreLengthAppropriateness(reply: string): QualityParameter {
     const length = reply.length;
-    let score = 0;
+    let score = 5; // Minimum score
     let reason = '';
 
     if (length >= 40 && length <= 200) {
       score = 10;
       reason = 'Perfect length for engagement';
     } else if ((length >= 20 && length < 40) || (length > 200 && length <= 250)) {
-      score = 7;
+      score = 8;
       reason = 'Good length but could be optimized';
     } else if ((length >= 10 && length < 20) || (length > 250 && length <= 280)) {
-      score = 4;
+      score = 6;
       reason = length < 20 ? 'Reply is too short' : 'Reply is getting too long';
     } else {
-      score = 0;
+      score = 5;
       reason = length < 10 ? 'Reply is way too short' : 'Reply exceeds Twitter character limit';
     }
 
@@ -81,11 +82,12 @@ export class QualityChecker {
   }
 
   // ========== PARAMETER 2: Sentiment Appropriateness ==========
+  // Score range: 5-10 points (minimum 5)
   private scoreSentimentAppropriateness(reply: string, originalTweet: string): QualityParameter {
     const replySentiment = this.analyzeSentiment(reply);
     const originalSentiment = this.analyzeSentiment(originalTweet);
     
-    let score = 0;
+    let score = 5; // Minimum score
     let reason = '';
 
     if (replySentiment === originalSentiment) {
@@ -95,7 +97,7 @@ export class QualityChecker {
       (replySentiment === 'neutral' && originalSentiment !== 'neutral') ||
       (replySentiment !== 'neutral' && originalSentiment === 'neutral')
     ) {
-      score = 7;
+      score = 8;
       reason = 'Sentiment slightly mismatched but acceptable';
     } else if (
       (replySentiment === 'positive' && originalSentiment === 'negative') ||
@@ -104,10 +106,10 @@ export class QualityChecker {
       // Check if it's constructive criticism or supportive response
       const isConstructive = /\b(however|but|although|instead|could|might|try)\b/i.test(reply);
       if (isConstructive) {
-        score = 4;
+        score = 6;
         reason = 'Opposite sentiment but constructive';
       } else {
-        score = 0;
+        score = 5;
         reason = 'Sentiment completely opposite and inappropriate';
       }
     }
@@ -121,6 +123,7 @@ export class QualityChecker {
   }
 
   // ========== PARAMETER 3: Relevance to Topic ==========
+  // Score range: 5-10 points (minimum 5)
   private scoreRelevanceToTopic(reply: string, originalTweet: string): QualityParameter {
     const replyWords = this.extractKeywords(reply.toLowerCase());
     const tweetWords = this.extractKeywords(originalTweet.toLowerCase());
@@ -129,20 +132,20 @@ export class QualityChecker {
     const commonWords = replyWords.filter(word => tweetWords.includes(word));
     const overlapRatio = commonWords.length / Math.max(tweetWords.length, 1);
     
-    let score = 0;
+    let score = 5; // Minimum score
     let reason = '';
 
-    if (overlapRatio >= 0.3 || commonWords.length >= 3) {
+    if (overlapRatio >= 0.5 || commonWords.length >= 5) {
       score = 10;
       reason = 'Highly relevant to original topic';
-    } else if (overlapRatio >= 0.15 || commonWords.length >= 2) {
-      score = 7;
-      reason = 'Related but somewhat tangential';
-    } else if (overlapRatio >= 0.05 || commonWords.length >= 1) {
-      score = 4;
+    } else if (overlapRatio >= 0.3 || commonWords.length >= 3) {
+      score = 8;
+      reason = 'Related and on-topic';
+    } else if (overlapRatio >= 0.1 || commonWords.length >= 2) {
+      score = 6;
       reason = 'Loosely connected to topic';
     } else {
-      score = 0;
+      score = 5;
       reason = 'Off-topic or too generic';
     }
 
@@ -190,20 +193,21 @@ export class QualityChecker {
       issues.push('missing ending punctuation');
     }
 
-    let score = 0;
+    // Score range: 5-10 points (minimum 5)
+    let score = 5; // Minimum score
     let reason = '';
 
     if (errorCount === 0) {
       score = 10;
       reason = 'Perfect grammar and clarity';
-    } else if (errorCount <= 1) {
-      score = 7;
+    } else if (errorCount <= 2) {
+      score = 8;
       reason = '1-2 minor errors';
-    } else if (errorCount <= 3) {
-      score = 4;
+    } else if (errorCount <= 4) {
+      score = 6;
       reason = '3-4 grammar or clarity issues';
     } else {
-      score = 0;
+      score = 5;
       reason = 'Multiple errors affecting readability';
     }
 
@@ -251,16 +255,21 @@ export class QualityChecker {
       features.push('generic response');
     }
 
-    let score = Math.min(10, engagementScore);
+    // Score range: 5-10 points (minimum 5)
+    let score = Math.min(10, Math.max(5, 5 + engagementScore / 2)); // Scale to 5-10 range
     let reason = '';
 
-    if (score >= 8) {
+    if (engagementScore >= 8) {
+      score = 10;
       reason = `High engagement: ${features.join(', ')}`;
-    } else if (score >= 5) {
+    } else if (engagementScore >= 5) {
+      score = 8;
       reason = `Good engagement potential: ${features.join(', ')}`;
-    } else if (score >= 2) {
+    } else if (engagementScore >= 2) {
+      score = 6;
       reason = `Minimal engagement: ${features.join(', ')}`;
     } else {
+      score = 5;
       reason = 'Dead-end response with no engagement value';
     }
 
@@ -273,18 +282,19 @@ export class QualityChecker {
   }
 
   // ========== PARAMETER 6: Authenticity ==========
+  // Score range: 5-10 points (minimum 5)
   private scoreAuthenticity(reply: string): QualityParameter {
     let score = 10;
     let issues: string[] = [];
 
     // Check for AI-like phrases
     const aiPatterns = [
-      { pattern: /\b(as an ai|i'm an ai|i'm a language model|i'm a bot|i'm an assistant)\b/i, deduction: 10, issue: 'AI self-identification' },
-      { pattern: /\b(i (can't|cannot|am not able to|unable to) (help|assist|provide))\b/i, deduction: 10, issue: 'AI limitation statement' },
-      { pattern: /\b(i (don't|do not) have (access|information|knowledge|the ability))\b/i, deduction: 10, issue: 'AI disclaimer' },
-      { pattern: /\b(i would (like to|be happy to|be delighted to))\b/i, deduction: 4, issue: 'overly formal' },
-      { pattern: /\b(please (let me know|feel free to|don't hesitate to))\b/i, deduction: 4, issue: 'robotic politeness' },
-      { pattern: /\b(furthermore|moreover|additionally|in conclusion|in summary)\b/i, deduction: 3, issue: 'formal transitions' },
+      { pattern: /\b(as an ai|i'm an ai|i'm a language model|i'm a bot|i'm an assistant)\b/i, deduction: 5, issue: 'AI self-identification' },
+      { pattern: /\b(i (can't|cannot|am not able to|unable to) (help|assist|provide))\b/i, deduction: 5, issue: 'AI limitation statement' },
+      { pattern: /\b(i (don't|do not) have (access|information|knowledge|the ability))\b/i, deduction: 5, issue: 'AI disclaimer' },
+      { pattern: /\b(i would (like to|be happy to|be delighted to))\b/i, deduction: 2, issue: 'overly formal' },
+      { pattern: /\b(please (let me know|feel free to|don't hesitate to))\b/i, deduction: 2, issue: 'robotic politeness' },
+      { pattern: /\b(furthermore|moreover|additionally|in conclusion|in summary)\b/i, deduction: 1, issue: 'formal transitions' },
     ];
 
     for (const { pattern, deduction, issue } of aiPatterns) {
@@ -295,19 +305,20 @@ export class QualityChecker {
     }
 
     // Bonus for natural contractions and casual language
-    const hasContractions = /(don't|can't|won't|wouldn't|shouldn't|couldn't|isn't|aren't|wasn't|weren't|i'm|you're|they're|we're)/i.test(reply);
+    const hasContractions = QualityChecker.CONTRACTION_REGEX.test(reply);
     if (hasContractions && score === 10) {
       issues.push('natural contractions');
     }
 
-    score = Math.max(0, score);
+    // Minimum score: 5 points
+    score = Math.max(5, score);
     let reason = '';
 
     if (score >= 9) {
       reason = 'Very natural and human-like';
     } else if (score >= 7) {
       reason = 'Slightly formal but acceptable';
-    } else if (score >= 4) {
+    } else if (score >= 6) {
       reason = `Somewhat robotic: ${issues.join(', ')}`;
     } else {
       reason = `Clearly AI-generated: ${issues.join(', ')}`;
@@ -322,31 +333,32 @@ export class QualityChecker {
   }
 
   // ========== PARAMETER 7: Value Addition ==========
+  // Score range: 5-10 points (minimum 5)
   private scoreValueAddition(reply: string, originalTweet: string): QualityParameter {
-    let score = 0;
+    let rawScore = 0;
     let valueTypes: string[] = [];
 
     // Provides new information
     if (/\b(actually|in fact|interestingly|also|additionally|another|furthermore)\b/i.test(reply)) {
-      score += 4;
+      rawScore += 4;
       valueTypes.push('adds information');
     }
 
     // Shares perspective
     if (/\b(i think|i believe|my view|from my perspective|in my experience|seems to me)\b/i.test(reply)) {
-      score += 3;
+      rawScore += 3;
       valueTypes.push('shares perspective');
     }
 
     // Offers actionable advice
     if (/\b(try|consider|check out|look into|might want to|could|should|recommend)\b/i.test(reply)) {
-      score += 4;
+      rawScore += 4;
       valueTypes.push('offers advice');
     }
 
     // Includes specific examples or data
     if (/\b(for example|such as|like|e\.g\.|specifically|\d+%|\d+x)\b/i.test(reply)) {
-      score += 3;
+      rawScore += 3;
       valueTypes.push('includes examples');
     }
 
@@ -355,18 +367,28 @@ export class QualityChecker {
     const isGenericAgreement = /^(i agree|exactly|totally|absolutely|yes|true|right|correct)!*$/i.test(reply.trim());
     
     if (isRestating || isGenericAgreement) {
-      score = Math.min(score, 0);
+      rawScore = 0;
       valueTypes = ['generic agreement'];
     }
 
-    score = Math.min(10, score);
-    let reason = '';
+    // Map to 5-10 scale
+    let score = 5; // Minimum
+    if (rawScore >= 10) {
+      score = 10;
+    } else if (rawScore >= 7) {
+      score = 8;
+    } else if (rawScore >= 4) {
+      score = 7;
+    } else if (rawScore >= 2) {
+      score = 6;
+    }
 
-    if (score >= 8) {
+    let reason = '';
+    if (score >= 9) {
       reason = `High value: ${valueTypes.join(', ')}`;
-    } else if (score >= 5) {
+    } else if (score >= 7) {
       reason = `Adds some value: ${valueTypes.join(', ')}`;
-    } else if (score >= 2) {
+    } else if (score >= 6) {
       reason = `Minor value: ${valueTypes.join(', ')}`;
     } else {
       reason = 'No meaningful value added';
@@ -381,6 +403,7 @@ export class QualityChecker {
   }
 
   // ========== PARAMETER 8: Emotional Intelligence ==========
+  // Score range: 5-10 points (minimum 5)
   private scoreEmotionalIntelligence(reply: string, originalTweet: string): QualityParameter {
     let score = 7; // Start with neutral
     let traits: string[] = [];
@@ -402,31 +425,32 @@ export class QualityChecker {
       }
       // Avoid being overly cheerful to negative posts
       if (/\b(haha|lol|lmao|😂|🤣)/i.test(reply)) {
-        score -= 6;
+        score -= 3;
         traits.push('tone-deaf');
       }
     }
 
     // Aggressive or inappropriate
     if (/\b(stupid|idiot|dumb|moron|shut up|wrong|ridiculous|nonsense)\b/i.test(reply)) {
-      score -= 8;
+      score -= 4;
       traits.push('aggressive/inappropriate');
     }
 
     // Overly aggressive punctuation
     if (/[!]{3,}/.test(reply)) {
-      score -= 2;
+      score -= 1;
       traits.push('overly aggressive');
     }
 
-    score = Math.max(0, Math.min(10, score));
+    // Minimum score: 5 points
+    score = Math.max(5, Math.min(10, score));
     let reason = '';
 
     if (score >= 9) {
       reason = `High EQ: ${traits.join(', ')}`;
     } else if (score >= 7) {
       reason = 'Appropriate emotional tone';
-    } else if (score >= 4) {
+    } else if (score >= 6) {
       reason = `Slightly tone-deaf: ${traits.join(', ')}`;
     } else {
       reason = `Inappropriate: ${traits.join(', ')}`;
@@ -441,12 +465,13 @@ export class QualityChecker {
   }
 
   // ========== PARAMETER 9: Conciseness ==========
+  // Score range: 5-10 points (minimum 5)
   private scoreConciseness(reply: string): QualityParameter {
     const length = reply.length;
     const wordCount = reply.split(/\s+/).length;
     const avgWordLength = reply.replace(/\s/g, '').length / wordCount;
 
-    let score = 0;
+    let score = 5; // Minimum score
     let reason = '';
 
     // Check information density
@@ -456,13 +481,13 @@ export class QualityChecker {
       score = 10;
       reason = 'High information density - concise and substantial';
     } else if (length >= 120 && length <= 180) {
-      score = 7;
+      score = 8;
       reason = 'Good balance of detail and brevity';
     } else if (length > 180 && length <= 250) {
-      score = 4;
+      score = 6;
       reason = 'Somewhat verbose, could be more concise';
     } else if (length > 250 || !hasSubstance) {
-      score = 0;
+      score = 5;
       reason = length > 250 ? 'Extremely wordy' : 'Too brief without substance';
     }
 
@@ -475,12 +500,13 @@ export class QualityChecker {
   }
 
   // ========== PARAMETER 10: Emoji Appropriateness ==========
+  // Score range: 5-10 points (minimum 5)
   private scoreEmojiAppropriateness(reply: string): QualityParameter {
     // FIX: Use static regex constant (Review Issue #1)
     const emojis = reply.match(QualityChecker.EMOJI_REGEX) || [];
     const emojiCount = emojis.length;
 
-    let score = 0;
+    let score = 5; // Minimum score
     let reason = '';
 
     // Check if reply is professional/technical (less need for emojis)
@@ -491,20 +517,20 @@ export class QualityChecker {
         score = 10;
         reason = 'No emojis - appropriate for professional context';
       } else {
-        score = 7;
+        score = 8;
         reason = 'No emojis but acceptable';
       }
-    } else if (emojiCount >= 1 && emojiCount <= 2) {
+    } else if (emojiCount >= 1 && emojiCount <= 3) {
       score = 10;
-      reason = '1-2 relevant emojis enhance message';
-    } else if (emojiCount >= 3 && emojiCount <= 4) {
+      reason = '1-3 relevant emojis enhance message';
+    } else if (emojiCount >= 4 && emojiCount <= 5) {
       score = 7;
-      reason = '3-4 emojis - acceptable but could be reduced';
-    } else if (emojiCount >= 5 && emojiCount <= 6) {
-      score = 4;
+      reason = '4-5 emojis - acceptable but could be reduced';
+    } else if (emojiCount >= 6 && emojiCount <= 8) {
+      score = 6;
       reason = 'Too many emojis - looks spammy';
     } else {
-      score = 0;
+      score = 5;
       reason = 'Excessive emojis - unprofessional';
     }
 

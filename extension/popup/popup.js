@@ -1013,11 +1013,11 @@ class PopupManager {
       this.todayReplies.textContent = used;
     }
 
-    // Update success rate from quality metrics (0-100 scale)
+    // Update success rate from quality metrics (50-100 scale)
     if (this.successRate) {
-      if (this.qualityMetrics && this.qualityMetrics.metrics && this.qualityMetrics.metrics.avg_quality_score !== undefined) {
-        // Display as integer (0-100 scale)
-        const score = Math.round(this.qualityMetrics.metrics.avg_quality_score);
+      if (this.qualityMetrics && this.qualityMetrics.avg_quality_score !== undefined) {
+        // Display as integer (50-100 scale)
+        const score = Math.round(this.qualityMetrics.avg_quality_score);
         this.successRate.textContent = score.toString();
       } else {
         this.successRate.textContent = '--';
