@@ -862,13 +862,13 @@ class PopupManager {
     // Safely extract metrics with fallback values
     const metrics = data.metrics || {};
     
-    // Format average score - handle both decimal (0-1) and percentage (0-100) formats
+    // Display average quality score (0-100 scale)
     if (avgQuality) {
-      // Fix: Use extracted helper method to eliminate code duplication
-      // Note: displayAnalytics uses '-' for empty, but formatQualityScore returns '--'
-      // Using formatQualityScore for consistency, but could normalize if needed
-      const formatted = this.formatQualityScore(metrics.averageScore);
-      avgQuality.textContent = formatted === '--' ? '-' : formatted;
+      if (metrics.avg_quality_score !== undefined && metrics.avg_quality_score !== null) {
+        avgQuality.textContent = Math.round(metrics.avg_quality_score).toString();
+      } else {
+        avgQuality.textContent = '-';
+      }
     }
     
     // Display total replies
@@ -1013,11 +1013,12 @@ class PopupManager {
       this.todayReplies.textContent = used;
     }
 
-    // Update success rate from quality metrics
+    // Update success rate from quality metrics (0-100 scale)
     if (this.successRate) {
-      if (this.qualityMetrics && this.qualityMetrics.metrics) {
-        // Fix: Use extracted helper method to eliminate code duplication
-        this.successRate.textContent = this.formatQualityScore(this.qualityMetrics.metrics.averageScore);
+      if (this.qualityMetrics && this.qualityMetrics.metrics && this.qualityMetrics.metrics.avg_quality_score !== undefined) {
+        // Display as integer (0-100 scale)
+        const score = Math.round(this.qualityMetrics.metrics.avg_quality_score);
+        this.successRate.textContent = score.toString();
       } else {
         this.successRate.textContent = '--';
       }

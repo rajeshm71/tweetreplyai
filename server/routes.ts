@@ -483,13 +483,16 @@ export async function registerRoutes(app: Express): Promise<Express> {
         tweetMetadata: tweet_metadata,
       });
 
-      // Quality check and regenerate if needed
+      // Quality check with detailed parameters (new 10-parameter system)
       const { qualityChecker } = await import('./services/quality-checker.js');
-      const qualityCheck = qualityChecker.checkQuality(replyResponse.reply, tweet_text);
+      const qualityResult = qualityChecker.checkQuality(replyResponse.reply, tweet_text);
       
-      if (!qualityCheck.passed) {
-        console.log(`⚠️ [Quality] Reply failed quality check (score: ${qualityCheck.score})`);
-        console.log(`🔧 [Quality] Issues: ${qualityCheck.issues.join(', ')}`);
+      if (!qualityResult.passed) {
+        console.log(`⚠️ [Quality] Reply failed quality check (score: ${qualityResult.totalScore}/100)`);
+        const lowScores = qualityResult.parameters.filter(p => p.score <= 4);
+        if (lowScores.length > 0) {
+          console.log(`🔧 [Quality] Low scores: ${lowScores.map(p => `${p.name}(${p.score})`).join(', ')}`);
+        }
         
         // Try to regenerate with a different approach
         try {
@@ -504,16 +507,16 @@ export async function registerRoutes(app: Express): Promise<Express> {
             tweetMetadata: tweet_metadata,
           });
           
-          const retryQualityCheck = qualityChecker.checkQuality(retryResponse.reply, tweet_text);
-          if (retryQualityCheck.score > qualityCheck.score) {
-            console.log(`✅ [Quality] Retry improved quality (${retryQualityCheck.score} vs ${qualityCheck.score})`);
+          const retryQualityResult = qualityChecker.checkQuality(retryResponse.reply, tweet_text);
+          if (retryQualityResult.totalScore > qualityResult.totalScore) {
+            console.log(`✅ [Quality] Retry improved quality (${retryQualityResult.totalScore} vs ${qualityResult.totalScore})`);
             replyResponse = retryResponse;
           }
         } catch (retryError) {
           console.log(`❌ [Quality] Retry failed, using original reply`);
         }
       } else {
-        console.log(`✅ [Quality] Reply passed quality check (score: ${qualityCheck.score})`);
+        console.log(`✅ [Quality] Reply passed quality check (score: ${qualityResult.totalScore}/100)`);
       }
 
       // Log the reply event
@@ -527,7 +530,10 @@ export async function registerRoutes(app: Express): Promise<Express> {
         cost: 0,
       });
 
-      // Save to reply history
+      // Re-check quality for the final reply (in case it was retried)
+      const finalQualityResult = qualityChecker.checkQuality(replyResponse.reply, tweet_text);
+
+      // Save to reply history with detailed quality breakdown
       const historyEntry = await storage.createReplyHistory({
         id: crypto.randomUUID(),
         userId,
@@ -535,19 +541,24 @@ export async function registerRoutes(app: Express): Promise<Express> {
         generatedReply: replyResponse.reply,
         modelKey: replyResponse.modelKey,
         promptKey: prompt_variation || 'default',
-        qualityScore: qualityCheck.score,
+        qualityScore: finalQualityResult.totalScore,
+        performance: {
+          qualityParameters: finalQualityResult.parameters,
+          latencyMs: replyResponse.latencyMs,
+        },
       });
 
-      // Return response with updated usage
+      // Return response with updated usage and quality details
       res.json({
         reply: replyResponse.reply,
-        qualityScore: qualityCheck.score,
+        qualityScore: finalQualityResult.totalScore,
         used: updatedCounter.repliesUsed,
         limit: updatedCounter.limit,
         resetAt: updatedCounter.resetAt,
         meta: {
           modelKey: replyResponse.modelKey,
           latencyMs: replyResponse.latencyMs,
+          qualityBreakdown: finalQualityResult.parameters,
         },
       });
 
@@ -971,16 +982,17 @@ export async function registerRoutes(app: Express): Promise<Express> {
         };
       }
       
-      // Analyze the draft for quality metrics
-      const qualityCheck = qualityChecker.checkQuality(draft_reply, original_tweet);
-      const suggestions = qualityChecker.getImprovementSuggestions(draft_reply, original_tweet);
+      // Analyze the draft for quality metrics with detailed breakdown
+      const qualityResult = qualityChecker.checkQuality(draft_reply, original_tweet);
+      const improvedQualityResult = qualityChecker.checkQuality(improvedReply, original_tweet);
 
       res.json({
         original: draft_reply,
         improved: improvedReply,
-        qualityScore: qualityCheck.score,
-        issues: qualityCheck.issues,
-        suggestions: suggestions,
+        qualityScore: qualityResult.totalScore,
+        improvedQualityScore: improvedQualityResult.totalScore,
+        qualityParameters: qualityResult.parameters,
+        suggestions: qualityResult.suggestions,
         analysis: {
           wordCount: draft_reply.split(/\s+/).length,
           length: draft_reply.length,

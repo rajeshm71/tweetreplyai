@@ -1,0 +1,37 @@
+[1mdiff --git a/vercel.json b/vercel.json[m
+[1mindex 1c1014f..294c399 100644[m
+[1m--- a/vercel.json[m
+[1m+++ b/vercel.json[m
+[36m@@ -1,10 +1,28 @@[m
+ {[m
+   "version": 2,[m
+[31m-  "buildCommand": "npm run vercel-build",[m
+[31m-  "rewrites": [[m
+[32m+[m[32m  "buildCommand": "npm run build",[m
+[32m+[m[32m  "builds": [[m
+     {[m
+[31m-      "source": "/(.*)",[m
+[31m-      "destination": "/index.html"[m
+[32m+[m[32m      "src": "dist/prod.js",[m
+[32m+[m[32m      "use": "@vercel/node"[m
+[32m+[m[32m    },[m
+[32m+[m[32m    {[m
+[32m+[m[32m      "src": "dist/public/**",[m
+[32m+[m[32m      "use": "@vercel/static"[m
+[32m+[m[32m    }[m
+[32m+[m[32m  ],[m
+[32m+[m[32m  "routes": [[m
+[32m+[m[32m    {[m
+[32m+[m[32m      "src": "/assets/(.*)",[m
+[32m+[m[32m      "dest": "/dist/public/assets/$1"[m
+[32m+[m[32m    },[m
+[32m+[m[32m    {[m
+[32m+[m[32m      "src": "/(.*\\.css)$",[m
+[32m+[m[32m      "dest": "/dist/public/$1"[m
+[32m+[m[32m    },[m
+[32m+[m[32m    {[m
+[32m+[m[32m      "src": "/(.*)",[m
+[32m+[m[32m      "dest": "/dist/prod.js"[m
+     }[m
+   ],[m
+   "env": {[m

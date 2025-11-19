@@ -1126,6 +1126,11 @@
           limit: response.limit,
           resetAt: response.resetAt
         };
+        try {
+          chrome.runtime.sendMessage({ action: "usageUpdated" }).catch(() => {
+          });
+        } catch (error) {
+        }
         this.showMessage(composer, "\u2713 Reply inserted", "success");
         this.updateAllButtonStates();
       } catch (error) {
@@ -1241,6 +1246,13 @@
             limit: response.limit || this.usageData.limit,
             resetAt: response.resetAt || this.usageData.resetAt
           };
+        }
+        if (response.usage || response.used !== void 0) {
+          try {
+            chrome.runtime.sendMessage({ action: "usageUpdated" }).catch(() => {
+            });
+          } catch (error) {
+          }
         }
         this.updateAllButtonStates();
       } catch (error) {
