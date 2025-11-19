@@ -406,17 +406,34 @@ class PopupManager {
 
   async loadQualityMetrics() {
     try {
-      this.qualityMetrics = await this.apiClient.getQualityMetrics(30);
-      console.log('[DEBUG] Quality metrics loaded:', this.qualityMetrics);
-      console.log('[DEBUG] Avg score:', this.qualityMetrics?.metrics?.avg_quality_score);
-      console.log('[DEBUG] High quality:', this.qualityMetrics?.metrics?.high_quality_replies);
-      console.log('[DEBUG] Low quality:', this.qualityMetrics?.metrics?.low_quality_replies);
+      const response = await this.apiClient.getQualityMetrics(30);
+      this.processQualityMetricsResponse(response);
       // Update quick stats after loading quality metrics
       this.updateQuickStats();
+      return response;
     } catch (error) {
       console.error('[ERROR] Failed to load quality metrics:', error);
-      this.qualityMetrics = null;
+      this.processQualityMetricsResponse(null);
+      return null;
     }
+  }
+
+  processQualityMetricsResponse(response) {
+    this.qualityMetricsResponse = response;
+
+    if (!response) {
+      console.warn('[WARN] No quality metrics response available');
+      this.qualityMetrics = null;
+      this.qualityRecommendations = [];
+      return;
+    }
+
+    const { metrics = null, recommendations = [] } = response;
+    this.qualityMetrics = metrics;
+    this.qualityRecommendations = Array.isArray(recommendations) ? recommendations : [];
+
+    console.log('[DEBUG] Normalized quality metrics:', this.qualityMetrics);
+    console.log('[DEBUG] Normalized recommendations:', this.qualityRecommendations);
   }
 
   setState(state) {
@@ -841,11 +858,14 @@ class PopupManager {
     });
   }
 
-  async loadAnalytics() {
+  async loadAnalytics(forceRefresh = false) {
     try {
-      // Fix: Use consistent 30-day parameter to match loadQualityMetrics()
-      const metrics = await this.apiClient.getQualityMetrics(30);
-      this.displayAnalytics(metrics);
+      if (!this.qualityMetricsResponse || forceRefresh) {
+        const response = await this.apiClient.getQualityMetrics(30);
+        this.processQualityMetricsResponse(response);
+        this.updateQuickStats();
+      }
+      this.displayAnalytics(this.qualityMetricsResponse);
     } catch (error) {
       console.error('Failed to load analytics:', error);
       // Fix: Show empty state on error instead of leaving stale data
@@ -866,13 +886,15 @@ class PopupManager {
     const highQuality = document.getElementById('high-quality');
     
     // Safely extract metrics with fallback values
-    const metrics = data.metrics || {};
+    const metrics = data.metrics || this.qualityMetrics || {};
+    const recommendations = data.recommendations ?? this.qualityRecommendations ?? [];
     console.log('[DEBUG] Analytics metrics:', metrics);
     
     // Display average quality score (50-100 scale)
     if (avgQuality) {
-      if (metrics.avg_quality_score !== undefined && metrics.avg_quality_score !== null) {
-        const score = Math.round(metrics.avg_quality_score);
+      const avgScore = metrics.avg_quality_score;
+      if (avgScore !== undefined && avgScore !== null) {
+        const score = Math.round(avgScore);
         console.log('[DEBUG] Displaying analytics avg quality:', score);
         avgQuality.textContent = score.toString();
       } else {
@@ -883,11 +905,16 @@ class PopupManager {
     
     // Display total replies - calculate from high + low quality counts
     if (totalReplies) {
-      const high = metrics.high_quality_replies || 0;
-      const low = metrics.low_quality_replies || 0;
-      const total = high + low;
+      const high = metrics.high_quality_replies ?? 0;
+      const low = metrics.low_quality_replies ?? 0;
+      const computedTotal = high + low;
+      const total = metrics.totalReplies ?? computedTotal;
       console.log('[DEBUG] Total replies calculated:', total, '(high:', high, 'low:', low, ')');
-      totalReplies.textContent = total > 0 ? total.toString() : '-';
+      if (total !== undefined && total !== null) {
+        totalReplies.textContent = total.toString();
+      } else {
+        totalReplies.textContent = '-';
+      }
     }
     
     // Display high quality count
@@ -900,10 +927,10 @@ class PopupManager {
     // Display recommendations
     const recommendationsList = document.getElementById('recommendations-list');
     if (recommendationsList) {
-      if (data.recommendations && Array.isArray(data.recommendations) && data.recommendations.length > 0) {
+      if (recommendations.length > 0) {
         recommendationsList.innerHTML = `
           <h4>Recommendations:</h4>
-          <ul>${data.recommendations.map(rec => `<li>${this.escapeHtml(rec)}</li>`).join('')}</ul>
+          <ul>${recommendations.map(rec => `<li>${this.escapeHtml(rec)}</li>`).join('')}</ul>
         `;
       } else {
         recommendationsList.innerHTML = '';
@@ -1032,14 +1059,14 @@ class PopupManager {
     // Update success rate from quality metrics (50-100 scale)
     if (this.successRate) {
       console.log('[DEBUG] updateQuickStats - qualityMetrics:', this.qualityMetrics);
-      console.log('[DEBUG] updateQuickStats - has metrics?:', !!this.qualityMetrics?.metrics);
-      console.log('[DEBUG] updateQuickStats - avg_quality_score:', 
-        this.qualityMetrics?.metrics?.avg_quality_score);
+      console.log('[DEBUG] updateQuickStats - has metrics?:', !!this.qualityMetrics);
+      console.log('[DEBUG] updateQuickStats - avg_quality_score:',
+        this.qualityMetrics?.avg_quality_score);
       
-      if (this.qualityMetrics && this.qualityMetrics.metrics && 
-          this.qualityMetrics.metrics.avg_quality_score !== undefined) {
+      if (this.qualityMetrics && this.qualityMetrics.avg_quality_score !== undefined &&
+          this.qualityMetrics.avg_quality_score !== null) {
         // Display as integer (50-100 scale) - even 0 is valid
-        const score = Math.round(this.qualityMetrics.metrics.avg_quality_score);
+        const score = Math.round(this.qualityMetrics.avg_quality_score);
         console.log('[DEBUG] Displaying quality score:', score);
         this.successRate.textContent = score.toString();
       } else {
