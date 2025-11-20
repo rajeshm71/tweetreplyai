@@ -467,6 +467,12 @@ export async function registerRoutes(app: Express): Promise<Express> {
 
       // Run AI-powered tweet analysis agents (in parallel)
       let tweetAnalysis = null;
+      const analysisStartTime = Date.now();
+      console.log('[API] ========== TWEET ANALYSIS START ==========');
+      console.log('[API] Tweet text length:', tweetText.length);
+      console.log('[API] Author:', authorInfo?.username || 'unknown');
+      console.log('[API] Conversation context:', conversation_context ? `Thread with ${conversation_context.length} tweets` : 'None');
+      
       try {
         const { tweetAnalysisOrchestrator } = await import('./services/tweet-analysis-agents.js');
         const conversationContextForAnalysis = conversation_context ? {
@@ -475,21 +481,33 @@ export async function registerRoutes(app: Express): Promise<Express> {
           isThread: conversation_context.length > 0
         } : undefined;
         
+        console.log('[API] Calling tweetAnalysisOrchestrator.analyzeTweet()...');
         tweetAnalysis = await tweetAnalysisOrchestrator.analyzeTweet(
           tweet_text,
           authorInfo,
           conversationContextForAnalysis
         );
         
+        const analysisLatency = Date.now() - analysisStartTime;
+        
         if (tweetAnalysis) {
-          console.log('[API] Successfully obtained enriched tweet analysis');
+          console.log('[API] ✅ Successfully obtained enriched tweet analysis');
+          console.log('[API] Analysis latency:', analysisLatency, 'ms');
+          console.log('[API] Analysis tone:', tweetAnalysis.understanding.tone);
+          console.log('[API] Analysis sentiment:', tweetAnalysis.understanding.sentiment);
+          console.log('[API] Analysis intention:', tweetAnalysis.intention.intention.substring(0, 100) + '...');
         } else {
-          console.log('[API] Tweet analysis returned null, falling back to basic context');
+          console.log('[API] ⚠️ Tweet analysis returned null, falling back to basic context');
+          console.log('[API] Analysis latency:', analysisLatency, 'ms');
         }
+        console.log('[API] ========== TWEET ANALYSIS END ==========');
       } catch (error: any) {
-        console.error('[API] Error running tweet analysis agents:', error.message);
-        console.error('[API] Stack:', error.stack);
+        const analysisLatency = Date.now() - analysisStartTime;
+        console.error('[API] ❌ Error running tweet analysis agents:', error.message);
+        console.error('[API] Error stack:', error.stack);
+        console.log('[API] Analysis latency before error:', analysisLatency, 'ms');
         console.log('[API] Falling back to basic tweet context analysis');
+        console.log('[API] ========== TWEET ANALYSIS END (ERROR) ==========');
       }
 
       // Analyze tweet context (fallback or additional context)
@@ -587,6 +605,13 @@ export async function registerRoutes(app: Express): Promise<Express> {
         used: updatedCounter.repliesUsed,
         limit: updatedCounter.limit,
         resetAt: updatedCounter.resetAt,
+        // Include analysis data for client-side logging
+        analysis: tweetAnalysis ? {
+          tone: tweetAnalysis.understanding.tone,
+          sentiment: tweetAnalysis.understanding.sentiment,
+          style: tweetAnalysis.understanding.style,
+          intention: tweetAnalysis.intention.intention
+        } : null,
         meta: {
           modelKey: replyResponse.modelKey,
           latencyMs: replyResponse.latencyMs,

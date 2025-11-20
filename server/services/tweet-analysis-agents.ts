@@ -274,19 +274,23 @@ export class TweetAnalysisOrchestrator {
     authorInfo?: { username?: string; verified?: boolean; followerCount?: number },
     conversationContext?: { parentTweets?: string[]; threadLength?: number; isThread?: boolean }
   ): Promise<EnrichedTweetAnalysis | null> {
+    console.log('[TweetAnalysisOrchestrator] ===== analyzeTweet() called =====');
+    console.log('[TweetAnalysisOrchestrator] Feature enabled:', TWEET_ANALYSIS_ENABLED);
+    console.log('[TweetAnalysisOrchestrator] Tweet text preview:', tweetText.substring(0, 50) + '...');
+    
     // Fix: Input validation - ensure tweet text is valid
     if (!tweetText || typeof tweetText !== 'string' || tweetText.trim().length === 0) {
-      console.warn('[TweetAnalysisOrchestrator] Invalid tweet text: empty or not a string');
+      console.warn('[TweetAnalysisOrchestrator] ❌ Invalid tweet text: empty or not a string');
       return null;
     }
     if (tweetText.length > MAX_TWEET_LENGTH) {
-      console.warn(`[TweetAnalysisOrchestrator] Tweet text exceeds maximum length (${tweetText.length} > ${MAX_TWEET_LENGTH})`);
+      console.warn(`[TweetAnalysisOrchestrator] ❌ Tweet text exceeds maximum length (${tweetText.length} > ${MAX_TWEET_LENGTH})`);
       return null;
     }
 
     // Check feature flag
     if (!TWEET_ANALYSIS_ENABLED) {
-      console.log('[TweetAnalysisOrchestrator] Feature disabled, skipping analysis');
+      console.log('[TweetAnalysisOrchestrator] ⚠️ Feature disabled, skipping analysis');
       return null;
     }
 

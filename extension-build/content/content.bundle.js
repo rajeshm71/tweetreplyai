@@ -1105,6 +1105,7 @@
           model_key: options.modelKey || "auto",
           prompt_variation: options.promptVariation || "default"
         });
+        console.log("[TweetReply] \u{1F916} Starting AI-powered tweet analysis (server-side)...");
         const response = await this.apiClient.generateReply({
           tweet_text: tweetText,
           tweet_id: tweetId,
@@ -1116,6 +1117,15 @@
           conversation_context: conversationContext,
           tweet_metadata: tweetMetadata
         });
+        if (response.analysis) {
+          console.log("[TweetReply] \u2705 Tweet analysis completed:", {
+            tone: response.analysis.understanding?.tone,
+            sentiment: response.analysis.understanding?.sentiment,
+            intention: response.analysis.intention?.intention?.substring(0, 80) + "..."
+          });
+        } else {
+          console.log("[TweetReply] \u2139\uFE0F No analysis data in response (using basic context)");
+        }
         await this.insertReplyIntoComposer(composer, {
           reply: response.reply,
           qualityScore: response.qualityScore

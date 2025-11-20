@@ -1252,6 +1252,7 @@ class TwitterReplyInjector {
         model_key: options.modelKey || 'auto',
         prompt_variation: options.promptVariation || 'default'
       });
+      console.log('[TweetReply] 🤖 Starting AI-powered tweet analysis (server-side)...');
 
       const response = await this.apiClient.generateReply({
         tweet_text: tweetText,
@@ -1262,6 +1263,17 @@ class TwitterReplyInjector {
         conversation_context: conversationContext,
         tweet_metadata: tweetMetadata
       });
+
+      // Log analysis results if available
+      if (response.analysis) {
+        console.log('[TweetReply] ✅ Tweet analysis completed:', {
+          tone: response.analysis.understanding?.tone,
+          sentiment: response.analysis.understanding?.sentiment,
+          intention: response.analysis.intention?.intention?.substring(0, 80) + '...'
+        });
+      } else {
+        console.log('[TweetReply] ℹ️ No analysis data in response (using basic context)');
+      }
 
       // Insert the reply into the composer with quality score
       await this.insertReplyIntoComposer(composer, {
