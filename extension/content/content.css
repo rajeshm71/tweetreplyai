@@ -154,10 +154,10 @@
 .tweetreply-model-select,
 .tweetreply-prompt-select,
 .tweetreply-reply-mode-select {
-  padding: 6px 28px 6px 12px;
+  padding: 4px 24px 4px 8px;
   border: 1px solid #cfd9de;
   border-radius: 16px;
-  font-size: 13px;
+  font-size: 12px;
   background: white;
   color: #0f1419;
   cursor: pointer;
@@ -170,7 +170,7 @@
   -moz-appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23636e72' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
-  background-position: right 10px center;
+  background-position: right 8px center;
   background-size: 12px;
 }
 
