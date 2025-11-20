@@ -412,7 +412,20 @@ export async function registerRoutes(app: Express): Promise<Express> {
           verified: z.boolean().optional(),
           follower_count: z.number().optional(),
         }).optional(),
-        conversation_context: z.array(z.string()).optional(),
+        thread_context: z.object({
+          isReply: z.boolean(),
+          originalTweet: z.string().nullable().max(2000), // FIX: Add max length validation
+          originalTweetAuthor: z.string().nullable().max(50), // FIX: Add max length validation
+          threadChain: z.array(z.object({
+            text: z.string().min(1).max(2000), // FIX: Add min/max length validation
+            author: z.string().max(50), // FIX: Add max length validation
+            isOriginal: z.boolean(),
+            isCurrent: z.boolean(),
+          })).max(20), // FIX: Limit array size to prevent abuse
+          currentTweetIndex: z.number().int().min(0), // FIX: Ensure non-negative integer
+          threadLength: z.number().int().min(0).max(20), // FIX: Ensure valid range
+        }).optional(),
+        conversation_context: z.array(z.string()).optional(), // Backward compatibility
         tweet_metadata: z.object({
           has_media: z.boolean().optional(),
           has_poll: z.boolean().optional(),
@@ -427,9 +440,37 @@ export async function registerRoutes(app: Express): Promise<Express> {
         prompt_variation,
         reply_mode,
         author_info,
+        thread_context,
         conversation_context,
         tweet_metadata
       } = schema.parse(req.body);
+
+      // Normalize thread context (use new format if available, fallback to old)
+      let normalizedThreadContext = null;
+      if (thread_context) {
+        normalizedThreadContext = thread_context;
+        console.log('[API] Using new thread_context format:', {
+          isReply: thread_context.isReply,
+          hasOriginal: !!thread_context.originalTweet,
+          threadLength: thread_context.threadLength
+        });
+      } else if (conversation_context && conversation_context.length > 0) {
+        // Convert old format to new format for backward compatibility
+        normalizedThreadContext = {
+          isReply: true,
+          originalTweet: conversation_context[0] || null,
+          originalTweetAuthor: null,
+          threadChain: conversation_context.map((text, idx) => ({
+            text,
+            author: 'unknown',
+            isOriginal: idx === 0,
+            isCurrent: idx === conversation_context.length - 1
+          })),
+          currentTweetIndex: conversation_context.length - 1,
+          threadLength: conversation_context.length
+        };
+        console.log('[API] Converted old conversation_context to thread_context format');
+      }
 
       // Get user for validation
       const user = await storage.getUser(userId);
@@ -475,14 +516,21 @@ export async function registerRoutes(app: Express): Promise<Express> {
         console.log('[API] ========== TWEET ANALYSIS START (ENHANCED MODE) ==========');
         console.log('[API] Tweet text length:', tweet_text.length);
         console.log('[API] Author:', authorInfo?.username || 'unknown');
-        console.log('[API] Conversation context:', conversation_context ? `Thread with ${conversation_context.length} tweets` : 'None');
+        console.log('[API] Thread context:', normalizedThreadContext ? 
+          `Thread with ${normalizedThreadContext.threadLength} tweets (isReply: ${normalizedThreadContext.isReply})` : 
+          'None');
         
         try {
           const { tweetAnalysisOrchestrator } = await import('./services/tweet-analysis-agents.js');
-          const conversationContextForAnalysis = conversation_context ? {
-            parentTweets: conversation_context,
-            threadLength: conversation_context.length,
-            isThread: conversation_context.length > 0
+          // Convert normalized thread context to ConversationContext format for analysis
+          const conversationContextForAnalysis = normalizedThreadContext ? {
+            parentTweets: normalizedThreadContext.threadChain.map(t => t.text),
+            threadLength: normalizedThreadContext.threadLength,
+            isThread: normalizedThreadContext.isReply,
+            originalTweet: normalizedThreadContext.originalTweet,
+            originalTweetAuthor: normalizedThreadContext.originalTweetAuthor,
+            threadChain: normalizedThreadContext.threadChain,
+            currentTweetIndex: normalizedThreadContext.currentTweetIndex
           } : undefined;
           
           console.log('[API] Calling tweetAnalysisOrchestrator.analyzeTweet()...');
@@ -522,10 +570,20 @@ export async function registerRoutes(app: Express): Promise<Express> {
 
       // Analyze tweet context (fallback or additional context)
       const { tweetContextAnalyzer } = await import('./services/tweet-context.js');
+      // Convert normalized thread context to ConversationContext format
+      const conversationContextForTweetAnalyzer = normalizedThreadContext ? {
+        parentTweets: normalizedThreadContext.threadChain.map(t => t.text),
+        threadLength: normalizedThreadContext.threadLength,
+        isThread: normalizedThreadContext.isReply,
+        originalTweet: normalizedThreadContext.originalTweet,
+        originalTweetAuthor: normalizedThreadContext.originalTweetAuthor,
+        threadChain: normalizedThreadContext.threadChain,
+        currentTweetIndex: normalizedThreadContext.currentTweetIndex
+      } : undefined;
       const tweetContext = tweetContextAnalyzer.analyzeTweet(
         tweet_text,
         authorInfo,
-        conversation_context ? { parentTweets: conversation_context, threadLength: conversation_context.length, isThread: conversation_context.length > 0 } : undefined
+        conversationContextForTweetAnalyzer
       );
 
       // Generate the reply with enriched analysis and context
@@ -552,7 +610,8 @@ export async function registerRoutes(app: Express): Promise<Express> {
         tweetContext,
         tweetAnalysis, // Pass enriched analysis from agents
         authorInfo: author_info,
-        conversationContext: conversation_context,
+        threadContext: normalizedThreadContext, // NEW: Pass structured thread context
+        conversationContext: conversationContextForTweetAnalyzer, // For backward compatibility
         tweetMetadata: tweet_metadata,
       });
 
@@ -579,7 +638,8 @@ export async function registerRoutes(app: Express): Promise<Express> {
             tweetContext,
             tweetAnalysis, // Include enriched analysis in retry
             authorInfo: author_info,
-            conversationContext: conversation_context,
+            threadContext: normalizedThreadContext, // NEW: Pass structured thread context
+            conversationContext: conversationContextForTweetAnalyzer, // For backward compatibility
             tweetMetadata: tweet_metadata,
           });
           

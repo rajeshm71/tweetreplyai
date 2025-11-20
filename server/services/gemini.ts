@@ -203,14 +203,21 @@ Instructions:
           verified: options.authorInfo.verified || false,
           followerCount: options.authorInfo.follower_count || 0
         } : undefined;
+        // Use conversationContext if provided (already in correct format), otherwise convert from threadContext
+        const conversationContextForPrompt = options.conversationContext || 
+          (options.threadContext ? {
+            parentTweets: options.threadContext.threadChain.map(t => t.text),
+            threadLength: options.threadContext.threadLength,
+            isThread: options.threadContext.isReply,
+            originalTweet: options.threadContext.originalTweet,
+            originalTweetAuthor: options.threadContext.originalTweetAuthor,
+            threadChain: options.threadContext.threadChain,
+            currentTweetIndex: options.threadContext.currentTweetIndex
+          } : undefined);
         const contextPrompt = tweetContextAnalyzer.generateContextPrompt(
           options.tweetContext,
           authorInfo,
-          options.conversationContext ? {
-            parentTweets: options.conversationContext,
-            threadLength: options.conversationContext.length,
-            isThread: options.conversationContext.length > 0
-          } : undefined
+          conversationContextForPrompt
         );
         
         if (contextPrompt) {
@@ -218,10 +225,25 @@ Instructions:
         }
       }
 
+      // Build user prompt with thread context
+      let userPromptText = promptConfig.userPrompt(options.tweetText);
+      if (options.threadContext && options.threadContext.isReply) {
+        if (options.threadContext.originalTweet) {
+          userPromptText += `\n\nNote: This tweet is a reply. The original tweet that started this conversation was: "${options.threadContext.originalTweet}"`;
+        }
+        if (options.threadContext.threadChain && options.threadContext.threadChain.length > 1) {
+          userPromptText += `\n\nFull conversation thread:`;
+          options.threadContext.threadChain.forEach((tweet, idx) => {
+            const label = tweet.isOriginal ? 'Original' : tweet.isCurrent ? 'Current (replying to)' : `Reply ${idx}`;
+            userPromptText += `\n${label}: "${tweet.text}"`;
+          });
+        }
+      }
+      
       // Create the full prompt with system instructions
       const fullPrompt = `${enhancedSystemPrompt}
 
-${promptConfig.userPrompt(options.tweetText)}`;
+${userPromptText}`;
 
       console.log(`📏 [Gemini] Prompt length: ${fullPrompt.length} characters`);
 

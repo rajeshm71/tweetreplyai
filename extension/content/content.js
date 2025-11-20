@@ -1296,7 +1296,7 @@ class TwitterReplyInjector {
     try {
       // Extract additional context
       const authorInfo = this.extractAuthorInfo();
-      const conversationContext = this.extractConversationContext();
+      const threadContext = this.extractThreadContext();
       const tweetMetadata = this.extractTweetMetadata();
 
       // Log what we're sending for debugging (safely)
@@ -1305,9 +1305,14 @@ class TwitterReplyInjector {
         tweet_text_length: tweetText.length,
         author_info_username: authorInfo?.username || 'unknown',
         model_key: options.modelKey || 'auto',
-        prompt_variation: options.promptVariation || 'default'
+        prompt_variation: options.promptVariation || 'default',
+        is_reply: threadContext?.isReply || false,
+        thread_length: threadContext?.threadLength || 0
       });
       console.log('[TweetReply] 🤖 Starting AI-powered tweet analysis (server-side)...');
+
+      // Maintain backward compatibility with conversation_context
+      const conversationContext = threadContext?.threadChain?.map(t => t.text) || null;
 
       const response = await this.apiClient.generateReply({
         tweet_text: tweetText,
@@ -1316,7 +1321,8 @@ class TwitterReplyInjector {
         reply_mode: options.replyMode, // Reply generation mode
         prompt_variation: options.promptVariation,
         author_info: authorInfo, // Now guaranteed to have follower_count as number
-        conversation_context: conversationContext,
+        thread_context: threadContext, // NEW: Structured thread data
+        conversation_context: conversationContext, // Backward compatibility
         tweet_metadata: tweetMetadata
       });
 
@@ -2426,6 +2432,377 @@ class TwitterReplyInjector {
       console.error('Failed to extract conversation context:', error);
       return null;
     }
+  }
+
+  /**
+   * Extract comprehensive thread context including original tweet and full thread chain
+   * Returns structured data about the conversation thread
+   */
+  extractThreadContext() {
+    try {
+      console.log('[TweetReply] 🔍 Extracting thread context...');
+      
+      // Get current tweet text (the one being replied to)
+      const currentTweetText = this.extractTweetText();
+      if (!currentTweetText) {
+        console.log('[TweetReply] ⚠️ No current tweet found, returning standalone context');
+        return {
+          isReply: false,
+          originalTweet: null,
+          originalTweetAuthor: null,
+          threadChain: [],
+          currentTweetIndex: 0,
+          threadLength: 0
+        };
+      }
+
+      // Step 1: Detect if we're in a reply context
+      const isReply = this.detectReplyContext();
+      console.log('[TweetReply] Reply context detected:', isReply);
+
+      if (!isReply) {
+        // Standalone tweet - not part of a thread
+        return {
+          isReply: false,
+          originalTweet: null,
+          originalTweetAuthor: null,
+          threadChain: [{
+            text: currentTweetText,
+            author: this.extractAuthorInfo()?.username || 'unknown',
+            isOriginal: true,
+            isCurrent: true
+          }],
+          currentTweetIndex: 0,
+          threadLength: 1
+        };
+      }
+
+      // Step 2: Find thread container
+      const threadContainer = this.findThreadContainer();
+      if (!threadContainer) {
+        console.log('[TweetReply] ⚠️ Thread container not found, using current tweet only');
+        return {
+          isReply: true,
+          originalTweet: null,
+          originalTweetAuthor: null,
+          threadChain: [{
+            text: currentTweetText,
+            author: this.extractAuthorInfo()?.username || 'unknown',
+            isOriginal: false,
+            isCurrent: true
+          }],
+          currentTweetIndex: 0,
+          threadLength: 1
+        };
+      }
+
+      // Step 3: Extract all tweets from thread container
+      const threadTweets = this.extractTweetsFromContainer(threadContainer);
+      console.log('[TweetReply] Found', threadTweets.length, 'tweets in thread');
+
+      if (threadTweets.length === 0) {
+        return {
+          isReply: true,
+          originalTweet: null,
+          originalTweetAuthor: null,
+          threadChain: [{
+            text: currentTweetText,
+            author: this.extractAuthorInfo()?.username || 'unknown',
+            isOriginal: false,
+            isCurrent: true
+          }],
+          currentTweetIndex: 0,
+          threadLength: 1
+        };
+      }
+
+      // Step 4: Identify original tweet and current tweet
+      const originalTweet = threadTweets[0];
+      let currentTweetIndex = this.findCurrentTweetIndex(threadTweets, currentTweetText);
+      
+      // FIX: Handle case where current tweet not found - default to last tweet (most likely being replied to)
+      if (currentTweetIndex < 0) {
+        currentTweetIndex = threadTweets.length - 1;
+        console.warn('[TweetReply] ⚠️ Current tweet not found in thread, defaulting to last tweet');
+      }
+
+      // Step 5: Build thread chain with metadata
+      const threadChain = threadTweets.map((tweet, index) => ({
+        text: tweet.text,
+        author: tweet.author || 'unknown',
+        isOriginal: index === 0,
+        isCurrent: index === currentTweetIndex
+      }));
+
+      // Limit thread chain to 10 tweets or 5000 chars
+      let limitedChain = threadChain;
+      let totalChars = threadChain.reduce((sum, t) => sum + t.text.length, 0);
+      if (threadChain.length > 10 || totalChars > 5000) {
+        // Keep original + current + most recent tweets
+        const keepIndices = new Set([0, currentTweetIndex]); // Always keep original and current
+        const recentIndices = [];
+        for (let i = Math.max(1, threadChain.length - 8); i < threadChain.length; i++) {
+          if (i !== currentTweetIndex) recentIndices.push(i);
+        }
+        recentIndices.slice(0, 8).forEach(idx => keepIndices.add(idx));
+        limitedChain = threadChain.filter((_, idx) => keepIndices.has(idx));
+      }
+
+      // FIX: Recalculate currentTweetIndex after filtering to ensure it points to correct tweet in limitedChain
+      // The original index may no longer be valid after filtering
+      let recalculatedCurrentIndex = limitedChain.findIndex(tweet => tweet.isCurrent);
+      if (recalculatedCurrentIndex < 0) {
+        // Fallback: find by text match (first 50 chars for fuzzy matching)
+        const currentTextPrefix = currentTweetText.substring(0, 50).toLowerCase();
+        recalculatedCurrentIndex = limitedChain.findIndex(tweet => 
+          tweet.text === currentTweetText || 
+          tweet.text.substring(0, 50).toLowerCase() === currentTextPrefix
+        );
+      }
+      // Last resort: use last tweet in chain if still not found
+      if (recalculatedCurrentIndex < 0) {
+        recalculatedCurrentIndex = limitedChain.length - 1;
+        console.warn('[TweetReply] ⚠️ Could not find current tweet in limited chain, using last tweet');
+      }
+
+      const result = {
+        isReply: true,
+        originalTweet: originalTweet.text || null,
+        originalTweetAuthor: originalTweet.author || null,
+        threadChain: limitedChain,
+        currentTweetIndex: recalculatedCurrentIndex, // FIX: Use recalculated index
+        threadLength: limitedChain.length
+      };
+
+      console.log('[TweetReply] ✅ Thread context extracted:', {
+        isReply: result.isReply,
+        originalTweetLength: result.originalTweet?.length || 0,
+        threadLength: result.threadLength,
+        currentIndex: result.currentTweetIndex
+      });
+
+      return result;
+    } catch (error) {
+      console.error('[TweetReply] ❌ Failed to extract thread context:', error);
+      // Fallback to current tweet only
+      const currentTweetText = this.extractTweetText();
+      return {
+        isReply: false,
+        originalTweet: null,
+        originalTweetAuthor: null,
+        threadChain: currentTweetText ? [{
+          text: currentTweetText,
+          author: this.extractAuthorInfo()?.username || 'unknown',
+          isOriginal: true,
+          isCurrent: true
+        }] : [],
+        currentTweetIndex: 0,
+        threadLength: currentTweetText ? 1 : 0
+      };
+    }
+  }
+
+  /**
+   * Detect if we're in a reply context by looking for reply indicators
+   */
+  detectReplyContext() {
+    try {
+      // Method 1: Look for "Replying to @username" text (OPTIMIZED: Scope to composer area)
+      // FIX: Instead of querying all spans on page, scope to composer container for better performance
+      const composerContainer = document.querySelector('[data-testid^="tweetTextarea_"]')?.closest('div[role="dialog"], div[data-testid="cellInnerDiv"]') || document;
+      const replyIndicators = composerContainer.querySelectorAll('span[dir="ltr"], span[dir="auto"]');
+      for (const span of replyIndicators) {
+        const text = span.textContent?.trim() || '';
+        if (/^replying to @/i.test(text)) {
+          return true;
+        }
+      }
+
+      // Method 2: Look for reply button or reply indicators near composer
+      const composers = document.querySelectorAll('[data-testid^="tweetTextarea_"], [contenteditable="true"]');
+      for (const composer of composers) {
+        // Check if composer is in a reply context
+        let parent = composer.parentElement;
+        for (let i = 0; i < 10 && parent; i++) {
+          // Look for reply indicators in parent tree
+          if (parent.querySelector('[data-testid="reply"], [aria-label*="reply" i]')) {
+            return true;
+          }
+          // Look for "Replying to" text
+          if (parent.textContent && /replying to/i.test(parent.textContent)) {
+            return true;
+          }
+          parent = parent.parentElement;
+        }
+      }
+
+      // Method 3: Check if there are multiple tweets in a thread structure
+      const threadContainer = this.findThreadContainer();
+      if (threadContainer) {
+        const tweets = threadContainer.querySelectorAll('article[data-testid="tweet"]');
+        return tweets.length > 1;
+      }
+
+      return false;
+    } catch (error) {
+      console.warn('[TweetReply] Error detecting reply context:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Find the thread container that holds multiple tweets
+   */
+  findThreadContainer() {
+    try {
+      // Method 1: Look for thread container with multiple tweets
+      const allTweets = document.querySelectorAll('article[data-testid="tweet"]');
+      if (allTweets.length < 2) {
+        return null;
+      }
+
+      // Find common ancestor that contains multiple tweets
+      let commonAncestor = allTweets[0].parentElement;
+      for (let i = 0; i < 10 && commonAncestor; i++) {
+        const tweetsInContainer = commonAncestor.querySelectorAll('article[data-testid="tweet"]');
+        if (tweetsInContainer.length >= 2) {
+          // Check if this looks like a thread (tweets are in order)
+          return commonAncestor;
+        }
+        commonAncestor = commonAncestor.parentElement;
+      }
+
+      // Method 2: Look for specific thread containers
+      const threadSelectors = [
+        'div[data-testid="cellInnerDiv"]',
+        'section[role="region"]',
+        'div[role="article"]'
+      ];
+
+      for (const selector of threadSelectors) {
+        const containers = document.querySelectorAll(selector);
+        for (const container of containers) {
+          const tweets = container.querySelectorAll('article[data-testid="tweet"]');
+          if (tweets.length >= 2) {
+            return container;
+          }
+        }
+      }
+
+      // Method 3: Look for "Show this thread" or thread indicators
+      const threadIndicators = document.querySelectorAll('span, div');
+      for (const indicator of threadIndicators) {
+        const text = indicator.textContent?.trim() || '';
+        if (/show.*thread|view.*thread/i.test(text)) {
+          let container = indicator.parentElement;
+          for (let i = 0; i < 5 && container; i++) {
+            const tweets = container.querySelectorAll('article[data-testid="tweet"]');
+            if (tweets.length >= 2) {
+              return container;
+            }
+            container = container.parentElement;
+          }
+        }
+      }
+
+      return null;
+    } catch (error) {
+      console.warn('[TweetReply] Error finding thread container:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Extract all tweets from a thread container
+   */
+  extractTweetsFromContainer(container) {
+    try {
+      const tweets = container.querySelectorAll('article[data-testid="tweet"]');
+      const extractedTweets = [];
+
+      for (const tweet of tweets) {
+        // Extract tweet text
+        const tweetTextEl = tweet.querySelector('[data-testid="tweetText"]');
+        if (!tweetTextEl) continue;
+
+        const text = tweetTextEl.textContent?.trim();
+        if (!text || text.length < 10) continue;
+
+        // Extract author
+        let author = 'unknown';
+        const authorSelectors = [
+          '[data-testid="User-Name"]',
+          '[data-testid="User-Names"]',
+          'a[href*="/"] span', // Username link
+          'div[dir="ltr"] span' // Username span
+        ];
+
+        for (const selector of authorSelectors) {
+          const authorEl = tweet.querySelector(selector);
+          if (authorEl) {
+            const authorText = authorEl.textContent?.trim();
+            // Check if it looks like a username (starts with @ or is short)
+            if (authorText && (authorText.startsWith('@') || authorText.length < 20)) {
+              author = authorText.replace('@', '');
+              break;
+            }
+          }
+        }
+
+        // Fallback: try to extract from any link with @
+        if (author === 'unknown') {
+          const links = tweet.querySelectorAll('a[href*="/"]');
+          for (const link of links) {
+            const href = link.getAttribute('href') || '';
+            const match = href.match(/\/([^\/]+)$/);
+            if (match && match[1] && match[1].length < 20) {
+              author = match[1];
+              break;
+            }
+          }
+        }
+
+        extractedTweets.push({ text, author });
+      }
+
+      return extractedTweets;
+    } catch (error) {
+      console.warn('[TweetReply] Error extracting tweets from container:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Find the index of the current tweet in the thread chain
+   * @param {Array} threadTweets - Array of tweet objects with text property
+   * @param {string} currentTweetText - The text of the tweet being replied to
+   * @returns {number} Index of current tweet, or -1 if not found (caller should handle fallback)
+   * 
+   * FIX: Returns -1 when not found instead of defaulting to last tweet.
+   * This allows caller to implement appropriate fallback logic based on context.
+   */
+  findCurrentTweetIndex(threadTweets, currentTweetText) {
+    if (!currentTweetText || !threadTweets || threadTweets.length === 0) return -1;
+
+    // Try exact match first
+    for (let i = 0; i < threadTweets.length; i++) {
+      if (threadTweets[i].text === currentTweetText) {
+        return i;
+      }
+    }
+
+    // Try fuzzy match (first 50 chars) for cases where text might be slightly modified
+    const currentPrefix = currentTweetText.substring(0, 50).toLowerCase();
+    for (let i = 0; i < threadTweets.length; i++) {
+      const tweetPrefix = threadTweets[i].text.substring(0, 50).toLowerCase();
+      if (tweetPrefix === currentPrefix) {
+        return i;
+      }
+    }
+
+    // FIX: Return -1 instead of defaulting, let caller decide fallback strategy
+    // This is safer as the caller has more context about what fallback makes sense
+    return -1;
   }
 
   extractTweetMetadata() {

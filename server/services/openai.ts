@@ -19,7 +19,20 @@ export interface ReplyOptions {
     verified?: boolean;
     follower_count?: number;
   };
-  conversationContext?: string[];
+  threadContext?: {
+    isReply: boolean;
+    originalTweet: string | null;
+    originalTweetAuthor: string | null;
+    threadChain: Array<{
+      text: string;
+      author: string;
+      isOriginal: boolean;
+      isCurrent: boolean;
+    }>;
+    currentTweetIndex: number;
+    threadLength: number;
+  };
+  conversationContext?: any; // ConversationContext format for backward compatibility
   tweetMetadata?: {
     has_media?: boolean;
     has_poll?: boolean;
@@ -169,14 +182,21 @@ export class ModelRouter {
         verified: options.authorInfo.verified || false,
         followerCount: options.authorInfo.follower_count || 0
       } : undefined;
+      // Use conversationContext if provided (already in correct format), otherwise convert from threadContext
+      const conversationContextForPrompt = options.conversationContext || 
+        (options.threadContext ? {
+          parentTweets: options.threadContext.threadChain.map(t => t.text),
+          threadLength: options.threadContext.threadLength,
+          isThread: options.threadContext.isReply,
+          originalTweet: options.threadContext.originalTweet,
+          originalTweetAuthor: options.threadContext.originalTweetAuthor,
+          threadChain: options.threadContext.threadChain,
+          currentTweetIndex: options.threadContext.currentTweetIndex
+        } : undefined);
       const contextPrompt = tweetContextAnalyzer.generateContextPrompt(
         options.tweetContext,
         authorInfo,
-        options.conversationContext ? {
-          parentTweets: options.conversationContext,
-          threadLength: options.conversationContext.length,
-          isThread: options.conversationContext.length > 0
-        } : undefined
+        conversationContextForPrompt
       );
       
       if (contextPrompt) {
@@ -197,11 +217,26 @@ export class ModelRouter {
     try {
       // Use responses API only for GPT-5 versions
       if (modelKey.startsWith("gpt-5") || modelKey.startsWith("gpt-4o")) {
+        // Build user prompt with thread context
+        let userPromptText = promptConfig.userPrompt(options.tweetText);
+        if (options.threadContext && options.threadContext.isReply) {
+          if (options.threadContext.originalTweet) {
+            userPromptText += `\n\nNote: This tweet is a reply. The original tweet that started this conversation was: "${options.threadContext.originalTweet}"`;
+          }
+          if (options.threadContext.threadChain && options.threadContext.threadChain.length > 1) {
+            userPromptText += `\n\nFull conversation thread:`;
+            options.threadContext.threadChain.forEach((tweet, idx) => {
+              const label = tweet.isOriginal ? 'Original' : tweet.isCurrent ? 'Current (replying to)' : `Reply ${idx}`;
+              userPromptText += `\n${label}: "${tweet.text}"`;
+            });
+          }
+        }
+        
         const response = await openai.responses.create({
           model: modelKey,
           input: [
             { role: "system", content: enhancedSystemPrompt },
-            { role: "user", content: promptConfig.userPrompt(options.tweetText) },
+            { role: "user", content: userPromptText },
           ],
           top_p: 1,
           temperature: 0.7,
@@ -224,11 +259,26 @@ export class ModelRouter {
         console.log(
           `🚀 [OpenAI] Using chat completions for model: ${modelKey}`,
         );
+        // Build user prompt with thread context
+        let userPromptText = promptConfig.userPrompt(options.tweetText);
+        if (options.threadContext && options.threadContext.isReply) {
+          if (options.threadContext.originalTweet) {
+            userPromptText += `\n\nNote: This tweet is a reply. The original tweet that started this conversation was: "${options.threadContext.originalTweet}"`;
+          }
+          if (options.threadContext.threadChain && options.threadContext.threadChain.length > 1) {
+            userPromptText += `\n\nFull conversation thread:`;
+            options.threadContext.threadChain.forEach((tweet, idx) => {
+              const label = tweet.isOriginal ? 'Original' : tweet.isCurrent ? 'Current (replying to)' : `Reply ${idx}`;
+              userPromptText += `\n${label}: "${tweet.text}"`;
+            });
+          }
+        }
+        
         const response = await openai.chat.completions.create({
           model: modelKey,
           messages: [
             { role: "system", content: enhancedSystemPrompt },
-            { role: "user", content: promptConfig.userPrompt(options.tweetText) },
+            { role: "user", content: userPromptText },
           ],
           temperature: 0.7,
           frequency_penalty: 0.5,

@@ -102,14 +102,21 @@ export class GroqModelRouter {
         verified: options.authorInfo.verified || false,
         followerCount: options.authorInfo.follower_count || 0
       } : undefined;
+      // Use conversationContext if provided (already in correct format), otherwise convert from threadContext
+      const conversationContextForPrompt = options.conversationContext || 
+        (options.threadContext ? {
+          parentTweets: options.threadContext.threadChain.map(t => t.text),
+          threadLength: options.threadContext.threadLength,
+          isThread: options.threadContext.isReply,
+          originalTweet: options.threadContext.originalTweet,
+          originalTweetAuthor: options.threadContext.originalTweetAuthor,
+          threadChain: options.threadContext.threadChain,
+          currentTweetIndex: options.threadContext.currentTweetIndex
+        } : undefined);
       const contextPrompt = tweetContextAnalyzer.generateContextPrompt(
         options.tweetContext,
         authorInfo,
-        options.conversationContext ? {
-          parentTweets: options.conversationContext,
-          threadLength: options.conversationContext.length,
-          isThread: options.conversationContext.length > 0
-        } : undefined
+        conversationContextForPrompt
       );
       
       if (contextPrompt) {
@@ -136,10 +143,25 @@ export class GroqModelRouter {
       // Create the chat completion with streaming
       console.log(`🤖 [Groq] Creating chat completion with streaming...`);
       
+      // Build user prompt with thread context
+      let userPromptText = promptConfig.userPrompt(options.tweetText);
+      if (options.threadContext && options.threadContext.isReply) {
+        if (options.threadContext.originalTweet) {
+          userPromptText += `\n\nNote: This tweet is a reply. The original tweet that started this conversation was: "${options.threadContext.originalTweet}"`;
+        }
+        if (options.threadContext.threadChain && options.threadContext.threadChain.length > 1) {
+          userPromptText += `\n\nFull conversation thread:`;
+          options.threadContext.threadChain.forEach((tweet, idx) => {
+            const label = tweet.isOriginal ? 'Original' : tweet.isCurrent ? 'Current (replying to)' : `Reply ${idx}`;
+            userPromptText += `\n${label}: "${tweet.text}"`;
+          });
+        }
+      }
+      
       const chatCompletion = await groq.chat.completions.create({
         messages: [
           { role: "system", content: enhancedSystemPrompt },
-          { role: "user", content: promptConfig.userPrompt(options.tweetText) },
+          { role: "user", content: userPromptText },
         ],
         model: modelKey,
         temperature: 0.7,
@@ -165,7 +187,7 @@ export class GroqModelRouter {
       console.log(`⏱️ [Groq] Total latency: ${latencyMs}ms`);
 
       // Estimate token usage (Groq doesn't provide exact counts in streaming)
-      const estimatedInputTokens = Math.ceil((enhancedSystemPrompt + promptConfig.userPrompt(options.tweetText)).length / 4);
+      const estimatedInputTokens = Math.ceil((enhancedSystemPrompt + userPromptText).length / 4);
       const estimatedOutputTokens = Math.ceil(processedReply.length / 4);
 
       console.log(

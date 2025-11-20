@@ -25,6 +25,15 @@ export interface ConversationContext {
   parentTweets: string[];
   threadLength: number;
   isThread: boolean;
+  originalTweet?: string | null;
+  originalTweetAuthor?: string | null;
+  threadChain?: Array<{
+    text: string;
+    author: string;
+    isOriginal: boolean;
+    isCurrent: boolean;
+  }>;
+  currentTweetIndex?: number;
 }
 
 export class TweetContextAnalyzer {
@@ -248,9 +257,34 @@ export class TweetContextAnalyzer {
       }
     }
     
-    // Add conversation context
+    // ENHANCED THREAD CONTEXT (NEW - Most Important)
     if (conversationContext && conversationContext.isThread) {
-      contextParts.push(`This is part of a conversation thread with ${conversationContext.threadLength} tweets.`);
+      // If we have original tweet, make it prominent
+      if (conversationContext.originalTweet) {
+        contextParts.push(`\n=== CONVERSATION CONTEXT ===`);
+        contextParts.push(`ORIGINAL TWEET (that started this conversation): "${conversationContext.originalTweet}"`);
+        
+        if (conversationContext.originalTweetAuthor) {
+          contextParts.push(`Original tweet author: @${conversationContext.originalTweetAuthor}`);
+        }
+      }
+      
+      // Show full thread chain if available
+      if (conversationContext.threadChain && conversationContext.threadChain.length > 1) {
+        contextParts.push(`\nCONVERSATION THREAD (${conversationContext.threadLength} tweets):`);
+        conversationContext.threadChain.forEach((tweet, index) => {
+          const label = tweet.isOriginal ? '→ Original' : 
+                       tweet.isCurrent ? '→ Current (you are replying to this)' :
+                       `→ Reply ${index}`;
+          const authorLabel = tweet.author !== 'unknown' ? ` (@${tweet.author})` : '';
+          contextParts.push(`${label}${authorLabel}: "${tweet.text}"`);
+        });
+      }
+      
+      // Critical instruction for AI
+      contextParts.push(`\nIMPORTANT: You are replying to a tweet that is part of a conversation thread.`);
+      contextParts.push(`Consider the full conversation context, especially the original tweet, when crafting your reply.`);
+      contextParts.push(`Your reply should make sense in the context of the entire conversation, not just the immediate tweet.`);
     }
     
     // Add media context
