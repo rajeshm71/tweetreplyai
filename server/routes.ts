@@ -493,9 +493,12 @@ export async function registerRoutes(app: Express): Promise<Express> {
         if (tweetAnalysis) {
           console.log('[API] ✅ Successfully obtained enriched tweet analysis');
           console.log('[API] Analysis latency:', analysisLatency, 'ms');
-          console.log('[API] Analysis tone:', tweetAnalysis.understanding.tone);
-          console.log('[API] Analysis sentiment:', tweetAnalysis.understanding.sentiment);
-          console.log('[API] Analysis intention:', tweetAnalysis.intention.intention.substring(0, 100) + '...');
+          console.log('[API] Analysis tone:', tweetAnalysis.understanding?.tone || 'unknown');
+          console.log('[API] Analysis sentiment:', tweetAnalysis.understanding?.sentiment || 'unknown');
+          const intentionPreview = tweetAnalysis.intention?.intention 
+            ? tweetAnalysis.intention.intention.substring(0, 100) + '...'
+            : 'N/A';
+          console.log('[API] Analysis intention:', intentionPreview);
         } else {
           console.log('[API] ⚠️ Tweet analysis returned null, falling back to basic context');
           console.log('[API] Analysis latency:', analysisLatency, 'ms');
@@ -599,19 +602,29 @@ export async function registerRoutes(app: Express): Promise<Express> {
       });
 
       // Return response with updated usage and quality details
+      // Safely include analysis data for client-side logging
+      let analysisData = null;
+      if (tweetAnalysis && tweetAnalysis.understanding && tweetAnalysis.intention) {
+        try {
+          analysisData = {
+            tone: tweetAnalysis.understanding.tone || 'unknown',
+            sentiment: tweetAnalysis.understanding.sentiment || 'unknown',
+            style: tweetAnalysis.understanding.style || 'unknown',
+            intention: tweetAnalysis.intention.intention || 'Unknown intention'
+          };
+        } catch (analysisError: any) {
+          console.error('[API] Error serializing analysis data:', analysisError.message);
+          // Continue without analysis data if serialization fails
+        }
+      }
+
       res.json({
         reply: replyResponse.reply,
         qualityScore: finalQualityResult.totalScore,
         used: updatedCounter.repliesUsed,
         limit: updatedCounter.limit,
         resetAt: updatedCounter.resetAt,
-        // Include analysis data for client-side logging
-        analysis: tweetAnalysis ? {
-          tone: tweetAnalysis.understanding.tone,
-          sentiment: tweetAnalysis.understanding.sentiment,
-          style: tweetAnalysis.understanding.style,
-          intention: tweetAnalysis.intention.intention
-        } : null,
+        analysis: analysisData,
         meta: {
           modelKey: replyResponse.modelKey,
           latencyMs: replyResponse.latencyMs,
@@ -620,9 +633,14 @@ export async function registerRoutes(app: Express): Promise<Express> {
       });
 
     } catch (error) {
-      console.error("Error generating reply:", error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
       
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error(`❌ [API] Error generating reply: ${errorMessage}`);
+      if (errorStack) {
+        console.error(`❌ [API] Error stack:`, errorStack);
+      }
+      console.error(`❌ [API] Full error object:`, error);
       
       // Handle Zod validation errors
       if (error instanceof ZodError) {
@@ -635,7 +653,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
         });
       }
       
-      if (errorMessage === 'User not found') {
+      if (errorMessage.includes('User not found')) {
         return res.status(404).json({ message: "User not found" });
       }
       
@@ -650,7 +668,11 @@ export async function registerRoutes(app: Express): Promise<Express> {
         });
       }
 
-      res.status(500).json({ message: "Failed to generate reply" });
+      // Return detailed error for debugging
+      res.status(500).json({ 
+        message: "Failed to generate reply",
+        error: process.env.NODE_ENV === 'development' ? errorMessage : undefined
+      });
     }
   });
 
