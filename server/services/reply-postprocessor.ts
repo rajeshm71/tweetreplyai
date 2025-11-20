@@ -317,35 +317,36 @@ export class ReplyPostProcessor {
       return text;
     }
 
-    // Split on period followed by space, or period at end of string
-    // Use a regex that properly handles period at end without space
-    const sentences: Array<{ text: string; hasPeriod: boolean }> = [];
+    // Split on sentence-ending punctuation (. ! ?) followed by space, or at end of string
+    // Use a regex that properly handles punctuation at end without space
+    const sentences: Array<{ text: string; punctuation: string }> = [];
     
-    // Split by period, but keep track of whether period was followed by space or at end
+    // Split by sentence-ending punctuation, but keep track of which punctuation was used
     let lastIndex = 0;
-    const periodRegex = /\.(\s+|$)/g;
+    const sentenceEndRegex = /[.!?](\s+|$)/g;
     let match;
     
-    while ((match = periodRegex.exec(text)) !== null) {
+    while ((match = sentenceEndRegex.exec(text)) !== null) {
       const sentenceText = text.substring(lastIndex, match.index).trim();
       if (sentenceText) {
-        const hasPeriod = true; // We matched a period
-        sentences.push({ text: sentenceText, hasPeriod });
+        // Capture which punctuation was matched (., !, or ?)
+        const punctuation = text[match.index];
+        sentences.push({ text: sentenceText, punctuation });
       }
-      lastIndex = periodRegex.lastIndex;
+      lastIndex = sentenceEndRegex.lastIndex;
     }
     
-    // Handle remaining text after last period
+    // Handle remaining text after last sentence-ending punctuation
     if (lastIndex < text.length) {
       const remaining = text.substring(lastIndex).trim();
       if (remaining) {
-        sentences.push({ text: remaining, hasPeriod: false });
+        sentences.push({ text: remaining, punctuation: "" });
       }
     }
     
-    // If no periods found, treat entire text as one sentence
+    // If no sentence-ending punctuation found, treat entire text as one sentence
     if (sentences.length === 0 && text.trim()) {
-      sentences.push({ text: text.trim(), hasPeriod: false });
+      sentences.push({ text: text.trim(), punctuation: "" });
     }
 
     const filtered: string[] = [];
@@ -399,8 +400,8 @@ export class ReplyPostProcessor {
       }
 
       if (!shouldRemove) {
-        // Add period back if it was there originally
-        filtered.push(sentenceText + (sentenceObj.hasPeriod ? "." : ""));
+        // Add punctuation back if it was there originally
+        filtered.push(sentenceText + sentenceObj.punctuation);
       }
     }
 
