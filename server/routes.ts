@@ -469,7 +469,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
       let tweetAnalysis = null;
       const analysisStartTime = Date.now();
       console.log('[API] ========== TWEET ANALYSIS START ==========');
-      console.log('[API] Tweet text length:', tweetText.length);
+      console.log('[API] Tweet text length:', tweet_text.length);
       console.log('[API] Author:', authorInfo?.username || 'unknown');
       console.log('[API] Conversation context:', conversation_context ? `Thread with ${conversation_context.length} tweets` : 'None');
       
