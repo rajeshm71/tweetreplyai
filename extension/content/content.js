@@ -2581,6 +2581,23 @@ class TwitterReplyInjector {
         currentIndex: result.currentTweetIndex
       });
 
+      // LOG: Display original tweet and full thread chain together for debugging
+      if (result.isReply && result.originalTweet) {
+        console.log('[TweetReply] 📋 ORIGINAL TWEET & THREAD CHAIN:');
+        console.log('[TweetReply] ┌─────────────────────────────────────────────────────────┐');
+        console.log('[TweetReply] │ ORIGINAL TWEET:', result.originalTweetAuthor ? `@${result.originalTweetAuthor}` : 'unknown author');
+        console.log('[TweetReply] │', result.originalTweet);
+        console.log('[TweetReply] ├─────────────────────────────────────────────────────────┤');
+        console.log('[TweetReply] │ FULL THREAD CHAIN (' + result.threadLength + ' tweets):');
+        result.threadChain.forEach((tweet, idx) => {
+          const marker = tweet.isOriginal ? '🔵 ORIGINAL' : tweet.isCurrent ? '🟢 CURRENT (replying to)' : `⚪ Reply ${idx}`;
+          const author = tweet.author !== 'unknown' ? `@${tweet.author}` : 'unknown';
+          console.log('[TweetReply] │ [' + marker + '] ' + author + ':');
+          console.log('[TweetReply] │   "' + tweet.text.substring(0, 100) + (tweet.text.length > 100 ? '...' : '') + '"');
+        });
+        console.log('[TweetReply] └─────────────────────────────────────────────────────────┘');
+      }
+
       return result;
     } catch (error) {
       console.error('[TweetReply] ❌ Failed to extract thread context:', error);

@@ -455,6 +455,23 @@ export async function registerRoutes(app: Express): Promise<Express> {
           hasOriginal: !!thread_context.originalTweet,
           threadLength: thread_context.threadLength
         });
+        
+        // LOG: Display original tweet and full thread chain together
+        if (thread_context.isReply && thread_context.originalTweet) {
+          console.log('[API] 📋 ORIGINAL TWEET & THREAD CHAIN:');
+          console.log('[API] ┌─────────────────────────────────────────────────────────┐');
+          console.log('[API] │ ORIGINAL TWEET:', thread_context.originalTweetAuthor ? `@${thread_context.originalTweetAuthor}` : 'unknown author');
+          console.log('[API] │', thread_context.originalTweet);
+          console.log('[API] ├─────────────────────────────────────────────────────────┤');
+          console.log('[API] │ FULL THREAD CHAIN (' + thread_context.threadLength + ' tweets):');
+          thread_context.threadChain.forEach((tweet, idx) => {
+            const marker = tweet.isOriginal ? '🔵 ORIGINAL' : tweet.isCurrent ? '🟢 CURRENT (replying to)' : `⚪ Reply ${idx}`;
+            const author = tweet.author !== 'unknown' ? `@${tweet.author}` : 'unknown';
+            console.log('[API] │ [' + marker + '] ' + author + ':');
+            console.log('[API] │   "' + tweet.text.substring(0, 100) + (tweet.text.length > 100 ? '...' : '') + '"');
+          });
+          console.log('[API] └─────────────────────────────────────────────────────────┘');
+        }
       } else if (conversation_context && conversation_context.length > 0) {
         // Convert old format to new format for backward compatibility
         normalizedThreadContext = {
@@ -471,6 +488,20 @@ export async function registerRoutes(app: Express): Promise<Express> {
           threadLength: conversation_context.length
         };
         console.log('[API] Converted old conversation_context to thread_context format');
+        
+        // LOG: Display converted thread context
+        if (normalizedThreadContext && normalizedThreadContext.originalTweet) {
+          console.log('[API] 📋 CONVERTED THREAD CONTEXT:');
+          console.log('[API] ┌─────────────────────────────────────────────────────────┐');
+          console.log('[API] │ ORIGINAL TWEET:', normalizedThreadContext.originalTweet);
+          console.log('[API] ├─────────────────────────────────────────────────────────┤');
+          console.log('[API] │ THREAD CHAIN (' + normalizedThreadContext.threadLength + ' tweets):');
+          normalizedThreadContext.threadChain.forEach((tweet, idx) => {
+            const marker = tweet.isOriginal ? '🔵 ORIGINAL' : tweet.isCurrent ? '🟢 CURRENT' : `⚪ Reply ${idx}`;
+            console.log('[API] │ [' + marker + ']:', tweet.text.substring(0, 100) + (tweet.text.length > 100 ? '...' : ''));
+          });
+          console.log('[API] └─────────────────────────────────────────────────────────┘');
+        }
       }
 
       // Get user for validation

@@ -259,6 +259,24 @@ export class TweetContextAnalyzer {
     
     // ENHANCED THREAD CONTEXT (NEW - Most Important)
     if (conversationContext && conversationContext.isThread) {
+      // LOG: Display original tweet and thread chain being used in prompt
+      if (conversationContext.originalTweet) {
+        console.log('[TweetContext] 📋 THREAD CONTEXT FOR PROMPT:');
+        console.log('[TweetContext] ┌─────────────────────────────────────────────────────────┐');
+        console.log('[TweetContext] │ ORIGINAL TWEET:', conversationContext.originalTweetAuthor ? `@${conversationContext.originalTweetAuthor}` : 'unknown author');
+        console.log('[TweetContext] │', conversationContext.originalTweet);
+        console.log('[TweetContext] ├─────────────────────────────────────────────────────────┤');
+        if (conversationContext.threadChain && conversationContext.threadChain.length > 1) {
+          console.log('[TweetContext] │ THREAD CHAIN (' + conversationContext.threadLength + ' tweets):');
+          conversationContext.threadChain.forEach((tweet, idx) => {
+            const marker = tweet.isOriginal ? '🔵 ORIGINAL' : tweet.isCurrent ? '🟢 CURRENT' : `⚪ Reply ${idx}`;
+            const author = tweet.author !== 'unknown' ? `@${tweet.author}` : 'unknown';
+            console.log('[TweetContext] │ [' + marker + '] ' + author + ':', tweet.text.substring(0, 80) + (tweet.text.length > 80 ? '...' : ''));
+          });
+        }
+        console.log('[TweetContext] └─────────────────────────────────────────────────────────┘');
+      }
+      
       // If we have original tweet, make it prominent
       if (conversationContext.originalTweet) {
         contextParts.push(`\n=== CONVERSATION CONTEXT ===`);
@@ -274,7 +292,7 @@ export class TweetContextAnalyzer {
         contextParts.push(`\nCONVERSATION THREAD (${conversationContext.threadLength} tweets):`);
         conversationContext.threadChain.forEach((tweet, index) => {
           const label = tweet.isOriginal ? '→ Original' : 
-                       tweet.isCurrent ? '→ Current (you are replying to this)' :
+                       tweet.isCurrent ? '→ Current (you are replying to this)' : 
                        `→ Reply ${index}`;
           const authorLabel = tweet.author !== 'unknown' ? ` (@${tweet.author})` : '';
           contextParts.push(`${label}${authorLabel}: "${tweet.text}"`);
