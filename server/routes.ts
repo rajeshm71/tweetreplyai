@@ -414,8 +414,9 @@ export async function registerRoutes(app: Express): Promise<Express> {
         }).optional(),
         thread_context: z.object({
           isReply: z.boolean(),
-          originalTweet: z.string().nullable().max(2000), // FIX: Add max length validation
-          originalTweetAuthor: z.string().nullable().max(50), // FIX: Add max length validation
+          // FIX: Apply max() before nullable() - Zod requires this order
+          originalTweet: z.string().max(2000).nullable(),
+          originalTweetAuthor: z.string().max(50).nullable(),
           threadChain: z.array(z.object({
             text: z.string().min(1).max(2000), // FIX: Add min/max length validation
             author: z.string().max(50), // FIX: Add max length validation
