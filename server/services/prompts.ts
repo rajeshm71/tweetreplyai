@@ -1,3 +1,12 @@
+// FIX: Added constants for reply modes to avoid magic strings
+export const REPLY_MODES = {
+  SINGLE_SENTENCE: 'single-sentence',
+  BASE: 'base',
+  ENHANCED: 'enhanced',
+} as const;
+
+export type ReplyMode = typeof REPLY_MODES[keyof typeof REPLY_MODES];
+
 export interface PromptConfig {
   name: string;
   description: string;
@@ -277,19 +286,20 @@ export function getAvailablePrompts(): Array<{
 }
 
 // Function to apply reply mode modifications to a prompt configuration
+// FIX: Updated to use REPLY_MODES constants instead of magic strings
 export function applyReplyModeToPrompt(promptConfig: PromptConfig, replyMode?: string): PromptConfig {
   // If no reply mode or base mode, return unchanged
-  if (!replyMode || replyMode === 'base') {
+  if (!replyMode || replyMode === REPLY_MODES.BASE) {
     return promptConfig;
   }
 
   // For enhanced mode, return unchanged (analysis is handled separately)
-  if (replyMode === 'enhanced') {
+  if (replyMode === REPLY_MODES.ENHANCED) {
     return promptConfig;
   }
 
   // For single-sentence mode, modify the system prompt
-  if (replyMode === 'single-sentence') {
+  if (replyMode === REPLY_MODES.SINGLE_SENTENCE) {
     const singleSentenceInstructions = `
 
 CRITICAL SINGLE-SENTENCE MODE:

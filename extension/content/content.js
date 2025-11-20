@@ -1065,22 +1065,23 @@ class TwitterReplyInjector {
       select.appendChild(option);
     });
     
-    // Try to restore previously selected reply mode
+    // FIX: Set default immediately to prevent race condition
+    select.value = 'base';
+    
+    // Try to restore previously selected reply mode (async)
     try {
       chrome.storage?.local?.get(['tweetreply_reply_mode'], data => {
         if (data && typeof data.tweetreply_reply_mode === 'string') {
           const savedMode = data.tweetreply_reply_mode;
-          // Verify saved mode is valid
+          // Verify saved mode is valid before applying
           if (modes.some(m => m.value === savedMode)) {
             select.value = savedMode;
+            console.log('[TweetReply] Restored reply mode from storage:', savedMode);
           }
         }
       });
-    } catch (_) {}
-    
-    // Set default to 'base' if nothing saved
-    if (!select.value) {
-      select.value = 'base';
+    } catch (error) {
+      console.warn('[TweetReply] Failed to restore reply mode from storage:', error);
     }
     
     // Persist selection when user changes it

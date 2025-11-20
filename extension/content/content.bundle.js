@@ -955,19 +955,19 @@
         option.title = mode.tooltip;
         select.appendChild(option);
       });
+      select.value = "base";
       try {
         chrome.storage?.local?.get(["tweetreply_reply_mode"], (data) => {
           if (data && typeof data.tweetreply_reply_mode === "string") {
             const savedMode = data.tweetreply_reply_mode;
             if (modes.some((m) => m.value === savedMode)) {
               select.value = savedMode;
+              console.log("[TweetReply] Restored reply mode from storage:", savedMode);
             }
           }
         });
-      } catch (_) {
-      }
-      if (!select.value) {
-        select.value = "base";
+      } catch (error) {
+        console.warn("[TweetReply] Failed to restore reply mode from storage:", error);
       }
       select.addEventListener("change", () => {
         try {

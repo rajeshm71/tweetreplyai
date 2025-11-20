@@ -545,6 +545,7 @@ export class ReplyPostProcessor {
   /**
    * Truncate text to first sentence (for single-sentence mode)
    * Finds the first sentence ending (. ! ?) and returns only that sentence
+   * FIX: Added fallback for text without punctuation to ensure single sentence
    */
   private truncateToFirstSentence(text: string): string {
     if (!text) {
@@ -559,7 +560,20 @@ export class ReplyPostProcessor {
       return text.substring(0, sentenceEndMatch.index + 1);
     }
     
-    // If no sentence ending found, return the whole text
+    // FIX: Fallback for unpunctuated text - limit by word count
+    const words = text.split(/\s+/).filter(w => w.length > 0);
+    
+    // If more than 20 words, truncate and add period
+    if (words.length > 20) {
+      return words.slice(0, 20).join(' ') + '.';
+    }
+    
+    // If reasonable length but no punctuation, add period
+    if (text.length > 5) {
+      return text.trim() + '.';
+    }
+    
+    // Return as-is for very short text
     return text;
   }
 

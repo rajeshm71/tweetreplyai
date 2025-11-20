@@ -150,6 +150,11 @@ Instructions:
     console.log(`🚀 [Gemini] Starting request with model: ${modelKey}`);
     console.log(`📝 [Gemini] Tweet text: "${options.tweetText}"`);
     console.log(`🎯 [Gemini] Using prompt: ${promptConfig.name} (mode: ${options.replyMode || 'base'})`);
+    // FIX: Enhanced mode logging for better debugging
+    const modeDescription = options.replyMode === 'single-sentence' ? 'Fast single sentence' :
+                           options.replyMode === 'enhanced' ? 'AI analysis enabled' :
+                           'Standard generation';
+    console.log(`⚙️  [Gemini] Reply mode: ${options.replyMode || 'base'} - ${modeDescription}`);
 
     if (!genAI) {
       console.log(`❌ [Gemini] Gemini client not configured`);

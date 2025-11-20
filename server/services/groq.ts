@@ -69,6 +69,11 @@ export class GroqModelRouter {
     console.log(`🚀 [Groq] Starting request with model: ${modelKey}`);
     console.log(`📝 [Groq] Tweet text: "${options.tweetText}"`);
     console.log(`🎯 [Groq] Using prompt: ${promptConfig.name} (mode: ${options.replyMode || 'base'})`);
+    // FIX: Enhanced mode logging for better debugging
+    const modeDescription = options.replyMode === 'single-sentence' ? 'Fast single sentence' :
+                           options.replyMode === 'enhanced' ? 'AI analysis enabled' :
+                           'Standard generation';
+    console.log(`⚙️  [Groq] Reply mode: ${options.replyMode || 'base'} - ${modeDescription}`);
 
     // Generate context-aware prompt if context is available
     let enhancedSystemPrompt = promptConfig.systemPrompt;
