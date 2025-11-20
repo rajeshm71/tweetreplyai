@@ -1119,9 +1119,10 @@
         });
         if (response.analysis) {
           console.log("[TweetReply] \u2705 Tweet analysis completed:", {
-            tone: response.analysis.understanding?.tone,
-            sentiment: response.analysis.understanding?.sentiment,
-            intention: response.analysis.intention?.intention?.substring(0, 80) + "..."
+            tone: response.analysis.tone || "unknown",
+            sentiment: response.analysis.sentiment || "unknown",
+            style: response.analysis.style || "unknown",
+            intention: response.analysis.intention ? response.analysis.intention.substring(0, 80) + "..." : "N/A"
           });
         } else {
           console.log("[TweetReply] \u2139\uFE0F No analysis data in response (using basic context)");

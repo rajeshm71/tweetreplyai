@@ -69,11 +69,21 @@ export class GroqModelRouter {
 
     // Generate context-aware prompt if context is available
     let enhancedSystemPrompt = promptConfig.systemPrompt;
+    const originalPromptLength = enhancedSystemPrompt.length;
     
     // Inject enriched analysis context if available (from AI agents)
     if (options.tweetAnalysis && options.tweetAnalysis.enrichedContextPrompt) {
       console.log(`🧠 [Groq] Injecting enriched tweet analysis context`);
+      console.log(`📊 [Groq] Analysis summary:`, {
+        tone: options.tweetAnalysis.understanding?.tone || 'unknown',
+        sentiment: options.tweetAnalysis.understanding?.sentiment || 'unknown',
+        style: options.tweetAnalysis.understanding?.style || 'unknown',
+        intentionPreview: options.tweetAnalysis.intention?.intention?.substring(0, 60) + '...' || 'N/A'
+      });
       enhancedSystemPrompt = `${options.tweetAnalysis.enrichedContextPrompt}\n\n${enhancedSystemPrompt}`;
+      console.log(`📏 [Groq] Prompt length: ${originalPromptLength} → ${enhancedSystemPrompt.length} chars (+${enhancedSystemPrompt.length - originalPromptLength})`);
+    } else {
+      console.log(`⚠️ [Groq] No tweet analysis available - using basic prompt only`);
     }
     
     // Add existing tweet context (fallback or additional context)

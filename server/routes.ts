@@ -522,6 +522,20 @@ export async function registerRoutes(app: Express): Promise<Express> {
       );
 
       // Generate the reply with enriched analysis and context
+      // Log analysis data being passed to AI router
+      if (tweetAnalysis) {
+        console.log('[API] 📤 Passing analysis to AI router:', {
+          hasAnalysis: !!tweetAnalysis,
+          hasEnrichedPrompt: !!tweetAnalysis.enrichedContextPrompt,
+          enrichedPromptLength: tweetAnalysis.enrichedContextPrompt?.length || 0,
+          tone: tweetAnalysis.understanding?.tone || 'unknown',
+          sentiment: tweetAnalysis.understanding?.sentiment || 'unknown',
+          modelPreference: model_key || 'auto'
+        });
+      } else {
+        console.log('[API] ⚠️ No analysis data to pass to AI router (using basic context only)');
+      }
+      
       let replyResponse = await aiRouter.generateReply({
         tweetText: tweet_text,
         tweetId: tweet_id,
