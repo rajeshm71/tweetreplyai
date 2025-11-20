@@ -481,13 +481,52 @@
       }
     }
     async loadQualityMetrics() {
+      const startTime = Date.now();
+      console.log("[LOG][Quality] loadQualityMetrics() invoked at", new Date(startTime).toISOString());
       try {
-        this.qualityMetrics = await this.apiClient.getQualityMetrics(30);
+        console.log("[LOG][Quality] -> requesting /api/quality/metrics?days=30");
+        const response = await this.apiClient.getQualityMetrics(30);
+        console.log("[LOG][Quality] <- response received in", Date.now() - startTime, "ms:", response);
+        this.processQualityMetricsResponse(response);
         this.updateQuickStats();
+        return response;
       } catch (error) {
-        console.error("Failed to load quality metrics:", error);
-        this.qualityMetrics = null;
+        console.error("[ERROR][Quality] loadQualityMetrics failed:", error);
+        console.error("[ERROR][Quality] stack:", error?.stack);
+        this.processQualityMetricsResponse(null);
+        return null;
       }
+    }
+    processQualityMetricsResponse(response) {
+      this.qualityMetricsResponse = response;
+      if (!response) {
+        console.warn("[WARN][Quality] No quality metrics response available");
+        this.qualityMetrics = null;
+        this.qualityRecommendations = [];
+        return;
+      }
+      const { metrics = null, recommendations = [] } = response;
+      console.log("[LOG][Quality] Raw response payload:", response);
+      if (metrics) {
+        console.log("[LOG][Quality] Extracted metrics:", {
+          avg: metrics.avg_quality_score,
+          high: metrics.high_quality_replies,
+          low: metrics.low_quality_replies,
+          regen: metrics.regeneration_rate
+        });
+      } else {
+        console.warn("[WARN][Quality] Metrics object missing in response");
+      }
+      console.log(
+        "[LOG][Quality] Recommendations count:",
+        Array.isArray(recommendations) ? recommendations.length : 0,
+        "Sample:",
+        Array.isArray(recommendations) ? recommendations.slice(0, 3) : recommendations
+      );
+      this.qualityMetrics = metrics;
+      this.qualityRecommendations = Array.isArray(recommendations) ? recommendations : [];
+      console.log("[DEBUG][Quality] Normalized metrics stored:", this.qualityMetrics);
+      console.log("[DEBUG][Quality] Normalized recommendations stored:", this.qualityRecommendations);
     }
     setState(state) {
       this.loadingState?.classList.add("hidden");
@@ -819,41 +858,84 @@
         listElement.appendChild(item);
       });
     }
-    async loadAnalytics() {
+    async loadAnalytics(forceRefresh = false) {
+      console.log("[LOG][Analytics] loadAnalytics() called. forceRefresh =", forceRefresh);
       try {
-        const metrics = await this.apiClient.getQualityMetrics(30);
-        this.displayAnalytics(metrics);
+        const usingCache = !!this.qualityMetricsResponse && !forceRefresh;
+        console.log("[LOG][Analytics] Cached response available?", !!this.qualityMetricsResponse, "Using cache?", usingCache);
+        if (!this.qualityMetricsResponse || forceRefresh) {
+          const startTime = Date.now();
+          console.log("[LOG][Analytics] -> requesting /api/quality/metrics?days=30 (refresh needed)");
+          const response = await this.apiClient.getQualityMetrics(30);
+          console.log("[LOG][Analytics] <- response received in", Date.now() - startTime, "ms:", response);
+          this.processQualityMetricsResponse(response);
+          this.updateQuickStats();
+        }
+        this.displayAnalytics(this.qualityMetricsResponse);
       } catch (error) {
-        console.error("Failed to load analytics:", error);
+        console.error("[ERROR][Analytics] loadAnalytics failed:", error);
+        console.error("[ERROR][Analytics] stack:", error?.stack);
         this.displayAnalytics({ metrics: {}, recommendations: [] });
       }
     }
     displayAnalytics(data) {
+      console.log("[LOG][Analytics] displayAnalytics invoked with data:", data);
+      console.log("[LOG][Analytics] Cached metrics at time of render:", this.qualityMetricsResponse);
       if (!data) {
         data = {};
+        console.warn("[WARN][Analytics] displayAnalytics received null data, defaulting to empty object");
       }
       const avgQuality = document.getElementById("avg-quality");
       const totalReplies = document.getElementById("total-replies");
       const highQuality = document.getElementById("high-quality");
-      const metrics = data.metrics || {};
+      const metrics = data.metrics || this.qualityMetrics || {};
+      const recommendations = data.recommendations ?? this.qualityRecommendations ?? [];
+      console.log("[LOG][Analytics] Metrics after fallback:", metrics);
+      console.log("[LOG][Analytics] Recommendations count:", recommendations.length, "Sample:", recommendations.slice(0, 3));
       if (avgQuality) {
-        const formatted = this.formatQualityScore(metrics.averageScore);
-        avgQuality.textContent = formatted === "--" ? "-" : formatted;
+        const avgScore = metrics.avg_quality_score;
+        if (avgScore !== void 0 && avgScore !== null) {
+          const score = Math.round(avgScore);
+          console.log("[LOG][Analytics] Displaying avg quality:", score);
+          avgQuality.textContent = score.toString();
+        } else {
+          console.warn('[WARN][Analytics] avg_quality_score missing, rendering "-"');
+          avgQuality.textContent = "-";
+        }
       }
       if (totalReplies) {
-        totalReplies.textContent = metrics.totalReplies ?? "-";
+        const high = metrics.high_quality_replies ?? 0;
+        const low = metrics.low_quality_replies ?? 0;
+        const computedTotal = high + low;
+        const total = metrics.totalReplies ?? computedTotal;
+        console.log("[LOG][Analytics] Total replies stats:", { high, low, computedTotal, provided: metrics.totalReplies, used: total });
+        if (total !== void 0 && total !== null) {
+          totalReplies.textContent = total.toString();
+        } else {
+          console.warn('[WARN][Analytics] total replies undefined, rendering "-"');
+          totalReplies.textContent = "-";
+        }
       }
       if (highQuality) {
-        highQuality.textContent = metrics.highQualityCount ?? "-";
+        const highCount = metrics.high_quality_replies;
+        console.log("[LOG][Analytics] High quality count value:", highCount);
+        if (highCount !== void 0 && highCount !== null) {
+          highQuality.textContent = highCount.toString();
+        } else {
+          console.warn('[WARN][Analytics] high_quality_replies missing, rendering "-"');
+          highQuality.textContent = "-";
+        }
       }
       const recommendationsList = document.getElementById("recommendations-list");
       if (recommendationsList) {
-        if (data.recommendations && Array.isArray(data.recommendations) && data.recommendations.length > 0) {
+        if (recommendations.length > 0) {
+          console.log("[LOG][Analytics] Rendering", recommendations.length, "recommendations");
           recommendationsList.innerHTML = `
           <h4>Recommendations:</h4>
-          <ul>${data.recommendations.map((rec) => `<li>${this.escapeHtml(rec)}</li>`).join("")}</ul>
+          <ul>${recommendations.map((rec) => `<li>${this.escapeHtml(rec)}</li>`).join("")}</ul>
         `;
         } else {
+          console.log("[LOG][Analytics] No recommendations to display");
           recommendationsList.innerHTML = "";
         }
       }
@@ -940,13 +1022,23 @@
       const used = this.usageData?.used ?? 0;
       if (this.todayReplies) {
         this.todayReplies.textContent = used;
+        console.log("[LOG][QuickStats] Today replies updated to", used);
+      } else {
+        console.warn("[WARN][QuickStats] todayReplies element missing");
       }
       if (this.successRate) {
-        if (this.qualityMetrics && this.qualityMetrics.metrics) {
-          this.successRate.textContent = this.formatQualityScore(this.qualityMetrics.metrics.averageScore);
+        console.log("[LOG][QuickStats] updateQuickStats invoked with metrics:", this.qualityMetrics);
+        console.log("[LOG][QuickStats] usageData used replies:", used);
+        console.log("[LOG][QuickStats] successRate element exists?", !!this.successRate);
+        if (this.qualityMetrics && this.qualityMetrics.avg_quality_score !== void 0 && this.qualityMetrics.avg_quality_score !== null) {
+          const score = Math.round(this.qualityMetrics.avg_quality_score);
+          console.log("[LOG][QuickStats] Displaying quality score:", score);
+          this.successRate.textContent = score.toString();
         } else {
+          console.warn("[WARN][QuickStats] No quality metrics available, falling back to --");
           this.successRate.textContent = "--";
         }
+        console.log("[LOG][QuickStats] successRate text now:", this.successRate.textContent);
       }
       if (this.timeSaved) {
         this.timeSaved.textContent = "--";

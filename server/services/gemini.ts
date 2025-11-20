@@ -168,8 +168,40 @@ Instructions:
       console.log(`🤖 [Gemini] Getting generative model instance...`);
       //const model = genAI.getGenerativeModel({ model: modelKey });
 
+      // Build enhanced system prompt with enriched analysis context
+      let enhancedSystemPrompt = promptConfig.systemPrompt;
+      
+      // Inject enriched analysis context if available (from AI agents)
+      if (options.tweetAnalysis && options.tweetAnalysis.enrichedContextPrompt) {
+        console.log(`🧠 [Gemini] Injecting enriched tweet analysis context`);
+        enhancedSystemPrompt = `${options.tweetAnalysis.enrichedContextPrompt}\n\n${enhancedSystemPrompt}`;
+      }
+      
+      // Add existing tweet context (fallback or additional context)
+      if (options.tweetContext) {
+        const { tweetContextAnalyzer } = await import('./tweet-context.js');
+        const authorInfo = options.authorInfo && options.authorInfo.username ? {
+          username: options.authorInfo.username,
+          verified: options.authorInfo.verified || false,
+          followerCount: options.authorInfo.follower_count || 0
+        } : undefined;
+        const contextPrompt = tweetContextAnalyzer.generateContextPrompt(
+          options.tweetContext,
+          authorInfo,
+          options.conversationContext ? {
+            parentTweets: options.conversationContext,
+            threadLength: options.conversationContext.length,
+            isThread: options.conversationContext.length > 0
+          } : undefined
+        );
+        
+        if (contextPrompt) {
+          enhancedSystemPrompt = `${enhancedSystemPrompt}\n\n${contextPrompt}`;
+        }
+      }
+
       // Create the full prompt with system instructions
-      const fullPrompt = `${promptConfig.systemPrompt}
+      const fullPrompt = `${enhancedSystemPrompt}
 
 ${promptConfig.userPrompt(options.tweetText)}`;
 

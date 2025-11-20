@@ -458,26 +458,56 @@ export async function registerRoutes(app: Express): Promise<Express> {
         limit: updatedCounter.limit
       });
 
-      // Analyze tweet context if not provided
-      const { tweetContextAnalyzer } = await import('./services/tweet-context.js');
+      // Prepare author info for analysis
       const authorInfo = author_info && author_info.username ? {
         username: author_info.username,
         verified: author_info.verified || false,
         followerCount: author_info.follower_count || 0
       } : undefined;
+
+      // Run AI-powered tweet analysis agents (in parallel)
+      let tweetAnalysis = null;
+      try {
+        const { tweetAnalysisOrchestrator } = await import('./services/tweet-analysis-agents.js');
+        const conversationContextForAnalysis = conversation_context ? {
+          parentTweets: conversation_context,
+          threadLength: conversation_context.length,
+          isThread: conversation_context.length > 0
+        } : undefined;
+        
+        tweetAnalysis = await tweetAnalysisOrchestrator.analyzeTweet(
+          tweet_text,
+          authorInfo,
+          conversationContextForAnalysis
+        );
+        
+        if (tweetAnalysis) {
+          console.log('[API] Successfully obtained enriched tweet analysis');
+        } else {
+          console.log('[API] Tweet analysis returned null, falling back to basic context');
+        }
+      } catch (error: any) {
+        console.error('[API] Error running tweet analysis agents:', error.message);
+        console.error('[API] Stack:', error.stack);
+        console.log('[API] Falling back to basic tweet context analysis');
+      }
+
+      // Analyze tweet context (fallback or additional context)
+      const { tweetContextAnalyzer } = await import('./services/tweet-context.js');
       const tweetContext = tweetContextAnalyzer.analyzeTweet(
         tweet_text,
         authorInfo,
         conversation_context ? { parentTweets: conversation_context, threadLength: conversation_context.length, isThread: conversation_context.length > 0 } : undefined
       );
 
-      // Generate the reply with context
+      // Generate the reply with enriched analysis and context
       let replyResponse = await aiRouter.generateReply({
         tweetText: tweet_text,
         tweetId: tweet_id,
         modelPreference: model_key,
         promptVariation: prompt_variation,
         tweetContext,
+        tweetAnalysis, // Pass enriched analysis from agents
         authorInfo: author_info,
         conversationContext: conversation_context,
         tweetMetadata: tweet_metadata,
@@ -495,6 +525,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
         }
         
         // Try to regenerate with a different approach
+        // Fix: Include tweetAnalysis in retry to maintain enriched context
         try {
           const retryResponse = await aiRouter.generateReply({
             tweetText: tweet_text,
@@ -502,6 +533,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
             modelPreference: model_key,
             promptVariation: prompt_variation === 'default' ? 'direct' : 'default', // Try different prompt
             tweetContext,
+            tweetAnalysis, // Include enriched analysis in retry
             authorInfo: author_info,
             conversationContext: conversation_context,
             tweetMetadata: tweet_metadata,

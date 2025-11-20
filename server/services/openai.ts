@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import { getPromptConfig, type PromptConfig } from "./prompts.js";
 import { replyPostProcessor } from "./reply-postprocessor.js";
+import type { EnrichedTweetAnalysis } from "./tweet-analysis-agents.js";
 
 // TODO: Set OPENAI_API_KEY in environment to enable AI reply generation
 const openai = process.env.OPENAI_API_KEY ? new OpenAI() : null;
@@ -11,6 +12,7 @@ export interface ReplyOptions {
   modelPreference?: string;
   promptVariation?: string;
   tweetContext?: any; // Will be imported from tweet-context.ts
+  tweetAnalysis?: EnrichedTweetAnalysis; // AI-powered tweet analysis from agents
   authorInfo?: {
     username?: string;
     verified?: boolean;
@@ -133,6 +135,14 @@ export class ModelRouter {
 
     // Generate context-aware prompt if context is available
     let enhancedSystemPrompt = promptConfig.systemPrompt;
+    
+    // Inject enriched analysis context if available (from AI agents)
+    if (options.tweetAnalysis && options.tweetAnalysis.enrichedContextPrompt) {
+      console.log(`🧠 [OpenAI] Injecting enriched tweet analysis context`);
+      enhancedSystemPrompt = `${options.tweetAnalysis.enrichedContextPrompt}\n\n${enhancedSystemPrompt}`;
+    }
+    
+    // Add existing tweet context (fallback or additional context)
     if (options.tweetContext) {
       const { tweetContextAnalyzer } = await import('./tweet-context.js');
       const authorInfo = options.authorInfo && options.authorInfo.username ? {
@@ -151,7 +161,7 @@ export class ModelRouter {
       );
       
       if (contextPrompt) {
-        enhancedSystemPrompt = `${promptConfig.systemPrompt}\n\n${contextPrompt}`;
+        enhancedSystemPrompt = `${enhancedSystemPrompt}\n\n${contextPrompt}`;
       }
     }
 

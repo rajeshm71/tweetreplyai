@@ -1,0 +1,458 @@
+import OpenAI from "openai";
+import crypto from "crypto";
+
+// Initialize OpenAI client for agents
+const openai = process.env.OPENAI_API_KEY ? new OpenAI() : null;
+
+// Feature flag and configuration
+// TODO: Move these to environment variables for production configuration
+const TWEET_ANALYSIS_ENABLED = process.env.TWEET_ANALYSIS_ENABLED !== 'false';
+const TWEET_ANALYSIS_CACHE_TTL = parseInt(process.env.TWEET_ANALYSIS_CACHE_TTL || '3600', 10);
+const TWEET_ANALYSIS_MODEL = process.env.TWEET_ANALYSIS_MODEL || 'gpt-4o-mini';
+// Fix: Prevent memory leak - cache size limit (can be moved to env var later)
+const MAX_CACHE_SIZE = 1000;
+// Fix: Add timeout mechanism - agent call timeout in milliseconds (can be moved to env var later)
+const AGENT_TIMEOUT_MS = 10000;
+// Maximum tweet length for validation
+const MAX_TWEET_LENGTH = 2000;
+
+// Interfaces
+export interface TweetUnderstandingResult {
+  tone: string; // e.g., "sarcastic", "informative", "humorous", "serious", "casual"
+  sentiment: 'positive' | 'negative' | 'neutral' | 'mixed';
+  style: string; // e.g., "conversational", "formal", "playful", "technical"
+  complexity: 'simple' | 'medium' | 'complex';
+  emotionalMarkers: string[]; // Key emotional indicators found
+  keyThemes: string[]; // Main topics or themes
+}
+
+export interface IntentionExtractionResult {
+  intention: string; // Free-form description of user's intention
+  keyThemes: string[]; // Important themes related to the intention
+  actionVerbs: string[]; // Action verbs that indicate what the user is doing
+  underlyingPurpose: string; // Deeper purpose or goal
+}
+
+export interface EnrichedTweetAnalysis {
+  understanding: TweetUnderstandingResult;
+  intention: IntentionExtractionResult;
+  enrichedContextPrompt: string; // Formatted context for injection into prompts
+  timestamp: Date;
+}
+
+// Cache entry interface
+interface CacheEntry {
+  analysis: EnrichedTweetAnalysis;
+  timestamp: number;
+}
+
+// Cache storage
+const analysisCache = new Map<string, CacheEntry>();
+
+// Helper to normalize cache key
+function normalizeCacheKey(
+  tweetText: string, 
+  authorUsername?: string,
+  conversationContext?: { parentTweets?: string[]; threadLength?: number; isThread?: boolean }
+): string {
+  const normalized = tweetText.toLowerCase().trim().replace(/\s+/g, ' ');
+  const author = authorUsername ? authorUsername.toLowerCase() : '';
+  // Include conversation context in cache key to avoid collisions
+  const contextHash = conversationContext?.isThread 
+    ? `|thread:${conversationContext.threadLength || 0}` 
+    : '';
+  // Fix: Add hash to cache key for better uniqueness and collision prevention
+  const textHash = crypto.createHash('md5').update(tweetText).digest('hex').substring(0, 8);
+  return `${normalized}|${author}${contextHash}|${textHash}`;
+}
+
+// Helper to check if cache entry is valid
+function isCacheValid(entry: CacheEntry): boolean {
+  const age = Date.now() - entry.timestamp;
+  return age < TWEET_ANALYSIS_CACHE_TTL * 1000;
+}
+
+// Fix: Helper to enforce cache size limit (FIFO eviction)
+function enforceCacheSizeLimit(): void {
+  if (analysisCache.size >= MAX_CACHE_SIZE) {
+    // Remove oldest entry (FIFO - first in, first out)
+    const firstKey = analysisCache.keys().next().value;
+    if (firstKey) {
+      analysisCache.delete(firstKey);
+      console.log(`[TweetAnalysisOrchestrator] Cache size limit reached, evicted oldest entry`);
+    }
+  }
+}
+
+// Fix: Timeout wrapper for agent calls
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, operation: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => 
+      setTimeout(() => reject(new Error(`${operation} timed out after ${timeoutMs}ms`)), timeoutMs)
+    )
+  ]);
+}
+
+// Tweet Understanding Agent
+export class TweetUnderstandingAgent {
+  async analyze(tweetText: string, authorInfo?: { username?: string; verified?: boolean; followerCount?: number }): Promise<TweetUnderstandingResult> {
+    const startTime = Date.now();
+    
+    if (!openai) {
+      console.warn('[TweetUnderstandingAgent] OpenAI not configured, returning default analysis');
+      return this.getDefaultAnalysis();
+    }
+
+    try {
+      const prompt = `Analyze this tweet's tone, sentiment, and style. Provide a structured analysis.
+
+Tweet: "${tweetText}"
+
+Respond with a JSON object containing:
+- tone: one word describing the primary tone (e.g., "sarcastic", "informative", "humorous", "serious", "casual", "playful", "technical")
+- sentiment: one of "positive", "negative", "neutral", or "mixed"
+- style: one word describing the writing style (e.g., "conversational", "formal", "playful", "technical", "casual")
+- complexity: one of "simple", "medium", or "complex"
+- emotionalMarkers: array of 2-4 key emotional indicators or feelings present
+- keyThemes: array of 2-5 main topics or themes mentioned
+
+Return ONLY valid JSON, no additional text.`;
+
+      const response = await openai.chat.completions.create({
+        model: TWEET_ANALYSIS_MODEL,
+        messages: [
+          { role: "system", content: "You are an expert at analyzing social media content. Return only valid JSON." },
+          { role: "user", content: prompt }
+        ],
+        temperature: 0.3,
+        max_tokens: 300,
+        response_format: { type: "json_object" }
+      });
+
+      const content = response.choices[0]?.message?.content;
+      if (!content) {
+        throw new Error('Empty response from OpenAI');
+      }
+
+      // Parse and validate JSON response
+      let parsed: any;
+      try {
+        parsed = JSON.parse(content);
+      } catch (parseError: any) {
+        throw new Error(`Invalid JSON response: ${parseError.message}`);
+      }
+
+      // Validate required fields and provide defaults
+      const analysis: TweetUnderstandingResult = {
+        tone: parsed.tone || 'neutral',
+        sentiment: ['positive', 'negative', 'neutral', 'mixed'].includes(parsed.sentiment) 
+          ? parsed.sentiment 
+          : 'neutral',
+        style: parsed.style || 'casual',
+        complexity: ['simple', 'medium', 'complex'].includes(parsed.complexity)
+          ? parsed.complexity
+          : 'medium',
+        emotionalMarkers: Array.isArray(parsed.emotionalMarkers) ? parsed.emotionalMarkers : [],
+        keyThemes: Array.isArray(parsed.keyThemes) ? parsed.keyThemes : []
+      };
+
+      const latency = Date.now() - startTime;
+      
+      console.log(`[TweetUnderstandingAgent] Analysis completed in ${latency}ms`);
+      console.log(`[TweetUnderstandingAgent] Tone: ${analysis.tone}, Sentiment: ${analysis.sentiment}, Style: ${analysis.style}`);
+      
+      return analysis;
+    } catch (error: any) {
+      console.error('[TweetUnderstandingAgent] Error:', error.message);
+      return this.getDefaultAnalysis();
+    }
+  }
+
+  private getDefaultAnalysis(): TweetUnderstandingResult {
+    return {
+      tone: 'neutral',
+      sentiment: 'neutral',
+      style: 'casual',
+      complexity: 'medium',
+      emotionalMarkers: [],
+      keyThemes: []
+    };
+  }
+}
+
+// Intention Extraction Agent
+export class IntentionExtractionAgent {
+  async extract(tweetText: string, authorInfo?: { username?: string; verified?: boolean; followerCount?: number }): Promise<IntentionExtractionResult> {
+    const startTime = Date.now();
+    
+    if (!openai) {
+      console.warn('[IntentionExtractionAgent] OpenAI not configured, returning default extraction');
+      return this.getDefaultExtraction();
+    }
+
+    try {
+      const prompt = `What is the user's underlying intention or purpose in this tweet? Extract their intent in natural language.
+
+Tweet: "${tweetText}"
+
+Respond with a JSON object containing:
+- intention: a 1-2 sentence description of what the user is trying to achieve or express (free-form, natural language)
+- keyThemes: array of 2-5 important themes or topics related to this intention
+- actionVerbs: array of 2-4 action verbs that indicate what the user is doing (e.g., "asking", "sharing", "complaining", "celebrating")
+- underlyingPurpose: a brief sentence describing the deeper purpose or goal behind the tweet
+
+Return ONLY valid JSON, no additional text.`;
+
+      const response = await openai.chat.completions.create({
+        model: TWEET_ANALYSIS_MODEL,
+        messages: [
+          { role: "system", content: "You are an expert at understanding human intentions in social media. Return only valid JSON." },
+          { role: "user", content: prompt }
+        ],
+        temperature: 0.4,
+        max_tokens: 400,
+        response_format: { type: "json_object" }
+      });
+
+      const content = response.choices[0]?.message?.content;
+      if (!content) {
+        throw new Error('Empty response from OpenAI');
+      }
+
+      // Parse and validate JSON response
+      let parsed: any;
+      try {
+        parsed = JSON.parse(content);
+      } catch (parseError: any) {
+        throw new Error(`Invalid JSON response: ${parseError.message}`);
+      }
+
+      // Validate required fields and provide defaults
+      const extraction: IntentionExtractionResult = {
+        intention: parsed.intention || 'The user is sharing or expressing something',
+        keyThemes: Array.isArray(parsed.keyThemes) ? parsed.keyThemes : [],
+        actionVerbs: Array.isArray(parsed.actionVerbs) ? parsed.actionVerbs : [],
+        underlyingPurpose: parsed.underlyingPurpose || 'To communicate with others'
+      };
+
+      const latency = Date.now() - startTime;
+      
+      console.log(`[IntentionExtractionAgent] Extraction completed in ${latency}ms`);
+      const intentionPreview = extraction.intention ? extraction.intention.substring(0, 100) : 'N/A';
+      console.log(`[IntentionExtractionAgent] Intention: ${intentionPreview}...`);
+      
+      return extraction;
+    } catch (error: any) {
+      console.error('[IntentionExtractionAgent] Error:', error.message);
+      return this.getDefaultExtraction();
+    }
+  }
+
+  private getDefaultExtraction(): IntentionExtractionResult {
+    return {
+      intention: 'The user is sharing or expressing something',
+      keyThemes: [],
+      actionVerbs: [],
+      underlyingPurpose: 'To communicate with others'
+    };
+  }
+}
+
+// Tweet Analysis Orchestrator
+export class TweetAnalysisOrchestrator {
+  private understandingAgent: TweetUnderstandingAgent;
+  private intentionAgent: IntentionExtractionAgent;
+
+  constructor() {
+    this.understandingAgent = new TweetUnderstandingAgent();
+    this.intentionAgent = new IntentionExtractionAgent();
+  }
+
+  async analyzeTweet(
+    tweetText: string,
+    authorInfo?: { username?: string; verified?: boolean; followerCount?: number },
+    conversationContext?: { parentTweets?: string[]; threadLength?: number; isThread?: boolean }
+  ): Promise<EnrichedTweetAnalysis | null> {
+    // Fix: Input validation - ensure tweet text is valid
+    if (!tweetText || typeof tweetText !== 'string' || tweetText.trim().length === 0) {
+      console.warn('[TweetAnalysisOrchestrator] Invalid tweet text: empty or not a string');
+      return null;
+    }
+    if (tweetText.length > MAX_TWEET_LENGTH) {
+      console.warn(`[TweetAnalysisOrchestrator] Tweet text exceeds maximum length (${tweetText.length} > ${MAX_TWEET_LENGTH})`);
+      return null;
+    }
+
+    // Check feature flag
+    if (!TWEET_ANALYSIS_ENABLED) {
+      console.log('[TweetAnalysisOrchestrator] Feature disabled, skipping analysis');
+      return null;
+    }
+
+    // Check cache first (include conversation context in key)
+    const cacheKey = normalizeCacheKey(tweetText, authorInfo?.username, conversationContext);
+    const cached = analysisCache.get(cacheKey);
+    if (cached && isCacheValid(cached)) {
+      console.log('[TweetAnalysisOrchestrator] Cache hit');
+      return cached.analysis;
+    }
+
+    console.log('[TweetAnalysisOrchestrator] Cache miss, running agents in parallel');
+
+    const startTime = Date.now();
+
+    try {
+      // Fix: Run both agents in parallel with timeout protection
+      const [understanding, intention] = await Promise.all([
+        withTimeout(
+          this.understandingAgent.analyze(tweetText, authorInfo),
+          AGENT_TIMEOUT_MS,
+          'TweetUnderstandingAgent'
+        ),
+        withTimeout(
+          this.intentionAgent.extract(tweetText, authorInfo),
+          AGENT_TIMEOUT_MS,
+          'IntentionExtractionAgent'
+        )
+      ]);
+
+      // Fix: Check if both agents returned default values (error masking detection)
+      const isDefaultUnderstanding = understanding.tone === 'neutral' && 
+        understanding.sentiment === 'neutral' && 
+        understanding.emotionalMarkers.length === 0;
+      const isDefaultIntention = intention.intention === 'The user is sharing or expressing something' &&
+        intention.keyThemes.length === 0 &&
+        intention.actionVerbs.length === 0;
+      
+      if (isDefaultUnderstanding && isDefaultIntention) {
+        console.warn('[TweetAnalysisOrchestrator] WARNING: Both agents returned default values - possible silent failure');
+      }
+
+      const totalLatency = Date.now() - startTime;
+      console.log(`[TweetAnalysisOrchestrator] Parallel execution completed in ${totalLatency}ms`);
+
+      // Generate enriched context prompt
+      const enrichedContextPrompt = this.generateEnrichedContextPrompt({
+        understanding,
+        intention,
+        enrichedContextPrompt: '', // Will be set below
+        timestamp: new Date()
+      });
+
+      const analysis: EnrichedTweetAnalysis = {
+        understanding,
+        intention,
+        enrichedContextPrompt,
+        timestamp: new Date()
+      };
+
+      // Fix: Enforce cache size limit before storing new entry
+      enforceCacheSizeLimit();
+      
+      // Store in cache
+      analysisCache.set(cacheKey, {
+        analysis,
+        timestamp: Date.now()
+      });
+
+      // Log truncated results for debugging
+      console.log(`[TweetAnalysisOrchestrator] Analysis complete - Tone: ${understanding.tone}, Sentiment: ${understanding.sentiment}`);
+      const intentionPreview = intention.intention ? intention.intention.substring(0, 80) : 'N/A';
+      console.log(`[TweetAnalysisOrchestrator] Intention: ${intentionPreview}...`);
+
+      return analysis;
+    } catch (error: any) {
+      console.error('[TweetAnalysisOrchestrator] Error during analysis:', error.message);
+      console.error('[TweetAnalysisOrchestrator] Stack:', error.stack);
+      return null; // Return null to trigger fallback
+    }
+  }
+
+  private generateEnrichedContextPrompt(analysis: EnrichedTweetAnalysis): string {
+    const parts: string[] = [];
+
+    // Tweet Analysis section
+    parts.push(`Tweet Analysis:`);
+    parts.push(`- Tone: ${analysis.understanding.tone}`);
+    parts.push(`- Sentiment: ${analysis.understanding.sentiment}`);
+    parts.push(`- Style: ${analysis.understanding.style}`);
+    parts.push(`- Complexity: ${analysis.understanding.complexity}`);
+    
+    // Safely handle potentially undefined arrays
+    if (analysis.understanding.emotionalMarkers && analysis.understanding.emotionalMarkers.length > 0) {
+      parts.push(`- Emotional markers: ${analysis.understanding.emotionalMarkers.join(', ')}`);
+    }
+    
+    if (analysis.understanding.keyThemes && analysis.understanding.keyThemes.length > 0) {
+      parts.push(`- Key themes: ${analysis.understanding.keyThemes.join(', ')}`);
+    }
+
+    // User Intention section
+    parts.push(``);
+    parts.push(`User Intention: ${analysis.intention.intention}`);
+    
+    if (analysis.intention.underlyingPurpose) {
+      parts.push(`Underlying Purpose: ${analysis.intention.underlyingPurpose}`);
+    }
+    
+    // Safely handle potentially undefined arrays
+    if (analysis.intention.actionVerbs && analysis.intention.actionVerbs.length > 0) {
+      parts.push(`Action indicators: ${analysis.intention.actionVerbs.join(', ')}`);
+    }
+
+    // Reply Guidance section
+    parts.push(``);
+    parts.push(`Reply Guidance:`);
+    
+    // Generate guidance based on analysis
+    if (analysis.understanding.tone === 'sarcastic') {
+      parts.push(`- The tweet is sarcastic; match the tone appropriately or respond with light humor`);
+    } else if (analysis.understanding.tone === 'humorous') {
+      parts.push(`- The tweet is humorous; respond with appropriate light humor or appreciation`);
+    } else if (analysis.understanding.tone === 'informative') {
+      parts.push(`- The tweet is informative; acknowledge the information or add relevant context`);
+    } else if (analysis.understanding.tone === 'serious') {
+      parts.push(`- The tweet is serious; respond thoughtfully and respectfully`);
+    }
+    
+    if (analysis.understanding.sentiment === 'negative') {
+      parts.push(`- The sentiment is negative; be empathetic and constructive`);
+    } else if (analysis.understanding.sentiment === 'positive') {
+      parts.push(`- The sentiment is positive; match the energy appropriately`);
+    }
+
+    // Safely check action verbs
+    if (analysis.intention.actionVerbs && 
+        (analysis.intention.actionVerbs.includes('asking') || analysis.intention.actionVerbs.includes('questioning'))) {
+      parts.push(`- The user appears to be asking something; provide a helpful response`);
+    }
+
+    return parts.join('\n');
+  }
+
+  // Clear cache (useful for testing or manual cache invalidation)
+  clearCache(): void {
+    analysisCache.clear();
+    console.log('[TweetAnalysisOrchestrator] Cache cleared');
+  }
+
+  // Get cache stats (useful for monitoring)
+  getCacheStats(): { size: number; entries: number } {
+    // Clean up expired entries
+    for (const [key, entry] of analysisCache.entries()) {
+      if (!isCacheValid(entry)) {
+        analysisCache.delete(key);
+      }
+    }
+    
+    return {
+      size: analysisCache.size,
+      entries: analysisCache.size
+    };
+  }
+}
+
+// Export singleton instance
+export const tweetAnalysisOrchestrator = new TweetAnalysisOrchestrator();
+
