@@ -160,12 +160,21 @@
   font-size: 12px;
   background: white;
   color: #0f1419;
+  cursor: pointer;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-weight: 400;
+  box-sizing: border-box;
+  transition: all 0.2s ease;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
 }
 
 .tweetreply-model-select:hover,
 .tweetreply-prompt-select:hover,
 .tweetreply-reply-mode-select:hover {
   border-color: #1d9bf0;
+  cursor: pointer;
 }
 
 /* Responsive adjustments */
