@@ -537,8 +537,8 @@ export class ReplyPostProcessor {
     if (!text) {
       return text;
     }
-    // Remove trailing punctuation marks
-    return text.replace(/[.,!?:;]+$/, "");
+    // Remove trailing punctuation marks (but preserve question marks at the end)
+    return text.replace(/[.,!:;]+$/, "");
   }
 
   /**
