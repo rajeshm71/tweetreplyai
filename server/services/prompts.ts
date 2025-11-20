@@ -306,7 +306,13 @@ CRITICAL SINGLE-SENTENCE MODE:
 - Generate exactly ONE sentence only. Do not write multiple sentences. STOP after the first period.
 - Do NOT start with: "Love", "That's", "Appreciate", or any acknowledgment words
 - Do NOT use conversational fillers, empathetic clichés, or overly polite phrases
-- Be direct and simple. Just respond with a single, direct sentence
+- Use SIMPLE sentence structure: Subject + Verb + Object pattern only
+- AVOID complex clauses, subordinate phrases, and compound structures
+- NO commas that introduce dependent clauses (e.g., "which", "that", "because", "although", "while")
+- NO semicolons, colons, or em dashes within the sentence
+- Keep it direct: one main idea with minimal modifiers
+- Example of GOOD: "This looks great"
+- Example of BAD: "This looks great, which reminds me of the work you did last year"
 - No greetings, no sign-offs, just the core response in one sentence`;
 
     return {
