@@ -1,6 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import { ReplyOptions, ReplyResponse } from "./openai.js";
-import { getPromptConfig, type PromptConfig } from "./prompts.js";
+import { getPromptConfig, applyReplyModeToPrompt, type PromptConfig } from "./prompts.js";
 import { replyPostProcessor } from "./reply-postprocessor.js";
 
 // Initialize Gemini AI client with official SDK
@@ -131,9 +131,9 @@ Instructions:
 - Avoid hashtags, hype, or emojis unless essential`;
   }
 
-  private postProcessReply(reply: string): string {
-    // Use comprehensive postprocessor service
-    return replyPostProcessor.processReply(reply);
+  private postProcessReply(reply: string, replyMode?: string): string {
+    // Use comprehensive postprocessor service, passing replyMode
+    return replyPostProcessor.processReply(reply, replyMode);
   }
 
   async generateReply(options: ReplyOptions): Promise<ReplyResponse> {
@@ -142,11 +142,14 @@ Instructions:
       options.tweetText,
       options.modelPreference,
     );
-    const promptConfig = this.getPromptConfig(options.promptVariation);
+    const basePromptConfig = this.getPromptConfig(options.promptVariation);
+    
+    // Apply reply mode modifications to prompt
+    const promptConfig = applyReplyModeToPrompt(basePromptConfig, options.replyMode);
 
     console.log(`🚀 [Gemini] Starting request with model: ${modelKey}`);
     console.log(`📝 [Gemini] Tweet text: "${options.tweetText}"`);
-    console.log(`🎯 [Gemini] Using prompt: ${promptConfig.name}`);
+    console.log(`🎯 [Gemini] Using prompt: ${promptConfig.name} (mode: ${options.replyMode || 'base'})`);
 
     if (!genAI) {
       console.log(`❌ [Gemini] Gemini client not configured`);
@@ -231,7 +234,7 @@ ${promptConfig.userPrompt(options.tweetText)}`;
       //const rawReply = response.text() || "";
       console.log(`📝 [Gemini] Raw reply: "${rawReply}"`);
 
-      const processedReply = this.postProcessReply(rawReply);
+      const processedReply = this.postProcessReply(rawReply, options.replyMode);
       console.log(`✨ [Gemini] Processed reply: "${processedReply}"`);
 
       const latencyMs = Date.now() - startTime;

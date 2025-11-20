@@ -741,6 +741,8 @@
     `;
       const modelSelect = this.createModelSelect();
       container.appendChild(modelSelect);
+      const replyModeSelect = this.createReplyModeSelect();
+      container.appendChild(replyModeSelect);
       const promptSelect = this.createPromptSelect();
       container.appendChild(promptSelect);
       const buttonGroup = document.createElement("div");
@@ -781,6 +783,7 @@
         console.log("[TweetReply] Button click - Actual composer:", actualComposer.contentEditable, actualComposer.className);
         this.handleSuggestReply(actualComposer, suggestButton, {
           modelKey: modelSelect.value,
+          replyMode: replyModeSelect.value,
           promptVariation: promptSelect.value
         });
       });
@@ -931,6 +934,45 @@
       select.addEventListener("change", () => {
         try {
           chrome.storage?.local?.set({ tweetreply_prompt: select.value });
+        } catch (_) {
+        }
+      });
+      return select;
+    }
+    createReplyModeSelect() {
+      const select = document.createElement("select");
+      select.className = "tweetreply-reply-mode-select";
+      select.title = "Choose reply generation mode";
+      const modes = [
+        { value: "single-sentence", label: "\u26A1 Single Sentence", tooltip: "Fast: Generate only one direct sentence" },
+        { value: "base", label: "\u{1F4DD} Base Prompt", tooltip: "Standard: Natural reply without deep analysis" },
+        { value: "enhanced", label: "\u{1F9E0} Enhanced", tooltip: "Thoughtful: AI-powered deep tweet analysis" }
+      ];
+      modes.forEach((mode) => {
+        const option = document.createElement("option");
+        option.value = mode.value;
+        option.textContent = mode.label;
+        option.title = mode.tooltip;
+        select.appendChild(option);
+      });
+      try {
+        chrome.storage?.local?.get(["tweetreply_reply_mode"], (data) => {
+          if (data && typeof data.tweetreply_reply_mode === "string") {
+            const savedMode = data.tweetreply_reply_mode;
+            if (modes.some((m) => m.value === savedMode)) {
+              select.value = savedMode;
+            }
+          }
+        });
+      } catch (_) {
+      }
+      if (!select.value) {
+        select.value = "base";
+      }
+      select.addEventListener("change", () => {
+        try {
+          chrome.storage?.local?.set({ tweetreply_reply_mode: select.value });
+          console.log("[TweetReply] Reply mode changed to:", select.value);
         } catch (_) {
         }
       });
@@ -1111,6 +1153,8 @@
           tweet_id: tweetId,
           // Now guaranteed to be non-null
           model_key: options.modelKey,
+          reply_mode: options.replyMode,
+          // Reply generation mode
           prompt_variation: options.promptVariation,
           author_info: authorInfo,
           // Now guaranteed to have follower_count as number

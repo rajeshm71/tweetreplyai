@@ -275,3 +275,36 @@ export function getAvailablePrompts(): Array<{
     description: config.description,
   }));
 }
+
+// Function to apply reply mode modifications to a prompt configuration
+export function applyReplyModeToPrompt(promptConfig: PromptConfig, replyMode?: string): PromptConfig {
+  // If no reply mode or base mode, return unchanged
+  if (!replyMode || replyMode === 'base') {
+    return promptConfig;
+  }
+
+  // For enhanced mode, return unchanged (analysis is handled separately)
+  if (replyMode === 'enhanced') {
+    return promptConfig;
+  }
+
+  // For single-sentence mode, modify the system prompt
+  if (replyMode === 'single-sentence') {
+    const singleSentenceInstructions = `
+
+CRITICAL SINGLE-SENTENCE MODE:
+- Generate exactly ONE sentence only. Do not write multiple sentences. STOP after the first period.
+- Do NOT start with: "Love", "That's", "Appreciate", or any acknowledgment words
+- Do NOT use conversational fillers, empathetic clichés, or overly polite phrases
+- Be direct and simple. Just respond with a single, direct sentence
+- No greetings, no sign-offs, just the core response in one sentence`;
+
+    return {
+      ...promptConfig,
+      systemPrompt: promptConfig.systemPrompt + singleSentenceInstructions,
+    };
+  }
+
+  // Default: return unchanged for unknown modes
+  return promptConfig;
+}

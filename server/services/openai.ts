@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import { getPromptConfig, type PromptConfig } from "./prompts.js";
+import { getPromptConfig, applyReplyModeToPrompt, type PromptConfig } from "./prompts.js";
 import { replyPostProcessor } from "./reply-postprocessor.js";
 import type { EnrichedTweetAnalysis } from "./tweet-analysis-agents.js";
 
@@ -11,6 +11,7 @@ export interface ReplyOptions {
   tweetId?: string;
   modelPreference?: string;
   promptVariation?: string;
+  replyMode?: string; // Reply mode: 'single-sentence' | 'base' | 'enhanced'
   tweetContext?: any; // Will be imported from tweet-context.ts
   tweetAnalysis?: EnrichedTweetAnalysis; // AI-powered tweet analysis from agents
   authorInfo?: {
@@ -112,13 +113,13 @@ export class ModelRouter {
     return getPromptConfig(promptVariation);
   }
 
-  private postProcessReply(reply: string, isImprovedDraft: boolean = false): string {
+  private postProcessReply(reply: string, isImprovedDraft: boolean = false, replyMode?: string): string {
     // For improved drafts, use lighter post-processing to preserve AI improvements
     if (isImprovedDraft) {
       return replyPostProcessor.processReplyLight(reply);
     }
-    // Use comprehensive postprocessor service for regular replies
-    return replyPostProcessor.processReply(reply);
+    // Use comprehensive postprocessor service for regular replies, passing replyMode
+    return replyPostProcessor.processReply(reply, replyMode);
   }
 
   async generateReply(options: ReplyOptions): Promise<ReplyResponse> {
@@ -127,11 +128,14 @@ export class ModelRouter {
       options.tweetText,
       options.modelPreference,
     );
-    const promptConfig = this.getPromptConfig(options.promptVariation);
+    const basePromptConfig = this.getPromptConfig(options.promptVariation);
+    
+    // Apply reply mode modifications to prompt
+    const promptConfig = applyReplyModeToPrompt(basePromptConfig, options.replyMode);
 
     console.log(`🚀 [OpenAI] Starting request with model: ${modelKey}`);
     console.log(`📝 [OpenAI] Tweet text: "${options.tweetText}"`);
-    console.log(`🎯 [OpenAI] Using prompt: ${promptConfig.name}`);
+    console.log(`🎯 [OpenAI] Using prompt: ${promptConfig.name} (mode: ${options.replyMode || 'base'})`);
 
     // Generate context-aware prompt if context is available
     let enhancedSystemPrompt = promptConfig.systemPrompt;
@@ -200,7 +204,7 @@ export class ModelRouter {
         });
         console.log(`📝 [OpenAI] Response received:`, response);
         const rawReply = response.output_text || "";
-        const processedReply = this.postProcessReply(rawReply);
+        const processedReply = this.postProcessReply(rawReply, false, options.replyMode);
         const latencyMs = Date.now() - startTime;
 
         return {
@@ -227,7 +231,7 @@ export class ModelRouter {
         });
         console.log(`📝 [OpenAI] Response received:`, response);
         const rawReply = response.choices[0]?.message?.content || "";
-        const processedReply = this.postProcessReply(rawReply);
+        const processedReply = this.postProcessReply(rawReply, false, options.replyMode);
         const latencyMs = Date.now() - startTime;
 
         return {

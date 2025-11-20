@@ -1,6 +1,6 @@
 import { Groq } from "groq-sdk";
 import { ReplyOptions, ReplyResponse } from "./openai.js";
-import { getPromptConfig, type PromptConfig } from "./prompts.js";
+import { getPromptConfig, applyReplyModeToPrompt, type PromptConfig } from "./prompts.js";
 import { replyPostProcessor } from "./reply-postprocessor.js";
 
 // Initialize Groq client
@@ -50,9 +50,9 @@ export class GroqModelRouter {
     return matches > 2 || tweetText.split("\n").length > 2;
   }
 
-  private postProcessReply(reply: string): string {
-    // Use comprehensive postprocessor service
-    return replyPostProcessor.processReply(reply);
+  private postProcessReply(reply: string, replyMode?: string): string {
+    // Use comprehensive postprocessor service, passing replyMode
+    return replyPostProcessor.processReply(reply, replyMode);
   }
 
   async generateReply(options: ReplyOptions): Promise<ReplyResponse> {
@@ -61,11 +61,14 @@ export class GroqModelRouter {
       options.tweetText,
       options.modelPreference,
     );
-    const promptConfig = this.getPromptConfig(options.promptVariation);
+    const basePromptConfig = this.getPromptConfig(options.promptVariation);
+    
+    // Apply reply mode modifications to prompt
+    const promptConfig = applyReplyModeToPrompt(basePromptConfig, options.replyMode);
 
     console.log(`🚀 [Groq] Starting request with model: ${modelKey}`);
     console.log(`📝 [Groq] Tweet text: "${options.tweetText}"`);
-    console.log(`🎯 [Groq] Using prompt: ${promptConfig.name}`);
+    console.log(`🎯 [Groq] Using prompt: ${promptConfig.name} (mode: ${options.replyMode || 'base'})`);
 
     // Generate context-aware prompt if context is available
     let enhancedSystemPrompt = promptConfig.systemPrompt;
@@ -150,7 +153,7 @@ export class GroqModelRouter {
 
       console.log(`📝 [Groq] Raw reply: "${fullReply}"`);
 
-      const processedReply = this.postProcessReply(fullReply);
+      const processedReply = this.postProcessReply(fullReply, options.replyMode);
       console.log(`✨ [Groq] Processed reply: "${processedReply}"`);
 
       const latencyMs = Date.now() - startTime;

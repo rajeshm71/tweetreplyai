@@ -406,6 +406,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
         tweet_id: z.string().optional(),
         model_key: z.string().optional(),
         prompt_variation: z.string().optional(),
+        reply_mode: z.enum(['single-sentence', 'base', 'enhanced']).optional().default('base'),
         author_info: z.object({
           username: z.string().optional(),
           verified: z.boolean().optional(),
@@ -424,6 +425,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
         tweet_id, 
         model_key, 
         prompt_variation,
+        reply_mode,
         author_info,
         conversation_context,
         tweet_metadata
@@ -465,52 +467,57 @@ export async function registerRoutes(app: Express): Promise<Express> {
         followerCount: author_info.follower_count || 0
       } : undefined;
 
-      // Run AI-powered tweet analysis agents (in parallel)
+      // Run AI-powered tweet analysis agents (only for enhanced mode)
       let tweetAnalysis = null;
-      const analysisStartTime = Date.now();
-      console.log('[API] ========== TWEET ANALYSIS START ==========');
-      console.log('[API] Tweet text length:', tweet_text.length);
-      console.log('[API] Author:', authorInfo?.username || 'unknown');
-      console.log('[API] Conversation context:', conversation_context ? `Thread with ${conversation_context.length} tweets` : 'None');
       
-      try {
-        const { tweetAnalysisOrchestrator } = await import('./services/tweet-analysis-agents.js');
-        const conversationContextForAnalysis = conversation_context ? {
-          parentTweets: conversation_context,
-          threadLength: conversation_context.length,
-          isThread: conversation_context.length > 0
-        } : undefined;
+      if (reply_mode === 'enhanced') {
+        const analysisStartTime = Date.now();
+        console.log('[API] ========== TWEET ANALYSIS START (ENHANCED MODE) ==========');
+        console.log('[API] Tweet text length:', tweet_text.length);
+        console.log('[API] Author:', authorInfo?.username || 'unknown');
+        console.log('[API] Conversation context:', conversation_context ? `Thread with ${conversation_context.length} tweets` : 'None');
         
-        console.log('[API] Calling tweetAnalysisOrchestrator.analyzeTweet()...');
-        tweetAnalysis = await tweetAnalysisOrchestrator.analyzeTweet(
-          tweet_text,
-          authorInfo,
-          conversationContextForAnalysis
-        );
-        
-        const analysisLatency = Date.now() - analysisStartTime;
-        
-        if (tweetAnalysis) {
-          console.log('[API] ✅ Successfully obtained enriched tweet analysis');
-          console.log('[API] Analysis latency:', analysisLatency, 'ms');
-          console.log('[API] Analysis tone:', tweetAnalysis.understanding?.tone || 'unknown');
-          console.log('[API] Analysis sentiment:', tweetAnalysis.understanding?.sentiment || 'unknown');
-          const intentionPreview = tweetAnalysis.intention?.intention 
-            ? tweetAnalysis.intention.intention.substring(0, 100) + '...'
-            : 'N/A';
-          console.log('[API] Analysis intention:', intentionPreview);
-        } else {
-          console.log('[API] ⚠️ Tweet analysis returned null, falling back to basic context');
-          console.log('[API] Analysis latency:', analysisLatency, 'ms');
+        try {
+          const { tweetAnalysisOrchestrator } = await import('./services/tweet-analysis-agents.js');
+          const conversationContextForAnalysis = conversation_context ? {
+            parentTweets: conversation_context,
+            threadLength: conversation_context.length,
+            isThread: conversation_context.length > 0
+          } : undefined;
+          
+          console.log('[API] Calling tweetAnalysisOrchestrator.analyzeTweet()...');
+          tweetAnalysis = await tweetAnalysisOrchestrator.analyzeTweet(
+            tweet_text,
+            authorInfo,
+            conversationContextForAnalysis
+          );
+          
+          const analysisLatency = Date.now() - analysisStartTime;
+          
+          if (tweetAnalysis) {
+            console.log('[API] ✅ Successfully obtained enriched tweet analysis');
+            console.log('[API] Analysis latency:', analysisLatency, 'ms');
+            console.log('[API] Analysis tone:', tweetAnalysis.understanding?.tone || 'unknown');
+            console.log('[API] Analysis sentiment:', tweetAnalysis.understanding?.sentiment || 'unknown');
+            const intentionPreview = tweetAnalysis.intention?.intention 
+              ? tweetAnalysis.intention.intention.substring(0, 100) + '...'
+              : 'N/A';
+            console.log('[API] Analysis intention:', intentionPreview);
+          } else {
+            console.log('[API] ⚠️ Tweet analysis returned null, falling back to basic context');
+            console.log('[API] Analysis latency:', analysisLatency, 'ms');
+          }
+          console.log('[API] ========== TWEET ANALYSIS END ==========');
+        } catch (error: any) {
+          const analysisLatency = Date.now() - analysisStartTime;
+          console.error('[API] ❌ Error running tweet analysis agents:', error.message);
+          console.error('[API] Error stack:', error.stack);
+          console.log('[API] Analysis latency before error:', analysisLatency, 'ms');
+          console.log('[API] Falling back to basic tweet context analysis');
+          console.log('[API] ========== TWEET ANALYSIS END (ERROR) ==========');
         }
-        console.log('[API] ========== TWEET ANALYSIS END ==========');
-      } catch (error: any) {
-        const analysisLatency = Date.now() - analysisStartTime;
-        console.error('[API] ❌ Error running tweet analysis agents:', error.message);
-        console.error('[API] Error stack:', error.stack);
-        console.log('[API] Analysis latency before error:', analysisLatency, 'ms');
-        console.log('[API] Falling back to basic tweet context analysis');
-        console.log('[API] ========== TWEET ANALYSIS END (ERROR) ==========');
+      } else {
+        console.log(`[API] Skipping tweet analysis (reply_mode: ${reply_mode})`);
       }
 
       // Analyze tweet context (fallback or additional context)
@@ -541,6 +548,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
         tweetId: tweet_id,
         modelPreference: model_key,
         promptVariation: prompt_variation,
+        replyMode: reply_mode, // Pass reply mode for prompt modification
         tweetContext,
         tweetAnalysis, // Pass enriched analysis from agents
         authorInfo: author_info,
@@ -567,6 +575,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
             tweetId: tweet_id,
             modelPreference: model_key,
             promptVariation: prompt_variation === 'default' ? 'direct' : 'default', // Try different prompt
+            replyMode: reply_mode, // Pass reply mode for prompt modification
             tweetContext,
             tweetAnalysis, // Include enriched analysis in retry
             authorInfo: author_info,

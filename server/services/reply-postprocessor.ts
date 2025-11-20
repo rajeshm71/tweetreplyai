@@ -72,8 +72,10 @@ export class ReplyPostProcessor {
 
   /**
    * Main processing function - applies all rules in optimized order
+   * @param rawReply - The raw reply text to process
+   * @param replyMode - Optional reply mode: 'single-sentence' | 'base' | 'enhanced'
    */
-  processReply(rawReply: string): string {
+  processReply(rawReply: string, replyMode?: string): string {
     // Step 1: Store original reply for fallback (handle null/undefined)
     if (!rawReply || typeof rawReply !== 'string') {
       return '';
@@ -84,6 +86,8 @@ export class ReplyPostProcessor {
     if (!originalReply) {
       return '';
     }
+
+    const isSingleSentence = replyMode === 'single-sentence';
 
     // Step 3: Check if original has minimum words for removal operations
     const hasMinWords = this.hasMinimumWords(originalReply, MIN_WORDS_FOR_REMOVAL);
@@ -99,14 +103,19 @@ export class ReplyPostProcessor {
     // Step 6: Apply new format cleanup rules (always executed)
     processed = this.applyFormatCleanup(processed);
 
-    // Step 7: Apply removal operations (only if original had >= 5 words)
-    if (hasMinWords) {
+    // Step 7: Apply removal operations (only if original had >= 5 words AND not single-sentence mode)
+    if (hasMinWords && !isSingleSentence) {
       // First remove start phrases (Rule 1) - this handles phrases at the very start of reply
       processed = this.removeStartPhrases(processed);
       // Then filter sentences (Rule 3) - this handles sentences that start with filtered words
       processed = this.filterSentences(processed);
       // Also check if entire reply starts with filtered sentence starts and remove
       processed = this.removeFilteredStartWords(processed);
+    }
+
+    // Step 7.5: For single-sentence mode, truncate at first sentence ending
+    if (isSingleSentence) {
+      processed = this.truncateToFirstSentence(processed);
     }
 
     // Step 8: Remove ending punctuation and normalize whitespace
@@ -533,6 +542,27 @@ export class ReplyPostProcessor {
    * Remove ending punctuation
    * Removes trailing punctuation marks (., !, ?, :, ;, ,)
    */
+  /**
+   * Truncate text to first sentence (for single-sentence mode)
+   * Finds the first sentence ending (. ! ?) and returns only that sentence
+   */
+  private truncateToFirstSentence(text: string): string {
+    if (!text) {
+      return text;
+    }
+    
+    // Find the first sentence ending punctuation
+    const sentenceEndMatch = text.match(/[.!?]/);
+    
+    if (sentenceEndMatch && sentenceEndMatch.index !== undefined) {
+      // Return text up to and including the first sentence ending
+      return text.substring(0, sentenceEndMatch.index + 1);
+    }
+    
+    // If no sentence ending found, return the whole text
+    return text;
+  }
+
   private removeEndingPunctuation(text: string): string {
     if (!text) {
       return text;
