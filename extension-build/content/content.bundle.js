@@ -6,19 +6,48 @@
       this.token = null;
       this.authStatusCache = null;
       this.cacheExpiry = 0;
+      this.apiClient = null;
     }
-    async isAuthenticated() {
-      if (this.authStatusCache && Date.now() < this.cacheExpiry) {
+    setApiClient(apiClient) {
+      this.apiClient = apiClient;
+    }
+    async isAuthenticated(validateWithServer = false) {
+      if (!validateWithServer && this.authStatusCache && Date.now() < this.cacheExpiry) {
         return this.authStatusCache;
       }
       try {
         const response = await new Promise((resolve) => {
           chrome.runtime.sendMessage({ action: "getAuthStatus" }, resolve);
         });
-        this.authStatusCache = response.authenticated;
-        this.cacheExpiry = Date.now() + 3e4;
+        const hasToken = response.authenticated;
         this.token = response.token;
-        return response.authenticated;
+        if (!hasToken) {
+          this.authStatusCache = false;
+          this.cacheExpiry = Date.now() + 3e4;
+          return false;
+        }
+        if (validateWithServer && this.apiClient) {
+          try {
+            await this.apiClient.getCurrentUser();
+            this.authStatusCache = true;
+            this.cacheExpiry = Date.now() + 3e4;
+            return true;
+          } catch (error) {
+            if (error.message && error.message.includes("401")) {
+              console.log("[Auth] Token validation failed (401), auto-logging out");
+              await this.signOut();
+              this.authStatusCache = false;
+              this.cacheExpiry = Date.now() + 3e4;
+              return false;
+            }
+            this.authStatusCache = false;
+            this.cacheExpiry = Date.now() + 3e4;
+            return false;
+          }
+        }
+        this.authStatusCache = hasToken;
+        this.cacheExpiry = Date.now() + 3e4;
+        return hasToken;
       } catch (error) {
         console.error("Failed to check auth status:", error);
         this.authStatusCache = false;
@@ -107,7 +136,9 @@
             }
             if (!response.success) {
               if (response.status === 401) {
-                this.authManager.clearCache();
+                this.authManager.signOut().catch((err) => {
+                  console.error("Failed to sign out on 401:", err);
+                });
                 reject(new Error("401: Unauthorized"));
                 return;
               }
@@ -434,7 +465,8 @@
       document.addEventListener("click", this.autoLikeClickHandler, true);
     }
     async initialize() {
-      this.isAuthenticated = await this.authManager.isAuthenticated();
+      this.authManager.setApiClient(this.apiClient);
+      this.isAuthenticated = await this.authManager.isAuthenticated(true);
       if (this.isAuthenticated) {
         await this.loadUsageData();
       }
@@ -475,7 +507,7 @@
     }
     async refreshAuthState() {
       const wasAuthenticated = this.isAuthenticated;
-      this.isAuthenticated = await this.authManager.isAuthenticated();
+      this.isAuthenticated = await this.authManager.isAuthenticated(true);
       if (this.isAuthenticated && !wasAuthenticated) {
         await this.loadUsageData();
       }
@@ -797,7 +829,7 @@
       try {
         console.log("[TweetReply] Initializing button state...");
         if (!this.isAuthenticated) {
-          this.isAuthenticated = await this.authManager.isAuthenticated();
+          this.isAuthenticated = await this.authManager.isAuthenticated(true);
           console.log("[TweetReply] Auth status:", this.isAuthenticated);
         }
         if (this.isAuthenticated && !this.usageData) {
@@ -1216,8 +1248,11 @@
         if (error.message.includes("400")) {
           errorMessage = "Invalid request. Please try again or refresh the page.";
         } else if (error.message.includes("401")) {
+          this.authManager.signOut().catch((err) => {
+            console.error("Failed to sign out on 401:", err);
+          });
           this.isAuthenticated = false;
-          errorMessage = "Please sign in again";
+          errorMessage = "You have been logged out. Please sign in again.";
         } else if (error.message.includes("402")) {
           errorMessage = "Quota exceeded - upgrade your plan";
         } else if (error.message.includes("Network error")) {
@@ -1343,8 +1378,11 @@
         if (error.message.includes("400")) {
           errorMessage = "Invalid request. Please try again or refresh the page.";
         } else if (error.message.includes("401")) {
+          this.authManager.signOut().catch((err) => {
+            console.error("Failed to sign out on 401:", err);
+          });
           this.isAuthenticated = false;
-          errorMessage = "Please sign in again";
+          errorMessage = "You have been logged out. Please sign in again.";
         } else if (error.message.includes("402")) {
           errorMessage = "Quota exceeded - upgrade your plan";
         } else if (error.message.includes("Network error")) {

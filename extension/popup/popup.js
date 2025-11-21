@@ -320,13 +320,17 @@ class PopupManager {
       // Start with loading state
       this.setState('loading');
       
-      let isAuthenticated = await this.authManager.isAuthenticated();
+      // Set apiClient in authManager for server validation
+      this.authManager.setApiClient(this.apiClient);
+      
+      // Validate authentication with server to catch cases where user logged out from web app
+      let isAuthenticated = await this.authManager.isAuthenticated(true);
       
       // If not authenticated, try to sync from web app
       if (!isAuthenticated) {
         await this.tryAuthSync();
-        // Check auth again after sync attempt
-        isAuthenticated = await this.authManager.isAuthenticated();
+        // Check auth again after sync attempt (validate with server)
+        isAuthenticated = await this.authManager.isAuthenticated(true);
       }
       
       if (!isAuthenticated) {

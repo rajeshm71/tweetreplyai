@@ -6,19 +6,48 @@
       this.token = null;
       this.authStatusCache = null;
       this.cacheExpiry = 0;
+      this.apiClient = null;
     }
-    async isAuthenticated() {
-      if (this.authStatusCache && Date.now() < this.cacheExpiry) {
+    setApiClient(apiClient) {
+      this.apiClient = apiClient;
+    }
+    async isAuthenticated(validateWithServer = false) {
+      if (!validateWithServer && this.authStatusCache && Date.now() < this.cacheExpiry) {
         return this.authStatusCache;
       }
       try {
         const response = await new Promise((resolve) => {
           chrome.runtime.sendMessage({ action: "getAuthStatus" }, resolve);
         });
-        this.authStatusCache = response.authenticated;
-        this.cacheExpiry = Date.now() + 3e4;
+        const hasToken = response.authenticated;
         this.token = response.token;
-        return response.authenticated;
+        if (!hasToken) {
+          this.authStatusCache = false;
+          this.cacheExpiry = Date.now() + 3e4;
+          return false;
+        }
+        if (validateWithServer && this.apiClient) {
+          try {
+            await this.apiClient.getCurrentUser();
+            this.authStatusCache = true;
+            this.cacheExpiry = Date.now() + 3e4;
+            return true;
+          } catch (error) {
+            if (error.message && error.message.includes("401")) {
+              console.log("[Auth] Token validation failed (401), auto-logging out");
+              await this.signOut();
+              this.authStatusCache = false;
+              this.cacheExpiry = Date.now() + 3e4;
+              return false;
+            }
+            this.authStatusCache = false;
+            this.cacheExpiry = Date.now() + 3e4;
+            return false;
+          }
+        }
+        this.authStatusCache = hasToken;
+        this.cacheExpiry = Date.now() + 3e4;
+        return hasToken;
       } catch (error) {
         console.error("Failed to check auth status:", error);
         this.authStatusCache = false;
@@ -107,7 +136,9 @@
             }
             if (!response.success) {
               if (response.status === 401) {
-                this.authManager.clearCache();
+                this.authManager.signOut().catch((err) => {
+                  console.error("Failed to sign out on 401:", err);
+                });
                 reject(new Error("401: Unauthorized"));
                 return;
               }
@@ -420,10 +451,11 @@
     async initialize() {
       try {
         this.setState("loading");
-        let isAuthenticated = await this.authManager.isAuthenticated();
+        this.authManager.setApiClient(this.apiClient);
+        let isAuthenticated = await this.authManager.isAuthenticated(true);
         if (!isAuthenticated) {
           await this.tryAuthSync();
-          isAuthenticated = await this.authManager.isAuthenticated();
+          isAuthenticated = await this.authManager.isAuthenticated(true);
         }
         if (!isAuthenticated) {
           this.setState("not-authenticated");

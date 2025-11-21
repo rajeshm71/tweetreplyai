@@ -349,8 +349,11 @@ class TwitterReplyInjector {
   }
 
   async initialize() {
-    // Check authentication status
-    this.isAuthenticated = await this.authManager.isAuthenticated();
+    // Set apiClient in authManager for server validation
+    this.authManager.setApiClient(this.apiClient);
+    
+    // Check authentication status (validate with server to catch web app logout)
+    this.isAuthenticated = await this.authManager.isAuthenticated(true);
     
     if (this.isAuthenticated) {
       await this.loadUsageData();
@@ -413,7 +416,8 @@ class TwitterReplyInjector {
 
   async refreshAuthState() {
     const wasAuthenticated = this.isAuthenticated;
-    this.isAuthenticated = await this.authManager.isAuthenticated();
+    // Validate with server to catch web app logout
+    this.isAuthenticated = await this.authManager.isAuthenticated(true);
     
     if (this.isAuthenticated && !wasAuthenticated) {
       // Just logged in, reload usage data
@@ -896,9 +900,9 @@ class TwitterReplyInjector {
     try {
       console.log('[TweetReply] Initializing button state...');
       
-      // Re-check auth if needed
+      // Re-check auth if needed (validate with server to catch web app logout)
       if (!this.isAuthenticated) {
-        this.isAuthenticated = await this.authManager.isAuthenticated();
+        this.isAuthenticated = await this.authManager.isAuthenticated(true);
         console.log('[TweetReply] Auth status:', this.isAuthenticated);
       }
       
@@ -1423,8 +1427,12 @@ class TwitterReplyInjector {
       if (error.message.includes('400')) {
         errorMessage = 'Invalid request. Please try again or refresh the page.';
       } else if (error.message.includes('401')) {
+        // Auto-logout on 401 (unauthorized) - token is invalid or user logged out from web app
+        this.authManager.signOut().catch(err => {
+          console.error('Failed to sign out on 401:', err);
+        });
         this.isAuthenticated = false;
-        errorMessage = 'Please sign in again';
+        errorMessage = 'You have been logged out. Please sign in again.';
       } else if (error.message.includes('402')) {
         errorMessage = 'Quota exceeded - upgrade your plan';
       } else if (error.message.includes('Network error')) {
@@ -1605,8 +1613,12 @@ class TwitterReplyInjector {
       if (error.message.includes('400')) {
         errorMessage = 'Invalid request. Please try again or refresh the page.';
       } else if (error.message.includes('401')) {
+        // Auto-logout on 401 (unauthorized) - token is invalid or user logged out from web app
+        this.authManager.signOut().catch(err => {
+          console.error('Failed to sign out on 401:', err);
+        });
         this.isAuthenticated = false;
-        errorMessage = 'Please sign in again';
+        errorMessage = 'You have been logged out. Please sign in again.';
       } else if (error.message.includes('402')) {
         errorMessage = 'Quota exceeded - upgrade your plan';
       } else if (error.message.includes('Network error')) {
