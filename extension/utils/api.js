@@ -148,4 +148,8 @@ export class ApiClient {
   async getQualityMetrics(days = 30) {
     return this.makeRequest(`/api/quality/metrics?days=${days}`);
   }
+
+  async getSimpleAnalytics(days = 30) {
+    return this.makeRequest(`/api/analytics/simple?days=${days}`);
+  }
 }

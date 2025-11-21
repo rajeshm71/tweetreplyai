@@ -58,6 +58,10 @@ class BackgroundManager {
           this.handleApiRequest(message, sendResponse);
           return true; // Keep channel open for async response
           
+        case 'openLoginPage':
+          this.handleOpenLoginPage(message.url, sendResponse);
+          return true;
+          
         default:
           this.log('Unknown message action:', message.action);
       }
@@ -357,6 +361,19 @@ class BackgroundManager {
       chrome.tabs.create({ url: welcomeUrl });
     } catch (error) {
       console.error('Failed to open welcome page:', error);
+    }
+  }
+
+  handleOpenLoginPage(url, sendResponse) {
+    try {
+      const loginUrl = url || 'https://tweetreplyai.vercel.app/login';
+      chrome.tabs.create({ url: loginUrl });
+      // Call sendResponse immediately after synchronous operation
+      sendResponse({ success: true });
+    } catch (error) {
+      console.error('Failed to open login page:', error);
+      // Always send response, even on error
+      sendResponse({ success: false, error: error.message });
     }
   }
 }

@@ -129,6 +129,7 @@ export interface ReplyHistory {
   usedAt?: Date;
   tweetUrl?: string;
   performance?: any;
+  replyMode?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -145,6 +146,7 @@ export interface InsertReplyHistory {
   usedAt?: Date;
   tweetUrl?: string;
   performance?: any;
+  replyMode?: string;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -171,4 +173,26 @@ export interface InsertUserPreferences {
   promptStyleEnabled: boolean;
   createdAt?: Date;
   updatedAt?: Date;
+}
+
+export interface SimpleAnalytics {
+  summary: {
+    avgQuality: number;
+    qualityTrend: number; // +/- vs previous period
+    totalReplies: number;
+    timeSavedMinutes: number;
+    highQualityCount: number; // score > 80
+  };
+  parameterBreakdown: Array<{
+    name: string;
+    avgScore: number;
+  }>;
+  activityTrend: Array<{
+    date: string;
+    count: number;
+  }>;
+  insights: Array<{
+    text: string;
+    type: 'success' | 'info' | 'streak'; // for icon/color
+  }>;
 }

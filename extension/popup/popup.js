@@ -244,6 +244,17 @@ class PopupManager {
     // Panels
     this.historyPanel = document.getElementById('history-panel');
     this.analyticsPanel = document.getElementById('analytics-panel');
+    
+    // Analytics panel elements
+    this.analyticsBackBtn = document.getElementById('analytics-back-btn');
+    this.analyticsLoading = document.getElementById('analytics-loading');
+    this.analyticsError = document.getElementById('analytics-error');
+    this.analyticsRetryBtn = document.getElementById('analytics-retry-btn');
+    this.analyticsData = document.getElementById('analytics-data');
+    this.analyticsSummary = document.getElementById('analytics-summary');
+    this.parameterBreakdown = document.getElementById('parameter-breakdown');
+    this.activityTrend = document.getElementById('activity-trend');
+    this.insightsPanel = document.getElementById('insights-panel');
   }
 
   attachEventListeners() {
@@ -262,6 +273,8 @@ class PopupManager {
     // Panel close buttons
     this.closeHistoryBtn?.addEventListener('click', () => this.hideHistory());
     this.closeAnalyticsBtn?.addEventListener('click', () => this.hideAnalytics());
+    this.analyticsBackBtn?.addEventListener('click', () => this.hideAnalytics());
+    this.analyticsRetryBtn?.addEventListener('click', () => this.loadAnalytics());
     
     // Reply tracking settings
     const saveTrackingSettingsBtn = document.getElementById('saveTrackingSettings');
@@ -888,103 +901,195 @@ class PopupManager {
   }
 
   async loadAnalytics(forceRefresh = false) {
-    console.log('[LOG][Analytics] loadAnalytics() called. forceRefresh =', forceRefresh);
+    console.log('[Analytics] Loading analytics...');
+    
+    // Show loading state
+    this.analyticsLoading?.classList.remove('hidden');
+    this.analyticsError?.classList.add('hidden');
+    this.analyticsData?.classList.add('hidden');
+    
     try {
-      const usingCache = !!this.qualityMetricsResponse && !forceRefresh;
-      console.log('[LOG][Analytics] Cached response available?', !!this.qualityMetricsResponse, 'Using cache?', usingCache);
-
-      if (!this.qualityMetricsResponse || forceRefresh) {
-        const startTime = Date.now();
-        console.log('[LOG][Analytics] -> requesting /api/quality/metrics?days=30 (refresh needed)');
-        const response = await this.apiClient.getQualityMetrics(30);
-        console.log('[LOG][Analytics] <- response received in', Date.now() - startTime, 'ms:', response);
-        this.processQualityMetricsResponse(response);
-        this.updateQuickStats();
-      }
-
-      this.displayAnalytics(this.qualityMetricsResponse);
+      const response = await this.apiClient.getSimpleAnalytics(30);
+      console.log('[Analytics] Received analytics:', response);
+      
+      // Hide loading, show data
+      this.analyticsLoading?.classList.add('hidden');
+      this.analyticsData?.classList.remove('hidden');
+      
+      // Render all sections
+      this.renderAnalyticsSummary(response.summary);
+      this.renderParameterBreakdown(response.parameterBreakdown);
+      this.renderActivityTrend(response.activityTrend);
+      this.renderInsights(response.insights);
     } catch (error) {
-      console.error('[ERROR][Analytics] loadAnalytics failed:', error);
-      console.error('[ERROR][Analytics] stack:', error?.stack);
-      // Fix: Show empty state on error instead of leaving stale data
-      this.displayAnalytics({ metrics: {}, recommendations: [] });
+      console.error('[Analytics] Failed to load analytics:', error);
+      
+      // Show error state
+      this.analyticsLoading?.classList.add('hidden');
+      this.analyticsError?.classList.remove('hidden');
+      this.analyticsData?.classList.add('hidden');
     }
   }
 
-  displayAnalytics(data) {
-    console.log('[LOG][Analytics] displayAnalytics invoked with data:', data);
-    console.log('[LOG][Analytics] Cached metrics at time of render:', this.qualityMetricsResponse);
+  renderAnalyticsSummary(summary) {
+    if (!this.analyticsSummary) return;
     
-    // Handle null/undefined data
-    if (!data) {
-      data = {};
-      console.warn('[WARN][Analytics] displayAnalytics received null data, defaulting to empty object');
-    }
+    const { avgQuality, qualityTrend, totalReplies, timeSavedMinutes, highQualityCount } = summary;
+    
+    const trendIndicator = qualityTrend > 0 ? 
+      `<span class="trend-indicator positive">+${qualityTrend} from last period</span>` :
+      qualityTrend < 0 ?
+      `<span class="trend-indicator negative">${qualityTrend} from last period</span>` :
+      '';
+    
+    this.analyticsSummary.innerHTML = `
+      <h3>Summary</h3>
+      <div class="analytics-summary-grid">
+        <div class="analytics-summary-card">
+          <div class="metric-value">${avgQuality}</div>
+          <div class="metric-label">Avg Quality</div>
+          ${trendIndicator}
+        </div>
+        <div class="analytics-summary-card">
+          <div class="metric-value">${totalReplies}</div>
+          <div class="metric-label">Total Replies</div>
+        </div>
+        <div class="analytics-summary-card">
+          <div class="metric-value">${timeSavedMinutes}m</div>
+          <div class="metric-label">Time Saved</div>
+        </div>
+      </div>
+    `;
+  }
 
-    const avgQuality = document.getElementById('avg-quality');
-    const totalReplies = document.getElementById('total-replies');
-    const highQuality = document.getElementById('high-quality');
+  renderParameterBreakdown(parameters) {
+    if (!this.parameterBreakdown) return;
     
-    // Safely extract metrics with fallback values
-    const metrics = data.metrics || this.qualityMetrics || {};
-    const recommendations = data.recommendations ?? this.qualityRecommendations ?? [];
-    console.log('[LOG][Analytics] Metrics after fallback:', metrics);
-    console.log('[LOG][Analytics] Recommendations count:', recommendations.length, 'Sample:', recommendations.slice(0, 3));
-    
-    // Display average quality score (50-100 scale)
-    if (avgQuality) {
-      const avgScore = metrics.avg_quality_score;
-      if (avgScore !== undefined && avgScore !== null) {
-        const score = Math.round(avgScore);
-        console.log('[LOG][Analytics] Displaying avg quality:', score);
-        avgQuality.textContent = score.toString();
-      } else {
-        console.warn('[WARN][Analytics] avg_quality_score missing, rendering "-"');
-        avgQuality.textContent = '-';
-      }
+    if (parameters.length === 0) {
+      this.parameterBreakdown.innerHTML = `
+        <h3>Quality Breakdown</h3>
+        <p class="empty-state">No quality data available yet</p>
+      `;
+      return;
     }
     
-    // Display total replies - calculate from high + low quality counts
-    if (totalReplies) {
-      const high = metrics.high_quality_replies ?? 0;
-      const low = metrics.low_quality_replies ?? 0;
-      const computedTotal = high + low;
-      const total = metrics.totalReplies ?? computedTotal;
-      console.log('[LOG][Analytics] Total replies stats:', { high, low, computedTotal, provided: metrics.totalReplies, used: total });
-      if (total !== undefined && total !== null) {
-        totalReplies.textContent = total.toString();
-      } else {
-        console.warn('[WARN][Analytics] total replies undefined, rendering "-"');
-        totalReplies.textContent = '-';
-      }
+    const parameterItems = parameters.map(param => {
+      const barWidth = (param.avgScore / 10) * 100;
+      const barClass = param.avgScore >= 8 ? 'bar-high' : param.avgScore >= 5 ? 'bar-medium' : 'bar-low';
+      
+      return `
+        <div class="parameter-item">
+          <div class="parameter-header">
+            <span class="parameter-name">${this.escapeHtml(param.name)}</span>
+            <span class="parameter-score">${param.avgScore.toFixed(1)}/10</span>
+          </div>
+          <div class="parameter-bar-container">
+            <div class="parameter-bar ${barClass}" style="width: ${barWidth}%"></div>
+          </div>
+        </div>
+      `;
+    }).join('');
+    
+    this.parameterBreakdown.innerHTML = `
+      <h3>Quality Breakdown</h3>
+      <div class="parameter-list">
+        ${parameterItems}
+      </div>
+    `;
+  }
+
+  renderActivityTrend(trend) {
+    if (!this.activityTrend) return;
+    
+    if (trend.length === 0) {
+      this.activityTrend.innerHTML = `
+        <h3>Activity Trend</h3>
+        <p class="empty-state">No activity data available yet</p>
+      `;
+      return;
     }
     
-    // Display high quality count
-    if (highQuality) {
-      const highCount = metrics.high_quality_replies;
-      console.log('[LOG][Analytics] High quality count value:', highCount);
-      if (highCount !== undefined && highCount !== null) {
-        highQuality.textContent = highCount.toString();
-      } else {
-        console.warn('[WARN][Analytics] high_quality_replies missing, rendering "-"');
-        highQuality.textContent = '-';
-      }
+    // Simple line chart using SVG
+    const maxCount = Math.max(...trend.map(d => d.count), 1);
+    const width = 300;
+    const height = 150;
+    const padding = 20;
+    const chartWidth = width - (padding * 2);
+    const chartHeight = height - (padding * 2);
+    
+    // Generate points for line
+    const points = trend.map((d, i) => {
+      const x = padding + (i / (trend.length - 1)) * chartWidth;
+      const y = height - padding - (d.count / maxCount) * chartHeight;
+      return `${x},${y}`;
+    }).join(' ');
+    
+    this.activityTrend.innerHTML = `
+      <h3>Activity Trend (Last 7 Days)</h3>
+      <div class="activity-chart">
+        <svg viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+          <!-- Grid lines -->
+          <line x1="${padding}" y1="${padding}" x2="${padding}" y2="${height - padding}" stroke="#e5e7eb" stroke-width="1"/>
+          <line x1="${padding}" y1="${height - padding}" x2="${width - padding}" y2="${height - padding}" stroke="#e5e7eb" stroke-width="1"/>
+          
+          <!-- Area fill -->
+          <polygon points="${padding},${height - padding} ${points} ${width - padding},${height - padding}" fill="url(#gradient)" opacity="0.3"/>
+          
+          <!-- Line -->
+          <polyline points="${points}" fill="none" stroke="#3B82F6" stroke-width="2"/>
+          
+          <!-- Points -->
+          ${trend.map((d, i) => {
+            const x = padding + (i / (trend.length - 1)) * chartWidth;
+            const y = height - padding - (d.count / maxCount) * chartHeight;
+            return `<circle cx="${x}" cy="${y}" r="3" fill="#3B82F6"/>`;
+          }).join('')}
+          
+          <!-- Gradient definition -->
+          <defs>
+            <linearGradient id="gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" style="stop-color:#3B82F6;stop-opacity:0.5" />
+              <stop offset="100%" style="stop-color:#3B82F6;stop-opacity:0" />
+            </linearGradient>
+          </defs>
+        </svg>
+      </div>
+    `;
+  }
+
+  renderInsights(insights) {
+    if (!this.insightsPanel) return;
+    
+    if (insights.length === 0) {
+      this.insightsPanel.innerHTML = `
+        <h3>Insights</h3>
+        <p class="empty-state">Generate more replies to unlock insights!</p>
+      `;
+      return;
     }
     
-    // Display recommendations
-    const recommendationsList = document.getElementById('recommendations-list');
-    if (recommendationsList) {
-      if (recommendations.length > 0) {
-        console.log('[LOG][Analytics] Rendering', recommendations.length, 'recommendations');
-        recommendationsList.innerHTML = `
-          <h4>Recommendations:</h4>
-          <ul>${recommendations.map(rec => `<li>${this.escapeHtml(rec)}</li>`).join('')}</ul>
-        `;
-      } else {
-        console.log('[LOG][Analytics] No recommendations to display');
-        recommendationsList.innerHTML = '';
-      }
-    }
+    const iconMap = {
+      success: '✓',
+      info: 'ℹ',
+      streak: '🔥'
+    };
+    
+    const insightItems = insights.map(insight => {
+      const icon = iconMap[insight.type] || 'ℹ';
+      return `
+        <div class="insight-item">
+          <div class="insight-icon ${insight.type}">${icon}</div>
+          <div class="insight-text">${this.escapeHtml(insight.text)}</div>
+        </div>
+      `;
+    }).join('');
+    
+    this.insightsPanel.innerHTML = `
+      <h3>Insights</h3>
+      <div class="insights-list">
+        ${insightItems}
+      </div>
+    `;
   }
 
   truncate(text, maxLength) {

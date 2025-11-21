@@ -710,6 +710,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
         modelKey: replyResponse.modelKey,
         promptKey: prompt_variation || 'default',
         qualityScore: finalQualityResult.totalScore,
+        replyMode: reply_mode,
         performance: {
           qualityParameters: finalQualityResult.parameters,
           latencyMs: replyResponse.latencyMs,
@@ -1212,6 +1213,27 @@ export async function registerRoutes(app: Express): Promise<Express> {
       }
       
       res.status(500).json({ message: "Failed to suggest improvements" });
+    }
+  });
+
+  // Simple analytics endpoint (user-focused)
+  app.get('/api/analytics/simple', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const days = parseInt(req.query.days as string) || 30;
+      
+      // Validate days parameter
+      if (days < 1 || days > 365) {
+        return res.status(400).json({ message: "Days must be between 1 and 365" });
+      }
+      
+      const { feedbackAnalytics } = await import('./services/feedback-analytics.js');
+      const analytics = await feedbackAnalytics.getSimpleAnalytics(userId, days);
+      
+      res.json(analytics);
+    } catch (error) {
+      console.error("Error fetching simple analytics:", error);
+      res.status(500).json({ message: "Failed to fetch analytics" });
     }
   });
 

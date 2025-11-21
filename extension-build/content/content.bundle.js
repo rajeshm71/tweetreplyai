@@ -220,6 +220,9 @@
     async getQualityMetrics(days = 30) {
       return this.makeRequest(`/api/quality/metrics?days=${days}`);
     }
+    async getSimpleAnalytics(days = 30) {
+      return this.makeRequest(`/api/analytics/simple?days=${days}`);
+    }
   };
 
   // extension/content/content.js
@@ -802,6 +805,13 @@
       suggestButton.addEventListener("click", async (e) => {
         e.preventDefault();
         e.stopPropagation();
+        if (suggestButton.dataset.authPending === "true") {
+          await this.updateButtonStateAsync(suggestButton);
+        }
+        if (!this.isAuthenticated) {
+          await this.openLoginPage();
+          return;
+        }
         if (suggestButton.dataset.loadError === "true") {
           console.log("[TweetReply] Retrying button initialization...");
           delete suggestButton.dataset.loadError;
@@ -1046,6 +1056,13 @@
       button.addEventListener("click", async (e) => {
         e.preventDefault();
         e.stopPropagation();
+        if (button.dataset.authPending === "true") {
+          await this.updateButtonStateAsync(button);
+        }
+        if (!this.isAuthenticated) {
+          await this.openLoginPage();
+          return;
+        }
         if (button.dataset.loadError === "true") {
           console.log("[TweetReply] Retrying improve button initialization...");
           delete button.dataset.loadError;
@@ -1076,7 +1093,8 @@
         return;
       }
       if (!this.isAuthenticated) {
-        button.disabled = true;
+        button.disabled = false;
+        button.dataset.requiresAuth = "true";
         button.innerHTML = `
         <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" style="margin-right: 4px;">
           <path d="M12 2L13.09 8.26L19 7.27L14.18 12.09L20 17.91L13.09 15.74L12 22L10.91 15.74L4 17.91L8.82 12.09L3 7.27L8.91 8.26L12 2Z" opacity="0.6"/>
@@ -1084,7 +1102,7 @@
         <span>\u{1F512} Sign in to use</span>
       `;
         button.title = "Click to sign in to TweetReply";
-        button.style.opacity = "0.6";
+        button.style.opacity = "0.85";
         return;
       }
       if (!this.usageData) {
@@ -1116,6 +1134,7 @@
       }
       const isImproveButton = button.classList.contains("tweetreply-improve-btn");
       button.disabled = false;
+      delete button.dataset.requiresAuth;
       if (isImproveButton) {
         button.innerHTML = `
         <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" style="margin-right: 4px;">
@@ -1134,6 +1153,41 @@
         button.title = "Generate an AI reply suggestion";
       }
       button.style.opacity = "1";
+    }
+    async openLoginPage() {
+      try {
+        const response = await new Promise((resolve, reject) => {
+          chrome.runtime.sendMessage({ action: "getApiDomain" }, (response2) => {
+            if (chrome.runtime.lastError) {
+              reject(new Error(chrome.runtime.lastError.message));
+              return;
+            }
+            resolve(response2);
+          });
+        });
+        const domain = response?.domain || "tweetreplyai.vercel.app";
+        const protocol = domain.includes("localhost") ? "http" : "https";
+        const loginUrl = `${protocol}://${domain}/login`;
+        chrome.runtime.sendMessage({
+          action: "openLoginPage",
+          url: loginUrl
+        }, (response2) => {
+          if (chrome.runtime.lastError) {
+            console.error("[TweetReply] Failed to open login page:", chrome.runtime.lastError.message);
+          }
+        });
+      } catch (error) {
+        console.error("[TweetReply] Failed to get API domain, using fallback:", error);
+        const loginUrl = "https://tweetreplyai.vercel.app/login";
+        chrome.runtime.sendMessage({
+          action: "openLoginPage",
+          url: loginUrl
+        }, (response) => {
+          if (chrome.runtime.lastError) {
+            console.error("[TweetReply] Failed to open login page:", chrome.runtime.lastError.message);
+          }
+        });
+      }
     }
     insertButtonInToolbar(toolbar, button) {
       if (toolbar.firstChild) {

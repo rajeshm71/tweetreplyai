@@ -575,12 +575,6 @@ class TwitterReplyInjector {
       return;
     }
 
-    // Hide reply text box on tweet details pages (not inline replies)
-    if (ctx.type === 'detail') {
-      this.hideDetailPageComposer(composerContainer, ctx);
-      return; // Don't inject buttons, just hide the composer
-    }
-
     // Find the composer's toolbar area
     let toolbar = composerContainer.querySelector('[data-testid="toolBar"]') ||
                   composerContainer.querySelector('.toolbar') ||
@@ -622,28 +616,6 @@ class TwitterReplyInjector {
       }
       this.injectedButtons.add(composer);
     }
-  }
-
-  /**
-   * Hide reply composer container on tweet details pages
-   * Only hides when ctx.type === 'detail' (not inline replies)
-   * @param {HTMLElement} composerContainer - The composer container element
-   * @param {Object} ctx - Context object with type property
-   */
-  hideDetailPageComposer(composerContainer, ctx) {
-    // Only hide detail page composers, preserve inline replies
-    if (ctx.type !== 'detail') return;
-    
-    // Check if already hidden to prevent re-processing
-    if (composerContainer.dataset.tweetreplyHidden === 'true') return;
-    
-    // Hide the entire composer container (the reply text box section)
-    composerContainer.style.display = 'none';
-    
-    // Mark as hidden to prevent re-processing
-    composerContainer.dataset.tweetreplyHidden = 'true';
-    
-    console.log('[TweetReply] Hidden reply composer on tweet details page');
   }
 
   createToolbar(composer) {
@@ -857,6 +829,19 @@ class TwitterReplyInjector {
     suggestButton.addEventListener('click', async (e) => {
       e.preventDefault();
       e.stopPropagation();
+      
+      // Wait for async initialization to complete if still pending
+      // This prevents race condition where click happens before auth check completes
+      if (suggestButton.dataset.authPending === 'true') {
+        await this.updateButtonStateAsync(suggestButton);
+      }
+      
+      // Check if user is not authenticated - open login page
+      // Note: Only check isAuthenticated, not requiresAuth flag (it's just visual state)
+      if (!this.isAuthenticated) {
+        await this.openLoginPage();
+        return;
+      }
       
       // Check if in error state - retry loading
       if (suggestButton.dataset.loadError === 'true') {
@@ -1171,6 +1156,19 @@ class TwitterReplyInjector {
       e.preventDefault();
       e.stopPropagation();
       
+      // Wait for async initialization to complete if still pending
+      // This prevents race condition where click happens before auth check completes
+      if (button.dataset.authPending === 'true') {
+        await this.updateButtonStateAsync(button);
+      }
+      
+      // Check if user is not authenticated - open login page
+      // Note: Only check isAuthenticated, not requiresAuth flag (it's just visual state)
+      if (!this.isAuthenticated) {
+        await this.openLoginPage();
+        return;
+      }
+      
       // Check if in error state - retry loading
       if (button.dataset.loadError === 'true') {
         console.log('[TweetReply] Retrying improve button initialization...');
@@ -1214,7 +1212,8 @@ class TwitterReplyInjector {
 
     // Unauthenticated state
     if (!this.isAuthenticated) {
-      button.disabled = true;
+      button.disabled = false; // Make button clickable
+      button.dataset.requiresAuth = 'true'; // Mark as requiring auth
       button.innerHTML = `
         <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" style="margin-right: 4px;">
           <path d="M12 2L13.09 8.26L19 7.27L14.18 12.09L20 17.91L13.09 15.74L12 22L10.91 15.74L4 17.91L8.82 12.09L3 7.27L8.91 8.26L12 2Z" opacity="0.6"/>
@@ -1222,7 +1221,7 @@ class TwitterReplyInjector {
         <span>🔒 Sign in to use</span>
       `;
       button.title = 'Click to sign in to TweetReply';
-      button.style.opacity = '0.6';
+      button.style.opacity = '0.85'; // Make it look active but distinct
       return;
     }
 
@@ -1260,6 +1259,7 @@ class TwitterReplyInjector {
     // Active state - check if this is an improve button or suggest button
     const isImproveButton = button.classList.contains('tweetreply-improve-btn');
     button.disabled = false;
+    delete button.dataset.requiresAuth; // Clear auth requirement flag
     
     if (isImproveButton) {
       button.innerHTML = `
@@ -1279,6 +1279,47 @@ class TwitterReplyInjector {
       button.title = 'Generate an AI reply suggestion';
     }
     button.style.opacity = '1';
+  }
+
+  async openLoginPage() {
+    try {
+      // Get API domain from background script
+      const response = await new Promise((resolve, reject) => {
+        chrome.runtime.sendMessage({ action: 'getApiDomain' }, (response) => {
+          if (chrome.runtime.lastError) {
+            reject(new Error(chrome.runtime.lastError.message));
+            return;
+          }
+          resolve(response);
+        });
+      });
+      
+      const domain = response?.domain || 'tweetreplyai.vercel.app';
+      const protocol = domain.includes('localhost') ? 'http' : 'https';
+      const loginUrl = `${protocol}://${domain}/login`;
+      
+      // Open login page in new tab via background script
+      chrome.runtime.sendMessage({ 
+        action: 'openLoginPage', 
+        url: loginUrl 
+      }, (response) => {
+        if (chrome.runtime.lastError) {
+          console.error('[TweetReply] Failed to open login page:', chrome.runtime.lastError.message);
+        }
+      });
+    } catch (error) {
+      console.error('[TweetReply] Failed to get API domain, using fallback:', error);
+      // Fallback: use default domain
+      const loginUrl = 'https://tweetreplyai.vercel.app/login';
+      chrome.runtime.sendMessage({ 
+        action: 'openLoginPage', 
+        url: loginUrl 
+      }, (response) => {
+        if (chrome.runtime.lastError) {
+          console.error('[TweetReply] Failed to open login page:', chrome.runtime.lastError.message);
+        }
+      });
+    }
   }
 
   insertButtonInToolbar(toolbar, button) {
