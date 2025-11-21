@@ -2440,10 +2440,12 @@ class TwitterReplyInjector {
    */
   extractThreadContext() {
     try {
-      console.log('[TweetReply] 🔍 Extracting thread context...');
+      console.log('[TweetReply] 🔍 ========== EXTRACTING THREAD CONTEXT ==========');
+      console.log('[TweetReply] 🔍 Starting thread context extraction...');
       
       // Get current tweet text (the one being replied to)
       const currentTweetText = this.extractTweetText();
+      console.log('[TweetReply] 🔍 Current tweet text length:', currentTweetText?.length || 0);
       if (!currentTweetText) {
         console.log('[TweetReply] ⚠️ No current tweet found, returning standalone context');
         return {
