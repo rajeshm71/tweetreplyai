@@ -34,6 +34,11 @@ const MAX_WORDS = 50;
 // Minimum word count required for removal operations
 const MIN_WORDS_FOR_REMOVAL = 5;
 
+// Meta-commentary removal constants
+const MIN_TEXT_LENGTH_FOR_PROCESSING = 20; // Minimum text length to process for meta-commentary
+const MIN_EXTRACTED_LENGTH = 10; // Minimum length for extracted reply to be considered valid
+const MAX_LENGTH_REDUCTION_PERCENT = 0.5; // Maximum allowed reduction (50%) before rejecting extraction
+
 export class ReplyPostProcessor {
   /**
    * Light processing for improved drafts - skips aggressive rules that might remove improvements
@@ -53,6 +58,9 @@ export class ReplyPostProcessor {
 
     // Step 3: Start with original reply
     let processed = originalReply;
+
+    // Step 3.5: Remove meta-commentary FIRST (before other processing)
+    processed = this.removeMetaCommentary(processed);
 
     // Step 4: Apply basic cleanup rules only (no aggressive removal)
     processed = this.removeWrapperQuotes(processed); // Remove quotes if AI wrapped response
@@ -94,6 +102,9 @@ export class ReplyPostProcessor {
 
     // Step 4: Start with original reply
     let processed = originalReply;
+
+    // Step 4.5: Remove meta-commentary FIRST (before other processing)
+    processed = this.removeMetaCommentary(processed);
 
     // Step 5: Apply previous postprocessing rules (always executed)
     processed = this.removeWrapperQuotes(processed); // Previous rule: Remove quotes if AI wrapped response
@@ -163,6 +174,177 @@ export class ReplyPostProcessor {
     }
     
     return processed.trim();
+  }
+
+  /**
+   * Safe Meta-Commentary Remover
+   * Removes clearly identifiable meta-commentary patterns at the start of text only
+   * Very conservative - only removes patterns that are clearly meta-commentary
+   * Preserves legitimate reply content that might contain similar phrases
+   */
+  private removeMetaCommentary(text: string): string {
+    if (!text || typeof text !== 'string') {
+      return text;
+    }
+
+    // Only process if text is long enough (avoid processing very short replies)
+    if (text.length < MIN_TEXT_LENGTH_FOR_PROCESSING) {
+      return text;
+    }
+
+    let processed = text.trim();
+    const original = processed;
+
+    // Patterns to remove (ONLY at start, case-insensitive)
+    const metaPatterns = [
+      /^here's a possible reply:?\s*/i,
+      /^here's a reply:?\s*/i,
+      /^possible reply:?\s*/i,
+      /^suggested reply:?\s*/i,
+    ];
+
+    // Check for meta-commentary patterns at the start
+    let foundPattern = false;
+    let matchedPattern: RegExp | null = null;
+
+    for (const pattern of metaPatterns) {
+      if (pattern.test(processed)) {
+        foundPattern = true;
+        matchedPattern = pattern;
+        break;
+      }
+    }
+
+    // If no pattern found, return original unchanged
+    if (!foundPattern || !matchedPattern) {
+      return original;
+    }
+
+    // Remove the meta-commentary pattern
+    const patternMatch = processed.match(matchedPattern)?.[0] || '';
+    processed = processed.replace(matchedPattern, '').trim();
+
+    // Log for debugging (can be removed in production if needed)
+    if (patternMatch) {
+      console.log(`[PostProcessor] Removed meta-commentary pattern: "${patternMatch}"`);
+    }
+
+    // Try to extract the actual reply after the meta-commentary
+    // Look for reply after colon, newline, or in quotes
+    let extractedReply = processed;
+
+    // Pattern 1: After colon with quotes: ": "actual reply"" (precise match)
+    const colonQuoteMatch = processed.match(/^:\s*"([^"]+)"/);
+    if (colonQuoteMatch && colonQuoteMatch[1]) {
+      extractedReply = colonQuoteMatch[1].trim();
+    } else {
+      // Pattern 1b: After colon without quotes: ": actual reply" (non-greedy, stops at newline or end)
+      const colonMatch = processed.match(/^:\s*(.+?)(?:\n|$)/s);
+      if (colonMatch && colonMatch[1]) {
+        const colonText = colonMatch[1].trim();
+        // Only use if it's longer than what we already have
+        if (colonText.length > extractedReply.length) {
+          extractedReply = colonText;
+        }
+      }
+    }
+
+    // Pattern 2: After newline
+    const newlineMatch = processed.match(/\n\s*(.+)/s);
+    if (newlineMatch && newlineMatch[1]) {
+      const newlineText = newlineMatch[1].trim();
+      // Only use if it's longer than what we already have
+      if (newlineText.length > extractedReply.length) {
+        extractedReply = newlineText;
+      }
+    }
+
+    // Pattern 3: Text in quotes
+    const quoteMatch = processed.match(/"([^"]+)"/);
+    if (quoteMatch && quoteMatch[1]) {
+      const quotedText = quoteMatch[1].trim();
+      // Only use if it's longer than what we already have
+      if (quotedText.length > extractedReply.length) {
+        extractedReply = quotedText;
+      }
+    }
+
+    // Safety check: If extracted reply is too short, return original
+    if (extractedReply.length < MIN_EXTRACTED_LENGTH) {
+      console.log(`[PostProcessor] Extracted reply too short (${extractedReply.length} < ${MIN_EXTRACTED_LENGTH}), returning original`);
+      return original;
+    }
+
+    // Safety check: If extracted reply is significantly shorter than original (more than threshold),
+    // it might be wrong extraction, so return original
+    // Use both percentage AND fixed minimum to handle edge cases
+    const lengthReduction = 1 - (extractedReply.length / original.length);
+    if (lengthReduction > MAX_LENGTH_REDUCTION_PERCENT && extractedReply.length < MIN_EXTRACTED_LENGTH * 2) {
+      console.log(`[PostProcessor] Extracted reply too short relative to original (${Math.round(lengthReduction * 100)}% reduction), returning original`);
+      return original;
+    }
+
+    // Remove conservative bullet points (only if clearly meta-commentary)
+    extractedReply = this.removeMetaBulletPoints(extractedReply, original);
+
+    return extractedReply.trim() || original;
+  }
+
+  /**
+   * Remove bullet points that are clearly meta-commentary (very conservative)
+   * Only removes if ALL conditions are met:
+   * - Bullet points appear in first 200 chars
+   * - They contain meta-words
+   * - They're followed by actual reply content
+   */
+  private removeMetaBulletPoints(text: string, original: string): string {
+    if (!text || text.length < 50) {
+      return text;
+    }
+
+    // Only check first 200 characters
+    const first200 = text.substring(0, 200);
+    const lines = first200.split('\n');
+
+    // Check if we have bullet points in the first few lines
+    const bulletLines: string[] = [];
+    let foundBullets = false;
+    let replyStartIndex = -1;
+
+    for (let i = 0; i < Math.min(lines.length, 10); i++) {
+      const line = lines[i].trim();
+      // Check for bullet points: *, -, •, or numbered lists (1., 2., etc.)
+      // FIX: Separate checks for symbol bullets and numbered lists for accurate detection
+      const isSymbolBullet = /^[\*\-\•]\s+/.test(line);
+      const isNumberedList = /^\d+\.\s+/.test(line);
+      if (isSymbolBullet || isNumberedList) {
+        bulletLines.push(line);
+        foundBullets = true;
+      } else if (foundBullets && line.length > 10) {
+        // Found non-bullet line after bullets - this might be the actual reply
+        replyStartIndex = i;
+        break;
+      }
+    }
+
+    // Only remove if we found bullets AND they contain meta-words AND there's content after
+    if (!foundBullets || bulletLines.length === 0 || replyStartIndex === -1) {
+      return text;
+    }
+
+    // Check if bullets contain meta-words
+    const metaWords = ['aims', 'response', 'reply', 'tone', 'humorous', 'keep', 'acknowledge', 'intention', 'purpose'];
+    const bulletText = bulletLines.join(' ').toLowerCase();
+    const hasMetaWords = metaWords.some(word => bulletText.includes(word));
+
+    if (!hasMetaWords) {
+      // Bullets don't contain meta-words - they might be part of the reply, preserve them
+      return text;
+    }
+
+    // Remove bullet lines and return text starting from reply
+    const replyStart = lines.slice(replyStartIndex).join('\n');
+    return replyStart.trim() || text;
   }
 
   /**

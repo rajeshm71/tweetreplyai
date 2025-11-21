@@ -7,6 +7,17 @@ export const REPLY_MODES = {
 
 export type ReplyMode = typeof REPLY_MODES[keyof typeof REPLY_MODES];
 
+// Shared meta-commentary prevention rule (applied to all prompts)
+const META_COMMENTARY_RULE = `
+
+CRITICAL OUTPUT RULE: Output ONLY your reply text. Do NOT include:
+- Phrases like "Here's a reply", "This response", "Possible reply"
+- Explanations about your reply
+- Bullet points describing your response
+- Any meta-commentary
+
+Start directly with your reply. Just write the reply itself, nothing else.`;
+
 export interface PromptConfig {
   name: string;
   description: string;
@@ -270,8 +281,13 @@ Your output should be the IMPROVED VERSION of the user's draft, not a new reply.
 };
 
 // Function to get a specific prompt configuration
+// Automatically appends meta-commentary prevention rule to all prompts
 export function getPromptConfig(promptName: string = "default"): PromptConfig {
-  return PROMPT_VARIATIONS[promptName] || PROMPT_VARIATIONS.default;
+  const config = PROMPT_VARIATIONS[promptName] || PROMPT_VARIATIONS.default;
+  return {
+    ...config,
+    systemPrompt: config.systemPrompt + META_COMMENTARY_RULE,
+  };
 }
 
 // Function to list all available prompts
@@ -315,12 +331,30 @@ CRITICAL SINGLE-SENTENCE MODE:
 - Example of BAD: "This looks great, which reminds me of the work you did last year"
 - No greetings, no sign-offs, just the core response in one sentence`;
 
+    // Remove existing meta-commentary rule if present to avoid duplication, then add instructions + rule
+    // FIX: Use lastIndexOf to safely remove only the actual rule section, not accidental matches
+    let systemPrompt = promptConfig.systemPrompt;
+    const ruleMarker = 'CRITICAL OUTPUT RULE';
+    const ruleIndex = systemPrompt.lastIndexOf(ruleMarker);
+    if (ruleIndex !== -1) {
+      // Remove from the marker to the end (the entire rule section)
+      systemPrompt = systemPrompt.substring(0, ruleIndex).trim();
+    }
+
     return {
       ...promptConfig,
-      systemPrompt: promptConfig.systemPrompt + singleSentenceInstructions,
+      systemPrompt: systemPrompt + singleSentenceInstructions + META_COMMENTARY_RULE,
     };
   }
 
-  // Default: return unchanged for unknown modes
+  // Default: return unchanged for unknown modes, but ensure meta-commentary rule is present
+  // Check if rule is already present to avoid duplication
+  if (!promptConfig.systemPrompt.includes('CRITICAL OUTPUT RULE')) {
+    return {
+      ...promptConfig,
+      systemPrompt: promptConfig.systemPrompt + META_COMMENTARY_RULE,
+    };
+  }
+
   return promptConfig;
 }
