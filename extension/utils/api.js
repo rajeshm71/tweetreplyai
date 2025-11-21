@@ -45,7 +45,10 @@ export class ApiClient {
           if (!response.success) {
             // Handle specific error codes
             if (response.status === 401) {
-              this.authManager.clearCache();
+              // Auto-logout on 401 (unauthorized) - token is invalid or user logged out from web app
+              this.authManager.signOut().catch(err => {
+                console.error('Failed to sign out on 401:', err);
+              });
               reject(new Error('401: Unauthorized'));
               return;
             }

@@ -646,7 +646,6 @@ body {
   align-items: flex-start;
   gap: var(--spacing-3);
   cursor: default;
-  transition: all var(--transition-slow);
   overflow: hidden;
   min-height: 100px;
   box-shadow: var(--shadow-md);
@@ -665,17 +664,12 @@ body {
 }
 
 .modern-card-action:hover {
-  transform: translateY(-4px) scale(1.02);
   box-shadow: var(--shadow-lg);
 }
 
 .modern-card-action:focus-visible {
   outline: 2px solid var(--color-primary-500);
   outline-offset: 2px;
-}
-
-.modern-card-action:active {
-  transform: translateY(0) scale(0.98);
 }
 
 /* Card Icon Wrapper */
@@ -688,14 +682,12 @@ body {
   background: rgba(255, 255, 255, 0.6);
   border-radius: var(--radius-lg);
   margin-bottom: var(--spacing-2);
-  transition: all var(--transition-slow);
   z-index: 1;
   position: relative;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
 .modern-card:hover .card-icon-wrapper {
-  transform: scale(1.15) rotate(5deg);
   background: rgba(255, 255, 255, 0.9);
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
@@ -703,7 +695,6 @@ body {
 .card-icon {
   width: 24px;
   height: 24px;
-  transition: all var(--transition-base);
 }
 
 /* Card Content */
@@ -870,32 +861,7 @@ body {
   background-clip: text;
 }
 
-/* Micro-interactions */
-@keyframes gradient-pulse {
-  0%, 100% {
-    opacity: 0.1;
-  }
-  50% {
-    opacity: 0.15;
-  }
-}
-
-.modern-card:hover .card-gradient-overlay {
-  animation: gradient-pulse 2s ease-in-out infinite;
-}
-
-@keyframes icon-bounce {
-  0%, 100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-2px);
-  }
-}
-
-.modern-card-action:hover .card-icon {
-  animation: icon-bounce 0.6s ease-in-out;
-}
+/* Micro-interactions - Removed animations for cards */
 
 /* Shimmer Animation for Progress Bar */
 @keyframes shimmer {
