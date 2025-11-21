@@ -18,11 +18,18 @@
         </div>
         <span class="logo-text">TweetReply</span>
       </div>
-      <button id="settings-btn" class="settings-btn" title="Settings" aria-label="Open settings" aria-expanded="false">
-        <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" aria-hidden="true">
-          <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
-        </svg>
-      </button>
+      <div class="header-actions">
+        <button id="logout-btn" class="logout-btn hidden" title="Logout" aria-label="Logout from TweetReply">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" aria-hidden="true">
+            <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.59L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/>
+          </svg>
+        </button>
+        <button id="settings-btn" class="settings-btn" title="Settings" aria-label="Open settings" aria-expanded="false">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" aria-hidden="true">
+            <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
+          </svg>
+        </button>
+      </div>
     </div>
 
     <!-- Not Authenticated State -->

@@ -372,6 +372,7 @@
       this.webAppBtn = document.getElementById("web-app-btn");
       this.billingBtn = document.getElementById("billing-btn");
       this.upgradeBtn = document.getElementById("upgrade-btn");
+      this.logoutBtn = document.getElementById("logout-btn");
       this.settingsBtn = document.getElementById("settings-btn");
       this.signoutBtn = document.getElementById("signout-btn");
       this.closeSettingsBtn = document.getElementById("close-settings");
@@ -404,6 +405,7 @@
       this.billingBtn?.addEventListener("click", () => this.handleManageBilling());
       this.upgradeBtn?.addEventListener("click", () => this.handleUpgrade());
       this.upgradeCta?.addEventListener("click", () => this.handleUpgrade());
+      this.logoutBtn?.addEventListener("click", () => this.handleSignOut());
       this.settingsBtn?.addEventListener("click", () => this.showSettings());
       this.signoutBtn?.addEventListener("click", () => this.handleSignOut());
       this.closeSettingsBtn?.addEventListener("click", () => this.hideSettings());
@@ -577,15 +579,19 @@
       switch (state) {
         case "loading":
           this.loadingState?.classList.remove("hidden");
+          this.logoutBtn?.classList.add("hidden");
           break;
         case "not-authenticated":
           this.notAuthenticatedState?.classList.remove("hidden");
+          this.logoutBtn?.classList.add("hidden");
           break;
         case "authenticated":
           this.authenticatedState?.classList.remove("hidden");
+          this.logoutBtn?.classList.remove("hidden");
           break;
         case "quota-exceeded":
           this.quotaExceededState?.classList.remove("hidden");
+          this.logoutBtn?.classList.remove("hidden");
           break;
       }
     }

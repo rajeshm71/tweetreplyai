@@ -285,6 +285,44 @@ body {
   background-clip: text;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  position: relative;
+  z-index: 1;
+}
+
+.logout-btn {
+  background: none;
+  border: none;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  padding: var(--spacing-1);
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  transition: all var(--transition-base);
+}
+
+.logout-btn:hover {
+  background: var(--color-error-light);
+  color: var(--color-error);
+  transform: scale(1.05);
+}
+
+.logout-btn:focus-visible {
+  outline: 2px solid var(--color-error);
+  outline-offset: 2px;
+}
+
+.logout-btn.hidden {
+  display: none;
+}
+
 .settings-btn {
   background: none;
   border: none;
