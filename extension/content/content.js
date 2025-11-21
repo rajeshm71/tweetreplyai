@@ -571,6 +571,12 @@ class TwitterReplyInjector {
       return;
     }
 
+    // Hide reply text box on tweet details pages (not inline replies)
+    if (ctx.type === 'detail') {
+      this.hideDetailPageComposer(composerContainer, ctx);
+      return; // Don't inject buttons, just hide the composer
+    }
+
     // Find the composer's toolbar area
     let toolbar = composerContainer.querySelector('[data-testid="toolBar"]') ||
                   composerContainer.querySelector('.toolbar') ||
@@ -612,6 +618,28 @@ class TwitterReplyInjector {
       }
       this.injectedButtons.add(composer);
     }
+  }
+
+  /**
+   * Hide reply composer container on tweet details pages
+   * Only hides when ctx.type === 'detail' (not inline replies)
+   * @param {HTMLElement} composerContainer - The composer container element
+   * @param {Object} ctx - Context object with type property
+   */
+  hideDetailPageComposer(composerContainer, ctx) {
+    // Only hide detail page composers, preserve inline replies
+    if (ctx.type !== 'detail') return;
+    
+    // Check if already hidden to prevent re-processing
+    if (composerContainer.dataset.tweetreplyHidden === 'true') return;
+    
+    // Hide the entire composer container (the reply text box section)
+    composerContainer.style.display = 'none';
+    
+    // Mark as hidden to prevent re-processing
+    composerContainer.dataset.tweetreplyHidden = 'true';
+    
+    console.log('[TweetReply] Hidden reply composer on tweet details page');
   }
 
   createToolbar(composer) {
