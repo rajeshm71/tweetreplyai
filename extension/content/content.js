@@ -1299,6 +1299,25 @@ class TwitterReplyInjector {
       const threadContext = this.extractThreadContext();
       const tweetMetadata = this.extractTweetMetadata();
 
+      // LOG: Show thread context immediately after extraction
+      console.log('[TweetReply] 📊 Thread Context Summary:', {
+        isReply: threadContext?.isReply || false,
+        hasOriginalTweet: !!threadContext?.originalTweet,
+        originalTweetAuthor: threadContext?.originalTweetAuthor || 'none',
+        threadLength: threadContext?.threadLength || 0,
+        currentTweetIndex: threadContext?.currentTweetIndex || 0
+      });
+      
+      if (threadContext?.isReply && threadContext?.originalTweet) {
+        console.log('[TweetReply] 📋 QUICK THREAD PREVIEW:');
+        console.log('[TweetReply] Original:', threadContext.originalTweet.substring(0, 100) + (threadContext.originalTweet.length > 100 ? '...' : ''));
+        if (threadContext.threadChain && threadContext.threadChain.length > 0) {
+          console.log('[TweetReply] Thread chain:', threadContext.threadChain.map(t => 
+            (t.isOriginal ? '🔵' : t.isCurrent ? '🟢' : '⚪') + ' ' + t.text.substring(0, 60) + (t.text.length > 60 ? '...' : '')
+          ));
+        }
+      }
+
       // Log what we're sending for debugging (safely)
       console.log('[TweetReply] Generating reply with data:', {
         tweet_id: tweetId,

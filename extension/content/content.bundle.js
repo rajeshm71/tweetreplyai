@@ -1140,6 +1140,22 @@
         const authorInfo = this.extractAuthorInfo();
         const threadContext = this.extractThreadContext();
         const tweetMetadata = this.extractTweetMetadata();
+        console.log("[TweetReply] \u{1F4CA} Thread Context Summary:", {
+          isReply: threadContext?.isReply || false,
+          hasOriginalTweet: !!threadContext?.originalTweet,
+          originalTweetAuthor: threadContext?.originalTweetAuthor || "none",
+          threadLength: threadContext?.threadLength || 0,
+          currentTweetIndex: threadContext?.currentTweetIndex || 0
+        });
+        if (threadContext?.isReply && threadContext?.originalTweet) {
+          console.log("[TweetReply] \u{1F4CB} QUICK THREAD PREVIEW:");
+          console.log("[TweetReply] Original:", threadContext.originalTweet.substring(0, 100) + (threadContext.originalTweet.length > 100 ? "..." : ""));
+          if (threadContext.threadChain && threadContext.threadChain.length > 0) {
+            console.log("[TweetReply] Thread chain:", threadContext.threadChain.map(
+              (t) => (t.isOriginal ? "\u{1F535}" : t.isCurrent ? "\u{1F7E2}" : "\u26AA") + " " + t.text.substring(0, 60) + (t.text.length > 60 ? "..." : "")
+            ));
+          }
+        }
         console.log("[TweetReply] Generating reply with data:", {
           tweet_id: tweetId,
           tweet_text_length: tweetText.length,
