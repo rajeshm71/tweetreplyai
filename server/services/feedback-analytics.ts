@@ -391,6 +391,7 @@ export class FeedbackAnalytics {
     
     const avgQuality = scores.length > 0 ? Math.round(scores.reduce((a: number, b: number) => a + b, 0) / scores.length) : 0;
     const totalReplies = summaryData?.length || 0;
+    console.log(`[Analytics] Total replies: ${totalReplies}`);
     const timeSavedMinutes = totalReplies * 4; // 4 minutes average per reply (random 2-6 min)
     const highQualityCount = scores.filter((s: number) => s > 80).length;
 
