@@ -17,7 +17,7 @@ import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import { useLocation } from "wouter";
 import { formatDistanceToNow } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
-import type { UserPreferences } from "@shared/types";
+import type { UserPreferences, SimpleAnalytics } from "@shared/types";
 
 // Expose methods to parent components via ref
 export interface GenerateReplyRef {
@@ -132,6 +132,13 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
   const [, setLocation] = useLocation();
   const { user } = useAuth();
   
+  // Helper function to format time display
+  const formatTimeDisplay = (hours: number) => {
+    return hours >= 1 
+      ? `${hours} ${hours === 1 ? 'hour' : 'hours'}`
+      : `${Math.round(hours * 60)} minutes`;
+  };
+  
   // Fetch user preferences for Prompt Style visibility
   // Fix: Added error handling for preferences query failures
   const { data: userPreferences, error: preferencesError } = useQuery<UserPreferences>({
@@ -235,9 +242,9 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
     refetchOnWindowFocus: false,
   });
 
-  // Fetch analytics stats
-  const { data: analyticsData } = useQuery<FeedbackStats>({
-    queryKey: ["/api/analytics/feedback-stats"],
+  // Fetch simple analytics stats (optimized with usage_counters)
+  const { data: simpleAnalyticsData } = useQuery<SimpleAnalytics>({
+    queryKey: ["/api/analytics/simple"],
     enabled: showAnalytics,
     refetchOnWindowFocus: false,
   });
@@ -1109,84 +1116,139 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
           </SheetHeader>
           <ScrollArea className="h-[calc(100vh-8rem)] mt-4">
             <div className="space-y-6">
-              {/* Quality Metrics */}
-              {metricsData && metricsData.metrics && (
+              {/* Summary Card */}
+              {simpleAnalyticsData && simpleAnalyticsData.summary && (
                 <Card>
                   <CardContent className="p-4">
-                    <h3 className="font-semibold mb-3">Quality Metrics</h3>
+                    <h3 className="font-semibold mb-3">Summary</h3>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <p className="text-xs text-muted-foreground">Average Score</p>
-                        <p className="text-2xl font-bold">
-                          {metricsData.metrics.averageScore != null 
-                            ? metricsData.metrics.averageScore.toFixed(0) 
-                            : '0'}
-                        </p>
+                        <p className="text-xs text-muted-foreground">Avg Quality</p>
+                        <div className="flex items-baseline gap-2">
+                          <p className="text-2xl font-bold">
+                            {simpleAnalyticsData.summary.avgQuality}
+                          </p>
+                          {simpleAnalyticsData.summary.qualityTrend !== 0 && (
+                            <span className={`text-xs font-medium ${
+                              simpleAnalyticsData.summary.qualityTrend > 0 
+                                ? 'text-green-600' 
+                                : 'text-red-600'
+                            }`}>
+                              {simpleAnalyticsData.summary.qualityTrend > 0 ? '+' : ''}
+                              {simpleAnalyticsData.summary.qualityTrend}
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground">Total Replies</p>
                         <p className="text-2xl font-bold">
-                          {metricsData.metrics.totalReplies ?? 0}
+                          {simpleAnalyticsData.summary.totalReplies}
                         </p>
                       </div>
                       <div>
-                        <p className="text-xs text-muted-foreground">High Quality</p>
+                        <p className="text-xs text-muted-foreground">Time Saved</p>
+                        <p className="text-2xl font-bold text-blue-600">
+                          {formatTimeDisplay(simpleAnalyticsData.summary.timeSavedHours)}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">High Quality (80+)</p>
                         <p className="text-2xl font-bold text-green-600">
-                          {metricsData.metrics.highQualityCount ?? 0}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Low Quality</p>
-                        <p className="text-2xl font-bold text-red-600">
-                          {metricsData.metrics.lowQualityCount ?? 0}
+                          {simpleAnalyticsData.summary.highQualityCount}
                         </p>
                       </div>
                     </div>
-                    {metricsData.recommendations && metricsData.recommendations.length > 0 && (
-                      <div className="mt-4">
-                        <p className="text-sm font-medium mb-2">Recommendations:</p>
-                        <ul className="text-xs space-y-1">
-                          {metricsData.recommendations.map((rec, i) => (
-                            <li key={i}>• {rec}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
                   </CardContent>
                 </Card>
               )}
               
-              {/* Feedback Stats */}
-              {analyticsData && (
+              {/* Quality Parameters Card */}
+              {simpleAnalyticsData && simpleAnalyticsData.parameterBreakdown && simpleAnalyticsData.parameterBreakdown.length > 0 && (
                 <Card>
                   <CardContent className="p-4">
-                    <h3 className="font-semibold mb-3">Feedback Summary</h3>
-                    <div className="space-y-3">
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm">Total Feedback</span>
-                        <Badge>{analyticsData.totalFeedback ?? 0}</Badge>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm">Positive</span>
-                        <Badge variant="default">{analyticsData.positiveCount ?? 0}</Badge>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm">Negative</span>
-                        <Badge variant="destructive">{analyticsData.negativeCount ?? 0}</Badge>
-                      </div>
-                    </div>
-                    
-                    {analyticsData.topModels && analyticsData.topModels.length > 0 && (
-                      <div className="mt-4">
-                        <p className="text-sm font-medium mb-2">Top Models:</p>
-                        {analyticsData.topModels.map((model, i) => (
-                          <div key={i} className="flex justify-between text-xs mb-1">
-                            <span>{model.modelKey}</span>
-                            <span className="text-muted-foreground">{model.count} uses</span>
+                    <h3 className="font-semibold mb-3">Quality Parameters</h3>
+                    <div className="space-y-2">
+                      {simpleAnalyticsData.parameterBreakdown.map((param, i) => (
+                        <div key={i} className="flex items-center justify-between">
+                          <span className="text-sm">{param.name}</span>
+                          <div className="flex items-center gap-2">
+                            <div className="w-24 h-2 bg-muted rounded-full overflow-hidden">
+                              <div 
+                                className="h-full bg-primary rounded-full" 
+                                style={{ width: `${(param.avgScore / 10) * 100}%` }}
+                              />
+                            </div>
+                            <Badge variant="secondary" className="min-w-[3rem] justify-center">
+                              {param.avgScore.toFixed(1)}
+                            </Badge>
                           </div>
-                        ))}
-                      </div>
-                    )}
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+              
+              {/* Activity Trend Card */}
+              {simpleAnalyticsData && simpleAnalyticsData.activityTrend && simpleAnalyticsData.activityTrend.length > 0 && (
+                <Card>
+                  <CardContent className="p-4">
+                    <h3 className="font-semibold mb-3">Recent Activity (Last 7 Days)</h3>
+                    <div className="space-y-2">
+                      {simpleAnalyticsData.activityTrend.slice(-7).map((day, i) => (
+                        <div key={i} className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">
+                            {new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          </span>
+                          <div className="flex items-center gap-3">
+                            <span>{day.count} replies</span>
+                            {day.avgQuality > 0 && (
+                              <Badge variant="outline" className="min-w-[3rem] justify-center">
+                                {day.avgQuality} avg
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+              
+              {/* Insights Card */}
+              {simpleAnalyticsData && simpleAnalyticsData.insights && simpleAnalyticsData.insights.length > 0 && (
+                <Card>
+                  <CardContent className="p-4">
+                    <h3 className="font-semibold mb-3">Insights</h3>
+                    <div className="space-y-3">
+                      {simpleAnalyticsData.insights.map((insight, i) => (
+                        <div key={i} className="flex items-start gap-2">
+                          {insight.type === 'success' && (
+                            <TrendingUp className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
+                          )}
+                          {insight.type === 'info' && (
+                            <Brain className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                          )}
+                          {insight.type === 'streak' && (
+                            <Zap className="w-4 h-4 text-orange-600 mt-0.5 flex-shrink-0" />
+                          )}
+                          <p className="text-sm">{insight.text}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+              
+              {/* Empty State */}
+              {!simpleAnalyticsData && (
+                <Card>
+                  <CardContent className="p-8 text-center">
+                    <Brain className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
+                    <p className="text-sm text-muted-foreground">
+                      Generate your first reply to see analytics
+                    </p>
                   </CardContent>
                 </Card>
               )}
