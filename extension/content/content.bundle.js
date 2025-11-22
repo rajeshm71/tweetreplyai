@@ -221,7 +221,10 @@
       return this.makeRequest(`/api/quality/metrics?days=${days}`);
     }
     async getSimpleAnalytics(days = 30) {
-      return this.makeRequest(`/api/analytics/simple?days=${days}`);
+      console.log(`[ApiClient] getSimpleAnalytics called with days=${days}`);
+      const result = await this.makeRequest(`/api/analytics/simple?days=${days}`);
+      console.log("[ApiClient] getSimpleAnalytics result:", result);
+      return result;
     }
   };
 
@@ -986,9 +989,9 @@
       select.className = "tweetreply-reply-mode-select";
       select.title = "Choose reply generation mode";
       const modes = [
-        { value: "single-sentence", label: "\u26A1 Single Sentence", tooltip: "Fast: Generate only one direct sentence" },
-        { value: "base", label: "\u{1F4DD} Base Prompt", tooltip: "Standard: Natural reply without deep analysis" },
-        { value: "enhanced", label: "\u{1F9E0} Enhanced", tooltip: "Thoughtful: AI-powered deep tweet analysis" }
+        { value: "single-sentence", label: "\u26A1 Concise", tooltip: "Fast one-sentence reply" },
+        { value: "base", label: "\u{1F4DD} Balanced", tooltip: "Natural conversational reply" },
+        { value: "enhanced", label: "\u{1F9E0} Enhanced", tooltip: "Context-aware with deep analysis" }
       ];
       modes.forEach((mode) => {
         const option = document.createElement("option");
