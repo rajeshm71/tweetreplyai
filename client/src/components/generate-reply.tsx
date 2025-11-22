@@ -913,35 +913,35 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
                 {historyData?.history.map((entry) => (
                   <Card key={entry.id}>
                     <CardContent className="p-4">
-                      <div className="space-y-2">
-                        {/* Status and Quality Badges */}
-                        <div className="flex items-start justify-between">
-                          <Badge variant={entry.wasUsed ? "default" : "secondary"}>
-                            {entry.wasUsed ? "Used" : "Generated"}
-                          </Badge>
+                      <div className="space-y-3">
+                        {/* Header: Date and Quality */}
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(entry.createdAt).toLocaleDateString()}
+                          </span>
                           {entry.qualityScore && (
-                            <Badge variant="outline">Score: {entry.qualityScore}</Badge>
+                            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                              ⭐ Quality: {entry.qualityScore}
+                            </Badge>
                           )}
                         </div>
                         
-                        {/* Original Tweet */}
-                        <div>
-                          <p className="text-sm font-medium">Original Tweet:</p>
-                          <p className="text-xs text-muted-foreground">{entry.originalTweet}</p>
-                        </div>
+                        {/* Original Tweet (italic, smaller) */}
+                        <p className="text-xs text-muted-foreground italic bg-muted/50 p-2 rounded">
+                          {entry.originalTweet}
+                        </p>
                         
                         {/* Generated Reply */}
-                        <div>
-                          <p className="text-sm font-medium">Generated Reply:</p>
-                          <p className="text-sm">{entry.generatedReply}</p>
-                        </div>
+                        <p className="text-sm">
+                          {entry.generatedReply}
+                        </p>
                         
-                        {/* Copy Button with Visual Feedback */}
+                        {/* Copy Button */}
                         <Button
-                          variant="outline"
+                          variant={copiedHistoryId === entry.id ? "default" : "outline"}
                           size="sm"
                           onClick={() => handleCopyHistoryReply(entry.generatedReply, entry.id)}
-                          className="w-full mt-2"
+                          className="w-full"
                           aria-label={`Copy reply for ${entry.originalTweet.substring(0, 30)}...`}
                         >
                           {copiedHistoryId === entry.id ? (
@@ -952,16 +952,10 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
                           ) : (
                             <>
                               <Copy className="w-4 h-4 mr-2" />
-                              Copy Reply
+                              Copy
                             </>
                           )}
                         </Button>
-                        
-                        {/* Metadata Footer */}
-                        <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
-                          <span>{entry.modelKey}</span>
-                          <span>{new Date(entry.createdAt).toLocaleDateString()}</span>
-                        </div>
                       </div>
                     </CardContent>
                   </Card>
