@@ -306,11 +306,13 @@ export class FeedbackAnalytics {
     console.log(`[Analytics] Previous period: ${previousPeriodStart.toISOString()} to ${startDate.toISOString()}`);
 
     // Query reply history for the current period
+    // Note: Supabase has a default limit of 1000, we need to explicitly set a higher limit
     let currentQuery = supabase
       .from('reply_history')
       .select('id, quality_score, performance, created_at, original_tweet')
       .eq('user_id', userId)
-      .gte('created_at', startDate.toISOString());
+      .gte('created_at', startDate.toISOString())
+      .limit(10000); // Set high limit to get all records
 
     const { data: currentData, error: currentError } = await currentQuery;
     
@@ -340,7 +342,8 @@ export class FeedbackAnalytics {
       .select('quality_score')
       .eq('user_id', userId)
       .gte('created_at', previousPeriodStart.toISOString())
-      .lt('created_at', startDate.toISOString());
+      .lt('created_at', startDate.toISOString())
+      .limit(10000); // Set high limit to get all records
 
     const { data: previousData, error: previousError } = await previousQuery;
     console.log(`[Analytics] Previous period query returned: ${previousData?.length || 0} replies`);
