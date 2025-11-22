@@ -119,6 +119,7 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [feedbackGiven, setFeedbackGiven] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [copiedHistoryId, setCopiedHistoryId] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [showImprove, setShowImprove] = useState(false);
   const [showAnalytics, setShowAnalytics] = useState(false);
@@ -287,6 +288,29 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
       setImproveModalTweetText(tweetText);
     }
   }, [showImprove, tweetText]);
+
+  // Copy handler for history items
+  const handleCopyHistoryReply = async (replyText: string, entryId: string) => {
+    try {
+      await navigator.clipboard.writeText(replyText);
+      setCopiedHistoryId(entryId);
+      
+      // Reset after 2 seconds
+      setTimeout(() => setCopiedHistoryId(null), 2000);
+      
+      toast({
+        title: "Copied!",
+        description: "Reply copied to clipboard",
+      });
+    } catch (error) {
+      console.error('Failed to copy to clipboard:', error);
+      toast({
+        title: "Error",
+        description: "Failed to copy to clipboard",
+        variant: "destructive",
+      });
+    }
+  };
 
   const generateMutation = useMutation({
     mutationFn: async (data: { tweet_text: string; model_key?: string; prompt_variation?: string }) => {
@@ -890,6 +914,7 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
                   <Card key={entry.id}>
                     <CardContent className="p-4">
                       <div className="space-y-2">
+                        {/* Status and Quality Badges */}
                         <div className="flex items-start justify-between">
                           <Badge variant={entry.wasUsed ? "default" : "secondary"}>
                             {entry.wasUsed ? "Used" : "Generated"}
@@ -898,10 +923,41 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
                             <Badge variant="outline">Score: {entry.qualityScore}</Badge>
                           )}
                         </div>
-                        <p className="text-sm font-medium">Original Tweet:</p>
-                        <p className="text-xs text-muted-foreground">{entry.originalTweet}</p>
-                        <p className="text-sm font-medium mt-2">Generated Reply:</p>
-                        <p className="text-sm">{entry.generatedReply}</p>
+                        
+                        {/* Original Tweet */}
+                        <div>
+                          <p className="text-sm font-medium">Original Tweet:</p>
+                          <p className="text-xs text-muted-foreground">{entry.originalTweet}</p>
+                        </div>
+                        
+                        {/* Generated Reply */}
+                        <div>
+                          <p className="text-sm font-medium">Generated Reply:</p>
+                          <p className="text-sm">{entry.generatedReply}</p>
+                        </div>
+                        
+                        {/* Copy Button with Visual Feedback */}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleCopyHistoryReply(entry.generatedReply, entry.id)}
+                          className="w-full mt-2"
+                          aria-label={`Copy reply for ${entry.originalTweet.substring(0, 30)}...`}
+                        >
+                          {copiedHistoryId === entry.id ? (
+                            <>
+                              <Check className="w-4 h-4 mr-2" />
+                              Copied!
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-4 h-4 mr-2" />
+                              Copy Reply
+                            </>
+                          )}
+                        </Button>
+                        
+                        {/* Metadata Footer */}
                         <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
                           <span>{entry.modelKey}</span>
                           <span>{new Date(entry.createdAt).toLocaleDateString()}</span>
