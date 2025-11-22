@@ -327,7 +327,7 @@ export class FeedbackAnalytics {
     const scores = currentData?.map((r: any) => r.quality_score).filter((s: number) => s != null) || [];
     const avgQuality = scores.length > 0 ? Math.round(scores.reduce((a: number, b: number) => a + b, 0) / scores.length) : 0;
     const totalReplies = currentData?.length || 0;
-    const timeSavedMinutes = totalReplies * 2; // 2 minutes per reply estimate
+    const timeSavedMinutes = totalReplies * 4; // 4 minutes average per reply (random 2-6 min)
     const highQualityCount = scores.filter((s: number) => s > 80).length;
 
     // Calculate quality trend
@@ -411,14 +411,17 @@ export class FeedbackAnalytics {
     return breakdown;
   }
 
-  private calculateActivityTrend(data: any[], days: number): Array<{ date: string; count: number }> {
-    const trend: Array<{ date: string; count: number }> = [];
-    const countByDate: Record<string, number> = {};
+  private calculateActivityTrend(data: any[], days: number): Array<{ date: string; count: number; avgQuality: number }> {
+    const trend: Array<{ date: string; count: number; avgQuality: number }> = [];
+    const dataByDate: Record<string, any[]> = {};
 
-    // Count replies by date
+    // Group replies by date
     for (const reply of data) {
       const date = new Date(reply.created_at).toISOString().split('T')[0];
-      countByDate[date] = (countByDate[date] || 0) + 1;
+      if (!dataByDate[date]) {
+        dataByDate[date] = [];
+      }
+      dataByDate[date].push(reply);
     }
 
     // Generate trend for last N days
@@ -427,9 +430,14 @@ export class FeedbackAnalytics {
       date.setDate(date.getDate() - i);
       const dateStr = date.toISOString().split('T')[0];
       
+      const dayData = dataByDate[dateStr] || [];
+      const scores = dayData.map((r: any) => r.quality_score).filter((s: number) => s != null);
+      const avgQuality = scores.length > 0 ? Math.round(scores.reduce((a: number, b: number) => a + b, 0) / scores.length) : 0;
+      
       trend.push({
         date: dateStr,
-        count: countByDate[dateStr] || 0
+        count: dayData.length,
+        avgQuality
       });
     }
 

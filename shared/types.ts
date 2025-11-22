@@ -190,6 +190,7 @@ export interface SimpleAnalytics {
   activityTrend: Array<{
     date: string;
     count: number;
+    avgQuality: number;
   }>;
   insights: Array<{
     text: string;

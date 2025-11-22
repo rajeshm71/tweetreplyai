@@ -364,6 +364,10 @@ body {
   animation: fadeIn var(--transition-base) ease-out;
 }
 
+.hidden {
+  display: none !important;
+}
+
 .state.hidden {
   display: none !important;
 }
