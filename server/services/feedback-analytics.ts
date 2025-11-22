@@ -310,9 +310,10 @@ export class FeedbackAnalytics {
     
     const { data: summaryData, error: summaryError } = await supabase
       .from('reply_history')
-      .select('quality_score, created_at', { count: 'exact', head: false })
+      .select('quality_score, created_at')
       .eq('user_id', userId)
-      .gte('created_at', startDate.toISOString());
+      .gte('created_at', startDate.toISOString())
+      .limit(100000); // Explicit high limit to override Supabase's default 1000 row cap
 
     if (summaryError) {
       console.error('[Analytics] Error fetching summary data:', summaryError);
@@ -368,36 +369,21 @@ export class FeedbackAnalytics {
     }
 
     // Query reply history for the previous period (for trend)
-    // Fetch all records using pagination
-    console.log('[Analytics] Fetching previous period data with pagination...');
-    let previousData: any[] = [];
-    let prevFrom = 0;
-    let prevHasMore = true;
+    console.log('[Analytics] Fetching previous period data...');
+    
+    const { data: previousData, error: previousError } = await supabase
+      .from('reply_history')
+      .select('quality_score')
+      .eq('user_id', userId)
+      .gte('created_at', previousPeriodStart.toISOString())
+      .lt('created_at', startDate.toISOString())
+      .limit(100000); // Explicit high limit
 
-    while (prevHasMore) {
-      const { data, error } = await supabase
-        .from('reply_history')
-        .select('quality_score')
-        .eq('user_id', userId)
-        .gte('created_at', previousPeriodStart.toISOString())
-        .lt('created_at', startDate.toISOString())
-        .range(prevFrom, prevFrom + pageSize - 1);
-
-      if (error) {
-        console.error('[Analytics] Error fetching previous period:', error);
-        break; // Don't fail entirely, just use empty previous data
-      }
-
-      if (data && data.length > 0) {
-        previousData = previousData.concat(data);
-        prevFrom += pageSize;
-        prevHasMore = data.length === pageSize;
-      } else {
-        prevHasMore = false;
-      }
+    if (previousError) {
+      console.error('[Analytics] Error fetching previous period:', previousError);
     }
 
-    console.log(`[Analytics] Previous period query returned: ${previousData.length} replies`);
+    console.log(`[Analytics] Previous period query returned: ${previousData?.length || 0} replies`);
 
     // Calculate summary metrics from the summaryData
     const scores = summaryData?.map((r: any) => r.quality_score).filter((s: number) => s != null) || [];
