@@ -286,6 +286,9 @@ export class FeedbackAnalytics {
   }
 
   async getSimpleAnalytics(userId?: string, days: number = 30) {
+    console.log(`[Analytics] ========== getSimpleAnalytics START ==========`);
+    console.log(`[Analytics] User ID: ${userId}, Days: ${days}`);
+    
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
     
@@ -295,9 +298,12 @@ export class FeedbackAnalytics {
       throw new Error('Invalid date range provided');
     }
 
+    console.log(`[Analytics] Date range: ${startDate.toISOString()} to ${new Date().toISOString()}`);
+
     // Calculate previous period for trend comparison
     const previousPeriodStart = new Date(startDate);
     previousPeriodStart.setDate(previousPeriodStart.getDate() - days);
+    console.log(`[Analytics] Previous period: ${previousPeriodStart.toISOString()} to ${startDate.toISOString()}`);
 
     // Query reply history for the current period
     let currentQuery = supabase
@@ -308,9 +314,24 @@ export class FeedbackAnalytics {
 
     const { data: currentData, error: currentError } = await currentQuery;
     
+    console.log(`[Analytics] Current period query returned: ${currentData?.length || 0} replies`);
+    
     if (currentError) {
-      console.error('Error fetching current period analytics:', currentError);
+      console.error('[Analytics] Error fetching current period analytics:', currentError);
       return this.getEmptyAnalytics();
+    }
+
+    if (currentData && currentData.length > 0) {
+      const sampleScores = currentData.slice(0, 5).map(r => r.quality_score);
+      console.log(`[Analytics] Sample quality scores (first 5):`, sampleScores);
+      
+      const withPerformance = currentData.filter(r => r.performance?.qualityParameters).length;
+      console.log(`[Analytics] Replies with performance.qualityParameters: ${withPerformance}/${currentData.length}`);
+      
+      if (withPerformance > 0) {
+        const sampleParams = currentData.find(r => r.performance?.qualityParameters)?.performance?.qualityParameters;
+        console.log(`[Analytics] Sample performance parameters:`, sampleParams?.slice(0, 3));
+      }
     }
 
     // Query reply history for the previous period (for trend)
@@ -322,24 +343,40 @@ export class FeedbackAnalytics {
       .lt('created_at', startDate.toISOString());
 
     const { data: previousData, error: previousError } = await previousQuery;
+    console.log(`[Analytics] Previous period query returned: ${previousData?.length || 0} replies`);
 
     // Calculate summary metrics
     const scores = currentData?.map((r: any) => r.quality_score).filter((s: number) => s != null) || [];
+    console.log(`[Analytics] Valid quality scores in current period: ${scores.length}`);
+    
     const avgQuality = scores.length > 0 ? Math.round(scores.reduce((a: number, b: number) => a + b, 0) / scores.length) : 0;
     const totalReplies = currentData?.length || 0;
     const timeSavedMinutes = totalReplies * 4; // 4 minutes average per reply (random 2-6 min)
     const highQualityCount = scores.filter((s: number) => s > 80).length;
 
+    console.log(`[Analytics] Score calculation: sum=${scores.reduce((a, b) => a + b, 0)}, count=${scores.length}, avg=${avgQuality}`);
+
     // Calculate quality trend
     const previousScores = previousData?.map((r: any) => r.quality_score).filter((s: number) => s != null) || [];
+    console.log(`[Analytics] Valid quality scores in previous period: ${previousScores.length}`);
+    
     const previousAvgQuality = previousScores.length > 0 ? Math.round(previousScores.reduce((a: number, b: number) => a + b, 0) / previousScores.length) : 0;
     const qualityTrend = avgQuality - previousAvgQuality;
+    
+    console.log(`[Analytics] Quality trend: current=${avgQuality}, previous=${previousAvgQuality}, trend=${qualityTrend}`);
 
     // Extract and aggregate quality parameters
     const parameterBreakdown = this.aggregateQualityParameters(currentData || []);
+    console.log(`[Analytics] Parameter breakdown: ${parameterBreakdown.length} parameters`);
+    if (parameterBreakdown.length > 0) {
+      console.log(`[Analytics] Top 3 parameters:`, parameterBreakdown.slice(0, 3));
+    }
 
     // Calculate daily activity trend (last 7 days)
     const activityTrend = this.calculateActivityTrend(currentData || [], 7);
+    console.log(`[Analytics] Activity trend (7 days): ${activityTrend.length} days`);
+    const totalActivityCount = activityTrend.reduce((sum, day) => sum + day.count, 0);
+    console.log(`[Analytics] Total activity in trend: ${totalActivityCount} replies`);
 
     // Generate user-focused insights
     const insights = this.generateUserInsights({
@@ -351,8 +388,9 @@ export class FeedbackAnalytics {
       activityTrend,
       days
     });
+    console.log(`[Analytics] Generated ${insights.length} insights`);
 
-    return {
+    const result = {
       summary: {
         avgQuality,
         qualityTrend,
@@ -364,6 +402,11 @@ export class FeedbackAnalytics {
       activityTrend,
       insights
     };
+
+    console.log(`[Analytics] Final result summary:`, JSON.stringify(result.summary, null, 2));
+    console.log(`[Analytics] ========== getSimpleAnalytics END ==========`);
+
+    return result;
   }
 
   private getEmptyAnalytics() {
@@ -388,8 +431,12 @@ export class FeedbackAnalytics {
     // Extract all quality parameters from performance field
     const parameterSums: Record<string, { total: number; count: number }> = {};
     
+    console.log(`[Analytics] aggregateQualityParameters: Processing ${data.length} replies`);
+    
+    let repliesWithParams = 0;
     for (const reply of data) {
       if (reply.performance && reply.performance.qualityParameters) {
+        repliesWithParams++;
         for (const param of reply.performance.qualityParameters) {
           if (!parameterSums[param.name]) {
             parameterSums[param.name] = { total: 0, count: 0 };
@@ -399,6 +446,9 @@ export class FeedbackAnalytics {
         }
       }
     }
+
+    console.log(`[Analytics] Found ${repliesWithParams} replies with qualityParameters out of ${data.length} total`);
+    console.log(`[Analytics] Unique parameters found: ${Object.keys(parameterSums).length}`);
 
     // Calculate averages and sort by average score
     const breakdown = Object.entries(parameterSums)
