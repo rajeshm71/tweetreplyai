@@ -150,6 +150,9 @@ export class ApiClient {
   }
 
   async getSimpleAnalytics(days = 30) {
-    return this.makeRequest(`/api/analytics/simple?days=${days}`);
+    console.log(`[ApiClient] getSimpleAnalytics called with days=${days}`);
+    const result = await this.makeRequest(`/api/analytics/simple?days=${days}`);
+    console.log('[ApiClient] getSimpleAnalytics result:', result);
+    return result;
   }
 }

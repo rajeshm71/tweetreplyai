@@ -221,7 +221,10 @@
       return this.makeRequest(`/api/quality/metrics?days=${days}`);
     }
     async getSimpleAnalytics(days = 30) {
-      return this.makeRequest(`/api/analytics/simple?days=${days}`);
+      console.log(`[ApiClient] getSimpleAnalytics called with days=${days}`);
+      const result = await this.makeRequest(`/api/analytics/simple?days=${days}`);
+      console.log("[ApiClient] getSimpleAnalytics result:", result);
+      return result;
     }
   };
 
@@ -381,7 +384,6 @@
       this.closeSettingsBtn = document.getElementById("close-settings");
       this.upgradeCta = document.getElementById("upgrade-cta");
       this.closeHistoryBtn = document.getElementById("close-history");
-      this.closeAnalyticsBtn = document.getElementById("close-analytics");
       this.statusDot = document.getElementById("status-dot");
       this.statusText = document.getElementById("status-text");
       this.progressFill = document.getElementById("progress-fill");
@@ -422,7 +424,6 @@
       this.signoutBtn?.addEventListener("click", () => this.handleSignOut());
       this.closeSettingsBtn?.addEventListener("click", () => this.hideSettings());
       this.closeHistoryBtn?.addEventListener("click", () => this.hideHistory());
-      this.closeAnalyticsBtn?.addEventListener("click", () => this.hideAnalytics());
       this.analyticsBackBtn?.addEventListener("click", () => this.hideAnalytics());
       this.analyticsRetryBtn?.addEventListener("click", () => this.loadAnalytics());
       const saveTrackingSettingsBtn = document.getElementById("saveTrackingSettings");
@@ -820,7 +821,7 @@
       if (this.analyticsPanel) {
         this.analyticsPanel.style.display = "flex";
         this.analyticsPanel.setAttribute("aria-hidden", "false");
-        this.closeAnalyticsBtn?.focus();
+        this.analyticsBackBtn?.focus();
       }
       this.loadAnalytics();
       this.startAnalyticsAutoRefresh();
@@ -911,24 +912,55 @@
       });
     }
     async loadAnalytics(forceRefresh = false) {
-      console.log("[Analytics] Loading analytics...");
-      this.analyticsLoading?.classList.remove("hidden");
-      this.analyticsError?.classList.add("hidden");
-      this.analyticsData?.classList.add("hidden");
+      console.log("[Analytics] ========== Loading analytics START ==========");
+      console.log("[Analytics] DOM elements check:", {
+        loading: !!this.analyticsLoading,
+        error: !!this.analyticsError,
+        data: !!this.analyticsData,
+        summary: !!this.analyticsSummary,
+        parameters: !!this.parameterBreakdown,
+        trend: !!this.activityTrend,
+        insights: !!this.insightsPanel
+      });
+      if (this.analyticsLoading) {
+        this.analyticsLoading.classList.remove("hidden");
+        console.log("[Analytics] Showing loading state");
+      }
+      if (this.analyticsError) this.analyticsError.classList.add("hidden");
+      if (this.analyticsData) this.analyticsData.classList.add("hidden");
       try {
+        console.log("[Analytics] Calling API: /api/analytics/simple?days=30");
         const response = await this.apiClient.getSimpleAnalytics(30);
-        console.log("[Analytics] Received analytics:", response);
-        this.analyticsLoading?.classList.add("hidden");
-        this.analyticsData?.classList.remove("hidden");
+        console.log("[Analytics] \u2713 API Response received:", JSON.stringify(response, null, 2));
+        if (!response || !response.summary) {
+          throw new Error("Invalid response structure: missing summary");
+        }
+        console.log("[Analytics] Response structure valid");
+        if (this.analyticsLoading) this.analyticsLoading.classList.add("hidden");
+        if (this.analyticsData) {
+          this.analyticsData.classList.remove("hidden");
+          console.log("[Analytics] Showing data container");
+        }
+        console.log("[Analytics] Rendering summary...");
         this.renderAnalyticsSummary(response.summary);
+        console.log("[Analytics] Rendering parameter breakdown...");
         this.renderParameterBreakdown(response.parameterBreakdown);
+        console.log("[Analytics] Rendering activity trend...");
         this.renderActivityTrend(response.activityTrend);
+        console.log("[Analytics] Rendering insights...");
         this.renderInsights(response.insights);
+        console.log("[Analytics] ========== Loading analytics COMPLETE ==========");
       } catch (error) {
-        console.error("[Analytics] Failed to load analytics:", error);
-        this.analyticsLoading?.classList.add("hidden");
-        this.analyticsError?.classList.remove("hidden");
-        this.analyticsData?.classList.add("hidden");
+        console.error("[Analytics] \u274C FAILED to load analytics");
+        console.error("[Analytics] Error type:", error.constructor.name);
+        console.error("[Analytics] Error message:", error.message);
+        console.error("[Analytics] Error stack:", error.stack);
+        if (this.analyticsLoading) this.analyticsLoading.classList.add("hidden");
+        if (this.analyticsError) {
+          this.analyticsError.classList.remove("hidden");
+          console.log("[Analytics] Showing error state");
+        }
+        if (this.analyticsData) this.analyticsData.classList.add("hidden");
       }
     }
     renderAnalyticsSummary(summary) {

@@ -218,7 +218,6 @@ class PopupManager {
     
     // Panel close buttons
     this.closeHistoryBtn = document.getElementById('close-history');
-    this.closeAnalyticsBtn = document.getElementById('close-analytics');
     
     // Usage elements
     this.statusDot = document.getElementById('status-dot');
@@ -272,7 +271,6 @@ class PopupManager {
     
     // Panel close buttons
     this.closeHistoryBtn?.addEventListener('click', () => this.hideHistory());
-    this.closeAnalyticsBtn?.addEventListener('click', () => this.hideAnalytics());
     this.analyticsBackBtn?.addEventListener('click', () => this.hideAnalytics());
     this.analyticsRetryBtn?.addEventListener('click', () => this.loadAnalytics());
     
@@ -787,8 +785,8 @@ class PopupManager {
     if (this.analyticsPanel) {
       this.analyticsPanel.style.display = 'flex';
       this.analyticsPanel.setAttribute('aria-hidden', 'false');
-      // Focus close button
-      this.closeAnalyticsBtn?.focus();
+      // Focus back button
+      this.analyticsBackBtn?.focus();
     }
     this.loadAnalytics();
     // Start auto-refresh for analytics panel when it's open
@@ -901,33 +899,71 @@ class PopupManager {
   }
 
   async loadAnalytics(forceRefresh = false) {
-    console.log('[Analytics] Loading analytics...');
+    console.log('[Analytics] ========== Loading analytics START ==========');
+    console.log('[Analytics] DOM elements check:', {
+      loading: !!this.analyticsLoading,
+      error: !!this.analyticsError,
+      data: !!this.analyticsData,
+      summary: !!this.analyticsSummary,
+      parameters: !!this.parameterBreakdown,
+      trend: !!this.activityTrend,
+      insights: !!this.insightsPanel
+    });
     
     // Show loading state
-    this.analyticsLoading?.classList.remove('hidden');
-    this.analyticsError?.classList.add('hidden');
-    this.analyticsData?.classList.add('hidden');
+    if (this.analyticsLoading) {
+      this.analyticsLoading.classList.remove('hidden');
+      console.log('[Analytics] Showing loading state');
+    }
+    if (this.analyticsError) this.analyticsError.classList.add('hidden');
+    if (this.analyticsData) this.analyticsData.classList.add('hidden');
     
     try {
+      console.log('[Analytics] Calling API: /api/analytics/simple?days=30');
       const response = await this.apiClient.getSimpleAnalytics(30);
-      console.log('[Analytics] Received analytics:', response);
+      console.log('[Analytics] ✓ API Response received:', JSON.stringify(response, null, 2));
+      
+      // Validate response structure
+      if (!response || !response.summary) {
+        throw new Error('Invalid response structure: missing summary');
+      }
+      
+      console.log('[Analytics] Response structure valid');
       
       // Hide loading, show data
-      this.analyticsLoading?.classList.add('hidden');
-      this.analyticsData?.classList.remove('hidden');
+      if (this.analyticsLoading) this.analyticsLoading.classList.add('hidden');
+      if (this.analyticsData) {
+        this.analyticsData.classList.remove('hidden');
+        console.log('[Analytics] Showing data container');
+      }
       
       // Render all sections
+      console.log('[Analytics] Rendering summary...');
       this.renderAnalyticsSummary(response.summary);
+      
+      console.log('[Analytics] Rendering parameter breakdown...');
       this.renderParameterBreakdown(response.parameterBreakdown);
+      
+      console.log('[Analytics] Rendering activity trend...');
       this.renderActivityTrend(response.activityTrend);
+      
+      console.log('[Analytics] Rendering insights...');
       this.renderInsights(response.insights);
+      
+      console.log('[Analytics] ========== Loading analytics COMPLETE ==========');
     } catch (error) {
-      console.error('[Analytics] Failed to load analytics:', error);
+      console.error('[Analytics] ❌ FAILED to load analytics');
+      console.error('[Analytics] Error type:', error.constructor.name);
+      console.error('[Analytics] Error message:', error.message);
+      console.error('[Analytics] Error stack:', error.stack);
       
       // Show error state
-      this.analyticsLoading?.classList.add('hidden');
-      this.analyticsError?.classList.remove('hidden');
-      this.analyticsData?.classList.add('hidden');
+      if (this.analyticsLoading) this.analyticsLoading.classList.add('hidden');
+      if (this.analyticsError) {
+        this.analyticsError.classList.remove('hidden');
+        console.log('[Analytics] Showing error state');
+      }
+      if (this.analyticsData) this.analyticsData.classList.add('hidden');
     }
   }
 
