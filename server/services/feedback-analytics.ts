@@ -305,9 +305,35 @@ export class FeedbackAnalytics {
     previousPeriodStart.setDate(previousPeriodStart.getDate() - days);
     console.log(`[Analytics] Previous period: ${previousPeriodStart.toISOString()} to ${startDate.toISOString()}`);
 
-    // Use direct SQL query for efficient aggregation instead of fetching all records
-    console.log('[Analytics] Using SQL aggregation for efficiency...');
+    // Get total replies count from usage_counters table (much more efficient!)
+    console.log('[Analytics] Fetching total replies from usage_counters...');
     
+    // Note: usage_counters tracks by period_start date, we need to aggregate all periods in our date range
+    const { data: usageCounters, error: usageError } = await supabase
+      .from('usage_counters')
+      .select('replies_used, period_start')
+      .eq('user_id', userId)
+      .gte('period_start', startDate.toISOString());
+
+    let totalReplies = 0;
+    if (usageError) {
+      console.error('[Analytics] Error fetching usage counters:', usageError);
+      // Fall back to counting records if usage_counters query fails
+      const { count } = await supabase
+        .from('reply_history')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .gte('created_at', startDate.toISOString());
+      totalReplies = count || 0;
+      console.log(`[Analytics] Fallback: Counted ${totalReplies} replies from reply_history`);
+    } else {
+      // Sum up replies_used across all periods in the date range
+      totalReplies = usageCounters?.reduce((sum, counter) => sum + (counter.replies_used || 0), 0) || 0;
+      console.log(`[Analytics] Total replies from usage_counters: ${totalReplies} (across ${usageCounters?.length || 0} periods)`);
+    }
+
+    // Still fetch quality scores for average calculations (but much lighter query - just quality_score field)
+    console.log('[Analytics] Fetching quality scores for average calculation...');
     const { data: summaryData, error: summaryError } = await supabase
       .from('reply_history')
       .select('quality_score, created_at')
@@ -316,11 +342,11 @@ export class FeedbackAnalytics {
       .limit(100000); // Explicit high limit to override Supabase's default 1000 row cap
 
     if (summaryError) {
-      console.error('[Analytics] Error fetching summary data:', summaryError);
+      console.error('[Analytics] Error fetching quality scores:', summaryError);
       return this.getEmptyAnalytics();
     }
 
-    console.log(`[Analytics] Summary query returned ${summaryData?.length || 0} records`);
+    console.log(`[Analytics] Quality score query returned ${summaryData?.length || 0} records`);
 
     // Now fetch only records with performance data for parameter breakdown (much smaller subset)
     console.log('[Analytics] Fetching records with performance data for parameter breakdown...');
@@ -385,14 +411,19 @@ export class FeedbackAnalytics {
 
     console.log(`[Analytics] Previous period query returned: ${previousData?.length || 0} replies`);
 
-    // Calculate summary metrics from the summaryData
+    // Calculate summary metrics
     const scores = summaryData?.map((r: any) => r.quality_score).filter((s: number) => s != null) || [];
     console.log(`[Analytics] Valid quality scores in current period: ${scores.length}`);
     
     const avgQuality = scores.length > 0 ? Math.round(scores.reduce((a: number, b: number) => a + b, 0) / scores.length) : 0;
-    const totalReplies = summaryData?.length || 0;
+    // totalReplies now comes from usage_counters (already calculated above)
     console.log(`[Analytics] Total replies: ${totalReplies}`);
+    
+    // Calculate time saved in hours (4 min per reply average, converted to hours with 1 decimal)
     const timeSavedMinutes = totalReplies * 4; // 4 minutes average per reply (random 2-6 min)
+    const timeSavedHours = Math.round((timeSavedMinutes / 60) * 10) / 10; // Convert to hours with 1 decimal place
+    console.log(`[Analytics] Time saved: ${timeSavedMinutes} minutes = ${timeSavedHours} hours`);
+    
     const highQualityCount = scores.filter((s: number) => s > 80).length;
 
     console.log(`[Analytics] Score calculation: sum=${scores.reduce((a, b) => a + b, 0)}, count=${scores.length}, avg=${avgQuality}`);
@@ -424,7 +455,7 @@ export class FeedbackAnalytics {
       avgQuality,
       qualityTrend,
       totalReplies,
-      timeSavedMinutes,
+      timeSavedHours,
       highQualityCount,
       activityTrend,
       days
@@ -436,7 +467,7 @@ export class FeedbackAnalytics {
         avgQuality,
         qualityTrend,
         totalReplies,
-        timeSavedMinutes,
+        timeSavedHours,
         highQualityCount
       },
       parameterBreakdown,
@@ -456,7 +487,7 @@ export class FeedbackAnalytics {
         avgQuality: 0,
         qualityTrend: 0,
         totalReplies: 0,
-        timeSavedMinutes: 0,
+        timeSavedHours: 0,
         highQualityCount: 0
       },
       parameterBreakdown: [],
@@ -567,11 +598,11 @@ export class FeedbackAnalytics {
       });
     }
 
-    // Time saved insight
-    if (stats.timeSavedMinutes > 0) {
-      const hours = Math.floor(stats.timeSavedMinutes / 60);
-      const minutes = stats.timeSavedMinutes % 60;
-      const timeStr = hours > 0 ? `${hours}h ${minutes}m` : `${minutes} minutes`;
+    // Time saved insight (now in hours)
+    if (stats.timeSavedHours > 0) {
+      const timeStr = stats.timeSavedHours >= 1 
+        ? `${stats.timeSavedHours} ${stats.timeSavedHours === 1 ? 'hour' : 'hours'}`
+        : `${Math.round(stats.timeSavedHours * 60)} minutes`;
       insights.push({
         text: `You've saved approximately ${timeStr} using TweetReply`,
         type: 'info'

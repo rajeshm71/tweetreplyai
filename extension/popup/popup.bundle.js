@@ -965,8 +965,9 @@
     }
     renderAnalyticsSummary(summary) {
       if (!this.analyticsSummary) return;
-      const { avgQuality, qualityTrend, totalReplies, timeSavedMinutes, highQualityCount } = summary;
+      const { avgQuality, qualityTrend, totalReplies, timeSavedHours, highQualityCount } = summary;
       const trendIndicator = qualityTrend > 0 ? `<span class="trend-indicator positive">+${qualityTrend} from last period</span>` : qualityTrend < 0 ? `<span class="trend-indicator negative">${qualityTrend} from last period</span>` : "";
+      const timeDisplay = timeSavedHours >= 1 ? `${timeSavedHours}h` : `${Math.round(timeSavedHours * 60)}m`;
       this.analyticsSummary.innerHTML = `
       <h3>Summary</h3>
       <div class="analytics-summary-grid">
@@ -980,7 +981,7 @@
           <div class="metric-label">Total Replies</div>
         </div>
         <div class="analytics-summary-card">
-          <div class="metric-value">${timeSavedMinutes}m</div>
+          <div class="metric-value">${timeDisplay}</div>
           <div class="metric-label">Time Saved</div>
         </div>
       </div>

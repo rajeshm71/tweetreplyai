@@ -180,7 +180,7 @@ export interface SimpleAnalytics {
     avgQuality: number;
     qualityTrend: number; // +/- vs previous period
     totalReplies: number;
-    timeSavedMinutes: number;
+    timeSavedHours: number; // Changed from minutes to hours
     highQualityCount: number; // score > 80
   };
   parameterBreakdown: Array<{

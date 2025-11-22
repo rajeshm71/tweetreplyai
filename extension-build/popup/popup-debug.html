@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TweetReply Debug</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Header -->
+    <div class="header">
+      <div class="logo">
+        <div class="logo-icon">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zM7.5 18c-.83 0-1.5-.67-1.5-1.5S6.67 15 7.5 15s1.5.67 1.5 1.5S8.33 18 7.5 18zM12 18c-.83 0-1.5-.67-1.5-1.5S11.17 15 12 15s1.5.67 1.5 1.5S12.83 18 12 18zM16.5 18c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/>
+          </svg>
+        </div>
+        <span class="logo-text">TweetReply Debug</span>
+      </div>
+    </div>
+
+    <!-- Debug State -->
+    <div id="debug-state" class="state">
+      <div class="debug-content">
+        <h3>Debug Information</h3>
+        <div id="debug-info">
+          <p>Loading debug information...</p>
+        </div>
+        <button id="test-auth" class="primary-btn">Test Authentication</button>
+        <button id="test-api" class="primary-btn">Test API</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const debugInfo = document.getElementById('debug-info');
+      const testAuthBtn = document.getElementById('test-auth');
+      const testApiBtn = document.getElementById('test-api');
+
+      // Test authentication
+      testAuthBtn.addEventListener('click', async () => {
+        try {
+          const result = await chrome.storage.local.get(['authToken', 'authTime']);
+          debugInfo.innerHTML = `
+            <p><strong>Authentication Test:</strong></p>
+            <p>Token exists: ${!!result.authToken}</p>
+            <p>Auth time: ${result.authTime ? new Date(result.authTime).toLocaleString() : 'None'}</p>
+            <p>Token preview: ${result.authToken ? result.authToken.substring(0, 20) + '...' : 'None'}</p>
+          `;
+        } catch (error) {
+          debugInfo.innerHTML = `<p>Auth test error: ${error.message}</p>`;
+        }
+      });
+
+      // Test API
+      testApiBtn.addEventListener('click', async () => {
+        try {
+          const response = await fetch('https://tweetreplyai-ly1ayk4l0-rajeshm71s-projects.vercel.app/api/auth/user', {
+            credentials: 'include'
+          });
+          debugInfo.innerHTML = `
+            <p><strong>API Test:</strong></p>
+            <p>Status: ${response.status}</p>
+            <p>Status Text: ${response.statusText}</p>
+            <p>Response: ${await response.text()}</p>
+          `;
+        } catch (error) {
+          debugInfo.innerHTML = `<p>API test error: ${error.message}</p>`;
+        }
+      });
+
+      // Initial debug info
+      debugInfo.innerHTML = `
+        <p><strong>Extension Debug Info:</strong></p>
+        <p>Extension ID: ${chrome.runtime.id}</p>
+        <p>Manifest version: ${chrome.runtime.getManifest().version}</p>
+        <p>Current URL: ${window.location.href}</p>
+      `;
+    });
+  </script>
+</body>
+</html>
