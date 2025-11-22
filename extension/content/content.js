@@ -1067,11 +1067,11 @@ class TwitterReplyInjector {
     select.className = 'tweetreply-reply-mode-select';
     select.title = 'Choose reply generation mode';
     
-    // Create options
+    // Create options - Centralized labels for easy updates
     const modes = [
-      { value: 'single-sentence', label: '⚡ Single Sentence', tooltip: 'Fast: Generate only one direct sentence' },
-      { value: 'base', label: '📝 Base Prompt', tooltip: 'Standard: Natural reply without deep analysis' },
-      { value: 'enhanced', label: '🧠 Enhanced', tooltip: 'Thoughtful: AI-powered deep tweet analysis' }
+      { value: 'single-sentence', label: '⚡ Concise', tooltip: 'Fast one-sentence reply' },
+      { value: 'base', label: '📝 Balanced', tooltip: 'Natural conversational reply' },
+      { value: 'enhanced', label: '🧠 Enhanced', tooltip: 'Context-aware with deep analysis' }
     ];
     
     modes.forEach(mode => {

@@ -1,8 +1,8 @@
 // FIX: Added constants for reply modes to avoid magic strings
 export const REPLY_MODES = {
-  SINGLE_SENTENCE: 'single-sentence',
-  BASE: 'base',
-  ENHANCED: 'enhanced',
+  SINGLE_SENTENCE: 'single-sentence',  // Concise mode
+  BASE: 'base',                        // Balanced mode (default)
+  ENHANCED: 'enhanced',                // Enhanced mode
 } as const;
 
 export type ReplyMode = typeof REPLY_MODES[keyof typeof REPLY_MODES];
