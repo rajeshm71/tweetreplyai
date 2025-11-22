@@ -306,22 +306,38 @@ export class FeedbackAnalytics {
     console.log(`[Analytics] Previous period: ${previousPeriodStart.toISOString()} to ${startDate.toISOString()}`);
 
     // Query reply history for the current period
-    // Note: Supabase has a default limit of 1000, we need to explicitly set a higher limit
-    let currentQuery = supabase
-      .from('reply_history')
-      .select('id, quality_score, performance, created_at, original_tweet')
-      .eq('user_id', userId)
-      .gte('created_at', startDate.toISOString())
-      .limit(10000); // Set high limit to get all records
+    // Note: Supabase has a default limit of 1000, we need to fetch all records using pagination
+    console.log('[Analytics] Fetching current period data with pagination...');
+    let currentData: any[] = [];
+    let from = 0;
+    const pageSize = 1000;
+    let hasMore = true;
 
-    const { data: currentData, error: currentError } = await currentQuery;
-    
-    console.log(`[Analytics] Current period query returned: ${currentData?.length || 0} replies`);
-    
-    if (currentError) {
-      console.error('[Analytics] Error fetching current period analytics:', currentError);
-      return this.getEmptyAnalytics();
+    while (hasMore) {
+      const { data, error, count } = await supabase
+        .from('reply_history')
+        .select('id, quality_score, performance, created_at, original_tweet', { count: 'exact' })
+        .eq('user_id', userId)
+        .gte('created_at', startDate.toISOString())
+        .range(from, from + pageSize - 1)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('[Analytics] Error fetching current period analytics:', error);
+        return this.getEmptyAnalytics();
+      }
+
+      if (data && data.length > 0) {
+        currentData = currentData.concat(data);
+        console.log(`[Analytics] Fetched ${data.length} records (total so far: ${currentData.length})`);
+        from += pageSize;
+        hasMore = data.length === pageSize;
+      } else {
+        hasMore = false;
+      }
     }
+    
+    console.log(`[Analytics] Current period query returned: ${currentData.length} replies total`);
 
     if (currentData && currentData.length > 0) {
       const sampleScores = currentData.slice(0, 5).map(r => r.quality_score);
@@ -337,16 +353,36 @@ export class FeedbackAnalytics {
     }
 
     // Query reply history for the previous period (for trend)
-    let previousQuery = supabase
-      .from('reply_history')
-      .select('quality_score')
-      .eq('user_id', userId)
-      .gte('created_at', previousPeriodStart.toISOString())
-      .lt('created_at', startDate.toISOString())
-      .limit(10000); // Set high limit to get all records
+    // Fetch all records using pagination
+    console.log('[Analytics] Fetching previous period data with pagination...');
+    let previousData: any[] = [];
+    let prevFrom = 0;
+    let prevHasMore = true;
 
-    const { data: previousData, error: previousError } = await previousQuery;
-    console.log(`[Analytics] Previous period query returned: ${previousData?.length || 0} replies`);
+    while (prevHasMore) {
+      const { data, error } = await supabase
+        .from('reply_history')
+        .select('quality_score')
+        .eq('user_id', userId)
+        .gte('created_at', previousPeriodStart.toISOString())
+        .lt('created_at', startDate.toISOString())
+        .range(prevFrom, prevFrom + pageSize - 1);
+
+      if (error) {
+        console.error('[Analytics] Error fetching previous period:', error);
+        break; // Don't fail entirely, just use empty previous data
+      }
+
+      if (data && data.length > 0) {
+        previousData = previousData.concat(data);
+        prevFrom += pageSize;
+        prevHasMore = data.length === pageSize;
+      } else {
+        prevHasMore = false;
+      }
+    }
+
+    console.log(`[Analytics] Previous period query returned: ${previousData.length} replies`);
 
     // Calculate summary metrics
     const scores = currentData?.map((r: any) => r.quality_score).filter((s: number) => s != null) || [];
