@@ -89,28 +89,20 @@ export default function ProfilePage() {
                     {getUserInitials()}
                   </AvatarFallback>
                 </Avatar>
-                <div className="flex-1 space-y-3">
-                  <div>
-                    <h3 className="text-lg font-semibold" data-testid="text-profile-name">
-                      {getUserDisplayName()}
-                    </h3>
-                    <p className="text-sm text-muted-foreground flex items-center gap-2" data-testid="text-profile-email">
-                      <Mail className="w-4 h-4" />
-                      {user.email}
-                      {user.emailVerified && (
-                        <Badge variant="secondary" className="ml-2">
-                          <Check className="w-3 h-3 mr-1" />
-                          Verified
-                        </Badge>
-                      )}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground mb-1">User ID</p>
-                    <code className="text-xs bg-muted px-2 py-1 rounded" data-testid="text-user-id">
-                      {user.id}
-                    </code>
-                  </div>
+                <div className="flex-1">
+                  <h3 className="text-lg font-semibold" data-testid="text-profile-name">
+                    {getUserDisplayName()}
+                  </h3>
+                  <p className="text-sm text-muted-foreground flex items-center gap-2" data-testid="text-profile-email">
+                    <Mail className="w-4 h-4" />
+                    {user.email}
+                    {user.emailVerified && (
+                      <Badge variant="secondary" className="ml-2">
+                        <Check className="w-3 h-3 mr-1" />
+                        Verified
+                      </Badge>
+                    )}
+                  </p>
                 </div>
               </div>
             </CardContent>
