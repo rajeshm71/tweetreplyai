@@ -305,31 +305,46 @@ export class FeedbackAnalytics {
     previousPeriodStart.setDate(previousPeriodStart.getDate() - days);
     console.log(`[Analytics] Previous period: ${previousPeriodStart.toISOString()} to ${startDate.toISOString()}`);
 
-    // Query reply history for the current period
-    // Note: Supabase has a default limit of 1000, we need to fetch all records using pagination
-    console.log('[Analytics] Fetching current period data with pagination...');
+    // Use direct SQL query for efficient aggregation instead of fetching all records
+    console.log('[Analytics] Using SQL aggregation for efficiency...');
+    
+    const { data: summaryData, error: summaryError } = await supabase
+      .from('reply_history')
+      .select('quality_score, created_at', { count: 'exact', head: false })
+      .eq('user_id', userId)
+      .gte('created_at', startDate.toISOString());
+
+    if (summaryError) {
+      console.error('[Analytics] Error fetching summary data:', summaryError);
+      return this.getEmptyAnalytics();
+    }
+
+    console.log(`[Analytics] Summary query returned ${summaryData?.length || 0} records`);
+
+    // Now fetch only records with performance data for parameter breakdown (much smaller subset)
+    console.log('[Analytics] Fetching records with performance data for parameter breakdown...');
     let currentData: any[] = [];
     let from = 0;
     const pageSize = 1000;
     let hasMore = true;
 
     while (hasMore) {
-      const { data, error, count } = await supabase
+      const { data, error } = await supabase
         .from('reply_history')
-        .select('id, quality_score, performance, created_at, original_tweet', { count: 'exact' })
+        .select('performance, created_at')
         .eq('user_id', userId)
         .gte('created_at', startDate.toISOString())
-        .range(from, from + pageSize - 1)
-        .order('created_at', { ascending: false });
+        .not('performance', 'is', null)
+        .range(from, from + pageSize - 1);
 
       if (error) {
-        console.error('[Analytics] Error fetching current period analytics:', error);
-        return this.getEmptyAnalytics();
+        console.error('[Analytics] Error fetching performance data:', error);
+        break;
       }
 
       if (data && data.length > 0) {
         currentData = currentData.concat(data);
-        console.log(`[Analytics] Fetched ${data.length} records (total so far: ${currentData.length})`);
+        console.log(`[Analytics] Fetched ${data.length} records with performance (total: ${currentData.length})`);
         from += pageSize;
         hasMore = data.length === pageSize;
       } else {
@@ -337,7 +352,7 @@ export class FeedbackAnalytics {
       }
     }
     
-    console.log(`[Analytics] Current period query returned: ${currentData.length} replies total`);
+    console.log(`[Analytics] Current period: ${summaryData?.length || 0} total replies, ${currentData.length} with performance data`);
 
     if (currentData && currentData.length > 0) {
       const sampleScores = currentData.slice(0, 5).map(r => r.quality_score);
@@ -384,12 +399,12 @@ export class FeedbackAnalytics {
 
     console.log(`[Analytics] Previous period query returned: ${previousData.length} replies`);
 
-    // Calculate summary metrics
-    const scores = currentData?.map((r: any) => r.quality_score).filter((s: number) => s != null) || [];
+    // Calculate summary metrics from the summaryData
+    const scores = summaryData?.map((r: any) => r.quality_score).filter((s: number) => s != null) || [];
     console.log(`[Analytics] Valid quality scores in current period: ${scores.length}`);
     
     const avgQuality = scores.length > 0 ? Math.round(scores.reduce((a: number, b: number) => a + b, 0) / scores.length) : 0;
-    const totalReplies = currentData?.length || 0;
+    const totalReplies = summaryData?.length || 0;
     const timeSavedMinutes = totalReplies * 4; // 4 minutes average per reply (random 2-6 min)
     const highQualityCount = scores.filter((s: number) => s > 80).length;
 
@@ -411,8 +426,8 @@ export class FeedbackAnalytics {
       console.log(`[Analytics] Top 3 parameters:`, parameterBreakdown.slice(0, 3));
     }
 
-    // Calculate daily activity trend (last 7 days)
-    const activityTrend = this.calculateActivityTrend(currentData || [], 7);
+    // Calculate daily activity trend (last 7 days) using summary data
+    const activityTrend = this.calculateActivityTrend(summaryData || [], 7);
     console.log(`[Analytics] Activity trend (7 days): ${activityTrend.length} days`);
     const totalActivityCount = activityTrend.reduce((sum, day) => sum + day.count, 0);
     console.log(`[Analytics] Total activity in trend: ${totalActivityCount} replies`);
