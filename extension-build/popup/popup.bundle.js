@@ -654,13 +654,20 @@
       const now = /* @__PURE__ */ new Date();
       const diffMs = date.getTime() - now.getTime();
       if (diffMs <= 0) return "soon";
-      const hours = Math.floor(diffMs / (1e3 * 60 * 60));
+      const days = Math.floor(diffMs / (1e3 * 60 * 60 * 24));
+      const hours = Math.floor(diffMs % (1e3 * 60 * 60 * 24) / (1e3 * 60 * 60));
       const minutes = Math.floor(diffMs % (1e3 * 60 * 60) / (1e3 * 60));
-      if (hours > 0) {
-        return `in ${hours}h ${minutes}m`;
-      } else {
-        return `in ${minutes}m`;
+      const parts = [];
+      if (days > 0) {
+        parts.push(`${days}d`);
       }
+      if (hours > 0) {
+        parts.push(`${hours}h`);
+      }
+      if (minutes > 0 || parts.length === 0) {
+        parts.push(`${minutes}m`);
+      }
+      return `in ${parts.join(" ")}`;
     }
     async handleSignIn() {
       try {

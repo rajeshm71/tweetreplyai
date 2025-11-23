@@ -12,8 +12,7 @@ import { useEffect, useState, useRef } from "react";
 import { lazy, Suspense } from "react";
 import type { GenerateReplyRef } from "@/components/generate-reply";
 const GenerateReply = lazy(() => import("@/components/generate-reply").then(module => ({ default: module.GenerateReply })));
-import { motion, AnimatePresence } from "framer-motion";
-import { useReducedMotion } from "@/hooks/use-reduced-motion";
+// Removed framer-motion imports - animations removed except for Upgrade to Pro button
 import { formatDistanceToNow } from "date-fns";
 
 type Usage = {
@@ -40,7 +39,6 @@ export default function Home() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const generateReplyRef = useRef<GenerateReplyRef>(null);
-  const prefersReducedMotion = useReducedMotion();
   
   // Fix: Add localStorage error handling for SSR safety
   const [isBannerDismissed, setIsBannerDismissed] = useState(() => {
@@ -117,19 +115,12 @@ export default function Home() {
       <AppHeader />
 
       {/* Chrome Extension Download Banner - Sprint 1: Modernized with better integration */}
-      <AnimatePresence>
-        {!isBannerDismissed && (
-        <motion.div 
-          initial={{ opacity: 0, y: prefersReducedMotion ? 0 : -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: prefersReducedMotion ? 0 : -20 }}
-          transition={{ duration: prefersReducedMotion ? 0 : 0.3 }}
-          className="bg-gradient-to-r from-blue-500 via-purple-500 to-blue-600 text-white border-b border-blue-400/30 shadow-lg"
-        >
+      {!isBannerDismissed && (
+        <div className="bg-gradient-to-r from-blue-500 via-purple-500 to-blue-600 text-white border-b border-blue-400/30 shadow-lg">
           <div className="container mx-auto px-4 py-3 sm:py-4">
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4">
               <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0 w-full sm:w-auto">
-                <div className="w-8 h-8 sm:w-10 sm:h-10 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg transition-all duration-300 hover:scale-110 hover:bg-white/30">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg">
                   <Chrome className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
                 </div>
                 <div className="flex-1 min-w-0">
@@ -144,7 +135,7 @@ export default function Home() {
               <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0 w-full sm:w-auto justify-end">
                 <Button 
                   onClick={() => window.open(CHROME_EXTENSION_URL, '_blank')}
-                  className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white hover:from-blue-600 hover:to-indigo-700 font-semibold h-8 sm:h-9 px-3 sm:px-4 text-xs sm:text-sm flex-1 sm:flex-initial rounded-lg shadow-md hover:shadow-lg hover:shadow-blue-500/20 transition-all duration-300 hover:scale-105 active:scale-95"
+                  className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white hover:from-blue-600 hover:to-indigo-700 font-semibold h-8 sm:h-9 px-3 sm:px-4 text-xs sm:text-sm flex-1 sm:flex-initial rounded-lg shadow-md"
                   data-testid="button-chrome-extension-banner"
                 >
                   <Download className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
@@ -154,7 +145,7 @@ export default function Home() {
                   variant="ghost"
                   size="icon"
                   onClick={handleDismissBanner}
-                  className="text-white hover:bg-white/20 h-8 w-8 sm:h-9 sm:w-9 rounded-lg transition-all duration-300"
+                  className="text-white hover:bg-white/20 h-8 w-8 sm:h-9 sm:w-9 rounded-lg"
                   aria-label="Dismiss banner"
                 >
                   <X className="w-3 h-3 sm:w-4 sm:h-4" />
@@ -162,9 +153,8 @@ export default function Home() {
               </div>
             </div>
           </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+        </div>
+      )}
 
       {/* Main Dashboard Content - Sprint 3: Added main landmark for accessibility */}
       <main id="main-content" className="container mx-auto px-4 py-8 max-w-7xl" role="main">
@@ -187,14 +177,10 @@ export default function Home() {
           <div className="space-y-6">
             {/* Usage Counter - Visually Stunning Design */}
             {usageStatus && (
-              <motion.div
-                initial={{ opacity: 0, y: prefersReducedMotion ? 0 : 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: prefersReducedMotion ? 0 : 0.5, delay: prefersReducedMotion ? 0 : 0.1 }}
-              >
+              <div>
                 <Card className="card-modern-enhanced border border-primary/20 bg-gradient-to-br from-primary/5 via-purple-600/5 to-primary/5 overflow-hidden relative">
-                  {/* Animated Background Gradient */}
-                  <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-purple-600/10 to-primary/10 opacity-50 animate-pulse" />
+                  {/* Background Gradient */}
+                  <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-purple-600/10 to-primary/10 opacity-50" />
                   
                   <CardContent className="p-6 relative z-10">
                     {/* Header with Icon */}
@@ -226,12 +212,8 @@ export default function Home() {
                       
                       {/* Progress Bar */}
                       <div className="relative w-full h-3 bg-secondary/50 rounded-full overflow-hidden backdrop-blur-sm">
-                        <motion.div
-                          initial={{ width: 0 }}
-                          animate={{ 
-                            width: `${Math.min((usageStatus.used / usageStatus.limit) * 100, 100)}%` 
-                          }}
-                          transition={{ duration: prefersReducedMotion ? 0 : 1, ease: "easeOut" }}
+                        <div
+                          style={{ width: `${Math.min((usageStatus.used / usageStatus.limit) * 100, 100)}%` }}
                           className={`h-full rounded-full relative overflow-hidden ${
                             usageStatus.used >= usageStatus.limit 
                               ? 'bg-gradient-to-r from-destructive to-red-600' 
@@ -239,10 +221,7 @@ export default function Home() {
                               ? 'bg-gradient-to-r from-yellow-500 to-orange-500' 
                               : 'bg-gradient-to-r from-primary via-purple-600 to-primary'
                           }`}
-                        >
-                          {/* Shimmer Effect */}
-                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer" />
-                        </motion.div>
+                        />
                       </div>
                     </div>
 
@@ -256,33 +235,24 @@ export default function Home() {
 
                     {/* Upgrade CTA (if needed) */}
                     {usageStatus.upgradeRequired && !usageStatus.isWhitelisted && (
-                      <motion.div
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: prefersReducedMotion ? 0 : 0.3, delay: prefersReducedMotion ? 0 : 0.2 }}
-                        className="mt-4"
-                      >
+                      <div className="mt-4">
                         <Button
                           onClick={() => setLocation('/pricing')}
-                          className="w-full bg-gradient-to-r from-primary to-purple-600 hover:from-primary/90 hover:to-purple-600/90 text-white font-semibold shadow-lg hover:shadow-xl transition-all duration-300"
+                          className="w-full bg-gradient-to-r from-primary to-purple-600 hover:from-primary/90 hover:to-purple-600/90 text-white font-semibold shadow-lg"
                         >
                           <TrendingUp className="w-4 h-4 mr-2" />
                           Upgrade to Pro
                         </Button>
-                      </motion.div>
+                      </div>
                     )}
                   </CardContent>
                 </Card>
-              </motion.div>
+              </div>
             )}
 
             {/* Quick Stats - Sprint 2: Modernized with enhanced styling */}
             {usage && (
-              <motion.div
-                initial={{ opacity: 0, y: prefersReducedMotion ? 0 : 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: prefersReducedMotion ? 0 : 0.5, delay: prefersReducedMotion ? 0 : 0.2 }}
-              >
+              <div>
                 <Card className="card-modern-enhanced border border-primary/20 bg-gradient-to-br from-card to-card/50">
                   <CardContent className="p-6">
                     <div className="flex items-center gap-2 mb-4">
@@ -292,40 +262,28 @@ export default function Home() {
                       <h3 className="font-semibold text-lg">Quick Stats</h3>
                     </div>
                     <div className="space-y-3">
-                      <motion.div 
-                        className="flex items-center justify-between p-4 bg-gradient-to-br from-muted/50 to-muted/30 rounded-xl border border-border/50 hover:border-primary/30 transition-all duration-300 hover:shadow-md"
-                        whileHover={prefersReducedMotion ? {} : { scale: 1.02 }}
-                        transition={{ duration: prefersReducedMotion ? 0 : 0.2 }}
-                      >
+                      <div className="flex items-center justify-between p-4 bg-gradient-to-br from-muted/50 to-muted/30 rounded-xl border border-border/50">
                         <div>
                           <p className="text-sm text-muted-foreground font-medium">Today</p>
                           <p className="text-2xl font-bold text-primary mt-1">{usage.today}</p>
                         </div>
-                      </motion.div>
-                      <motion.div 
-                        className="flex items-center justify-between p-4 bg-gradient-to-br from-muted/50 to-muted/30 rounded-xl border border-border/50 hover:border-primary/30 transition-all duration-300 hover:shadow-md"
-                        whileHover={prefersReducedMotion ? {} : { scale: 1.02 }}
-                        transition={{ duration: prefersReducedMotion ? 0 : 0.2 }}
-                      >
+                      </div>
+                      <div className="flex items-center justify-between p-4 bg-gradient-to-br from-muted/50 to-muted/30 rounded-xl border border-border/50">
                         <div>
                           <p className="text-sm text-muted-foreground font-medium">This Week</p>
                           <p className="text-2xl font-bold text-primary mt-1">{usage.thisWeek}</p>
                         </div>
-                      </motion.div>
-                      <motion.div 
-                        className="flex items-center justify-between p-4 bg-gradient-to-br from-muted/50 to-muted/30 rounded-xl border border-border/50 hover:border-primary/30 transition-all duration-300 hover:shadow-md"
-                        whileHover={prefersReducedMotion ? {} : { scale: 1.02 }}
-                        transition={{ duration: prefersReducedMotion ? 0 : 0.2 }}
-                      >
+                      </div>
+                      <div className="flex items-center justify-between p-4 bg-gradient-to-br from-muted/50 to-muted/30 rounded-xl border border-border/50">
                         <div>
                           <p className="text-sm text-muted-foreground font-medium">This Month</p>
                           <p className="text-2xl font-bold text-primary mt-1">{usage.thisMonth}</p>
-        </div>
-                      </motion.div>
-          </div>
+                        </div>
+                      </div>
+                    </div>
                   </CardContent>
                 </Card>
-              </motion.div>
+              </div>
             )}
           </div>
         </div>
