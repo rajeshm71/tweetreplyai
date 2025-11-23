@@ -84,7 +84,7 @@ export default function TermsOfService() {
                   <div className="bg-orange-50 p-4 rounded-lg">
                     <h3 className="text-lg font-semibold text-orange-800 mb-2">Payment Terms</h3>
                     <ul className="list-disc list-inside text-gray-700 space-y-1">
-                      <li>Payments are processed through Stripe</li>
+                      <li>Payments are processed through Dodo Payments</li>
                       <li>All prices are in USD unless otherwise stated</li>
                       <li>Subscriptions automatically renew unless cancelled</li>
                       <li>You can cancel your subscription at any time</li>

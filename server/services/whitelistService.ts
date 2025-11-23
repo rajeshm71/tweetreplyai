@@ -95,8 +95,8 @@ class WhitelistService {
   /**
    * Generates an upgrade message based on usage status.
    * @param isWhitelisted - Whether the user is whitelisted
-   * @param used - Number of replies used
-   * @param limit - Total reply limit
+   * @param used - Number of credits used (FIX: Updated from replies to credits)
+   * @param limit - Total credit limit (FIX: Updated from reply limit to credit limit)
    * @returns Upgrade message string, or empty string if no message needed
    */
   getUpgradeMessage(isWhitelisted: boolean, used: number, limit: number): string {
@@ -105,12 +105,14 @@ class WhitelistService {
     }
     
     if (used >= limit) {
-      return 'You\'ve used all your trial replies. Upgrade to continue generating replies.';
+      // FIX: Updated message to say "credits" instead of "replies"
+      return 'You\'ve used all your credits. Upgrade to continue generating replies.';
     }
     
     const remaining = limit - used;
     if (remaining <= 10) {
-      return `Only ${remaining} replies left in your trial. Upgrade for unlimited access.`;
+      // FIX: Updated message to say "credits" instead of "replies"
+      return `Only ${remaining} credits left in your trial. Upgrade for unlimited access.`;
     }
     
     return '';

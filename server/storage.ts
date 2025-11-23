@@ -27,7 +27,7 @@ export interface IStorage {
   getActiveSubscription(userId: string): Promise<Subscription | undefined>;
   createSubscription(subscription: InsertSubscription): Promise<Subscription>;
   updateSubscription(subscriptionId: string, updates: Partial<Subscription>): Promise<void>;
-  getSubscriptionByStripeId(stripeSubscriptionId: string): Promise<Subscription | undefined>;
+  getSubscriptionByDodoId(dodoSubscriptionId: string): Promise<Subscription | undefined>;
   
   // Usage counter operations
   getUsageCounter(userId: string, periodStart: Date): Promise<UsageCounter | undefined>;

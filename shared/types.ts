@@ -4,7 +4,7 @@ export interface User {
   email: string;
   password?: string;
   googleSub?: string;
-  stripeCustomerId?: string;
+  dodoCustomerId?: string;
   authProviders?: string[];
   createdAt: Date;
   updatedAt: Date;
@@ -15,7 +15,7 @@ export interface UpsertUser {
   email: string;
   password?: string;
   googleSub?: string;
-  stripeCustomerId?: string;
+  dodoCustomerId?: string;
   authProviders?: string[];
   createdAt?: Date;
   updatedAt?: Date;
@@ -24,7 +24,7 @@ export interface UpsertUser {
 export interface Subscription {
   id: string;
   userId: string;
-  stripeSubscriptionId: string;
+  dodoSubscriptionId: string;
   planCode: string;
   status: 'active' | 'canceled' | 'past_due' | 'unpaid';
   currentPeriodStart: Date;
@@ -40,7 +40,7 @@ export interface Subscription {
 export interface InsertSubscription {
   id: string;
   userId: string;
-  stripeSubscriptionId: string;
+  dodoSubscriptionId: string;
   planCode: string;
   status: 'active' | 'canceled' | 'past_due' | 'unpaid';
   currentPeriodStart: Date;

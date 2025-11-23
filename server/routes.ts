@@ -5,7 +5,7 @@ import { setupLocalAuth } from "./localAuth.js";
 import { setupGoogleAuth } from "./googleAuth.js";
 import { aiRouter } from "./services/ai-router.js";
 import { getAvailablePrompts } from "./services/prompts.js";
-import { stripeService, PLANS } from "./services/stripe.js";
+import { dodoPaymentsService, PLANS } from "./services/dodo-payments.js";
 import { usageService } from "./services/usage.js";
 import { whitelistService } from "./services/whitelistService.js";
 import { z, ZodError } from "zod";
@@ -827,10 +827,10 @@ export async function registerRoutes(app: Express): Promise<Express> {
       const domain = process.env.DOMAIN || 'localhost:5000';
       const protocol = domain.includes('localhost') ? 'http' : 'https';
       
-      const successUrl = `${protocol}://${domain}/app?session_id={CHECKOUT_SESSION_ID}`;
+      const successUrl = `${protocol}://${domain}/app?session_id={SESSION_ID}`;
       const cancelUrl = `${protocol}://${domain}/pricing`;
 
-      const session = await stripeService.createCheckoutSession(
+      const session = await dodoPaymentsService.createCheckoutSession(
         plan_code,
         userId,
         user.email,
@@ -852,7 +852,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
       const userId = getUserId(req);
       const user = await storage.getUser(userId);
       
-      if (!user || !user.stripeCustomerId) {
+      if (!user || !user.dodoCustomerId) {
         return res.status(400).json({ message: "No billing account found" });
       }
 
@@ -861,8 +861,8 @@ export async function registerRoutes(app: Express): Promise<Express> {
       const protocol = domain.includes('localhost') ? 'http' : 'https';
       const returnUrl = `${protocol}://${domain}/app`;
 
-      const session = await stripeService.createCustomerPortalSession(
-        user.stripeCustomerId,
+      const session = await dodoPaymentsService.createCustomerPortalSession(
+        user.dodoCustomerId,
         returnUrl
       );
 
@@ -874,22 +874,23 @@ export async function registerRoutes(app: Express): Promise<Express> {
     }
   });
 
-  // Stripe webhook
-  app.post('/api/stripe/webhook', async (req, res) => {
-    const signature = req.headers['stripe-signature'] as string;
+  // Dodo Payments webhook
+  app.post('/api/dodo/webhook', async (req, res) => {
+    const signature = req.headers['dodo-signature'] as string;
     
     try {
-      const event = await stripeService.constructWebhookEvent(
+      const event = await dodoPaymentsService.constructWebhookEvent(
         req.body,
         signature
       );
 
-      console.log(`Received Stripe webhook: ${event.type}`);
+      console.log(`Received Dodo Payments webhook: ${event.type}`);
 
       switch (event.type) {
-        case 'checkout.session.completed': {
+        case 'checkout.completed':
+        case 'payment.completed': {
           const session = event.data.object as any;
-          const { userId, planCode } = session.metadata;
+          const { userId, planCode } = session.metadata || {};
           
           if (!userId || !planCode) {
             console.error('Missing metadata in checkout session');
@@ -902,27 +903,27 @@ export async function registerRoutes(app: Express): Promise<Express> {
             break;
           }
 
-          // Update user with Stripe customer ID if not already set
-          if (!user.stripeCustomerId && session.customer) {
+          // Update user with Dodo Payments customer ID if not already set
+          if (!user.dodoCustomerId && session.customerId) {
             await storage.upsertUser({
               ...user,
-              stripeCustomerId: session.customer,
+              dodoCustomerId: session.customerId,
             });
           }
 
           break;
         }
 
-        case 'customer.subscription.created':
-        case 'customer.subscription.updated': {
+        case 'subscription.created':
+        case 'subscription.updated': {
           const subscription = event.data.object as any;
           
-          // Find user by stripe customer ID
-          const users = await storage.getUser(subscription.customer);
+          // Find user by Dodo Payments customer ID
           // Note: This is a simplified approach. In production, you'd want a proper lookup
+          const users = await storage.getUser(subscription.customerId);
           
-          const priceId = subscription.items.data[0]?.price?.id;
-          const planCode = stripeService.planCodeFromPriceId(priceId);
+          const priceId = subscription.priceId || subscription.productId;
+          const planCode = dodoPaymentsService.planCodeFromPriceId(priceId);
           
           if (!planCode) {
             console.error(`Unknown price ID: ${priceId}`);
@@ -930,11 +931,11 @@ export async function registerRoutes(app: Express): Promise<Express> {
           }
 
           const plan = PLANS[planCode];
-          const periodStart = new Date(subscription.current_period_start * 1000);
-          const periodEnd = new Date(subscription.current_period_end * 1000);
+          const periodStart = subscription.currentPeriodStart ? new Date(subscription.currentPeriodStart) : new Date();
+          const periodEnd = subscription.currentPeriodEnd ? new Date(subscription.currentPeriodEnd) : new Date();
 
           // Create or update subscription record
-          const existingSubscription = await storage.getSubscriptionByStripeId(subscription.id);
+          const existingSubscription = await storage.getSubscriptionByDodoId(subscription.id);
           
           if (existingSubscription) {
             await storage.updateSubscription(existingSubscription.id, {
@@ -946,7 +947,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
             });
           } else {
             // Find user by customer ID (simplified - in production use proper lookup)
-            const user = await storage.getUser(subscription.customer);
+            const user = await storage.getUser(subscription.customerId);
             if (user) {
               await storage.createSubscription({
                 id: crypto.randomUUID(),
@@ -955,9 +956,9 @@ export async function registerRoutes(app: Express): Promise<Express> {
                 status: subscription.status,
                 currentPeriodStart: periodStart,
                 currentPeriodEnd: periodEnd,
-                stripeSubscriptionId: subscription.id,
-                amountPaid: subscription.items.data[0]?.price?.unit_amount,
-                currency: subscription.items.data[0]?.price?.currency,
+                dodoSubscriptionId: subscription.id,
+                amountPaid: subscription.amountPaid,
+                currency: subscription.currency || 'usd',
               });
 
               // Create usage counter for new period
@@ -968,7 +969,8 @@ export async function registerRoutes(app: Express): Promise<Express> {
                 periodStart,
                 periodEnd,
                 repliesUsed: 0,
-                limit: plan.replies,
+                creditsUsed: 0,
+                limit: plan.credits,
                 resetAt: periodEnd,
               });
             }
@@ -977,10 +979,11 @@ export async function registerRoutes(app: Express): Promise<Express> {
           break;
         }
 
-        case 'customer.subscription.deleted': {
+        case 'subscription.deleted':
+        case 'subscription.canceled': {
           const subscription = event.data.object as any;
           
-          const existingSubscription = await storage.getSubscriptionByStripeId(subscription.id);
+          const existingSubscription = await storage.getSubscriptionByDodoId(subscription.id);
           if (existingSubscription) {
             await storage.updateSubscription(existingSubscription.id, {
               status: 'canceled',
@@ -996,7 +999,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
       res.json({ received: true });
 
     } catch (error) {
-      console.error('Stripe webhook error:', error);
+      console.error('Dodo Payments webhook error:', error);
       res.status(400).json({ message: 'Webhook error' });
     }
   });
@@ -1197,7 +1200,8 @@ export async function registerRoutes(app: Express): Promise<Express> {
           hasEmojis: /[😀😁😂😃😄😅😆😇😈😉😊😋😌😍😎😏😐😑😒😓😔😕😖😗😘😙😚😛😜😝😞😟😠😡😢😣😤😥😦😧😨😩😪😫😬😭😮😯😰😱😲😳😴😵😶😷🙁🙂🙃🙄🙅🙆🙇🙈🙉🙊🙋🙌🙍🙎🙏]/.test(draft_reply),
         },
         usage: {
-          used: updatedCounter.repliesUsed,
+          // FIX: Return credits instead of repliesUsed to match credits-based system
+          used: updatedCounter.creditsUsed ?? (updatedCounter.repliesUsed * 2),
           limit: updatedCounter.limit,
           resetAt: updatedCounter.resetAt,
         }

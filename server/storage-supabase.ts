@@ -25,7 +25,7 @@ export class SupabaseStorage implements IStorage {
     
     const { data, error } = await supabase
       .from('users')
-      .select('id, email, password_hash, google_sub, auth_providers, created_at, updated_at')
+      .select('id, email, password_hash, google_sub, auth_providers, stripe_customer_id, created_at, updated_at')
       .eq('id', id)
       .single();
     
@@ -49,11 +49,13 @@ export class SupabaseStorage implements IStorage {
     }
     
     // Map database fields to our User interface
+    // Note: Database column is still stripe_customer_id, will be migrated to dodo_customer_id
     const user = {
       id: data.id,
       email: data.email,
       password: data.password_hash,
       googleSub: data.google_sub,
+      dodoCustomerId: data.stripe_customer_id, // Map from old column name
       authProviders: data.auth_providers || [],
       createdAt: new Date(data.created_at),
       updatedAt: new Date(data.updated_at)
@@ -67,7 +69,7 @@ export class SupabaseStorage implements IStorage {
     console.log('=== SUPABASE: getUserByEmail called (line 49) ===');
     const { data, error } = await supabase
       .from('users')
-      .select('id, email, password_hash, google_sub, auth_providers, created_at, updated_at')
+      .select('id, email, password_hash, google_sub, auth_providers, stripe_customer_id, created_at, updated_at')
       .eq('email', email)
       .single();
     
@@ -94,7 +96,7 @@ export class SupabaseStorage implements IStorage {
     console.log('=== SUPABASE: getUserByGoogleSub called (line 77) ===');
     const { data, error } = await supabase
       .from('users')
-      .select('id, email, password_hash, google_sub, auth_providers, created_at, updated_at')
+      .select('id, email, password_hash, google_sub, auth_providers, stripe_customer_id, created_at, updated_at')
       .eq('google_sub', googleSub)
       .single();
     
@@ -111,6 +113,7 @@ export class SupabaseStorage implements IStorage {
       email: data.email,
       password: data.password_hash,
       googleSub: data.google_sub,
+      dodoCustomerId: data.stripe_customer_id, // Map from old column name
       authProviders: data.auth_providers || [],
       createdAt: new Date(data.created_at),
       updatedAt: new Date(data.updated_at)
@@ -127,6 +130,7 @@ export class SupabaseStorage implements IStorage {
       email: userData.email,
       password_hash: userData.password,
       google_sub: userData.googleSub,
+      stripe_customer_id: userData.dodoCustomerId, // Map to old column name for now
       auth_providers: userData.authProviders || [],
       created_at: userData.createdAt || new Date(),
       updated_at: userData.updatedAt || new Date()
@@ -135,7 +139,7 @@ export class SupabaseStorage implements IStorage {
     const { data, error } = await supabase
       .from('users')
       .upsert(dbData, { onConflict: 'id' })
-      .select('id, email, password_hash, google_sub, auth_providers, created_at, updated_at')
+      .select('id, email, password_hash, google_sub, auth_providers, stripe_customer_id, created_at, updated_at')
       .single();
     
     if (error) {
@@ -149,6 +153,7 @@ export class SupabaseStorage implements IStorage {
       email: data.email,
       password: data.password_hash,
       googleSub: data.google_sub,
+      dodoCustomerId: data.stripe_customer_id, // Map from old column name
       authProviders: data.auth_providers || [],
       createdAt: new Date(data.created_at),
       updatedAt: new Date(data.updated_at)
@@ -231,9 +236,26 @@ export class SupabaseStorage implements IStorage {
   }
 
   async createSubscription(subscription: InsertSubscription): Promise<Subscription> {
+    // Map TypeScript interface to database columns
+    const dbData = {
+      id: subscription.id,
+      user_id: subscription.userId,
+      stripe_subscription_id: subscription.dodoSubscriptionId, // Map to old column name
+      plan_code: subscription.planCode,
+      status: subscription.status,
+      current_period_start: subscription.currentPeriodStart.toISOString(),
+      current_period_end: subscription.currentPeriodEnd.toISOString(),
+      amount_paid: subscription.amountPaid,
+      currency: subscription.currency,
+      cancel_at: subscription.cancelAt?.toISOString(),
+      cancel_reason: subscription.cancelReason,
+      created_at: subscription.createdAt?.toISOString() || new Date().toISOString(),
+      updated_at: subscription.updatedAt?.toISOString() || new Date().toISOString(),
+    };
+    
     const { data, error } = await supabase
       .from('subscriptions')
-      .insert(subscription)
+      .insert(dbData)
       .select()
       .single();
     
@@ -241,7 +263,23 @@ export class SupabaseStorage implements IStorage {
       console.error('Supabase createSubscription error (line 255):', error);
       throw error;
     }
-    return data as Subscription;
+    
+    // Map database fields back to TypeScript interface
+    return {
+      id: data.id,
+      userId: data.user_id,
+      dodoSubscriptionId: data.stripe_subscription_id, // Map from old column name
+      planCode: data.plan_code,
+      status: data.status,
+      currentPeriodStart: new Date(data.current_period_start),
+      currentPeriodEnd: new Date(data.current_period_end),
+      amountPaid: data.amount_paid,
+      currency: data.currency,
+      cancelAt: data.cancel_at ? new Date(data.cancel_at) : undefined,
+      cancelReason: data.cancel_reason,
+      createdAt: new Date(data.created_at),
+      updatedAt: new Date(data.updated_at),
+    } as Subscription;
   }
 
   async updateSubscription(subscriptionId: string, updates: Partial<Subscription>): Promise<void> {
@@ -256,20 +294,27 @@ export class SupabaseStorage implements IStorage {
     }
   }
 
-  async getSubscriptionByStripeId(stripeSubscriptionId: string): Promise<Subscription | undefined> {
+  async getSubscriptionByDodoId(dodoSubscriptionId: string): Promise<Subscription | undefined> {
     const { data, error } = await supabase
       .from('subscriptions')
       .select('*')
-      .eq('stripe_subscription_id', stripeSubscriptionId)
+      .eq('stripe_subscription_id', dodoSubscriptionId) // Note: Database column name, will be migrated
       .single();
     
     if (error) {
       if (error.code !== 'PGRST116') {
-        console.error('Supabase getSubscriptionByStripeId error (line 282):', error);
+        console.error('Supabase getSubscriptionByDodoId error:', error);
       }
       return undefined;
     }
-    return data as Subscription;
+    // Map database field to interface
+    if (data) {
+      return {
+        ...data,
+        dodoSubscriptionId: data.stripe_subscription_id, // Map from old column name
+      } as Subscription;
+    }
+    return undefined;
   }
 
   // Usage counter operations
