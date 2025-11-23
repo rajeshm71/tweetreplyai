@@ -10,7 +10,8 @@ export interface PlanConfig {
   code: string;
   name: string;
   price: number; // in cents
-  replies: number;
+  replies: number; // Keep for analytics/reference
+  credits: number; // NEW - for limit enforcement
   interval: 'week' | 'month';
   stripePriceId: string;
 }
@@ -20,7 +21,8 @@ export const PLANS: Record<string, PlanConfig> = {
     code: 'weekly',
     name: 'Weekly Plan',
     price: 299, // $2.99
-    replies: 700,
+    replies: 700, // Keep for reference/analytics
+    credits: 4000, // NEW - actual limit
     interval: 'week',
     stripePriceId: process.env.STRIPE_PRICE_WEEKLY || 'price_weekly_placeholder',
   },
@@ -28,7 +30,8 @@ export const PLANS: Record<string, PlanConfig> = {
     code: 'monthly',
     name: 'Monthly Plan',
     price: 999, // $9.99
-    replies: 3000,
+    replies: 3000, // Keep for reference/analytics
+    credits: 20000, // NEW - actual limit
     interval: 'month',
     stripePriceId: process.env.STRIPE_PRICE_MONTHLY || 'price_monthly_placeholder',
   },

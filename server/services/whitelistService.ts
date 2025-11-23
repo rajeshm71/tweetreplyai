@@ -62,9 +62,10 @@ class WhitelistService {
    * Gets the bypass limit for whitelisted users.
    * Reads dynamically from BYPASS_USER_LIMIT environment variable.
    * Can be updated without code changes (no restart needed).
-   * @returns Number of replies allowed per period for whitelisted users
+   * @returns Number of credits allowed per period for whitelisted users (BYPASS_USER_LIMIT now represents credits, not replies)
    */
   getBypassLimit(): number {
+    // BYPASS_USER_LIMIT now represents credits, not replies
     const limit = parseInt(process.env.BYPASS_USER_LIMIT || '10000', 10);
     // Validate limit is positive
     if (isNaN(limit) || limit < 0) {
@@ -73,14 +74,15 @@ class WhitelistService {
     }
     return limit;
   }
-  
+
   /**
    * Gets the trial limit for regular users.
    * Reads dynamically from TRIAL_LIMIT environment variable.
    * Can be updated without code changes (no restart needed).
-   * @returns Number of replies allowed per period for trial users
+   * @returns Number of credits allowed per period for trial users (TRIAL_LIMIT now represents credits, not replies)
    */
   getTrialLimit(): number {
+    // TRIAL_LIMIT now represents credits, not replies
     const limit = parseInt(process.env.TRIAL_LIMIT || '50', 10);
     // Validate limit is positive
     if (isNaN(limit) || limit < 0) {

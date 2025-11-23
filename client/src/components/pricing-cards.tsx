@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Check, Sparkles, Rocket, Crown, Gift, TrendingUp, Star } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
-import { PRICING_CONFIG, repliesPerCycleLabel, repliesEveryPeriodBullet } from "@/config/pricing";
+import { PRICING_CONFIG, repliesPerCycleLabel, repliesEveryPeriodBullet, creditsPerCycleLabel, formatCreditsLimit } from "@/config/pricing";
 import { isUnauthorizedError } from "@/lib/authUtils";
 
 export function PricingCards() {
@@ -123,9 +123,9 @@ export function PricingCards() {
             
             {/* Price with gradient */}
             <div className={`text-3xl font-bold mb-2 ${pricingTiers.trial.priceGradient} bg-clip-text text-transparent`}>
-              {PRICING_CONFIG.trial.repliesLimit} replies
+              {formatCreditsLimit(PRICING_CONFIG.trial.creditsLimit)}
             </div>
-            <div className="text-muted-foreground">{repliesPerCycleLabel(PRICING_CONFIG.trial)}</div>
+            <div className="text-muted-foreground">{creditsPerCycleLabel(PRICING_CONFIG.trial)}</div>
           </div>
           
           <div className="space-y-4 mb-8">
@@ -217,13 +217,13 @@ export function PricingCards() {
                 </div>
               )}
             </div>
-            <div className="text-muted-foreground">{repliesPerCycleLabel(PRICING_CONFIG.weekly)}</div>
+            <div className="text-muted-foreground">{creditsPerCycleLabel(PRICING_CONFIG.weekly)}</div>
           </div>
           
           <div className="space-y-4 mb-8">
             <div className="flex items-center space-x-3">
               <Check className={`w-4 h-4 ${pricingTiers.weekly.textColor} flex-shrink-0`} />
-              <span className="text-sm">{repliesEveryPeriodBullet(PRICING_CONFIG.weekly)}</span>
+              <span className="text-sm">{formatCreditsLimit(PRICING_CONFIG.weekly.creditsLimit)} every 7 days</span>
             </div>
             <div className="flex items-center space-x-3">
               <Check className={`w-4 h-4 ${pricingTiers.weekly.textColor} flex-shrink-0`} />
@@ -302,13 +302,13 @@ export function PricingCards() {
                 </div>
               )}
             </div>
-            <div className="text-muted-foreground">{repliesPerCycleLabel(PRICING_CONFIG.monthly)}</div>
+            <div className="text-muted-foreground">{creditsPerCycleLabel(PRICING_CONFIG.monthly)}</div>
           </div>
           
           <div className="space-y-4 mb-8">
             <div className="flex items-center space-x-3">
               <Check className={`w-4 h-4 ${pricingTiers.monthly.textColor} flex-shrink-0`} />
-              <span className="text-sm">{repliesEveryPeriodBullet(PRICING_CONFIG.monthly)}</span>
+              <span className="text-sm">{formatCreditsLimit(PRICING_CONFIG.monthly.creditsLimit)} every 30 days</span>
             </div>
             <div className="flex items-center space-x-3">
               <Check className={`w-4 h-4 ${pricingTiers.monthly.textColor} flex-shrink-0`} />

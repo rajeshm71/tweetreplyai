@@ -283,11 +283,11 @@ export class SupabaseStorage implements IStorage {
     
     const { data, error } = await supabase
       .from('usage_counters')
-      .select('id, user_id, plan_code, period_start, period_end, replies_used, limit, reset_at, created_at, updated_at')
+      .select('id, user_id, plan_code, period_start, period_end, replies_used, credits_used, limit, reset_at, created_at, updated_at')
       .eq('user_id', userId)
       .eq('period_start', periodStartISO)
       .single();
-    
+
     if (error) {
       if (error.code !== 'PGRST116') {
         console.error('[STORAGE-DEBUG] getUsageCounter - ERROR:', error);
@@ -301,6 +301,7 @@ export class SupabaseStorage implements IStorage {
       id: data.id,
       period_start: data.period_start,
       replies_used: data.replies_used,
+      credits_used: data.credits_used,
       limit: data.limit,
       plan_code: data.plan_code
     });
@@ -313,6 +314,7 @@ export class SupabaseStorage implements IStorage {
       periodStart: new Date(data.period_start),
       periodEnd: new Date(data.period_end),
       repliesUsed: data.replies_used,
+      creditsUsed: data.credits_used ?? (data.replies_used * 2), // FALLBACK: calculate if null
       limit: data.limit,
       resetAt: new Date(data.reset_at),
       createdAt: new Date(data.created_at),
@@ -328,7 +330,8 @@ export class SupabaseStorage implements IStorage {
       plan_code: usageCounter.planCode,
       period_start: usageCounter.periodStart.toISOString(),
       period_end: usageCounter.periodEnd.toISOString(),
-      replies_used: usageCounter.repliesUsed,
+      replies_used: usageCounter.repliesUsed ?? 0,
+      credits_used: usageCounter.creditsUsed ?? 0, // NEW
       limit: usageCounter.limit,
       reset_at: usageCounter.resetAt.toISOString(),
       created_at: new Date().toISOString(),
@@ -338,7 +341,7 @@ export class SupabaseStorage implements IStorage {
     const { data, error} = await supabase
       .from('usage_counters')
       .insert(dbUsageCounter)
-      .select('id, user_id, plan_code, period_start, period_end, replies_used, limit, reset_at, created_at, updated_at')
+      .select('id, user_id, plan_code, period_start, period_end, replies_used, credits_used, limit, reset_at, created_at, updated_at')
       .single();
     
     if (error) {
@@ -354,6 +357,7 @@ export class SupabaseStorage implements IStorage {
       periodStart: new Date(data.period_start),
       periodEnd: new Date(data.period_end),
       repliesUsed: data.replies_used,
+      creditsUsed: data.credits_used ?? (data.replies_used * 2), // FALLBACK
       limit: data.limit,
       resetAt: new Date(data.reset_at),
       createdAt: new Date(data.created_at),
@@ -370,6 +374,7 @@ export class SupabaseStorage implements IStorage {
     if (updates.planCode !== undefined) dbUpdates.plan_code = updates.planCode;
     if (updates.limit !== undefined) dbUpdates.limit = updates.limit;
     if (updates.repliesUsed !== undefined) dbUpdates.replies_used = updates.repliesUsed;
+    if (updates.creditsUsed !== undefined) dbUpdates.credits_used = updates.creditsUsed; // NEW
     if (updates.resetAt !== undefined) dbUpdates.reset_at = updates.resetAt.toISOString();
     
     const { error } = await supabase
@@ -383,10 +388,11 @@ export class SupabaseStorage implements IStorage {
     }
   }
 
-  async incrementUsage(userId: string, periodStart: Date): Promise<UsageCounter> {
+  async incrementUsage(userId: string, periodStart: Date, creditCost: number): Promise<UsageCounter> {
     console.log('[STORAGE-DEBUG] ========== incrementUsage START ==========');
     console.log('[STORAGE-DEBUG] incrementUsage - userId:', userId);
     console.log('[STORAGE-DEBUG] incrementUsage - periodStart:', periodStart.toISOString());
+    console.log('[STORAGE-DEBUG] incrementUsage - creditCost:', creditCost);
     
     let counter = await this.getUsageCounter(userId, periodStart);
     
@@ -395,10 +401,13 @@ export class SupabaseStorage implements IStorage {
       console.error('[STORAGE-DEBUG] incrementUsage - COUNTER NOT FOUND!');
       throw new Error('Usage counter not found - this should be created by getUsageStatus first');
     } else {
+      const currentCredits = counter.creditsUsed ?? (counter.repliesUsed * 2);
       console.log('[STORAGE-DEBUG] incrementUsage - Counter before update:', {
         id: counter.id,
         currentRepliesUsed: counter.repliesUsed,
-        willBecome: counter.repliesUsed + 1
+        currentCreditsUsed: currentCredits,
+        willBecomeReplies: counter.repliesUsed + 1,
+        willBecomeCredits: currentCredits + creditCost
       });
       
       const periodStartISO = periodStart.toISOString();
@@ -411,11 +420,12 @@ export class SupabaseStorage implements IStorage {
         .from('usage_counters')
         .update({ 
           replies_used: counter.repliesUsed + 1,
+          credits_used: currentCredits + creditCost, // Handle null with fallback
           updated_at: new Date().toISOString()
         })
         .eq('user_id', userId)
         .eq('period_start', periodStartISO)
-        .select('id, user_id, plan_code, period_start, period_end, replies_used, limit, reset_at, created_at, updated_at')
+        .select('id, user_id, plan_code, period_start, period_end, replies_used, credits_used, limit, reset_at, created_at, updated_at')
         .single();
       
       if (error) {
@@ -432,6 +442,7 @@ export class SupabaseStorage implements IStorage {
         id: data.id,
         period_start: data.period_start,
         replies_used: data.replies_used,
+        credits_used: data.credits_used,
         limit: data.limit
       });
 
@@ -443,6 +454,7 @@ export class SupabaseStorage implements IStorage {
         periodStart: new Date(data.period_start),
         periodEnd: new Date(data.period_end),
         repliesUsed: data.replies_used,
+        creditsUsed: data.credits_used ?? (data.replies_used * 2), // FALLBACK
         limit: data.limit,
         resetAt: new Date(data.reset_at),
         createdAt: new Date(data.created_at),
@@ -450,7 +462,7 @@ export class SupabaseStorage implements IStorage {
       } as UsageCounter;
     }
     
-    console.log('[STORAGE-DEBUG] incrementUsage - Returning counter with repliesUsed:', counter.repliesUsed);
+    console.log('[STORAGE-DEBUG] incrementUsage - Returning counter with repliesUsed:', counter.repliesUsed, 'creditsUsed:', counter.creditsUsed);
     console.log('[STORAGE-DEBUG] ========== incrementUsage END ==========');
     return counter;
   }

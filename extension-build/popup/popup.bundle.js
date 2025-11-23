@@ -622,10 +622,10 @@
       const progressBar = document.querySelector('.usage-progress-bar[role="progressbar"]');
       if (progressBar) {
         progressBar.setAttribute("aria-valuenow", Math.round(percentage));
-        progressBar.setAttribute("aria-valuetext", `${used} of ${limit} replies used`);
+        progressBar.setAttribute("aria-valuetext", `${used} of ${limit} credits used`);
       }
       if (this.usageText) {
-        this.usageText.textContent = `${used} / ${limit} replies`;
+        this.usageText.textContent = `${used} / ${limit} credits`;
       }
       if (this.usagePercentage) {
         this.usagePercentage.textContent = `${Math.round(percentage)}%`;

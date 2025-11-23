@@ -353,7 +353,7 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
       if (error.message.includes("402")) {
         toast({
           title: "Quota exceeded",
-          description: "You've reached your reply limit. Upgrade your plan to continue.",
+          description: "You've reached your credit limit. Upgrade your plan to continue.",
           variant: "destructive",
         });
         return;
@@ -880,7 +880,7 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
         <div className="p-4 border-t border-border">
           <Alert variant="destructive">
             <AlertDescription>
-              You've reached your quota limit. Your plan will reset soon, or you can upgrade for more replies.
+              You've reached your credit limit. Your plan will reset soon, or you can upgrade for more credits.
               <Button
                 size="sm"
                 className="mt-2 ml-2"

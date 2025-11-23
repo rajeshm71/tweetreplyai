@@ -1,4 +1,5 @@
 import type { Express } from "express";
+import type { UsageCounter } from "../shared/types.js";
 import { storage } from "./storage.js";
 import { setupLocalAuth } from "./localAuth.js";
 import { setupGoogleAuth } from "./googleAuth.js";
@@ -525,11 +526,12 @@ export async function registerRoutes(app: Express): Promise<Express> {
         });
       }
       
-      // Consume a reply from quota (applies to ALL users including whitelisted)
-      console.log('[API-DEBUG] /api/generate-reply - About to call consumeReply for userId:', userId);
-      const updatedCounter = await usageService.consumeReply(userId);
+      // Consume credits from quota (applies to ALL users including whitelisted)
+      console.log('[API-DEBUG] /api/generate-reply - About to call consumeReply for userId:', userId, 'reply_mode:', reply_mode);
+      const updatedCounter = await usageService.consumeReply(userId, reply_mode);
       console.log('[API-DEBUG] /api/generate-reply - After consumeReply, updatedCounter:', {
         repliesUsed: updatedCounter.repliesUsed,
+        creditsUsed: updatedCounter.creditsUsed,
         limit: updatedCounter.limit
       });
 
@@ -737,8 +739,8 @@ export async function registerRoutes(app: Express): Promise<Express> {
       res.json({
         reply: replyResponse.reply,
         qualityScore: finalQualityResult.totalScore,
-        used: updatedCounter.repliesUsed,
-        limit: updatedCounter.limit,
+        used: updatedCounter.creditsUsed ?? (updatedCounter.repliesUsed * 2), // Credits
+        limit: updatedCounter.limit, // Credits
         resetAt: updatedCounter.resetAt,
         analysis: analysisData,
         meta: {
@@ -1163,18 +1165,19 @@ export async function registerRoutes(app: Express): Promise<Express> {
         });
       }
 
-      // Consume usage quota after successful improvement
+      // Consume credits quota after successful improvement (default to Balanced mode)
       let updatedCounter;
       if (!isWhitelisted) {
-        updatedCounter = await usageService.consumeReply(userId);
+        updatedCounter = await usageService.consumeReply(userId, 'base'); // Default to Balanced (2 credits)
       } else {
         // Whitelisted users don't consume quota
         const status = await usageService.getUsageStatus(userId);
         updatedCounter = {
-          repliesUsed: status?.used || 0,
-          limit: status?.limit || 0,
+          repliesUsed: 0,
+          creditsUsed: status?.used || 0, // Credits
+          limit: status?.limit || 0, // Credits
           resetAt: status?.resetAt || new Date(),
-        };
+        } as UsageCounter;
       }
       
       // Analyze the draft for quality metrics with detailed breakdown

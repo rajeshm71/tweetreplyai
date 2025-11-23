@@ -59,8 +59,9 @@ export interface UsageCounter {
   planCode: string;
   periodStart: Date;
   periodEnd: Date;
-  repliesUsed: number;
-  limit: number;
+  repliesUsed: number; // Keep for analytics
+  creditsUsed: number; // NEW - for limit tracking
+  limit: number; // Now represents credits limit
   resetAt: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -72,7 +73,8 @@ export interface InsertUsageCounter {
   planCode: string;
   periodStart: Date;
   periodEnd: Date;
-  repliesUsed: number;
+  repliesUsed?: number;
+  creditsUsed?: number; // NEW
   limit: number;
   resetAt: Date;
   createdAt?: Date;

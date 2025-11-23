@@ -1,6 +1,7 @@
 import { storage } from "../storage.js";
 import { PLANS } from "./stripe.js";
 import { whitelistService } from "./whitelistService.js";
+import { getCreditCost } from "./credits.js";
 import type { User, UsageCounter } from "../../shared/types.js";
 import crypto from "crypto";
 
@@ -72,7 +73,7 @@ export class UsageService {
           planCode: activeSubscription.planCode,
           periodStart: activeSubscription.currentPeriodStart,
           periodEnd: activeSubscription.currentPeriodEnd,
-          limit: plan.replies,
+          limit: plan.credits, // CHANGED: Use credits instead of replies
           resetAt: activeSubscription.currentPeriodEnd,
         };
         console.log('Returning paid subscription window:', result);
@@ -201,8 +202,8 @@ export class UsageService {
 
     const result: UsageStatus = {
       planCode: window.planCode,
-      used: counter.repliesUsed,
-      limit: window.limit, // Use window.limit (current config) instead of counter.limit (may be outdated)
+      used: counter.creditsUsed ?? (counter.repliesUsed * 2), // CHANGED: Use credits with fallback
+      limit: window.limit, // Already credits from resolveActiveWindow
       resetAt: counter.resetAt,
       status: 'active',
       isWhitelisted,
@@ -241,9 +242,14 @@ export class UsageService {
     return { canUse: true };
   }
 
-  async consumeReply(userId: string): Promise<UsageCounter> {
+  async consumeReply(userId: string, replyMode?: string): Promise<UsageCounter> {
     console.log('[USAGE-DEBUG] ========== consumeReply START ==========');
     console.log('[USAGE-DEBUG] consumeReply - userId:', userId);
+    console.log('[USAGE-DEBUG] consumeReply - replyMode:', replyMode);
+    
+    // Get credit cost based on reply mode
+    const creditCost = getCreditCost(replyMode);
+    console.log('[USAGE-DEBUG] consumeReply - creditCost:', creditCost);
     
     const user = await storage.getUser(userId);
     if (!user) {
@@ -269,24 +275,26 @@ export class UsageService {
         periodStart: window.periodStart,
         periodEnd: window.periodEnd,
         repliesUsed: 0,
+        creditsUsed: 0, // NEW
         limit: window.limit,
         resetAt: window.resetAt,
       });
-      console.log('[USAGE-DEBUG] consumeReply - Created counter:', { id: counter.id, repliesUsed: counter.repliesUsed });
+      console.log('[USAGE-DEBUG] consumeReply - Created counter:', { id: counter.id, repliesUsed: counter.repliesUsed, creditsUsed: counter.creditsUsed });
     } else {
-      console.log('[USAGE-DEBUG] consumeReply - Counter FOUND:', { id: counter.id, repliesUsed: counter.repliesUsed, limit: counter.limit });
+      console.log('[USAGE-DEBUG] consumeReply - Counter FOUND:', { id: counter.id, repliesUsed: counter.repliesUsed, creditsUsed: counter.creditsUsed, limit: counter.limit });
     }
 
-    // Check limit before incrementing (applies to ALL users including whitelisted)
-    if (counter.repliesUsed >= counter.limit) {
-      console.log('[USAGE-DEBUG] consumeReply - QUOTA EXCEEDED, not incrementing');
-      throw new Error('Quota exceeded');
+    // Check limit using credits (with fallback)
+    const currentCredits = counter.creditsUsed ?? (counter.repliesUsed * 2);
+    if (currentCredits >= counter.limit) {
+      console.log('[USAGE-DEBUG] consumeReply - QUOTA EXCEEDED (credits), not incrementing');
+      throw new Error('402: Quota exceeded');
     }
 
     // Increment usage atomically (for ALL users including whitelisted)
-    console.log('[USAGE-DEBUG] consumeReply - About to call incrementUsage for periodStart:', window.periodStart.toISOString());
-    const updatedCounter = await storage.incrementUsage(userId, window.periodStart);
-    console.log('[USAGE-DEBUG] consumeReply - After incrementUsage:', { id: updatedCounter.id, repliesUsed: updatedCounter.repliesUsed });
+    console.log('[USAGE-DEBUG] consumeReply - About to call incrementUsage for periodStart:', window.periodStart.toISOString(), 'creditCost:', creditCost);
+    const updatedCounter = await storage.incrementUsage(userId, window.periodStart, creditCost);
+    console.log('[USAGE-DEBUG] consumeReply - After incrementUsage:', { id: updatedCounter.id, repliesUsed: updatedCounter.repliesUsed, creditsUsed: updatedCounter.creditsUsed });
     console.log('[USAGE-DEBUG] ========== consumeReply END ==========');
     return updatedCounter;
   }
