@@ -825,9 +825,11 @@ export async function registerRoutes(app: Express): Promise<Express> {
 
       const { plan_code } = schema.parse(req.body);
 
-      // Use environment variable for domain or Vercel URL or default to localhost for development
-      // Vercel provides VERCEL_URL automatically (e.g., tweetreplyai.vercel.app)
-      const domain = process.env.DOMAIN || process.env.VERCEL_URL || 'localhost:5000';
+      // Get domain from request headers (for production) or environment variables
+      // In Vercel, req.headers.host gives the actual domain the user is accessing
+      // This handles both custom domains and vercel.app domains correctly
+      const requestHost = req.headers.host;
+      const domain = process.env.DOMAIN || requestHost || process.env.VERCEL_URL || 'localhost:5000';
       const protocol = domain.includes('localhost') ? 'http' : 'https';
       
       // Redirect to root URL - Dodo Payments will add subscription_id and status as query params
