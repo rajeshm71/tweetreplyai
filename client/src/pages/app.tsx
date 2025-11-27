@@ -16,12 +16,14 @@ export default function AppPage() {
   
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
-    const sessionId = urlParams.get('session_id');
+    // Dodo Payments provides subscription_id directly, not session_id
+    const subscriptionId = urlParams.get('subscription_id');
+    const status = urlParams.get('status');
     const success = urlParams.get('success');
     const error = urlParams.get('error');
 
     // Only process if we have a parameter and haven't processed yet
-    if (!sessionId && !success && !error) {
+    if (!subscriptionId && !success && !error) {
       return;
     }
 
@@ -30,10 +32,11 @@ export default function AppPage() {
       return;
     }
 
-    if (sessionId) {
+    // Handle subscription_id from Dodo Payments redirect
+    if (subscriptionId) {
       processedRef.current = true;
-      // Call checkout success endpoint to process the session
-      fetch(`/api/checkout/success?session_id=${sessionId}`, {
+      // Call checkout success endpoint to process the subscription
+      fetch(`/api/checkout/success?subscription_id=${subscriptionId}${status ? `&status=${status}` : ''}`, {
         method: 'GET',
         credentials: 'include',
       })
@@ -78,7 +81,7 @@ export default function AppPage() {
       // Handle error parameter
       window.history.replaceState({}, '', '/app');
       const errorMessages: Record<string, string> = {
-        missing_session_id: "Missing session information. Please try again.",
+        missing_session_id: "Missing subscription information. Please try again.",
         no_subscription: "No subscription found. Please contact support.",
         user_not_found: "User not found. Please log in again.",
         unknown_plan: "Unknown subscription plan. Please contact support.",

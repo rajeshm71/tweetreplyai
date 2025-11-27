@@ -825,12 +825,13 @@ export async function registerRoutes(app: Express): Promise<Express> {
 
       const { plan_code } = schema.parse(req.body);
 
-      // Use environment variable for domain or default to localhost for development
-      const domain = process.env.DOMAIN || 'localhost:5000';
+      // Use environment variable for domain or Vercel URL or default to localhost for development
+      // Vercel provides VERCEL_URL automatically (e.g., tweetreplyai.vercel.app)
+      const domain = process.env.DOMAIN || process.env.VERCEL_URL || 'localhost:5000';
       const protocol = domain.includes('localhost') ? 'http' : 'https';
       
-      // Redirect to root URL with session_id parameter
-      const successUrl = `${protocol}://${domain}/?session_id={SESSION_ID}`;
+      // Redirect to root URL - Dodo Payments will add subscription_id and status as query params
+      const successUrl = `${protocol}://${domain}/`;
       const cancelUrl = `${protocol}://${domain}/pricing`;
 
       const session = await dodoPaymentsService.createCheckoutSession(
@@ -850,44 +851,26 @@ export async function registerRoutes(app: Express): Promise<Express> {
   });
 
   // Checkout success callback route
+  // Dodo Payments redirects to root URL with subscription_id and status as query params
   app.get('/api/checkout/success', isAuthenticated, async (req: any, res) => {
     try {
       const userId = getUserId(req);
-      const sessionId = req.query.session_id as string;
+      // Dodo Payments provides subscription_id directly in query params, not session_id
+      const subscriptionId = req.query.subscription_id as string;
+      const status = req.query.status as string;
       
-      if (!sessionId) {
-        return res.redirect('/?error=missing_session_id');
-      }
-
-      console.log('[Checkout Success] Processing session:', sessionId);
-
-      // Retrieve checkout session from Dodo Payments
-      const session = await dodoPaymentsService.getCheckoutSession(sessionId);
-      const sessionData = session as any;
-
-      // Extract subscription information
-      const subscriptionId = sessionData.subscription_id || sessionData.subscription?.id;
-      const customerId = sessionData.customer_id || sessionData.customer?.id;
-      const customerEmail = sessionData.customer?.email || sessionData.customer_email;
-
       if (!subscriptionId) {
-        console.error('[Checkout Success] No subscription_id in session');
+        console.error('[Checkout Success] No subscription_id in query params');
         return res.redirect('/?error=no_subscription');
       }
+
+      console.log('[Checkout Success] Processing subscription:', subscriptionId, 'status:', status);
 
       // Get user
       const user = await storage.getUser(userId);
       if (!user) {
         console.error('[Checkout Success] User not found:', userId);
         return res.redirect('/?error=user_not_found');
-      }
-
-      // Update user with Dodo Payments customer ID if not already set
-      if (!user.dodoCustomerId && customerId) {
-        await storage.upsertUser({
-          ...user,
-          dodoCustomerId: customerId,
-        });
       }
 
       // Get subscription details from Dodo Payments
@@ -911,8 +894,20 @@ export async function registerRoutes(app: Express): Promise<Express> {
       }
       const subData = subscription as any;
 
+      // Extract customer information from subscription
+      const customerId = subData.customer_id || subData.customer?.id;
+      const customerEmail = subData.customer?.email || subData.customer_email;
+
+      // Update user with Dodo Payments customer ID if not already set
+      if (!user.dodoCustomerId && customerId) {
+        await storage.upsertUser({
+          ...user,
+          dodoCustomerId: customerId,
+        });
+      }
+
       // Extract plan information
-      const productId = subData.product_id || subData.items?.[0]?.price?.product || sessionData.product_cart?.[0]?.product_id;
+      const productId = subData.product_id || subData.items?.[0]?.price?.product || subData.items?.[0]?.product_id;
       const planCode = dodoPaymentsService.planCodeFromPriceId(productId);
 
       if (!planCode) {
@@ -1025,8 +1020,9 @@ export async function registerRoutes(app: Express): Promise<Express> {
         return res.status(400).json({ message: "No billing account found" });
       }
 
-      // Use environment variable for domain or default to localhost for development
-      const domain = process.env.DOMAIN || 'localhost:5000';
+      // Use environment variable for domain or Vercel URL or default to localhost for development
+      // Vercel provides VERCEL_URL automatically (e.g., tweetreplyai.vercel.app)
+      const domain = process.env.DOMAIN || process.env.VERCEL_URL || 'localhost:5000';
       const protocol = domain.includes('localhost') ? 'http' : 'https';
       const returnUrl = `${protocol}://${domain}/app`;
 
