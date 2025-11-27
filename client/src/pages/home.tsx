@@ -53,6 +53,91 @@ export default function Home() {
     return false;
   });
 
+  // Handle checkout success callback from root URL
+  // Use ref to track if we've already processed the callback to prevent duplicate calls
+  const processedRef = useRef(false);
+  
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const sessionId = urlParams.get('session_id');
+    const success = urlParams.get('success');
+    const error = urlParams.get('error');
+
+    // Only process if we have a parameter and haven't processed yet
+    if (!sessionId && !success && !error) {
+      return;
+    }
+
+    // Prevent duplicate processing across re-renders
+    if (processedRef.current) {
+      return;
+    }
+
+    if (sessionId) {
+      processedRef.current = true;
+      // Call checkout success endpoint to process the session
+      fetch(`/api/checkout/success?session_id=${sessionId}`, {
+        method: 'GET',
+        credentials: 'include',
+      })
+        .then((response) => {
+          // Remove query parameters from URL immediately
+          window.history.replaceState({}, '', '/');
+          
+          if (response.ok) {
+            toast({
+              title: "Subscription Activated",
+              description: "Your subscription has been successfully activated!",
+              variant: "default",
+            });
+          } else {
+            toast({
+              title: "Error",
+              description: "Failed to activate subscription. Please contact support.",
+              variant: "destructive",
+            });
+          }
+        })
+        .catch((error) => {
+          console.error('Checkout success error:', error);
+          window.history.replaceState({}, '', '/');
+          toast({
+            title: "Error",
+            description: "Failed to process subscription. Please contact support.",
+            variant: "destructive",
+          });
+        });
+    } else if (success === 'subscription_activated') {
+      processedRef.current = true;
+      // Handle direct success parameter
+      window.history.replaceState({}, '', '/');
+      toast({
+        title: "Subscription Activated",
+        description: "Your subscription has been successfully activated!",
+        variant: "default",
+      });
+    } else if (error) {
+      processedRef.current = true;
+      // Handle error parameter
+      window.history.replaceState({}, '', '/');
+      const errorMessages: Record<string, string> = {
+        missing_session_id: "Missing session information. Please try again.",
+        no_subscription: "No subscription found. Please contact support.",
+        user_not_found: "User not found. Please log in again.",
+        unknown_plan: "Unknown subscription plan. Please contact support.",
+        plan_not_found: "Subscription plan not found. Please contact support.",
+        checkout_failed: "Failed to process checkout. Please try again.",
+        subscription_not_found: "Subscription not found. Please contact support.",
+        unauthorized: "Unauthorized. Please log in again.",
+      };
+      toast({
+        title: "Error",
+        description: errorMessages[error] || "An error occurred. Please try again.",
+        variant: "destructive",
+      });
+    }
+  }, [toast]);
+
   const { data: usage } = useQuery<Usage>({
     queryKey: ["/api/usage"],
     retry: false,

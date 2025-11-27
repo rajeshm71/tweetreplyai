@@ -829,7 +829,8 @@ export async function registerRoutes(app: Express): Promise<Express> {
       const domain = process.env.DOMAIN || 'localhost:5000';
       const protocol = domain.includes('localhost') ? 'http' : 'https';
       
-      const successUrl = `${protocol}://${domain}/app?session_id={SESSION_ID}`;
+      // Redirect to root URL with session_id parameter
+      const successUrl = `${protocol}://${domain}/?session_id={SESSION_ID}`;
       const cancelUrl = `${protocol}://${domain}/pricing`;
 
       const session = await dodoPaymentsService.createCheckoutSession(
@@ -855,7 +856,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
       const sessionId = req.query.session_id as string;
       
       if (!sessionId) {
-        return res.redirect('/app?error=missing_session_id');
+        return res.redirect('/?error=missing_session_id');
       }
 
       console.log('[Checkout Success] Processing session:', sessionId);
@@ -871,14 +872,14 @@ export async function registerRoutes(app: Express): Promise<Express> {
 
       if (!subscriptionId) {
         console.error('[Checkout Success] No subscription_id in session');
-        return res.redirect('/app?error=no_subscription');
+        return res.redirect('/?error=no_subscription');
       }
 
       // Get user
       const user = await storage.getUser(userId);
       if (!user) {
         console.error('[Checkout Success] User not found:', userId);
-        return res.redirect('/app?error=user_not_found');
+        return res.redirect('/?error=user_not_found');
       }
 
       // Update user with Dodo Payments customer ID if not already set
@@ -899,14 +900,14 @@ export async function registerRoutes(app: Express): Promise<Express> {
           error: error.message,
           status: error.status,
         });
-        // If subscription retrieval fails, try to proceed with session data
+        // If subscription retrieval fails, redirect to root with error
         if (error.status === 404) {
-          return res.redirect('/app?error=subscription_not_found');
+          return res.redirect('/?error=subscription_not_found');
         }
         if (error.status === 401 || error.status === 403) {
-          return res.redirect('/app?error=unauthorized');
+          return res.redirect('/?error=unauthorized');
         }
-        return res.redirect('/app?error=checkout_failed');
+        return res.redirect('/?error=checkout_failed');
       }
       const subData = subscription as any;
 
@@ -916,13 +917,13 @@ export async function registerRoutes(app: Express): Promise<Express> {
 
       if (!planCode) {
         console.error('[Checkout Success] Unknown product ID:', productId);
-        return res.redirect('/app?error=unknown_plan');
+        return res.redirect('/?error=unknown_plan');
       }
 
       const plan = PLANS[planCode];
       if (!plan) {
         console.error('[Checkout Success] Plan not found:', planCode);
-        return res.redirect('/app?error=plan_not_found');
+        return res.redirect('/?error=plan_not_found');
       }
 
       // Helper function to parse Dodo Payments date (handles seconds, milliseconds, or ISO strings)
@@ -1004,11 +1005,13 @@ export async function registerRoutes(app: Express): Promise<Express> {
       }
 
       console.log('[Checkout Success] Subscription processed successfully');
-      res.redirect('/app?success=subscription_activated');
+      res.redirect('/?success=subscription_activated');
 
     } catch (error: any) {
       console.error('[Checkout Success] Error:', error);
-      res.redirect('/app?error=checkout_failed');
+      const errorCode = error.status === 404 ? 'subscription_not_found' : 
+                       error.status === 401 || error.status === 403 ? 'unauthorized' : 'checkout_failed';
+      res.redirect(`/?error=${errorCode}`);
     }
   });
 

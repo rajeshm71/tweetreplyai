@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { AppHeader } from "@/components/app-header";
@@ -11,10 +11,10 @@ export default function AppPage() {
   const { toast } = useToast();
 
   // Handle checkout success callback
+  // Use ref to track if we've already processed the callback to prevent duplicate calls
+  const processedRef = useRef(false);
+  
   useEffect(() => {
-    // Use ref to track if we've already processed the callback to prevent duplicate calls
-    let processed = false;
-    
     const urlParams = new URLSearchParams(window.location.search);
     const sessionId = urlParams.get('session_id');
     const success = urlParams.get('success');
@@ -25,12 +25,13 @@ export default function AppPage() {
       return;
     }
 
-    if (processed) {
+    // Prevent duplicate processing across re-renders
+    if (processedRef.current) {
       return;
     }
 
     if (sessionId) {
-      processed = true;
+      processedRef.current = true;
       // Call checkout success endpoint to process the session
       fetch(`/api/checkout/success?session_id=${sessionId}`, {
         method: 'GET',
@@ -64,7 +65,7 @@ export default function AppPage() {
           });
         });
     } else if (success === 'subscription_activated') {
-      processed = true;
+      processedRef.current = true;
       // Handle direct success parameter
       window.history.replaceState({}, '', '/app');
       toast({
@@ -73,7 +74,7 @@ export default function AppPage() {
         variant: "default",
       });
     } else if (error) {
-      processed = true;
+      processedRef.current = true;
       // Handle error parameter
       window.history.replaceState({}, '', '/app');
       const errorMessages: Record<string, string> = {
