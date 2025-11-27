@@ -86,6 +86,7 @@ export class SupabaseStorage implements IStorage {
       email: data.email,
       password: data.password_hash,
       googleSub: data.google_sub,
+      dodoCustomerId: data.stripe_customer_id, // Map from old column name
       authProviders: data.auth_providers || [],
       createdAt: new Date(data.created_at),
       updatedAt: new Date(data.updated_at)

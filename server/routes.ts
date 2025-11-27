@@ -1,4 +1,5 @@
 import type { Express } from "express";
+import express from "express";
 import type { UsageCounter } from "../shared/types.js";
 import { storage } from "./storage.js";
 import { setupLocalAuth } from "./localAuth.js";
@@ -12,6 +13,7 @@ import { z, ZodError } from "zod";
 import passport from "passport";
 import session from "express-session";
 import jwt from "jsonwebtoken";
+import crypto from "crypto";
 // Use crypto.randomUUID() instead of uuid package
 const generateId = () => {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -846,6 +848,170 @@ export async function registerRoutes(app: Express): Promise<Express> {
     }
   });
 
+  // Checkout success callback route
+  app.get('/api/checkout/success', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const sessionId = req.query.session_id as string;
+      
+      if (!sessionId) {
+        return res.redirect('/app?error=missing_session_id');
+      }
+
+      console.log('[Checkout Success] Processing session:', sessionId);
+
+      // Retrieve checkout session from Dodo Payments
+      const session = await dodoPaymentsService.getCheckoutSession(sessionId);
+      const sessionData = session as any;
+
+      // Extract subscription information
+      const subscriptionId = sessionData.subscription_id || sessionData.subscription?.id;
+      const customerId = sessionData.customer_id || sessionData.customer?.id;
+      const customerEmail = sessionData.customer?.email || sessionData.customer_email;
+
+      if (!subscriptionId) {
+        console.error('[Checkout Success] No subscription_id in session');
+        return res.redirect('/app?error=no_subscription');
+      }
+
+      // Get user
+      const user = await storage.getUser(userId);
+      if (!user) {
+        console.error('[Checkout Success] User not found:', userId);
+        return res.redirect('/app?error=user_not_found');
+      }
+
+      // Update user with Dodo Payments customer ID if not already set
+      if (!user.dodoCustomerId && customerId) {
+        await storage.upsertUser({
+          ...user,
+          dodoCustomerId: customerId,
+        });
+      }
+
+      // Get subscription details from Dodo Payments
+      let subscription;
+      try {
+        subscription = await dodoPaymentsService.getSubscription(subscriptionId);
+      } catch (error: any) {
+        console.error('[Checkout Success] Failed to retrieve subscription:', {
+          subscriptionId,
+          error: error.message,
+          status: error.status,
+        });
+        // If subscription retrieval fails, try to proceed with session data
+        if (error.status === 404) {
+          return res.redirect('/app?error=subscription_not_found');
+        }
+        if (error.status === 401 || error.status === 403) {
+          return res.redirect('/app?error=unauthorized');
+        }
+        return res.redirect('/app?error=checkout_failed');
+      }
+      const subData = subscription as any;
+
+      // Extract plan information
+      const productId = subData.product_id || subData.items?.[0]?.price?.product || sessionData.product_cart?.[0]?.product_id;
+      const planCode = dodoPaymentsService.planCodeFromPriceId(productId);
+
+      if (!planCode) {
+        console.error('[Checkout Success] Unknown product ID:', productId);
+        return res.redirect('/app?error=unknown_plan');
+      }
+
+      const plan = PLANS[planCode];
+      if (!plan) {
+        console.error('[Checkout Success] Plan not found:', planCode);
+        return res.redirect('/app?error=plan_not_found');
+      }
+
+      // Helper function to parse Dodo Payments date (handles seconds, milliseconds, or ISO strings)
+      const parseDodoDate = (dateValue: any, fallback: Date): Date => {
+        if (!dateValue) return fallback;
+        if (typeof dateValue === 'number') {
+          // Check if it's seconds (< 1e12) or milliseconds (>= 1e12)
+          return new Date(dateValue > 1e12 ? dateValue : dateValue * 1000);
+        }
+        if (typeof dateValue === 'string') {
+          const parsed = new Date(dateValue);
+          return isNaN(parsed.getTime()) ? fallback : parsed;
+        }
+        return fallback;
+      };
+
+      // Calculate period dates with proper parsing
+      const now = new Date();
+      const periodStart = parseDodoDate(subData.current_period_start, now);
+      const periodEnd = parseDodoDate(subData.current_period_end, (() => {
+        const end = new Date(periodStart);
+        if (planCode === 'monthly') {
+          end.setDate(end.getDate() + 30);
+        } else {
+          end.setDate(end.getDate() + 7);
+        }
+        return end;
+      })());
+
+      // Validate subscription status
+      const validStatuses = ['active', 'canceled', 'past_due', 'unpaid'] as const;
+      const rawStatus = subData.status || 'active';
+      const status = (validStatuses.includes(rawStatus as typeof validStatuses[number]) 
+        ? rawStatus 
+        : 'active') as typeof validStatuses[number];
+
+      // Extract currency from response or use plan default
+      const currency = subData.currency || subData.amount_currency || 'usd';
+
+      // Check if subscription already exists (idempotency check)
+      const existingSubscription = await storage.getSubscriptionByDodoId(subscriptionId);
+      
+      if (existingSubscription) {
+        // Update existing subscription (idempotent operation)
+        console.log('[Checkout Success] Subscription already exists, updating:', subscriptionId);
+        await storage.updateSubscription(existingSubscription.id, {
+          status,
+          currentPeriodStart: periodStart,
+          currentPeriodEnd: periodEnd,
+          amountPaid: subData.amount_paid || plan.price,
+          currency,
+        });
+      } else {
+        // Create new subscription
+        await storage.createSubscription({
+          id: crypto.randomUUID(),
+          userId: user.id,
+          planCode,
+          status,
+          currentPeriodStart: periodStart,
+          currentPeriodEnd: periodEnd,
+          dodoSubscriptionId: subscriptionId,
+          amountPaid: subData.amount_paid || plan.price,
+          currency,
+        });
+
+        // Create usage counter for new subscription period
+        await storage.createUsageCounter({
+          id: crypto.randomUUID(),
+          userId: user.id,
+          planCode,
+          periodStart,
+          periodEnd,
+          repliesUsed: 0,
+          creditsUsed: 0,
+          limit: plan.credits,
+          resetAt: periodEnd,
+        });
+      }
+
+      console.log('[Checkout Success] Subscription processed successfully');
+      res.redirect('/app?success=subscription_activated');
+
+    } catch (error: any) {
+      console.error('[Checkout Success] Error:', error);
+      res.redirect('/app?error=checkout_failed');
+    }
+  });
+
   // Customer portal route
   app.post('/api/billing/portal', isAuthenticated, async (req: any, res) => {
     try {
@@ -875,132 +1041,333 @@ export async function registerRoutes(app: Express): Promise<Express> {
   });
 
   // Dodo Payments webhook
+  // Note: Raw body parser is applied in index.ts before express.json() for this route
   app.post('/api/dodo/webhook', async (req, res) => {
     const signature = req.headers['dodo-signature'] as string;
     
     try {
+      // Convert raw body buffer to string for signature verification
+      const rawBody = req.body.toString('utf-8');
       const event = await dodoPaymentsService.constructWebhookEvent(
-        req.body,
+        rawBody,
         signature
       );
 
-      console.log(`Received Dodo Payments webhook: ${event.type}`);
+      const eventType = event.type;
+      const eventData = event.data as any;
 
-      switch (event.type) {
-        case 'checkout.completed':
-        case 'payment.completed': {
-          const session = event.data.object as any;
-          const { userId, planCode } = session.metadata || {};
-          
-          if (!userId || !planCode) {
-            console.error('Missing metadata in checkout session');
-            break;
-          }
+      console.log(`Received Dodo Payments webhook: ${eventType}`);
 
-          const user = await storage.getUser(userId);
-          if (!user) {
-            console.error(`User not found: ${userId}`);
-            break;
-          }
+      // Handle payment.succeeded or payment_intent.succeeded
+      if (eventType === 'payment.succeeded' || eventType === 'payment_intent.succeeded') {
+        // Extract customer email from various possible locations
+        const customerEmail = eventData.customer?.email 
+          || eventData.billing_details?.email 
+          || eventData.data?.object?.customer_email;
 
-          // Update user with Dodo Payments customer ID if not already set
-          if (!user.dodoCustomerId && session.customerId) {
-            await storage.upsertUser({
-              ...user,
-              dodoCustomerId: session.customerId,
-            });
-          }
-
-          break;
+        if (!customerEmail) {
+          console.error('[Webhook] No customer email found in payment.succeeded event');
+          return res.json({ received: true });
         }
 
-        case 'subscription.created':
-        case 'subscription.updated': {
-          const subscription = event.data.object as any;
-          
-          // Find user by Dodo Payments customer ID
-          // Note: This is a simplified approach. In production, you'd want a proper lookup
-          const users = await storage.getUser(subscription.customerId);
-          
-          const priceId = subscription.priceId || subscription.productId;
-          const planCode = dodoPaymentsService.planCodeFromPriceId(priceId);
-          
-          if (!planCode) {
-            console.error(`Unknown price ID: ${priceId}`);
-            break;
+        // Find user by email
+        const user = await storage.getUserByEmail(customerEmail);
+        if (!user) {
+          console.error(`[Webhook] User not found for email: ${customerEmail}`);
+          return res.json({ received: true });
+        }
+
+        // Update user with Dodo Payments customer ID if available
+        const customerId = eventData.customer?.id || eventData.data?.object?.customer;
+        if (!user.dodoCustomerId && customerId) {
+          await storage.upsertUser({
+            ...user,
+            dodoCustomerId: customerId,
+          });
+        }
+
+        // If metadata indicates subscription, handle subscription creation
+        const metadata = eventData.metadata || eventData.data?.object?.metadata || {};
+        if (metadata.subscription_id || eventData.subscription_id) {
+          // Subscription will be handled by subscription.created event
+          console.log('[Webhook] Payment succeeded for subscription, waiting for subscription.created event');
+        }
+      }
+
+      // Handle subscription.created or customer.subscription.created
+      else if (eventType === 'subscription.created' || eventType === 'customer.subscription.created') {
+        // Extract customer email
+        const customerEmail = eventData.customer?.email 
+          || eventData.data?.object?.customer_email
+          || eventData.billing_details?.email;
+
+        if (!customerEmail) {
+          console.error('[Webhook] No customer email found in subscription.created event');
+          return res.json({ received: true });
+        }
+
+        // Find user by email
+        const user = await storage.getUserByEmail(customerEmail);
+        if (!user) {
+          console.error(`[Webhook] User not found for email: ${customerEmail}`);
+          return res.json({ received: true });
+        }
+
+        // Extract subscription ID
+        const subscriptionId = eventData.subscription_id 
+          || eventData.id 
+          || eventData.data?.object?.id;
+
+        if (!subscriptionId) {
+          console.error('[Webhook] No subscription_id found in subscription.created event');
+          return res.json({ received: true });
+        }
+
+        // Extract plan from metadata or product_id
+        const metadata = eventData.metadata || eventData.data?.object?.metadata || {};
+        const productId = metadata.product_id 
+          || eventData.product_id 
+          || eventData.data?.object?.product_id
+          || eventData.items?.[0]?.price?.product;
+
+        const planCode = productId 
+          ? dodoPaymentsService.planCodeFromPriceId(productId)
+          : null;
+
+        if (!planCode) {
+          console.error(`[Webhook] Unknown product ID: ${productId}`);
+          return res.json({ received: true });
+        }
+
+        const plan = PLANS[planCode];
+        if (!plan) {
+          console.error(`[Webhook] Plan not found: ${planCode}`);
+          return res.json({ received: true });
+        }
+
+        // Helper function to parse Dodo Payments date (handles seconds, milliseconds, or ISO strings)
+        const parseDodoDate = (dateValue: any, fallback: Date): Date => {
+          if (!dateValue) return fallback;
+          if (typeof dateValue === 'number') {
+            // Check if it's seconds (< 1e12) or milliseconds (>= 1e12)
+            return new Date(dateValue > 1e12 ? dateValue : dateValue * 1000);
           }
+          if (typeof dateValue === 'string') {
+            const parsed = new Date(dateValue);
+            return isNaN(parsed.getTime()) ? fallback : parsed;
+          }
+          return fallback;
+        };
 
-          const plan = PLANS[planCode];
-          const periodStart = subscription.currentPeriodStart ? new Date(subscription.currentPeriodStart) : new Date();
-          const periodEnd = subscription.currentPeriodEnd ? new Date(subscription.currentPeriodEnd) : new Date();
-
-          // Create or update subscription record
-          const existingSubscription = await storage.getSubscriptionByDodoId(subscription.id);
-          
-          if (existingSubscription) {
-            await storage.updateSubscription(existingSubscription.id, {
-              status: subscription.status,
-              currentPeriodStart: periodStart,
-              currentPeriodEnd: periodEnd,
-              amountPaid: subscription.items.data[0]?.price?.unit_amount,
-              currency: subscription.items.data[0]?.price?.currency,
-            });
-          } else {
-            // Find user by customer ID (simplified - in production use proper lookup)
-            const user = await storage.getUser(subscription.customerId);
-            if (user) {
-              await storage.createSubscription({
-                id: crypto.randomUUID(),
-                userId: user.id,
-                planCode,
-                status: subscription.status,
-                currentPeriodStart: periodStart,
-                currentPeriodEnd: periodEnd,
-                dodoSubscriptionId: subscription.id,
-                amountPaid: subscription.amountPaid,
-                currency: subscription.currency || 'usd',
-              });
-
-              // Create usage counter for new period
-              await storage.createUsageCounter({
-                id: crypto.randomUUID(),
-                userId: user.id,
-                planCode,
-                periodStart,
-                periodEnd,
-                repliesUsed: 0,
-                creditsUsed: 0,
-                limit: plan.credits,
-                resetAt: periodEnd,
-              });
+        // Calculate period dates with proper parsing
+        const now = new Date();
+        const periodStart = parseDodoDate(
+          eventData.current_period_start || eventData.data?.object?.current_period_start,
+          now
+        );
+        const periodEnd = parseDodoDate(
+          eventData.current_period_end || eventData.data?.object?.current_period_end,
+          (() => {
+            const end = new Date(periodStart);
+            if (planCode === 'monthly') {
+              end.setDate(end.getDate() + 30);
+            } else {
+              end.setDate(end.getDate() + 7);
             }
-          }
+            return end;
+          })()
+        );
 
-          break;
+        // Validate subscription status
+        const validStatuses = ['active', 'canceled', 'past_due', 'unpaid'] as const;
+        const rawStatus = eventData.status || eventData.data?.object?.status || 'active';
+        const status = (validStatuses.includes(rawStatus as typeof validStatuses[number]) 
+          ? rawStatus 
+          : 'active') as typeof validStatuses[number];
+
+        // Extract currency from response
+        const currency = eventData.currency 
+          || eventData.data?.object?.currency 
+          || eventData.amount_currency 
+          || 'usd';
+
+        // Check if subscription already exists (idempotency check)
+        const existingSubscription = await storage.getSubscriptionByDodoId(subscriptionId);
+        
+        if (existingSubscription) {
+          // Update existing subscription (idempotent operation)
+          console.log(`[Webhook] Subscription already exists, updating: ${subscriptionId}`);
+          await storage.updateSubscription(existingSubscription.id, {
+            status,
+            currentPeriodStart: periodStart,
+            currentPeriodEnd: periodEnd,
+          });
+        } else {
+          // Create new subscription
+          await storage.createSubscription({
+            id: crypto.randomUUID(),
+            userId: user.id,
+            planCode,
+            status,
+            currentPeriodStart: periodStart,
+            currentPeriodEnd: periodEnd,
+            dodoSubscriptionId: subscriptionId,
+            amountPaid: eventData.amount_paid || plan.price,
+            currency,
+          });
+
+          // Create usage counter for new subscription period
+          await storage.createUsageCounter({
+            id: crypto.randomUUID(),
+            userId: user.id,
+            planCode,
+            periodStart,
+            periodEnd,
+            repliesUsed: 0,
+            creditsUsed: 0,
+            limit: plan.credits,
+            resetAt: periodEnd,
+          });
+
+          console.log(`[Webhook] Created subscription and usage counter for user: ${user.id}`);
+        }
+      }
+
+      // Handle subscription.updated or customer.subscription.updated
+      else if (eventType === 'subscription.updated' || eventType === 'customer.subscription.updated') {
+        // Extract customer email
+        const customerEmail = eventData.customer?.email 
+          || eventData.data?.object?.customer_email
+          || eventData.billing_details?.email;
+
+        if (!customerEmail) {
+          console.error('[Webhook] No customer email found in subscription.updated event');
+          return res.json({ received: true });
         }
 
-        case 'subscription.deleted':
-        case 'subscription.canceled': {
-          const subscription = event.data.object as any;
-          
-          const existingSubscription = await storage.getSubscriptionByDodoId(subscription.id);
-          if (existingSubscription) {
-            await storage.updateSubscription(existingSubscription.id, {
-              status: 'canceled',
-              cancelAt: new Date(),
-              cancelReason: 'customer_cancelled',
+        // Find user by email
+        const user = await storage.getUserByEmail(customerEmail);
+        if (!user) {
+          console.error(`[Webhook] User not found for email: ${customerEmail}`);
+          return res.json({ received: true });
+        }
+
+        // Extract subscription ID
+        const subscriptionId = eventData.subscription_id 
+          || eventData.id 
+          || eventData.data?.object?.id;
+
+        if (!subscriptionId) {
+          console.error('[Webhook] No subscription_id found in subscription.updated event');
+          return res.json({ received: true });
+        }
+
+        // Get existing subscription
+        const existingSubscription = await storage.getSubscriptionByDodoId(subscriptionId);
+        if (!existingSubscription) {
+          console.error(`[Webhook] Subscription not found: ${subscriptionId}`);
+          return res.json({ received: true });
+        }
+
+        // Validate and extract status
+        const validStatuses = ['active', 'canceled', 'past_due', 'unpaid'] as const;
+        const rawStatus = eventData.status || eventData.data?.object?.status;
+        const status = rawStatus && validStatuses.includes(rawStatus as typeof validStatuses[number])
+          ? (rawStatus as typeof validStatuses[number])
+          : existingSubscription.status; // Keep existing status if invalid
+        
+        // Helper function to parse Dodo Payments date
+        const parseDodoDate = (dateValue: any): Date | undefined => {
+          if (!dateValue) return undefined;
+          if (typeof dateValue === 'number') {
+            return new Date(dateValue > 1e12 ? dateValue : dateValue * 1000);
+          }
+          if (typeof dateValue === 'string') {
+            const parsed = new Date(dateValue);
+            return isNaN(parsed.getTime()) ? undefined : parsed;
+          }
+          return undefined;
+        };
+        
+        // Update subscription
+        const updates: any = {};
+        if (status && status !== existingSubscription.status) {
+          updates.status = status;
+        }
+
+        // Update period dates if provided
+        const periodStart = parseDodoDate(eventData.current_period_start || eventData.data?.object?.current_period_start);
+        const periodEnd = parseDodoDate(eventData.current_period_end || eventData.data?.object?.current_period_end);
+        if (periodStart) {
+          updates.currentPeriodStart = periodStart;
+        }
+        if (periodEnd) {
+          updates.currentPeriodEnd = periodEnd;
+        }
+
+        await storage.updateSubscription(existingSubscription.id, updates);
+
+        // If status changed to active, reset usage counter
+        if (status === 'active' && existingSubscription.status !== 'active') {
+          const plan = PLANS[existingSubscription.planCode];
+          if (plan) {
+            // Create new usage counter for reactivated subscription
+            await storage.createUsageCounter({
+              id: crypto.randomUUID(),
+              userId: user.id,
+              planCode: existingSubscription.planCode,
+              periodStart: updates.currentPeriodStart || existingSubscription.currentPeriodStart,
+              periodEnd: updates.currentPeriodEnd || existingSubscription.currentPeriodEnd,
+              repliesUsed: 0,
+              creditsUsed: 0,
+              limit: plan.credits,
+              resetAt: updates.currentPeriodEnd || existingSubscription.currentPeriodEnd,
             });
           }
+        }
+      }
 
-          break;
+      // Handle subscription.canceled or subscription.deleted
+      else if (eventType === 'subscription.canceled' || eventType === 'subscription.deleted') {
+        // Extract customer email
+        const customerEmail = eventData.customer?.email 
+          || eventData.data?.object?.customer_email
+          || eventData.billing_details?.email;
+
+        if (!customerEmail) {
+          console.error('[Webhook] No customer email found in subscription.canceled event');
+          return res.json({ received: true });
+        }
+
+        // Extract subscription ID
+        const subscriptionId = eventData.subscription_id 
+          || eventData.id 
+          || eventData.data?.object?.id;
+
+        if (!subscriptionId) {
+          console.error('[Webhook] No subscription_id found in subscription.canceled event');
+          return res.json({ received: true });
+        }
+
+        // Get existing subscription
+        const existingSubscription = await storage.getSubscriptionByDodoId(subscriptionId);
+        if (existingSubscription) {
+          await storage.updateSubscription(existingSubscription.id, {
+            status: 'canceled',
+            cancelAt: new Date(),
+            cancelReason: 'customer_cancelled',
+          });
+          console.log(`[Webhook] Subscription canceled: ${subscriptionId}`);
+        } else {
+          console.error(`[Webhook] Subscription not found for cancellation: ${subscriptionId}`);
         }
       }
 
       res.json({ received: true });
 
-    } catch (error) {
-      console.error('Dodo Payments webhook error:', error);
-      res.status(400).json({ message: 'Webhook error' });
+    } catch (error: any) {
+      console.error('[Webhook] Dodo Payments webhook error:', error);
+      res.status(400).json({ message: 'Webhook error', error: error.message });
     }
   });
 

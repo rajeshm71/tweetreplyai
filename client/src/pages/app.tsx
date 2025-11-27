@@ -10,6 +10,90 @@ export default function AppPage() {
   const { isLoading, isAuthenticated } = useAuth();
   const { toast } = useToast();
 
+  // Handle checkout success callback
+  useEffect(() => {
+    // Use ref to track if we've already processed the callback to prevent duplicate calls
+    let processed = false;
+    
+    const urlParams = new URLSearchParams(window.location.search);
+    const sessionId = urlParams.get('session_id');
+    const success = urlParams.get('success');
+    const error = urlParams.get('error');
+
+    // Only process if we have a parameter and haven't processed yet
+    if (!sessionId && !success && !error) {
+      return;
+    }
+
+    if (processed) {
+      return;
+    }
+
+    if (sessionId) {
+      processed = true;
+      // Call checkout success endpoint to process the session
+      fetch(`/api/checkout/success?session_id=${sessionId}`, {
+        method: 'GET',
+        credentials: 'include',
+      })
+        .then((response) => {
+          // Remove query parameters from URL immediately
+          window.history.replaceState({}, '', '/app');
+          
+          if (response.ok) {
+            toast({
+              title: "Subscription Activated",
+              description: "Your subscription has been successfully activated!",
+              variant: "default",
+            });
+          } else {
+            toast({
+              title: "Error",
+              description: "Failed to activate subscription. Please contact support.",
+              variant: "destructive",
+            });
+          }
+        })
+        .catch((error) => {
+          console.error('Checkout success error:', error);
+          window.history.replaceState({}, '', '/app');
+          toast({
+            title: "Error",
+            description: "Failed to process subscription. Please contact support.",
+            variant: "destructive",
+          });
+        });
+    } else if (success === 'subscription_activated') {
+      processed = true;
+      // Handle direct success parameter
+      window.history.replaceState({}, '', '/app');
+      toast({
+        title: "Subscription Activated",
+        description: "Your subscription has been successfully activated!",
+        variant: "default",
+      });
+    } else if (error) {
+      processed = true;
+      // Handle error parameter
+      window.history.replaceState({}, '', '/app');
+      const errorMessages: Record<string, string> = {
+        missing_session_id: "Missing session information. Please try again.",
+        no_subscription: "No subscription found. Please contact support.",
+        user_not_found: "User not found. Please log in again.",
+        unknown_plan: "Unknown subscription plan. Please contact support.",
+        plan_not_found: "Subscription plan not found. Please contact support.",
+        checkout_failed: "Failed to process checkout. Please try again.",
+        subscription_not_found: "Subscription not found. Please contact support.",
+        unauthorized: "Unauthorized. Please log in again.",
+      };
+      toast({
+        title: "Error",
+        description: errorMessages[error] || "An error occurred. Please try again.",
+        variant: "destructive",
+      });
+    }
+  }, [toast]);
+
   // Redirect to login if not authenticated
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {

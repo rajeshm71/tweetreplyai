@@ -4,6 +4,12 @@ import { registerRoutes } from "./routes.js";
 import { serveStatic, log } from "./static.js";
 
 const app = express();
+
+// Apply raw body parser for webhook route BEFORE json parser
+// This is critical for webhook signature verification
+app.use('/api/dodo/webhook', express.raw({ type: 'application/json' }));
+
+// Apply JSON parser for all other routes
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
