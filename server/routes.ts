@@ -857,14 +857,14 @@ export async function registerRoutes(app: Express): Promise<Express> {
       const userId = getUserId(req);
       // Dodo Payments provides subscription_id directly in query params, not session_id
       const subscriptionId = req.query.subscription_id as string;
-      const status = req.query.status as string;
+      const queryStatus = req.query.status as string; // Renamed to avoid conflict with subscription status variable
       
       if (!subscriptionId) {
         console.error('[Checkout Success] No subscription_id in query params');
         return res.redirect('/?error=no_subscription');
       }
 
-      console.log('[Checkout Success] Processing subscription:', subscriptionId, 'status:', status);
+      console.log('[Checkout Success] Processing subscription:', subscriptionId, 'query status:', queryStatus);
 
       // Get user
       const user = await storage.getUser(userId);
