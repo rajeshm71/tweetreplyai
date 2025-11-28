@@ -1073,14 +1073,22 @@ export async function registerRoutes(app: Express): Promise<Express> {
       const eventType = event.type;
       const eventData = event.data as any;
 
-      console.log(`Received Dodo Payments webhook: ${eventType}`);
+      console.log(`[Webhook] Received Dodo Payments webhook: ${eventType}`);
+      console.log(`[Webhook] Event data structure:`, JSON.stringify(eventData, null, 2).substring(0, 500));
 
       // Handle payment.succeeded or payment_intent.succeeded
       if (eventType === 'payment.succeeded' || eventType === 'payment_intent.succeeded') {
         // Extract customer email from various possible locations
+        // The SDK unwrap() returns the event directly, so check multiple possible structures
         const customerEmail = eventData.customer?.email 
+          || eventData.customer_email
           || eventData.billing_details?.email 
-          || eventData.data?.object?.customer_email;
+          || eventData.billing?.email
+          || eventData.data?.object?.customer_email
+          || eventData.data?.object?.customer?.email
+          || eventData.data?.customer_email
+          || eventData.email
+          || (eventData.data && typeof eventData.data === 'object' && (eventData.data as any).email);
 
         if (!customerEmail) {
           console.error('[Webhook] No customer email found in payment.succeeded event');
@@ -1113,10 +1121,16 @@ export async function registerRoutes(app: Express): Promise<Express> {
 
       // Handle subscription.created or customer.subscription.created
       else if (eventType === 'subscription.created' || eventType === 'customer.subscription.created') {
-        // Extract customer email
+        // Extract customer email from various possible locations
         const customerEmail = eventData.customer?.email 
+          || eventData.customer_email
           || eventData.data?.object?.customer_email
-          || eventData.billing_details?.email;
+          || eventData.data?.object?.customer?.email
+          || eventData.data?.customer_email
+          || eventData.billing_details?.email
+          || eventData.billing?.email
+          || eventData.email
+          || (eventData.data && typeof eventData.data === 'object' && (eventData.data as any).email);
 
         if (!customerEmail) {
           console.error('[Webhook] No customer email found in subscription.created event');
@@ -1252,10 +1266,16 @@ export async function registerRoutes(app: Express): Promise<Express> {
 
       // Handle subscription.updated or customer.subscription.updated
       else if (eventType === 'subscription.updated' || eventType === 'customer.subscription.updated') {
-        // Extract customer email
+        // Extract customer email from various possible locations
         const customerEmail = eventData.customer?.email 
+          || eventData.customer_email
           || eventData.data?.object?.customer_email
-          || eventData.billing_details?.email;
+          || eventData.data?.object?.customer?.email
+          || eventData.data?.customer_email
+          || eventData.billing_details?.email
+          || eventData.billing?.email
+          || eventData.email
+          || (eventData.data && typeof eventData.data === 'object' && (eventData.data as any).email);
 
         if (!customerEmail) {
           console.error('[Webhook] No customer email found in subscription.updated event');
@@ -1346,10 +1366,16 @@ export async function registerRoutes(app: Express): Promise<Express> {
 
       // Handle subscription.canceled or subscription.deleted
       else if (eventType === 'subscription.canceled' || eventType === 'subscription.deleted') {
-        // Extract customer email
+        // Extract customer email from various possible locations
         const customerEmail = eventData.customer?.email 
+          || eventData.customer_email
           || eventData.data?.object?.customer_email
-          || eventData.billing_details?.email;
+          || eventData.data?.object?.customer?.email
+          || eventData.data?.customer_email
+          || eventData.billing_details?.email
+          || eventData.billing?.email
+          || eventData.email
+          || (eventData.data && typeof eventData.data === 'object' && (eventData.data as any).email);
 
         if (!customerEmail) {
           console.error('[Webhook] No customer email found in subscription.canceled event');
