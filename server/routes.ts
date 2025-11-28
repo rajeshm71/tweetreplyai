@@ -1045,11 +1045,30 @@ export async function registerRoutes(app: Express): Promise<Express> {
   // Dodo Payments webhook
   // Note: Raw body parser is applied in index.ts before express.json() for this route
   app.post('/api/dodo/webhook', async (req, res) => {
-    const signature = req.headers['dodo-signature'] as string;
+    // Log all headers for debugging (first few webhook calls)
+    console.log('[Webhook] Received webhook request');
+    console.log('[Webhook] Headers:', JSON.stringify(req.headers, null, 2));
+    console.log('[Webhook] Content-Type:', req.headers['content-type']);
+    
+    // Try multiple possible signature header names
+    const signature = req.headers['dodo-signature'] as string
+      || req.headers['x-dodo-signature'] as string
+      || req.headers['signature'] as string
+      || req.headers['x-signature'] as string
+      || req.headers['webhook-signature'] as string
+      || req.headers['x-webhook-signature'] as string;
+    
+    console.log('[Webhook] Signature header found:', !!signature);
+    if (signature) {
+      console.log('[Webhook] Signature (first 20 chars):', signature.substring(0, 20) + '...');
+    }
     
     try {
       // Convert raw body buffer to string for signature verification
       const rawBody = req.body.toString('utf-8');
+      console.log('[Webhook] Body length:', rawBody.length);
+      console.log('[Webhook] Body preview:', rawBody.substring(0, 200));
+      
       const event = await dodoPaymentsService.constructWebhookEvent(
         rawBody,
         signature
@@ -1369,7 +1388,16 @@ export async function registerRoutes(app: Express): Promise<Express> {
 
     } catch (error: any) {
       console.error('[Webhook] Dodo Payments webhook error:', error);
-      res.status(400).json({ message: 'Webhook error', error: error.message });
+      console.error('[Webhook] Error stack:', error.stack);
+      console.error('[Webhook] Error message:', error.message);
+      
+      // Return 200 to prevent Dodo Payments from retrying if it's a signature issue
+      // (we'll fix the signature issue separately)
+      const statusCode = error.message?.includes('signature') ? 200 : 500;
+      res.status(statusCode).json({ 
+        received: true,
+        error: error.message || 'Webhook handler failed'
+      });
     }
   });
 
