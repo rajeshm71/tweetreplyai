@@ -1044,31 +1044,30 @@ export async function registerRoutes(app: Express): Promise<Express> {
 
   // Dodo Payments webhook
   // Note: Raw body parser is applied in index.ts before express.json() for this route
-  // Dodo Payments uses Svix for webhook delivery
+  // Uses Dodo Payments SDK's built-in webhook verification
   app.post('/api/dodo/webhook', async (req, res) => {
-    // Extract Svix webhook headers
+    // Extract webhook headers
     const webhookId = req.headers['webhook-id'] as string;
     const webhookTimestamp = req.headers['webhook-timestamp'] as string;
-    const signature = req.headers['webhook-signature'] as string;
+    const webhookSignature = req.headers['webhook-signature'] as string;
     
     console.log('[Webhook] Received webhook request');
     console.log('[Webhook] Webhook ID:', webhookId);
     console.log('[Webhook] Webhook Timestamp:', webhookTimestamp);
-    console.log('[Webhook] Signature header found:', !!signature);
-    if (signature) {
-      console.log('[Webhook] Signature (first 30 chars):', signature.substring(0, 30) + '...');
-    }
+    console.log('[Webhook] Signature header found:', !!webhookSignature);
     
     try {
-      // Convert raw body buffer to string for signature verification
-      const rawBody = req.body.toString('utf-8');
-      console.log('[Webhook] Body length:', rawBody.length);
+      // Get raw body buffer for webhook verification
+      const rawBody = req.body;
       
+      // Verify webhook signature and unwrap payload using Dodo Payments SDK
       const event = await dodoPaymentsService.constructWebhookEvent(
         rawBody,
-        signature,
-        webhookId,
-        webhookTimestamp
+        {
+          'webhook-id': webhookId || '',
+          'webhook-signature': webhookSignature || '',
+          'webhook-timestamp': webhookTimestamp || '',
+        }
       );
 
       const eventType = event.type;
