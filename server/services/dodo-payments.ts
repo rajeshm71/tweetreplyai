@@ -159,6 +159,13 @@ export class DodoPaymentsService {
         throw new Error('Webhook secret not configured');
       }
 
+      // Log secret info for debugging (first few chars only for security)
+      console.log('[Dodo Payments] Webhook secret configured:', {
+        length: webhookSecret.length,
+        prefix: webhookSecret.substring(0, 8) + '...',
+        suffix: '...' + webhookSecret.substring(webhookSecret.length - 4),
+      });
+
       if (!signature) {
         console.error('[Dodo Payments] Missing webhook signature');
         throw new Error('Webhook signature is required');
@@ -182,7 +189,21 @@ export class DodoPaymentsService {
         const receivedSignature = signatureParts[1];
         
         // Compute expected signature using Svix format
+        // IMPORTANT: The body must be exactly as received, no modifications
         const signedContent = `${webhookId}.${webhookTimestamp}.${payloadString}`;
+        
+        // Debug: Log the signed content structure (without full body)
+        console.log('[Dodo Payments] Signature computation debug:', {
+          webhookId,
+          webhookTimestamp,
+          payloadLength: payloadString.length,
+          signedContentLength: signedContent.length,
+          signedContentStart: signedContent.substring(0, 50) + '...',
+          signedContentEnd: '...' + signedContent.substring(signedContent.length - 50),
+          webhookSecretLength: webhookSecret.length,
+          webhookSecretPrefix: webhookSecret.substring(0, 10) + '...',
+        });
+        
         const expectedSignature = crypto
           .createHmac('sha256', webhookSecret)
           .update(signedContent)
@@ -191,14 +212,36 @@ export class DodoPaymentsService {
         // Compare signatures (base64 to base64)
         if (receivedSignature !== expectedSignature) {
           console.error('[Dodo Payments] Webhook signature verification failed', {
-            received: receivedSignature.substring(0, 30) + '...',
+            received: receivedSignature,
             receivedLength: receivedSignature.length,
-            expected: expectedSignature.substring(0, 30) + '...',
+            expected: expectedSignature,
             expectedLength: expectedSignature.length,
             signedContentLength: signedContent.length,
             webhookId,
             webhookTimestamp,
+            payloadFirstChars: payloadString.substring(0, 100),
+            payloadLastChars: payloadString.substring(payloadString.length - 100),
           });
+          
+          // Additional debug: Try computing with different variations to help diagnose
+          console.error('[Dodo Payments] Debug: Trying alternative signature computations...');
+          
+          // Try with body as Buffer (if it was originally a Buffer)
+          if (typeof payload !== 'string') {
+            const signedContentBuffer = `${webhookId}.${webhookTimestamp}.`;
+            const hmacBuffer = crypto.createHmac('sha256', webhookSecret).update(signedContentBuffer);
+            const altSignature = hmacBuffer.update(payload as Buffer).digest('base64');
+            console.error('[Dodo Payments] Alternative (Buffer):', altSignature.substring(0, 30) + '...');
+          }
+          
+          // IMPORTANT: Check if webhook secret might be wrong
+          // The secret should be the "Signing Secret" from Dodo Payments/Svix dashboard
+          console.error('[Dodo Payments] TROUBLESHOOTING:');
+          console.error('[Dodo Payments] 1. Verify DODO_WEBHOOK_SECRET in Vercel matches the "Signing Secret" from Dodo Payments dashboard');
+          console.error('[Dodo Payments] 2. Ensure the secret is the full secret, not truncated');
+          console.error('[Dodo Payments] 3. Check if Dodo Payments uses a different secret format (whsec_ prefix, etc.)');
+          console.error('[Dodo Payments] 4. The secret should be the Svix signing secret, not the Dodo Payments API key');
+          
           throw new Error('Invalid webhook signature');
         }
         
