@@ -238,7 +238,6 @@ export class SupabaseStorage implements IStorage {
 
   async createSubscription(subscription: InsertSubscription): Promise<Subscription> {
     // Map TypeScript interface to database columns
-    // Note: subscriptions table doesn't have created_at column, only updated_at
     const dbData = {
       id: subscription.id,
       user_id: subscription.userId,
@@ -251,6 +250,7 @@ export class SupabaseStorage implements IStorage {
       currency: subscription.currency,
       cancel_at: subscription.cancelAt?.toISOString(),
       cancel_reason: subscription.cancelReason,
+      created_at: subscription.createdAt?.toISOString() || new Date().toISOString(),
       updated_at: subscription.updatedAt?.toISOString() || new Date().toISOString(),
     };
     
@@ -266,7 +266,6 @@ export class SupabaseStorage implements IStorage {
     }
     
     // Map database fields back to TypeScript interface
-    // Note: subscriptions table doesn't have created_at, use updated_at as fallback
     return {
       id: data.id,
       userId: data.user_id,
@@ -279,7 +278,7 @@ export class SupabaseStorage implements IStorage {
       currency: data.currency,
       cancelAt: data.cancel_at ? new Date(data.cancel_at) : undefined,
       cancelReason: data.cancel_reason,
-      createdAt: data.updated_at ? new Date(data.updated_at) : new Date(), // Use updated_at as fallback since created_at doesn't exist
+      createdAt: data.created_at ? new Date(data.created_at) : new Date(),
       updatedAt: new Date(data.updated_at),
     } as Subscription;
   }
