@@ -1044,34 +1044,31 @@ export async function registerRoutes(app: Express): Promise<Express> {
 
   // Dodo Payments webhook
   // Note: Raw body parser is applied in index.ts before express.json() for this route
+  // Dodo Payments uses Svix for webhook delivery
   app.post('/api/dodo/webhook', async (req, res) => {
-    // Log all headers for debugging (first few webhook calls)
+    // Extract Svix webhook headers
+    const webhookId = req.headers['webhook-id'] as string;
+    const webhookTimestamp = req.headers['webhook-timestamp'] as string;
+    const signature = req.headers['webhook-signature'] as string;
+    
     console.log('[Webhook] Received webhook request');
-    console.log('[Webhook] Headers:', JSON.stringify(req.headers, null, 2));
-    console.log('[Webhook] Content-Type:', req.headers['content-type']);
-    
-    // Try multiple possible signature header names
-    const signature = req.headers['dodo-signature'] as string
-      || req.headers['x-dodo-signature'] as string
-      || req.headers['signature'] as string
-      || req.headers['x-signature'] as string
-      || req.headers['webhook-signature'] as string
-      || req.headers['x-webhook-signature'] as string;
-    
+    console.log('[Webhook] Webhook ID:', webhookId);
+    console.log('[Webhook] Webhook Timestamp:', webhookTimestamp);
     console.log('[Webhook] Signature header found:', !!signature);
     if (signature) {
-      console.log('[Webhook] Signature (first 20 chars):', signature.substring(0, 20) + '...');
+      console.log('[Webhook] Signature (first 30 chars):', signature.substring(0, 30) + '...');
     }
     
     try {
       // Convert raw body buffer to string for signature verification
       const rawBody = req.body.toString('utf-8');
       console.log('[Webhook] Body length:', rawBody.length);
-      console.log('[Webhook] Body preview:', rawBody.substring(0, 200));
       
       const event = await dodoPaymentsService.constructWebhookEvent(
         rawBody,
-        signature
+        signature,
+        webhookId,
+        webhookTimestamp
       );
 
       const eventType = event.type;

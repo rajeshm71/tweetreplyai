@@ -145,7 +145,12 @@ export class DodoPaymentsService {
     throw new Error("Not implemented");
   }
 
-  async constructWebhookEvent(payload: string | Buffer, signature: string | undefined) {
+  async constructWebhookEvent(
+    payload: string | Buffer, 
+    signature: string | undefined,
+    webhookId?: string,
+    webhookTimestamp?: string
+  ) {
     try {
       const webhookSecret = process.env.DODO_WEBHOOK_SECRET;
       if (!webhookSecret) {
@@ -156,50 +161,66 @@ export class DodoPaymentsService {
 
       if (!signature) {
         console.error('[Dodo Payments] Missing webhook signature');
-        console.error('[Dodo Payments] Expected header: dodo-signature, x-dodo-signature, signature, x-signature, webhook-signature, or x-webhook-signature');
-        console.error('[Dodo Payments] If Dodo Payments uses a different header name, please check their documentation');
-        // For now, allow webhook to proceed without signature verification if secret is set
-        // This helps with debugging - remove this in production
-        console.warn('[Dodo Payments] WARNING: Proceeding without signature verification for debugging');
-        // Uncomment the throw below once signature header is confirmed
-        // throw new Error('Webhook signature is required');
+        throw new Error('Webhook signature is required');
       }
 
       // Convert payload to string if it's a Buffer
       const payloadString = typeof payload === 'string' ? payload : payload.toString('utf-8');
       
-      // Verify webhook signature if provided
-      if (signature) {
-        // Verify webhook signature using HMAC-SHA256
-        // Note: Dodo Payments signature format may vary - adjust based on actual documentation
+      // Svix signature verification
+      // Format: v1,<base64_signature>
+      // Signature is computed as: HMAC-SHA256(webhook_id + '.' + timestamp + '.' + body, secret)
+      if (webhookId && webhookTimestamp) {
+        // Extract signature from "v1,<signature>" format
+        const signatureParts = signature.split(',');
+        if (signatureParts.length !== 2 || signatureParts[0] !== 'v1') {
+          console.error('[Dodo Payments] Invalid signature format. Expected: v1,<signature>');
+          console.error('[Dodo Payments] Received format:', signature.substring(0, 20) + '...');
+          throw new Error('Invalid signature format');
+        }
+        
+        const receivedSignature = signatureParts[1];
+        
+        // Compute expected signature using Svix format
+        const signedContent = `${webhookId}.${webhookTimestamp}.${payloadString}`;
+        const expectedSignature = crypto
+          .createHmac('sha256', webhookSecret)
+          .update(signedContent)
+          .digest('base64'); // Base64, not hex!
+        
+        // Compare signatures (base64 to base64)
+        if (receivedSignature !== expectedSignature) {
+          console.error('[Dodo Payments] Webhook signature verification failed', {
+            received: receivedSignature.substring(0, 30) + '...',
+            receivedLength: receivedSignature.length,
+            expected: expectedSignature.substring(0, 30) + '...',
+            expectedLength: expectedSignature.length,
+            signedContentLength: signedContent.length,
+            webhookId,
+            webhookTimestamp,
+          });
+          throw new Error('Invalid webhook signature');
+        }
+        
+        console.log('[Dodo Payments] Webhook signature verified successfully (Svix format)');
+      } else {
+        // Fallback: try simple body-only signature (if Svix headers not available)
+        console.warn('[Dodo Payments] Missing webhook-id or webhook-timestamp, trying fallback verification');
+        
+        const signatureParts = signature.split(',');
+        const receivedSignature = signatureParts.length === 2 ? signatureParts[1] : signature;
+        
         const expectedSignature = crypto
           .createHmac('sha256', webhookSecret)
           .update(payloadString)
-          .digest('hex');
+          .digest('base64');
         
-        // Compare signatures (handle both raw hex and prefixed formats)
-        const signatureMatches = signature === expectedSignature 
-          || signature === `sha256=${expectedSignature}`
-          || signature === `v1=${expectedSignature}`
-          || signature === `hmac-sha256=${expectedSignature}`
-          || signature.endsWith(expectedSignature); // In case it's prefixed differently
-        
-        if (!signatureMatches) {
-          console.error('[Dodo Payments] Webhook signature verification failed', {
-            received: signature.substring(0, 50) + '...',
-            receivedLength: signature.length,
-            expected: expectedSignature.substring(0, 50) + '...',
-            expectedLength: expectedSignature.length,
-          });
-          console.error('[Dodo Payments] Payload length:', payloadString.length);
-          // For debugging, log the first part of payload
-          console.error('[Dodo Payments] Payload preview:', payloadString.substring(0, 100));
+        if (receivedSignature !== expectedSignature) {
+          console.error('[Dodo Payments] Fallback signature verification failed');
           throw new Error('Invalid webhook signature');
-        } else {
-          console.log('[Dodo Payments] Webhook signature verified successfully');
         }
-      } else {
-        console.warn('[Dodo Payments] WARNING: Webhook processed without signature verification');
+        
+        console.log('[Dodo Payments] Webhook signature verified (fallback method)');
       }
 
       // Parse payload as JSON
