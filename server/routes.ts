@@ -909,13 +909,29 @@ export async function registerRoutes(app: Express): Promise<Express> {
       }
 
       // Extract plan information
-      const productId = subData.product_id || subData.items?.[0]?.price?.product || subData.items?.[0]?.product_id;
+      console.log('[Checkout Success] Subscription data structure:', JSON.stringify(subData, null, 2).substring(0, 1000));
+      
+      const productId = subData.product_id 
+        || subData.items?.[0]?.price?.product 
+        || subData.items?.[0]?.product_id
+        || subData.product?.id
+        || subData.price?.product;
+      
+      console.log('[Checkout Success] Extracted product ID:', productId);
+      console.log('[Checkout Success] Available product IDs in config:', {
+        weekly: PLANS.weekly.dodoPriceId,
+        monthly: PLANS.monthly.dodoPriceId,
+      });
+      
       const planCode = dodoPaymentsService.planCodeFromPriceId(productId);
 
       if (!planCode) {
         console.error('[Checkout Success] Unknown product ID:', productId);
+        console.error('[Checkout Success] Full subscription data:', JSON.stringify(subData, null, 2));
         return res.redirect('/?error=unknown_plan');
       }
+
+      console.log('[Checkout Success] Mapped to plan code:', planCode);
 
       const plan = PLANS[planCode];
       if (!plan) {
@@ -966,39 +982,86 @@ export async function registerRoutes(app: Express): Promise<Express> {
       if (existingSubscription) {
         // Update existing subscription (idempotent operation)
         console.log('[Checkout Success] Subscription already exists, updating:', subscriptionId);
-        await storage.updateSubscription(existingSubscription.id, {
-          status,
-          currentPeriodStart: periodStart,
-          currentPeriodEnd: periodEnd,
-          amountPaid: subData.amount_paid || plan.price,
-          currency,
+        console.log('[Checkout Success] Existing subscription:', {
+          id: existingSubscription.id,
+          userId: existingSubscription.userId,
+          planCode: existingSubscription.planCode,
+          status: existingSubscription.status,
         });
+        
+        try {
+          await storage.updateSubscription(existingSubscription.id, {
+            status,
+            currentPeriodStart: periodStart,
+            currentPeriodEnd: periodEnd,
+            amountPaid: subData.amount_paid || plan.price,
+            currency,
+          });
+          console.log('[Checkout Success] Subscription updated successfully');
+        } catch (updateError: any) {
+          console.error('[Checkout Success] Failed to update subscription:', updateError);
+          throw updateError;
+        }
       } else {
         // Create new subscription
-        await storage.createSubscription({
-          id: crypto.randomUUID(),
+        console.log('[Checkout Success] Creating new subscription:', {
           userId: user.id,
           planCode,
           status,
-          currentPeriodStart: periodStart,
-          currentPeriodEnd: periodEnd,
-          dodoSubscriptionId: subscriptionId,
-          amountPaid: subData.amount_paid || plan.price,
-          currency,
+          subscriptionId,
+          periodStart: periodStart.toISOString(),
+          periodEnd: periodEnd.toISOString(),
         });
+        
+        try {
+          const newSubscription = await storage.createSubscription({
+            id: crypto.randomUUID(),
+            userId: user.id,
+            planCode,
+            status,
+            currentPeriodStart: periodStart,
+            currentPeriodEnd: periodEnd,
+            dodoSubscriptionId: subscriptionId,
+            amountPaid: subData.amount_paid || plan.price,
+            currency,
+          });
+          console.log('[Checkout Success] Subscription created successfully:', newSubscription.id);
 
-        // Create usage counter for new subscription period
-        await storage.createUsageCounter({
-          id: crypto.randomUUID(),
-          userId: user.id,
-          planCode,
-          periodStart,
-          periodEnd,
-          repliesUsed: 0,
-          creditsUsed: 0,
-          limit: plan.credits,
-          resetAt: periodEnd,
-        });
+          // Create usage counter for new subscription period
+          console.log('[Checkout Success] Creating usage counter:', {
+            userId: user.id,
+            planCode,
+            limit: plan.credits,
+            periodStart: periodStart.toISOString(),
+            periodEnd: periodEnd.toISOString(),
+          });
+          
+          try {
+            const usageCounter = await storage.createUsageCounter({
+              id: crypto.randomUUID(),
+              userId: user.id,
+              planCode,
+              periodStart,
+              periodEnd,
+              repliesUsed: 0,
+              creditsUsed: 0,
+              limit: plan.credits,
+              resetAt: periodEnd,
+            });
+            console.log('[Checkout Success] Usage counter created successfully:', usageCounter.id);
+          } catch (counterError: any) {
+            console.error('[Checkout Success] Failed to create usage counter:', counterError);
+            // Don't throw - subscription was created, counter can be fixed later
+          }
+        } catch (createError: any) {
+          console.error('[Checkout Success] Failed to create subscription:', createError);
+          console.error('[Checkout Success] Error details:', {
+            message: createError.message,
+            stack: createError.stack,
+            code: createError.code,
+          });
+          throw createError;
+        }
       }
 
       console.log('[Checkout Success] Subscription processed successfully');

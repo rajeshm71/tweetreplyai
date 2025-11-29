@@ -220,20 +220,47 @@ export class SupabaseStorage implements IStorage {
 
   // Subscription operations
   async getActiveSubscription(userId: string): Promise<Subscription | undefined> {
+    const now = new Date().toISOString();
+    
+    // Get the most recent active subscription that hasn't expired
+    // Use .limit(1).single() to handle multiple subscriptions gracefully
     const { data, error } = await supabase
       .from('subscriptions')
       .select('*')
       .eq('user_id', userId)
       .eq('status', 'active')
-      .single();
+      .gt('current_period_end', now) // Only get subscriptions that haven't expired
+      .order('created_at', { ascending: false }) // Get most recent first
+      .limit(1)
+      .maybeSingle(); // Use maybeSingle() instead of single() to handle 0 or 1 results
     
     if (error) {
       if (error.code !== 'PGRST116') {
-        console.error('Supabase getActiveSubscription error (line 240):', error);
+        console.error('Supabase getActiveSubscription error:', error);
       }
       return undefined;
     }
-    return data as Subscription;
+    
+    if (!data) {
+      return undefined;
+    }
+    
+    // Map database fields to interface
+    return {
+      id: data.id,
+      userId: data.user_id,
+      dodoSubscriptionId: data.stripe_subscription_id, // Map from old column name
+      planCode: data.plan_code,
+      status: data.status,
+      currentPeriodStart: new Date(data.current_period_start),
+      currentPeriodEnd: new Date(data.current_period_end),
+      amountPaid: data.amount_paid,
+      currency: data.currency,
+      cancelAt: data.cancel_at ? new Date(data.cancel_at) : undefined,
+      cancelReason: data.cancel_reason,
+      createdAt: data.created_at ? new Date(data.created_at) : new Date(),
+      updatedAt: new Date(data.updated_at),
+    } as Subscription;
   }
 
   async createSubscription(subscription: InsertSubscription): Promise<Subscription> {
