@@ -146,9 +146,13 @@ export class DodoPaymentsService {
 
   async cancelSubscription(subscriptionId: string): Promise<void> {
     try {
-      // Use type assertion since SDK types may not include cancel method
-      await (this.client.subscriptions as any).cancel(subscriptionId);
-      console.log(`[Dodo Payments] Subscription canceled: ${subscriptionId}`);
+      // Dodo Payments cancellation: update subscription with cancel_at_period_end flag
+      // This schedules cancellation at the end of the billing period, not immediate cancellation
+      // Use type assertion since SDK types may not include cancel_at_period_end parameter
+      await this.client.subscriptions.update(subscriptionId, {
+        cancel_at_period_end: true
+      } as any);
+      console.log(`[Dodo Payments] Subscription cancellation scheduled: ${subscriptionId}`);
     } catch (error: any) {
       console.error('[Dodo Payments] Cancel subscription error:', {
         subscriptionId,
