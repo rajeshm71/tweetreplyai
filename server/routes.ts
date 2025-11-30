@@ -292,6 +292,75 @@ export async function registerRoutes(app: Express): Promise<Express> {
     }
   });
 
+  // Subscription status route
+  app.get('/api/subscription/status', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const subscription = await storage.getActiveSubscription(userId);
+      
+      if (!subscription) {
+        return res.json({ 
+          hasSubscription: false,
+          planCode: null,
+          status: null,
+          currentPeriodStart: null,
+          currentPeriodEnd: null,
+        });
+      }
+      
+      if (subscription.userId !== userId) {
+        return res.status(403).json({ message: "Unauthorized" });
+      }
+      
+      const plan = PLANS[subscription.planCode];
+      return res.json({
+        hasSubscription: true,
+        planCode: subscription.planCode,
+        planName: plan?.name || subscription.planCode,
+        status: subscription.status,
+        currentPeriodStart: subscription.currentPeriodStart.toISOString(),
+        currentPeriodEnd: subscription.currentPeriodEnd.toISOString(),
+        dodoSubscriptionId: subscription.dodoSubscriptionId,
+      });
+    } catch (error) {
+      console.error('[Subscription Status] Error:', error);
+      res.status(500).json({ message: "Failed to fetch subscription status" });
+    }
+  });
+
+  // Cancel subscription route
+  app.post('/api/subscription/cancel', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const subscription = await storage.getActiveSubscription(userId);
+      
+      if (!subscription) {
+        return res.status(404).json({ message: "No active subscription found" });
+      }
+      
+      if (subscription.userId !== userId) {
+        return res.status(403).json({ message: "Unauthorized" });
+      }
+      
+      // Check if subscription is already canceled to avoid unnecessary API calls
+      if (subscription.status === 'canceled') {
+        return res.status(400).json({ message: "Subscription already canceled" });
+      }
+      
+      await dodoPaymentsService.cancelSubscription(subscription.dodoSubscriptionId);
+      await storage.updateSubscription(subscription.id, {
+        status: 'canceled',
+        cancelAt: new Date(),
+        cancelReason: 'user_canceled', // Added for consistency with webhook/checkout handlers
+      });
+      
+      res.json({ message: "Subscription canceled successfully" });
+    } catch (error: any) {
+      console.error('[Cancel Subscription] Error:', error);
+      res.status(500).json({ message: error.message || "Failed to cancel subscription" });
+    }
+  });
+
   // Usage and quota routes
   app.get('/api/usage', isAuthenticated, async (req: any, res) => {
     try {
@@ -1025,19 +1094,28 @@ export async function registerRoutes(app: Express): Promise<Express> {
             amountPaid: subData.amount_paid || plan.price,
             currency,
           });
-          console.log('[Checkout Success] Subscription created successfully:', newSubscription.id);
+
+          // Cancel any existing active subscriptions for this user
+          const existingSubscriptions = await storage.getUserSubscriptions(userId);
+          for (const oldSub of existingSubscriptions) {
+            if (oldSub.id !== newSubscription.id && oldSub.status === 'active') {
+              try {
+                await dodoPaymentsService.cancelSubscription(oldSub.dodoSubscriptionId);
+                await storage.updateSubscription(oldSub.id, {
+                  status: 'canceled',
+                  cancelAt: new Date(),
+                  cancelReason: 'upgraded_to_new_plan',
+                });
+                console.log(`[Checkout Success] Canceled old subscription: ${oldSub.id}`);
+              } catch (error) {
+                console.error(`[Checkout Success] Failed to cancel old subscription ${oldSub.id}:`, error);
+              }
+            }
+          }
 
           // Create usage counter for new subscription period
-          console.log('[Checkout Success] Creating usage counter:', {
-            userId: user.id,
-            planCode,
-            limit: plan.credits,
-            periodStart: periodStart.toISOString(),
-            periodEnd: periodEnd.toISOString(),
-          });
-          
           try {
-            const usageCounter = await storage.createUsageCounter({
+            await storage.createUsageCounter({
               id: crypto.randomUUID(),
               userId: user.id,
               planCode,
@@ -1048,10 +1126,8 @@ export async function registerRoutes(app: Express): Promise<Express> {
               limit: plan.credits,
               resetAt: periodEnd,
             });
-            console.log('[Checkout Success] Usage counter created successfully:', usageCounter.id);
           } catch (counterError: any) {
             console.error('[Checkout Success] Failed to create usage counter:', counterError);
-            // Don't throw - subscription was created, counter can be fixed later
           }
         } catch (createError: any) {
           console.error('[Checkout Success] Failed to create subscription:', createError);
@@ -1298,7 +1374,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
           });
         } else {
           // Create new subscription
-          await storage.createSubscription({
+          const newSubscription = await storage.createSubscription({
             id: crypto.randomUUID(),
             userId: user.id,
             planCode,
@@ -1309,6 +1385,24 @@ export async function registerRoutes(app: Express): Promise<Express> {
             amountPaid: eventData.amount_paid || plan.price,
             currency,
           });
+
+          // Cancel any existing active subscriptions for this user
+          const existingSubscriptions = await storage.getUserSubscriptions(user.id);
+          for (const oldSub of existingSubscriptions) {
+            if (oldSub.dodoSubscriptionId !== subscriptionId && oldSub.status === 'active') {
+              try {
+                await dodoPaymentsService.cancelSubscription(oldSub.dodoSubscriptionId);
+                await storage.updateSubscription(oldSub.id, {
+                  status: 'canceled',
+                  cancelAt: new Date(),
+                  cancelReason: 'upgraded_to_new_plan',
+                });
+                console.log(`[Webhook] Canceled old subscription: ${oldSub.id}`);
+              } catch (error) {
+                console.error(`[Webhook] Failed to cancel old subscription ${oldSub.id}:`, error);
+              }
+            }
+          }
 
           // Create usage counter for new subscription period
           await storage.createUsageCounter({

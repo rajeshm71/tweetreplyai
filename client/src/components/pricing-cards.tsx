@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -9,11 +9,74 @@ import { Check, Sparkles, Rocket, Crown, Gift, TrendingUp, Star } from "lucide-r
 import { apiRequest } from "@/lib/queryClient";
 import { PRICING_CONFIG, repliesPerCycleLabel, repliesEveryPeriodBullet, creditsPerCycleLabel, formatCreditsLimit } from "@/config/pricing";
 import { isUnauthorizedError } from "@/lib/authUtils";
+import { ManageSubscriptionModal } from "@/components/manage-subscription-modal";
+
+interface SubscriptionStatus {
+  hasSubscription: boolean;
+  planCode: string | null;
+  planName?: string;
+  status: string | null;
+  currentPeriodStart: string | null;
+  currentPeriodEnd: string | null;
+}
 
 export function PricingCards() {
   const { isAuthenticated } = useAuth();
   const { toast } = useToast();
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
+  const [currentSubscription, setCurrentSubscription] = useState<SubscriptionStatus | null>(null);
+  const [subscriptionLoading, setSubscriptionLoading] = useState(false);
+  const [showManageModal, setShowManageModal] = useState(false);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      setSubscriptionLoading(true);
+      apiRequest("GET", "/api/subscription/status")
+        .then(res => res.json())
+        .then(data => {
+          setCurrentSubscription(data);
+          setSubscriptionLoading(false);
+        })
+        .catch(err => {
+          console.error("Failed to fetch subscription status:", err);
+          toast({
+            title: "Error",
+            description: "Failed to load subscription status. Please refresh the page.",
+            variant: "destructive",
+          });
+          setSubscriptionLoading(false);
+        });
+    } else {
+      setCurrentSubscription(null);
+      setSubscriptionLoading(false);
+    }
+  }, [isAuthenticated, toast]);
+
+  const getButtonState = (planCode: string) => {
+    // Show loading state while fetching subscription status
+    if (subscriptionLoading) {
+      return { text: 'Loading...', action: () => {} };
+    }
+    
+    if (!currentSubscription?.hasSubscription) {
+      return { text: 'Subscribe', action: () => handleSubscribe(planCode) };
+    }
+    
+    // Only show "Manage Subscription" for active subscriptions
+    if (currentSubscription.planCode === planCode && currentSubscription.status === 'active') {
+      return { text: 'Manage Subscription', action: () => setShowManageModal(true) };
+    }
+    
+    const planOrder = { trial: 0, weekly: 1, monthly: 2 };
+    const currentOrder = planOrder[currentSubscription.planCode as keyof typeof planOrder] || 0;
+    const targetOrder = planOrder[planCode as keyof typeof planOrder] || 0;
+    
+    if (targetOrder > currentOrder) {
+      return { text: 'Upgrade', action: () => handleSubscribe(planCode) };
+    }
+    
+    return { text: 'Subscribe', action: () => handleSubscribe(planCode) };
+  };
 
   // Pricing tier color configurations
   const pricingTiers = {
@@ -172,6 +235,12 @@ export function PricingCards() {
             ⭐ Most Popular
           </Badge>
         </div>
+        {/* Current Plan badge - only show for active subscriptions */}
+        {currentSubscription?.planCode === 'weekly' && currentSubscription.status === 'active' && (
+          <div className="absolute top-4 right-4 z-50">
+            <Badge className="bg-green-500 text-white">Current Plan</Badge>
+          </div>
+        )}
         
         {/* Gradient background with glow */}
         <div className={`absolute inset-0 bg-gradient-to-br ${pricingTiers.weekly.cardGradient} opacity-50 group-hover:opacity-70 transition-opacity duration-300`} />
@@ -240,8 +309,8 @@ export function PricingCards() {
           </div>
           
           <Button 
-            className={`w-full font-medium bg-gradient-to-r ${pricingTiers.weekly.buttonGradient} text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300`}
-            onClick={() => handleSubscribe('weekly')}
+            className={`w-full font-medium ${currentSubscription?.planCode === 'weekly' ? 'bg-transparent border-2 border-green-500 text-green-600 hover:bg-green-50' : `bg-gradient-to-r ${pricingTiers.weekly.buttonGradient} text-white border-0`} shadow-lg hover:shadow-xl transition-all duration-300`}
+            onClick={getButtonState('weekly').action}
             disabled={loadingPlan === 'weekly'}
             data-testid="button-subscribe-weekly"
           >
@@ -251,7 +320,7 @@ export function PricingCards() {
                 Loading...
               </>
             ) : (
-              'Subscribe'
+              getButtonState('weekly').text
             )}
           </Button>
         </CardContent>
@@ -259,6 +328,12 @@ export function PricingCards() {
 
       {/* Monthly Plan */}
       <Card className={`relative overflow-hidden border-2 ${pricingTiers.monthly.borderColor} ${pricingTiers.monthly.hoverBorder} transition-all duration-300 group`}>
+        {/* Current Plan badge - only show for active subscriptions */}
+        {currentSubscription?.planCode === 'monthly' && currentSubscription.status === 'active' && (
+          <div className="absolute top-4 right-4 z-50">
+            <Badge className="bg-green-500 text-white">Current Plan</Badge>
+          </div>
+        )}
         {/* Gradient background */}
         <div className={`absolute inset-0 bg-gradient-to-br ${pricingTiers.monthly.cardGradient} opacity-50 group-hover:opacity-70 transition-opacity duration-300`} />
         
@@ -325,8 +400,8 @@ export function PricingCards() {
           </div>
           
           <Button 
-            className={`w-full font-medium bg-gradient-to-r ${pricingTiers.monthly.buttonGradient} text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300`}
-            onClick={() => handleSubscribe('monthly')}
+            className={`w-full font-medium ${currentSubscription?.planCode === 'monthly' ? 'bg-transparent border-2 border-purple-500 text-purple-600 hover:bg-purple-50' : `bg-gradient-to-r ${pricingTiers.monthly.buttonGradient} text-white border-0`} shadow-lg hover:shadow-xl transition-all duration-300`}
+            onClick={getButtonState('monthly').action}
             disabled={loadingPlan === 'monthly'}
             data-testid="button-subscribe-monthly"
           >
@@ -336,11 +411,30 @@ export function PricingCards() {
                 Loading...
               </>
             ) : (
-              'Subscribe'
+              getButtonState('monthly').text
             )}
           </Button>
         </CardContent>
       </Card>
+
+      {/* Manage Subscription Modal */}
+      {currentSubscription?.hasSubscription && currentSubscription.planCode && (
+        <ManageSubscriptionModal
+          open={showManageModal}
+          onOpenChange={setShowManageModal}
+          subscription={{
+            planCode: currentSubscription.planCode,
+            planName: currentSubscription.planName || PRICING_CONFIG[currentSubscription.planCode as keyof typeof PRICING_CONFIG]?.name || '',
+            status: currentSubscription.status || 'active',
+            currentPeriodEnd: currentSubscription.currentPeriodEnd || new Date().toISOString(),
+          }}
+          onCancelSuccess={() => {
+            apiRequest("GET", "/api/subscription/status")
+              .then(res => res.json())
+              .then(data => setCurrentSubscription(data));
+          }}
+        />
+      )}
     </div>
   );
 }

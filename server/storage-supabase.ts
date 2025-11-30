@@ -345,6 +345,35 @@ export class SupabaseStorage implements IStorage {
     return undefined;
   }
 
+  async getUserSubscriptions(userId: string): Promise<Subscription[]> {
+    const { data, error } = await supabase
+      .from('subscriptions')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+    
+    if (error) {
+      console.error('Supabase getUserSubscriptions error:', error);
+      return [];
+    }
+    
+    return (data || []).map(item => ({
+      id: item.id,
+      userId: item.user_id,
+      dodoSubscriptionId: item.stripe_subscription_id,
+      planCode: item.plan_code,
+      status: item.status,
+      currentPeriodStart: new Date(item.current_period_start),
+      currentPeriodEnd: new Date(item.current_period_end),
+      amountPaid: item.amount_paid,
+      currency: item.currency,
+      cancelAt: item.cancel_at ? new Date(item.cancel_at) : undefined,
+      cancelReason: item.cancel_reason,
+      createdAt: item.created_at ? new Date(item.created_at) : new Date(),
+      updatedAt: new Date(item.updated_at),
+    } as Subscription));
+  }
+
   // Usage counter operations
   async getUsageCounter(userId: string, periodStart: Date): Promise<UsageCounter | undefined> {
     const periodStartISO = periodStart.toISOString();

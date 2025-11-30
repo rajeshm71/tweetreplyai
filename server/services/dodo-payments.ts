@@ -144,8 +144,19 @@ export class DodoPaymentsService {
     }
   }
 
-  async cancelSubscription(subscriptionId: string) {
-    throw new Error("Not implemented");
+  async cancelSubscription(subscriptionId: string): Promise<void> {
+    try {
+      // Use type assertion since SDK types may not include cancel method
+      await (this.client.subscriptions as any).cancel(subscriptionId);
+      console.log(`[Dodo Payments] Subscription canceled: ${subscriptionId}`);
+    } catch (error: any) {
+      console.error('[Dodo Payments] Cancel subscription error:', {
+        subscriptionId,
+        status: error.status,
+        message: error.message,
+      });
+      throw new Error(`Failed to cancel subscription: ${error.message}`);
+    }
   }
 
   async constructWebhookEvent(
