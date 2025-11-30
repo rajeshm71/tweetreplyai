@@ -311,13 +311,33 @@ export class SupabaseStorage implements IStorage {
   }
 
   async updateSubscription(subscriptionId: string, updates: Partial<Subscription>): Promise<void> {
+    // Map TypeScript interface properties (camelCase) to database columns (snake_case)
+    const dbUpdates: any = {};
+    
+    if (updates.status !== undefined) dbUpdates.status = updates.status;
+    if (updates.currentPeriodStart !== undefined) {
+      dbUpdates.current_period_start = updates.currentPeriodStart.toISOString();
+    }
+    if (updates.currentPeriodEnd !== undefined) {
+      dbUpdates.current_period_end = updates.currentPeriodEnd.toISOString();
+    }
+    if (updates.amountPaid !== undefined) dbUpdates.amount_paid = updates.amountPaid;
+    if (updates.currency !== undefined) dbUpdates.currency = updates.currency;
+    if (updates.cancelAt !== undefined) {
+      dbUpdates.cancel_at = updates.cancelAt?.toISOString() || null;
+    }
+    if (updates.cancelReason !== undefined) dbUpdates.cancel_reason = updates.cancelReason;
+    if (updates.updatedAt !== undefined) {
+      dbUpdates.updated_at = updates.updatedAt.toISOString();
+    }
+    
     const { error } = await supabase
       .from('subscriptions')
-      .update(updates)
+      .update(dbUpdates)
       .eq('id', subscriptionId);
     
     if (error) {
-      console.error('Supabase updateSubscription error (line 268):', error);
+      console.error('Supabase updateSubscription error:', error);
       throw error;
     }
   }
