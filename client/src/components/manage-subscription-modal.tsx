@@ -169,10 +169,10 @@ export function ManageSubscriptionModal({
               )}
               
               <Button
-                variant="destructive"
+                variant="outline"
                 onClick={handleCancelClick}
                 disabled={cancelMutation.isPending}
-                className="w-full"
+                className="w-full text-muted-foreground hover:text-destructive hover:border-destructive/50"
               >
                 {cancelMutation.isPending ? "Processing..." : "Cancel Subscription"}
               </Button>
