@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -38,8 +39,16 @@ export function SubscriptionCancelConfirmDialog({
   onSwitchPlan,
   onKeepPlan,
 }: SubscriptionCancelConfirmDialogProps) {
+  const [showCancelOptions, setShowCancelOptions] = useState(false);
   const planConfig = PRICING_CONFIG[subscription.planCode as keyof typeof PRICING_CONFIG];
   const benefits = planConfig?.features || [];
+
+  // Reset expandable state when dialog opens
+  useEffect(() => {
+    if (open) {
+      setShowCancelOptions(false);
+    }
+  }, [open]);
   const accessEndDate = new Date(subscription.currentPeriodEnd).toLocaleDateString('en-US', {
     month: 'long',
     day: 'numeric',
@@ -55,7 +64,8 @@ export function SubscriptionCancelConfirmDialog({
   // Handle dialog close (ESC key or click outside) - just close, don't trigger actions
   const handleDialogChange = (isOpen: boolean) => {
     if (!isOpen) {
-      // User closed dialog without choosing an action - just close it
+      // User closed dialog without choosing an action - reset state and close
+      setShowCancelOptions(false);
       onKeepPlan();
     }
     onOpenChange(isOpen);
@@ -110,24 +120,49 @@ export function SubscriptionCancelConfirmDialog({
             <Button
               variant="outline"
               onClick={handleSwitchPlan}
-              className="w-full sm:w-auto bg-primary text-primary-foreground hover:bg-primary/90 border-primary"
+              style={{ 
+                backgroundImage: 'none',
+                background: 'hsl(var(--primary))',
+                borderColor: 'hsl(var(--primary))'
+              }}
+              className="w-full sm:w-auto !bg-primary [background-image:none!important] !from-primary !to-primary !text-primary-foreground hover:!bg-primary/90 hover:!from-primary hover:!to-primary !border-primary"
             >
               Switch to {alternativePlan.name}
             </Button>
           )}
           
-          <AlertDialogAction asChild>
-            <Button
-              variant="ghost"
-              onClick={(e) => {
-                e.preventDefault();
-                onConfirm();
-              }}
-              className="w-full sm:w-auto text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-            >
-              Yes, Cancel Subscription
-            </Button>
-          </AlertDialogAction>
+          {/* Expandable cancel section - hide cancel button behind link */}
+          <div className="w-full sm:w-auto" id="cancel-options">
+            {!showCancelOptions ? (
+              <button
+                type="button"
+                onClick={() => setShowCancelOptions(true)}
+                className="text-sm text-muted-foreground hover:text-foreground underline underline-offset-4"
+                aria-expanded={showCancelOptions}
+                aria-controls="cancel-options"
+              >
+                Show cancellation options
+              </button>
+            ) : (
+              <AlertDialogAction asChild>
+                <Button
+                  variant="outline"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    onConfirm();
+                  }}
+                  style={{ 
+                    backgroundImage: 'none',
+                    background: 'transparent',
+                    borderColor: 'hsl(var(--destructive) / 0.5)'
+                  }}
+                  className="w-full sm:w-auto !bg-transparent [background-image:none!important] !from-transparent !to-transparent border border-destructive/50 !text-destructive hover:!bg-destructive/10 hover:!from-transparent hover:!to-transparent !shadow-none"
+                >
+                  Yes, Cancel Subscription
+                </Button>
+              </AlertDialogAction>
+            )}
+          </div>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
