@@ -433,6 +433,11 @@ export function PricingCards() {
               .then(res => res.json())
               .then(data => setCurrentSubscription(data));
           }}
+          onSwitchPlan={(planCode) => {
+            // Close modal and trigger checkout for new plan
+            setShowManageModal(false);
+            handleSubscribe(planCode);
+          }}
         />
       )}
     </div>
