@@ -397,6 +397,7 @@
       this.todayReplies = document.getElementById("today-replies");
       this.successRate = document.getElementById("success-rate");
       this.timeSaved = document.getElementById("time-saved");
+      this.modeBreakdown = document.getElementById("mode-breakdown");
       this.settingsPanel = document.getElementById("settings-panel");
       this.userEmail = document.getElementById("user-email");
       this.historyPanel = document.getElementById("history-panel");
@@ -648,7 +649,55 @@
           this.statusMessage.textContent = 'Click "Reply" on any X post to generate suggestions';
         }
       }
+      this.updateModeBreakdown();
       this.updateQuickStats();
+    }
+    formatModeBreakdown(breakdown) {
+      if (!breakdown || typeof breakdown !== "object") return null;
+      const modeNames = {
+        "single-sentence": "Concise",
+        "base": "Balanced",
+        "enhanced": "Enhanced"
+      };
+      const parts = [];
+      let totalReplies = 0;
+      let totalCredits = 0;
+      for (const [modeKey, data] of Object.entries(breakdown)) {
+        if (data && typeof data === "object" && "replies" in data && "credits" in data) {
+          const replies = Number(data.replies) || 0;
+          const credits = Number(data.credits) || 0;
+          if (replies > 0) {
+            const modeName = modeNames[modeKey] || modeKey;
+            parts.push(`${modeName}: ${replies} (${credits})`);
+            totalReplies += replies;
+            totalCredits += credits;
+          }
+        }
+      }
+      if (parts.length === 0) return null;
+      return {
+        parts: parts.join(" | "),
+        totalReplies,
+        totalCredits
+      };
+    }
+    updateModeBreakdown() {
+      if (!this.modeBreakdown) return;
+      if (this.usageData && this.usageData.modeBreakdown) {
+        const formatted = this.formatModeBreakdown(this.usageData.modeBreakdown);
+        if (formatted) {
+          const totalCredits = this.usageData.used || formatted.totalCredits;
+          this.modeBreakdown.innerHTML = `
+          <div style="margin-bottom: 4px;">${formatted.parts}</div>
+          <div style="font-weight: 600; color: rgba(255, 255, 255, 0.9);">Total: ${formatted.totalReplies} replies, ${totalCredits} credits</div>
+        `;
+          this.modeBreakdown.style.display = "block";
+        } else {
+          this.modeBreakdown.style.display = "none";
+        }
+      } else {
+        this.modeBreakdown.style.display = "none";
+      }
     }
     formatTimeDistance(date) {
       const now = /* @__PURE__ */ new Date();
