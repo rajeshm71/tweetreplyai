@@ -235,6 +235,7 @@ class PopupManager {
     this.todayReplies = document.getElementById('today-replies');
     this.successRate = document.getElementById('success-rate');
     this.timeSaved = document.getElementById('time-saved');
+    this.modeBreakdown = document.getElementById('mode-breakdown');
     
     // Settings
     this.settingsPanel = document.getElementById('settings-panel');
@@ -568,8 +569,69 @@ class PopupManager {
       }
     }
 
+    // Update mode breakdown
+    this.updateModeBreakdown();
+
     // Update quick stats
     this.updateQuickStats();
+  }
+
+  formatModeBreakdown(breakdown) {
+    if (!breakdown || typeof breakdown !== 'object') return null;
+    
+    const modeNames = {
+      'single-sentence': 'Concise',
+      'base': 'Balanced',
+      'enhanced': 'Enhanced'
+    };
+    
+    const parts = [];
+    let totalReplies = 0;
+    let totalCredits = 0;
+    
+    for (const [modeKey, data] of Object.entries(breakdown)) {
+      // Defensive check: validate data structure before processing
+      if (data && typeof data === 'object' && 'replies' in data && 'credits' in data) {
+        const replies = Number(data.replies) || 0;
+        const credits = Number(data.credits) || 0;
+        
+        if (replies > 0) {
+          const modeName = modeNames[modeKey] || modeKey;
+          parts.push(`${modeName}: ${replies} (${credits})`);
+          totalReplies += replies;
+          totalCredits += credits;
+        }
+      }
+    }
+    
+    if (parts.length === 0) return null;
+    
+    return {
+      parts: parts.join(' | '),
+      totalReplies,
+      totalCredits
+    };
+  }
+
+  updateModeBreakdown() {
+    if (!this.modeBreakdown) return;
+    
+    if (this.usageData && this.usageData.modeBreakdown) {
+      const formatted = this.formatModeBreakdown(this.usageData.modeBreakdown);
+      if (formatted) {
+        // Use usage.used as source of truth for total credits to ensure consistency
+        const totalCredits = this.usageData.used || formatted.totalCredits;
+        this.modeBreakdown.innerHTML = `
+          <div style="margin-bottom: 4px;">${formatted.parts}</div>
+          <div style="font-weight: 600; color: rgba(255, 255, 255, 0.9);">Total: ${formatted.totalReplies} replies, ${totalCredits} credits</div>
+        `;
+        this.modeBreakdown.style.display = 'block';
+      } else {
+        this.modeBreakdown.style.display = 'none';
+      }
+    } else {
+      this.modeBreakdown.style.display = 'none';
+    }
   }
 
   formatTimeDistance(date) {

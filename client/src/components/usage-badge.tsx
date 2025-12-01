@@ -2,9 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Clock, AlertCircle, Crown } from "lucide-react";
+import { Clock, AlertCircle, Crown, ChevronDown, ChevronUp } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useLocation } from "wouter";
+import { useState } from "react";
 
 interface UsageStatus {
   planCode: string;
@@ -15,6 +16,11 @@ interface UsageStatus {
   isWhitelisted?: boolean;
   upgradeRequired?: boolean;
   upgradeMessage?: string;
+  modeBreakdown?: {
+    'single-sentence'?: { replies: number; credits: number };
+    'base'?: { replies: number; credits: number };
+    'enhanced'?: { replies: number; credits: number };
+  };
 }
 
 interface UsageBadgeProps {
@@ -23,6 +29,7 @@ interface UsageBadgeProps {
 
 export function UsageBadge({ showDetails = false }: UsageBadgeProps) {
   const [, setLocation] = useLocation();
+  const [showBreakdown, setShowBreakdown] = useState(false);
   const { data: usage, isLoading, error } = useQuery<UsageStatus>({
     queryKey: ["/api/usage"],
     refetchInterval: 30000, // Refetch every 30 seconds
@@ -78,6 +85,55 @@ export function UsageBadge({ showDetails = false }: UsageBadgeProps) {
               <Clock className="w-3 h-3" />
               <span>Resets {resetDistance}</span>
             </div>
+
+            {/* Credit Breakdown Section */}
+            {usage.modeBreakdown && (
+              <div className="border-t pt-3">
+                <button
+                  onClick={() => setShowBreakdown(!showBreakdown)}
+                  className="flex items-center justify-between w-full text-sm font-medium text-foreground hover:text-primary transition-colors"
+                >
+                  <span>Credit Breakdown</span>
+                  {showBreakdown ? (
+                    <ChevronUp className="w-4 h-4" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4" />
+                  )}
+                </button>
+                
+                {showBreakdown && (
+                  <div className="mt-3 space-y-2">
+                    {usage.modeBreakdown['single-sentence'] && (
+                      <div className="flex justify-between text-xs">
+                        <span className="text-muted-foreground">Concise:</span>
+                        <span className="font-medium">
+                          {usage.modeBreakdown['single-sentence'].replies} replies, {usage.modeBreakdown['single-sentence'].credits} credits
+                        </span>
+                      </div>
+                    )}
+                    {usage.modeBreakdown['base'] && (
+                      <div className="flex justify-between text-xs">
+                        <span className="text-muted-foreground">Balanced:</span>
+                        <span className="font-medium">
+                          {usage.modeBreakdown['base'].replies} replies, {usage.modeBreakdown['base'].credits} credits
+                        </span>
+                      </div>
+                    )}
+                    {usage.modeBreakdown['enhanced'] && (
+                      <div className="flex justify-between text-xs">
+                        <span className="text-muted-foreground">Enhanced:</span>
+                        <span className="font-medium">
+                          {usage.modeBreakdown['enhanced'].replies} replies, {usage.modeBreakdown['enhanced'].credits} credits
+                        </span>
+                      </div>
+                    )}
+                    <div className="pt-2 border-t text-xs font-semibold text-foreground">
+                      Total: {usage.used} credits
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {showUpgrade && (
               <Button

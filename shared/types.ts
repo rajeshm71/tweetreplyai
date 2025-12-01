@@ -67,6 +67,11 @@ export interface UsageCounter {
   resetAt: Date;
   createdAt: Date;
   updatedAt: Date;
+  modeBreakdown?: {
+    'single-sentence'?: { replies: number; credits: number };
+    'base'?: { replies: number; credits: number };
+    'enhanced'?: { replies: number; credits: number };
+  };
 }
 
 export interface InsertUsageCounter {
@@ -81,6 +86,7 @@ export interface InsertUsageCounter {
   resetAt: Date;
   createdAt?: Date;
   updatedAt?: Date;
+  modeBreakdown?: UsageCounter['modeBreakdown'];
 }
 
 export interface ReplyEvent {

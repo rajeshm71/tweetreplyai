@@ -13,6 +13,11 @@ interface UsageStatus {
   isWhitelisted?: boolean;
   upgradeRequired?: boolean;
   upgradeMessage?: string;
+  modeBreakdown?: {
+    'single-sentence'?: { replies: number; credits: number };
+    'base'?: { replies: number; credits: number };
+    'enhanced'?: { replies: number; credits: number };
+  };
 }
 
 export function FloatingUpgradeButton() {

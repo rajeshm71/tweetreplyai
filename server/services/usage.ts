@@ -22,6 +22,11 @@ export interface UsageStatus {
   isWhitelisted?: boolean;
   upgradeRequired?: boolean;
   upgradeMessage?: string;
+  modeBreakdown?: {
+    'single-sentence'?: { replies: number; credits: number };
+    'base'?: { replies: number; credits: number };
+    'enhanced'?: { replies: number; credits: number };
+  };
 }
 
 export class UsageService {
@@ -187,8 +192,10 @@ export class UsageService {
         periodStart: window.periodStart,
         periodEnd: window.periodEnd,
         repliesUsed: 0,
+        creditsUsed: 0,
         limit: window.limit,
         resetAt: window.resetAt,
+        modeBreakdown: {}, // Initialize with empty breakdown object
       });
       console.log('[USAGE-DEBUG] getUsageStatus - Created counter:', { id: counter.id, repliesUsed: counter.repliesUsed, periodStart: counter.periodStart.toISOString() });
       
@@ -257,6 +264,7 @@ export class UsageService {
       isWhitelisted,
       upgradeRequired,
       upgradeMessage,
+      modeBreakdown: counter.modeBreakdown || undefined, // Include mode breakdown in response
     };
     
     console.log('Returning usage status:', result);
@@ -326,6 +334,7 @@ export class UsageService {
         creditsUsed: 0, // NEW
         limit: window.limit,
         resetAt: window.resetAt,
+        modeBreakdown: {}, // Explicit initialization for clarity and consistency
       });
       console.log('[USAGE-DEBUG] consumeReply - Created counter:', { id: counter.id, repliesUsed: counter.repliesUsed, creditsUsed: counter.creditsUsed });
     } else {
@@ -340,9 +349,10 @@ export class UsageService {
     }
 
     // Increment usage atomically (for ALL users including whitelisted)
-    console.log('[USAGE-DEBUG] consumeReply - About to call incrementUsage for periodStart:', window.periodStart.toISOString(), 'creditCost:', creditCost);
-    const updatedCounter = await storage.incrementUsage(userId, window.periodStart, creditCost);
-    console.log('[USAGE-DEBUG] consumeReply - After incrementUsage:', { id: updatedCounter.id, repliesUsed: updatedCounter.repliesUsed, creditsUsed: updatedCounter.creditsUsed });
+    // Pass replyMode to track mode breakdown
+    console.log('[USAGE-DEBUG] consumeReply - About to call incrementUsage for periodStart:', window.periodStart.toISOString(), 'creditCost:', creditCost, 'replyMode:', replyMode);
+    const updatedCounter = await storage.incrementUsage(userId, window.periodStart, creditCost, replyMode);
+    console.log('[USAGE-DEBUG] consumeReply - After incrementUsage:', { id: updatedCounter.id, repliesUsed: updatedCounter.repliesUsed, creditsUsed: updatedCounter.creditsUsed, modeBreakdown: updatedCounter.modeBreakdown });
     console.log('[USAGE-DEBUG] ========== consumeReply END ==========');
     return updatedCounter;
   }

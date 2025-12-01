@@ -418,7 +418,7 @@ export class SupabaseStorage implements IStorage {
     
     const { data, error } = await supabase
       .from('usage_counters')
-      .select('id, user_id, plan_code, period_start, period_end, replies_used, credits_used, limit, reset_at, created_at, updated_at')
+      .select('id, user_id, plan_code, period_start, period_end, replies_used, credits_used, limit, reset_at, mode_breakdown, created_at, updated_at')
       .eq('user_id', userId)
       .eq('period_start', periodStartISO)
       .single();
@@ -452,6 +452,7 @@ export class SupabaseStorage implements IStorage {
       creditsUsed: data.credits_used ?? (data.replies_used * 2), // FALLBACK: calculate if null
       limit: data.limit,
       resetAt: new Date(data.reset_at),
+      modeBreakdown: data.mode_breakdown || undefined, // Map JSONB to TypeScript object
       createdAt: new Date(data.created_at),
       updatedAt: new Date(data.updated_at)
     } as UsageCounter;
@@ -459,7 +460,7 @@ export class SupabaseStorage implements IStorage {
 
   async createUsageCounter(usageCounter: InsertUsageCounter): Promise<UsageCounter> {
     // Map camelCase fields to snake_case database columns
-    const dbUsageCounter = {
+    const dbUsageCounter: any = {
       id: usageCounter.id,
       user_id: usageCounter.userId,
       plan_code: usageCounter.planCode,
@@ -473,10 +474,17 @@ export class SupabaseStorage implements IStorage {
       updated_at: new Date().toISOString()
     };
 
+    // Include mode_breakdown if provided, otherwise default to empty object
+    if (usageCounter.modeBreakdown !== undefined) {
+      dbUsageCounter.mode_breakdown = usageCounter.modeBreakdown;
+    } else {
+      dbUsageCounter.mode_breakdown = {};
+    }
+
     const { data, error} = await supabase
       .from('usage_counters')
       .insert(dbUsageCounter)
-      .select('id, user_id, plan_code, period_start, period_end, replies_used, credits_used, limit, reset_at, created_at, updated_at')
+      .select('id, user_id, plan_code, period_start, period_end, replies_used, credits_used, limit, reset_at, mode_breakdown, created_at, updated_at')
       .single();
     
     if (error) {
@@ -495,6 +503,7 @@ export class SupabaseStorage implements IStorage {
       creditsUsed: data.credits_used ?? (data.replies_used * 2), // FALLBACK
       limit: data.limit,
       resetAt: new Date(data.reset_at),
+      modeBreakdown: data.mode_breakdown || undefined, // Map JSONB to TypeScript object
       createdAt: new Date(data.created_at),
       updatedAt: new Date(data.updated_at)
     } as UsageCounter;
@@ -511,6 +520,7 @@ export class SupabaseStorage implements IStorage {
     if (updates.repliesUsed !== undefined) dbUpdates.replies_used = updates.repliesUsed;
     if (updates.creditsUsed !== undefined) dbUpdates.credits_used = updates.creditsUsed; // NEW
     if (updates.resetAt !== undefined) dbUpdates.reset_at = updates.resetAt.toISOString();
+    if (updates.modeBreakdown !== undefined) dbUpdates.mode_breakdown = updates.modeBreakdown;
     
     const { error } = await supabase
       .from('usage_counters')
@@ -523,11 +533,12 @@ export class SupabaseStorage implements IStorage {
     }
   }
 
-  async incrementUsage(userId: string, periodStart: Date, creditCost: number): Promise<UsageCounter> {
+  async incrementUsage(userId: string, periodStart: Date, creditCost: number, replyMode?: string): Promise<UsageCounter> {
     console.log('[STORAGE-DEBUG] ========== incrementUsage START ==========');
     console.log('[STORAGE-DEBUG] incrementUsage - userId:', userId);
     console.log('[STORAGE-DEBUG] incrementUsage - periodStart:', periodStart.toISOString());
     console.log('[STORAGE-DEBUG] incrementUsage - creditCost:', creditCost);
+    console.log('[STORAGE-DEBUG] incrementUsage - replyMode:', replyMode);
     
     let counter = await this.getUsageCounter(userId, periodStart);
     
@@ -537,12 +548,43 @@ export class SupabaseStorage implements IStorage {
       throw new Error('Usage counter not found - this should be created by getUsageStatus first');
     } else {
       const currentCredits = counter.creditsUsed ?? (counter.repliesUsed * 2);
+      
+      // Update mode breakdown if replyMode is provided
+      let updatedBreakdown = counter.modeBreakdown || {};
+      if (replyMode) {
+        // Validate replyMode is one of the expected values before type assertion
+        const validModes: Array<'single-sentence' | 'base' | 'enhanced'> = ['single-sentence', 'base', 'enhanced'];
+        if (validModes.includes(replyMode as any)) {
+          const modeKey = replyMode as 'single-sentence' | 'base' | 'enhanced';
+          if (!updatedBreakdown[modeKey]) {
+            updatedBreakdown[modeKey] = { replies: 0, credits: 0 };
+          }
+          updatedBreakdown[modeKey] = {
+            replies: (updatedBreakdown[modeKey]?.replies || 0) + 1,
+            credits: (updatedBreakdown[modeKey]?.credits || 0) + creditCost
+          };
+        } else {
+          console.warn(`[STORAGE-DEBUG] Invalid replyMode: ${replyMode}, skipping breakdown update`);
+        }
+      }
+      
+      // Validate breakdown structure before saving (defensive check)
+      if (updatedBreakdown && typeof updatedBreakdown === 'object') {
+        for (const [key, value] of Object.entries(updatedBreakdown)) {
+          if (value && (typeof value !== 'object' || typeof value.replies !== 'number' || typeof value.credits !== 'number')) {
+            console.error(`[STORAGE-DEBUG] Invalid breakdown entry for ${key}:`, value);
+            delete updatedBreakdown[key];
+          }
+        }
+      }
+      
       console.log('[STORAGE-DEBUG] incrementUsage - Counter before update:', {
         id: counter.id,
         currentRepliesUsed: counter.repliesUsed,
         currentCreditsUsed: currentCredits,
         willBecomeReplies: counter.repliesUsed + 1,
-        willBecomeCredits: currentCredits + creditCost
+        willBecomeCredits: currentCredits + creditCost,
+        modeBreakdown: updatedBreakdown
       });
       
       const periodStartISO = periodStart.toISOString();
@@ -551,16 +593,21 @@ export class SupabaseStorage implements IStorage {
         period_start: periodStartISO
       });
       
+      const updateData: any = { 
+        replies_used: counter.repliesUsed + 1,
+        credits_used: currentCredits + creditCost, // Handle null with fallback
+        updated_at: new Date().toISOString()
+      };
+      
+      // Include mode_breakdown in update
+      updateData.mode_breakdown = updatedBreakdown;
+      
       const { data, error } = await supabase
         .from('usage_counters')
-        .update({ 
-          replies_used: counter.repliesUsed + 1,
-          credits_used: currentCredits + creditCost, // Handle null with fallback
-          updated_at: new Date().toISOString()
-        })
+        .update(updateData)
         .eq('user_id', userId)
         .eq('period_start', periodStartISO)
-        .select('id, user_id, plan_code, period_start, period_end, replies_used, credits_used, limit, reset_at, created_at, updated_at')
+        .select('id, user_id, plan_code, period_start, period_end, replies_used, credits_used, limit, reset_at, mode_breakdown, created_at, updated_at')
         .single();
       
       if (error) {
@@ -578,7 +625,8 @@ export class SupabaseStorage implements IStorage {
         period_start: data.period_start,
         replies_used: data.replies_used,
         credits_used: data.credits_used,
-        limit: data.limit
+        limit: data.limit,
+        mode_breakdown: data.mode_breakdown
       });
 
       // Map database fields back to our UsageCounter interface
@@ -592,6 +640,7 @@ export class SupabaseStorage implements IStorage {
         creditsUsed: data.credits_used ?? (data.replies_used * 2), // FALLBACK
         limit: data.limit,
         resetAt: new Date(data.reset_at),
+        modeBreakdown: data.mode_breakdown || undefined,
         createdAt: new Date(data.created_at),
         updatedAt: new Date(data.updated_at)
       } as UsageCounter;

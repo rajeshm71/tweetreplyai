@@ -34,7 +34,7 @@ export interface IStorage {
   getUsageCounter(userId: string, periodStart: Date): Promise<UsageCounter | undefined>;
   createUsageCounter(usageCounter: InsertUsageCounter): Promise<UsageCounter>;
   updateUsageCounter(counterId: string, updates: Partial<UsageCounter>): Promise<void>;
-  incrementUsage(userId: string, periodStart: Date): Promise<UsageCounter>;
+  incrementUsage(userId: string, periodStart: Date, creditCost: number, replyMode?: string): Promise<UsageCounter>;
   
   // Reply event operations
   createReplyEvent(replyEvent: InsertReplyEvent): Promise<ReplyEvent>;
