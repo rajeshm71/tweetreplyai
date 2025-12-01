@@ -88,23 +88,38 @@ export class UsageService {
     const activeSubscription = await storage.getActiveSubscription(user.id);
     console.log('Active subscription:', activeSubscription);
     
-    if (activeSubscription && activeSubscription.currentPeriodEnd > now) {
-      const plan = PLANS[activeSubscription.planCode];
-      console.log('Plan found:', plan);
-      if (plan) {
-        const result = {
-          planCode: activeSubscription.planCode,
-          periodStart: activeSubscription.currentPeriodStart,
-          periodEnd: activeSubscription.currentPeriodEnd,
-          limit: plan.credits, // CHANGED: Use credits instead of replies
-          resetAt: activeSubscription.currentPeriodEnd,
-        };
-        console.log('Returning paid subscription window:', result);
-        return result;
+    if (activeSubscription) {
+      // If subscription is canceled and period has ended, user loses access (no trial fallback)
+      if (activeSubscription.status === 'canceled' && activeSubscription.currentPeriodEnd <= now) {
+        console.log('Subscription canceled and period ended - returning no access');
+        return null; // Will result in no_access status
+      }
+      
+      // If subscription is active and period hasn't ended, grant access
+      if (activeSubscription.currentPeriodEnd > now) {
+        const plan = PLANS[activeSubscription.planCode];
+        console.log('Plan found:', plan);
+        if (plan) {
+          const result = {
+            planCode: activeSubscription.planCode,
+            periodStart: activeSubscription.currentPeriodStart,
+            periodEnd: activeSubscription.currentPeriodEnd,
+            limit: plan.credits, // CHANGED: Use credits instead of replies
+            resetAt: activeSubscription.currentPeriodEnd,
+          };
+          console.log('Returning paid subscription window:', result);
+          return result;
+        }
       }
     }
 
-    // For regular users, give trial limit
+    // Check if user has already used trial - if so, no access
+    if (user.hasUsedTrial) {
+      console.log('User has already used trial - returning no access');
+      return null; // Will result in no_access status
+    }
+
+    // For regular users who haven't used trial, give trial limit
     // Note: getTrialLimit() reads dynamically from TRIAL_LIMIT env var - can be updated without code changes
     const trialLimit = whitelistService.getTrialLimit();
     // Fix 2 & 3: Use 7-day period for trial instead of daily reset
@@ -176,6 +191,18 @@ export class UsageService {
         resetAt: window.resetAt,
       });
       console.log('[USAGE-DEBUG] getUsageStatus - Created counter:', { id: counter.id, repliesUsed: counter.repliesUsed, periodStart: counter.periodStart.toISOString() });
+      
+      // Mark user as having used trial if this is a trial counter
+      // Wrap in try-catch to handle potential database errors gracefully
+      if (window.planCode === 'trial' && !user.hasUsedTrial) {
+        try {
+          await storage.updateUser(userId, { hasUsedTrial: true });
+          console.log('[USAGE-DEBUG] Marked user as having used trial');
+        } catch (error) {
+          console.error('[USAGE-DEBUG] Failed to mark user as having used trial:', error);
+          // Don't throw - allow user to continue, but log the error for monitoring
+        }
+      }
     } else {
       console.log('[USAGE-DEBUG] getUsageStatus - Counter FOUND:', { id: counter.id, repliesUsed: counter.repliesUsed, limit: counter.limit, periodStart: counter.periodStart.toISOString() });
       // Fix 1: Update existing counter if limit doesn't match current config for ANY plan type

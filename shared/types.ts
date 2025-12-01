@@ -6,6 +6,7 @@ export interface User {
   googleSub?: string;
   dodoCustomerId?: string;
   authProviders?: string[];
+  hasUsedTrial?: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -17,6 +18,7 @@ export interface UpsertUser {
   googleSub?: string;
   dodoCustomerId?: string;
   authProviders?: string[];
+  hasUsedTrial?: boolean;
   createdAt?: Date;
   updatedAt?: Date;
 }

@@ -25,7 +25,7 @@ export class SupabaseStorage implements IStorage {
     
     const { data, error } = await supabase
       .from('users')
-      .select('id, email, password_hash, google_sub, auth_providers, stripe_customer_id, created_at, updated_at')
+      .select('id, email, password_hash, google_sub, auth_providers, stripe_customer_id, has_used_trial, created_at, updated_at')
       .eq('id', id)
       .single();
     
@@ -57,6 +57,7 @@ export class SupabaseStorage implements IStorage {
       googleSub: data.google_sub,
       dodoCustomerId: data.stripe_customer_id, // Map from old column name
       authProviders: data.auth_providers || [],
+      hasUsedTrial: data.has_used_trial || false,
       createdAt: new Date(data.created_at),
       updatedAt: new Date(data.updated_at)
     } as User;
@@ -69,7 +70,7 @@ export class SupabaseStorage implements IStorage {
     console.log('=== SUPABASE: getUserByEmail called (line 49) ===');
     const { data, error } = await supabase
       .from('users')
-      .select('id, email, password_hash, google_sub, auth_providers, stripe_customer_id, created_at, updated_at')
+      .select('id, email, password_hash, google_sub, auth_providers, stripe_customer_id, has_used_trial, created_at, updated_at')
       .eq('email', email)
       .single();
     
@@ -88,6 +89,7 @@ export class SupabaseStorage implements IStorage {
       googleSub: data.google_sub,
       dodoCustomerId: data.stripe_customer_id, // Map from old column name
       authProviders: data.auth_providers || [],
+      hasUsedTrial: data.has_used_trial || false,
       createdAt: new Date(data.created_at),
       updatedAt: new Date(data.updated_at)
     } as User;
@@ -97,7 +99,7 @@ export class SupabaseStorage implements IStorage {
     console.log('=== SUPABASE: getUserByGoogleSub called (line 77) ===');
     const { data, error } = await supabase
       .from('users')
-      .select('id, email, password_hash, google_sub, auth_providers, stripe_customer_id, created_at, updated_at')
+      .select('id, email, password_hash, google_sub, auth_providers, stripe_customer_id, has_used_trial, created_at, updated_at')
       .eq('google_sub', googleSub)
       .single();
     
@@ -116,6 +118,7 @@ export class SupabaseStorage implements IStorage {
       googleSub: data.google_sub,
       dodoCustomerId: data.stripe_customer_id, // Map from old column name
       authProviders: data.auth_providers || [],
+      hasUsedTrial: data.has_used_trial || false,
       createdAt: new Date(data.created_at),
       updatedAt: new Date(data.updated_at)
     } as User;
@@ -126,7 +129,7 @@ export class SupabaseStorage implements IStorage {
     console.log('=== SUPABASE: upsertUser called (line 132) ===');
     
     // Map our User interface fields to database fields
-    const dbData = {
+    const dbData: any = {
       id: userData.id,
       email: userData.email,
       password_hash: userData.password,
@@ -137,10 +140,15 @@ export class SupabaseStorage implements IStorage {
       updated_at: userData.updatedAt || new Date()
     };
     
+    // Include has_used_trial if provided
+    if (userData.hasUsedTrial !== undefined) {
+      dbData.has_used_trial = userData.hasUsedTrial;
+    }
+    
     const { data, error } = await supabase
       .from('users')
       .upsert(dbData, { onConflict: 'id' })
-      .select('id, email, password_hash, google_sub, auth_providers, stripe_customer_id, created_at, updated_at')
+      .select('id, email, password_hash, google_sub, auth_providers, stripe_customer_id, has_used_trial, created_at, updated_at')
       .single();
     
     if (error) {
@@ -156,6 +164,7 @@ export class SupabaseStorage implements IStorage {
       googleSub: data.google_sub,
       dodoCustomerId: data.stripe_customer_id, // Map from old column name
       authProviders: data.auth_providers || [],
+      hasUsedTrial: data.has_used_trial || false,
       createdAt: new Date(data.created_at),
       updatedAt: new Date(data.updated_at)
     } as User;
@@ -171,12 +180,13 @@ export class SupabaseStorage implements IStorage {
     if (updates.password !== undefined) dbUpdates.password_hash = updates.password;
     if (updates.googleSub !== undefined) dbUpdates.google_sub = updates.googleSub;
     if (updates.authProviders !== undefined) dbUpdates.auth_providers = updates.authProviders;
+    if (updates.hasUsedTrial !== undefined) dbUpdates.has_used_trial = updates.hasUsedTrial;
     
     const { data, error } = await supabase
       .from('users')
       .update(dbUpdates)
       .eq('id', id)
-      .select('id, email, password_hash, google_sub, auth_providers, created_at, updated_at')
+      .select('id, email, password_hash, google_sub, auth_providers, stripe_customer_id, has_used_trial, created_at, updated_at')
       .single();
     
     if (error) {
@@ -190,7 +200,9 @@ export class SupabaseStorage implements IStorage {
       email: data.email,
       password: data.password_hash,
       googleSub: data.google_sub,
+      dodoCustomerId: data.stripe_customer_id,
       authProviders: data.auth_providers || [],
+      hasUsedTrial: data.has_used_trial || false,
       createdAt: new Date(data.created_at),
       updatedAt: new Date(data.updated_at)
     } as User;
@@ -222,13 +234,14 @@ export class SupabaseStorage implements IStorage {
   async getActiveSubscription(userId: string): Promise<Subscription | undefined> {
     const now = new Date().toISOString();
     
-    // Get the most recent active subscription that hasn't expired
-    // Use .limit(1).single() to handle multiple subscriptions gracefully
+    // Get the most recent subscription (active or canceled) that hasn't expired
+    // Include canceled subscriptions because users should retain access until period ends
+    // Use .limit(1).maybeSingle() to handle multiple subscriptions gracefully
     const { data, error } = await supabase
       .from('subscriptions')
       .select('*')
       .eq('user_id', userId)
-      .eq('status', 'active')
+      .in('status', ['active', 'canceled']) // Include canceled subscriptions within their paid period
       .gt('current_period_end', now) // Only get subscriptions that haven't expired
       .order('created_at', { ascending: false }) // Get most recent first
       .limit(1)

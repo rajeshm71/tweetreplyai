@@ -189,7 +189,6 @@ export function ManageSubscriptionModal({
         alternativePlan={alternativePlan || undefined}
         onConfirm={handleConfirmCancel}
         onSwitchPlan={handleSwitchPlan}
-        onKeepPlan={handleKeepPlan}
       />
     </>
   );

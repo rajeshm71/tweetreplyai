@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import {
   AlertDialog,
   AlertDialogAction,
-  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
@@ -10,7 +9,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle, Check } from "lucide-react";
+import { AlertTriangle, X } from "lucide-react";
 import { PRICING_CONFIG } from "@/config/pricing";
 
 interface SubscriptionCancelConfirmDialogProps {
@@ -27,7 +26,6 @@ interface SubscriptionCancelConfirmDialogProps {
   };
   onConfirm: () => void;
   onSwitchPlan?: (planCode: string) => void;
-  onKeepPlan: () => void;
 }
 
 export function SubscriptionCancelConfirmDialog({
@@ -37,7 +35,6 @@ export function SubscriptionCancelConfirmDialog({
   alternativePlan,
   onConfirm,
   onSwitchPlan,
-  onKeepPlan,
 }: SubscriptionCancelConfirmDialogProps) {
   const [showCancelOptions, setShowCancelOptions] = useState(false);
   const planConfig = PRICING_CONFIG[subscription.planCode as keyof typeof PRICING_CONFIG];
@@ -61,12 +58,11 @@ export function SubscriptionCancelConfirmDialog({
     }
   };
 
-  // Handle dialog close (ESC key or click outside) - just close, don't trigger actions
+  // Handle dialog close (ESC key or click outside) - just close
   const handleDialogChange = (isOpen: boolean) => {
     if (!isOpen) {
-      // User closed dialog without choosing an action - reset state and close
+      // User closed dialog without choosing an action - reset state
       setShowCancelOptions(false);
-      onKeepPlan();
     }
     onOpenChange(isOpen);
   };
@@ -75,6 +71,13 @@ export function SubscriptionCancelConfirmDialog({
     <AlertDialog open={open} onOpenChange={handleDialogChange}>
       {/* Disable all animations: content element, children, and transitions */}
       <AlertDialogContent className="!animate-none !transition-none [&>div]:!animate-none [&>div]:!transition-none data-[state=open]:!animate-none data-[state=closed]:!animate-none">
+        <button
+          onClick={() => onOpenChange(false)}
+          className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none"
+        >
+          <X className="h-4 w-4" />
+          <span className="sr-only">Close</span>
+        </button>
         <AlertDialogHeader>
           <div className="flex items-center gap-3 mb-2">
             <div className="w-10 h-10 rounded-full bg-destructive/10 flex items-center justify-center">
@@ -98,7 +101,7 @@ export function SubscriptionCancelConfirmDialog({
               <p className="text-sm text-foreground">
                 <span className="font-semibold">Your subscription will remain active until {accessEndDate}.</span>
                 <br />
-                <span className="text-muted-foreground">After that, you'll be moved to the free trial plan with limited features.</span>
+                <span className="text-muted-foreground">After that, you'll lose access to all features.</span>
               </p>
             </div>
 
@@ -109,13 +112,6 @@ export function SubscriptionCancelConfirmDialog({
         </AlertDialogHeader>
         
         <AlertDialogFooter className="flex-col sm:flex-row gap-3 items-stretch sm:items-center">
-          <AlertDialogCancel asChild>
-            <Button variant="outline" onClick={onKeepPlan} className="w-full sm:w-auto">
-              <Check className="w-4 h-4 mr-2" />
-              Keep My Plan
-            </Button>
-          </AlertDialogCancel>
-          
           {alternativePlan && onSwitchPlan && (
             <Button
               variant="outline"
@@ -141,7 +137,7 @@ export function SubscriptionCancelConfirmDialog({
                 aria-expanded={showCancelOptions}
                 aria-controls="cancel-options"
               >
-                Show cancellation options
+                Show cancellation option
               </button>
             ) : (
               <AlertDialogAction asChild>
