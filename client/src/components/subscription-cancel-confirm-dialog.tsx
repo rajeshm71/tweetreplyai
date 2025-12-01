@@ -63,7 +63,8 @@ export function SubscriptionCancelConfirmDialog({
 
   return (
     <AlertDialog open={open} onOpenChange={handleDialogChange}>
-      <AlertDialogContent>
+      {/* Disable all animations: content element, children, and transitions */}
+      <AlertDialogContent className="!animate-none !transition-none [&>div]:!animate-none [&>div]:!transition-none data-[state=open]:!animate-none data-[state=closed]:!animate-none">
         <AlertDialogHeader>
           <div className="flex items-center gap-3 mb-2">
             <div className="w-10 h-10 rounded-full bg-destructive/10 flex items-center justify-center">
@@ -97,7 +98,7 @@ export function SubscriptionCancelConfirmDialog({
           </AlertDialogDescription>
         </AlertDialogHeader>
         
-        <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+        <AlertDialogFooter className="flex-col sm:flex-row gap-3 items-stretch sm:items-center">
           <AlertDialogCancel asChild>
             <Button variant="outline" onClick={onKeepPlan} className="w-full sm:w-auto">
               <Check className="w-4 h-4 mr-2" />
@@ -107,9 +108,9 @@ export function SubscriptionCancelConfirmDialog({
           
           {alternativePlan && onSwitchPlan && (
             <Button
-              variant="default"
+              variant="outline"
               onClick={handleSwitchPlan}
-              className="w-full sm:w-auto"
+              className="w-full sm:w-auto bg-primary text-primary-foreground hover:bg-primary/90 border-primary"
             >
               Switch to {alternativePlan.name}
             </Button>
@@ -117,12 +118,12 @@ export function SubscriptionCancelConfirmDialog({
           
           <AlertDialogAction asChild>
             <Button
-              variant="destructive"
+              variant="ghost"
               onClick={(e) => {
                 e.preventDefault();
                 onConfirm();
               }}
-              className="w-full sm:w-auto"
+              className="w-full sm:w-auto text-muted-foreground hover:text-destructive hover:bg-destructive/10"
             >
               Yes, Cancel Subscription
             </Button>
