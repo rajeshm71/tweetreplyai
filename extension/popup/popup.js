@@ -577,34 +577,33 @@ class PopupManager {
   }
 
   formatModeBreakdown(breakdown) {
-    if (!breakdown || typeof breakdown !== 'object') return null;
-    
+    // Always show all three modes, even if breakdown is empty or null
     const modeNames = {
       'single-sentence': 'Concise',
       'base': 'Balanced',
       'enhanced': 'Enhanced'
     };
     
+    // Always show all three modes, even if 0/0
+    const allModes = ['single-sentence', 'base', 'enhanced'];
     const parts = [];
     let totalReplies = 0;
     let totalCredits = 0;
     
-    for (const [modeKey, data] of Object.entries(breakdown)) {
-      // Defensive check: validate data structure before processing
-      if (data && typeof data === 'object' && 'replies' in data && 'credits' in data) {
-        const replies = Number(data.replies) || 0;
-        const credits = Number(data.credits) || 0;
-        
-        if (replies > 0) {
-          const modeName = modeNames[modeKey] || modeKey;
-          parts.push(`${modeName}: ${replies} (${credits})`);
-          totalReplies += replies;
-          totalCredits += credits;
-        }
-      }
+    for (const modeKey of allModes) {
+      const data = breakdown && typeof breakdown === 'object' ? breakdown[modeKey] : null;
+      const replies = (data && typeof data === 'object' && 'replies' in data) 
+        ? (Number(data.replies) || 0) 
+        : 0;
+      const credits = (data && typeof data === 'object' && 'credits' in data) 
+        ? (Number(data.credits) || 0) 
+        : 0;
+      
+      const modeName = modeNames[modeKey] || modeKey;
+      parts.push(`${modeName}: ${replies} (${credits})`);
+      totalReplies += replies;
+      totalCredits += credits;
     }
-    
-    if (parts.length === 0) return null;
     
     return {
       parts: parts.join(' | '),
@@ -616,21 +615,25 @@ class PopupManager {
   updateModeBreakdown() {
     if (!this.modeBreakdown) return;
     
-    if (this.usageData && this.usageData.modeBreakdown) {
-      const formatted = this.formatModeBreakdown(this.usageData.modeBreakdown);
-      if (formatted) {
-        // Use usage.used as source of truth for total credits to ensure consistency
-        const totalCredits = this.usageData.used || formatted.totalCredits;
-        this.modeBreakdown.innerHTML = `
-          <div style="margin-bottom: 4px;">${formatted.parts}</div>
-          <div style="font-weight: 600; color: rgba(255, 255, 255, 0.9);">Total: ${formatted.totalReplies} replies, ${totalCredits} credits</div>
-        `;
-        this.modeBreakdown.style.display = 'block';
-      } else {
-        this.modeBreakdown.style.display = 'none';
-      }
+    if (this.usageData) {
+      // Always format breakdown (will show 0/0 for missing modes)
+      const breakdown = this.usageData.modeBreakdown;
+      const formatted = this.formatModeBreakdown(breakdown);
+      
+      // Use usage.used as source of truth for total credits
+      const totalCredits = this.usageData.used || formatted.totalCredits;
+      this.modeBreakdown.innerHTML = `
+        <div style="margin-bottom: 4px;">${formatted.parts}</div>
+        <div style="font-weight: 600; color: rgba(255, 255, 255, 0.9);">Total: ${formatted.totalReplies} replies, ${totalCredits} credits</div>
+      `;
+      this.modeBreakdown.style.display = 'block';
     } else {
-      this.modeBreakdown.style.display = 'none';
+      // Show default 0/0 for all modes if no usage data
+      this.modeBreakdown.innerHTML = `
+        <div style="margin-bottom: 4px;">Concise: 0 (0) | Balanced: 0 (0) | Enhanced: 0 (0)</div>
+        <div style="font-weight: 600; color: rgba(255, 255, 255, 0.9);">Total: 0 replies, 0 credits</div>
+      `;
+      this.modeBreakdown.style.display = 'block';
     }
   }
 

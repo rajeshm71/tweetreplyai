@@ -207,8 +207,8 @@ body {
   line-height: var(--line-height-normal);
   color: var(--color-text-primary);
   background: linear-gradient(135deg, var(--color-background-secondary) 0%, var(--color-background-tertiary) 100%);
-  width: 360px;
-  min-height: 500px;
+  width: 420px;
+  min-height: 600px;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -220,7 +220,7 @@ body {
 #app {
   display: flex;
   flex-direction: column;
-  min-height: 400px;
+  min-height: 550px;
 }
 
 /* ============================================
