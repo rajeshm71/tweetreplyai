@@ -1,7 +1,7 @@
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
-import { TrendingUp, Download, X, Chrome, Clock, Zap } from "lucide-react";
+import { TrendingUp, Download, X, Chrome, Clock, Zap, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { AppHeader } from "@/components/app-header";
@@ -30,6 +30,11 @@ type UsageStatus = {
   isWhitelisted?: boolean;
   upgradeRequired?: boolean;
   upgradeMessage?: string;
+  modeBreakdown?: {
+    'single-sentence'?: { replies: number; credits: number };
+    'base'?: { replies: number; credits: number };
+    'enhanced'?: { replies: number; credits: number };
+  };
 };
 
 const CHROME_EXTENSION_URL = "https://chromewebstore.google.com/detail/tweetreply-ai-powered-twi/nhpilcnghmcdhcbhndmemiggfekmdgem";
@@ -39,6 +44,7 @@ export default function Home() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const generateReplyRef = useRef<GenerateReplyRef>(null);
+  const [showBreakdown, setShowBreakdown] = useState(false);
   
   // Fix: Add localStorage error handling for SSR safety
   const [isBannerDismissed, setIsBannerDismissed] = useState(() => {
@@ -320,6 +326,55 @@ export default function Home() {
                         Resets {formatDistanceToNow(new Date(usageStatus.resetAt), { addSuffix: true })}
                       </span>
                     </div>
+
+                    {/* Credit Breakdown Section - within Usage Limit card */}
+                    {usageStatus.modeBreakdown && (
+                      <div className="mt-4 border-t pt-4">
+                        <button
+                          onClick={() => setShowBreakdown(!showBreakdown)}
+                          className="flex items-center justify-between w-full text-sm font-medium text-foreground hover:text-primary transition-colors"
+                        >
+                          <span>Credit Breakdown</span>
+                          {showBreakdown ? (
+                            <ChevronUp className="w-4 h-4" />
+                          ) : (
+                            <ChevronDown className="w-4 h-4" />
+                          )}
+                        </button>
+                        
+                        {showBreakdown && (
+                          <div className="mt-3 space-y-2">
+                            {usageStatus.modeBreakdown['single-sentence'] && (
+                              <div className="flex justify-between text-xs">
+                                <span className="text-muted-foreground">Concise:</span>
+                                <span className="font-medium">
+                                  {usageStatus.modeBreakdown['single-sentence'].replies} replies, {usageStatus.modeBreakdown['single-sentence'].credits} credits
+                                </span>
+                              </div>
+                            )}
+                            {usageStatus.modeBreakdown['base'] && (
+                              <div className="flex justify-between text-xs">
+                                <span className="text-muted-foreground">Balanced:</span>
+                                <span className="font-medium">
+                                  {usageStatus.modeBreakdown['base'].replies} replies, {usageStatus.modeBreakdown['base'].credits} credits
+                                </span>
+                              </div>
+                            )}
+                            {usageStatus.modeBreakdown['enhanced'] && (
+                              <div className="flex justify-between text-xs">
+                                <span className="text-muted-foreground">Enhanced:</span>
+                                <span className="font-medium">
+                                  {usageStatus.modeBreakdown['enhanced'].replies} replies, {usageStatus.modeBreakdown['enhanced'].credits} credits
+                                </span>
+                              </div>
+                            )}
+                            <div className="pt-2 border-t text-xs font-semibold text-foreground">
+                              Total: {usageStatus.used} credits
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {/* Upgrade CTA (if needed) */}
                     {usageStatus.upgradeRequired && !usageStatus.isWhitelisted && (
