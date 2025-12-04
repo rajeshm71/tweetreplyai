@@ -72,9 +72,17 @@
           <span id="usage-text" class="usage-numbers">0 / 10 replies</span>
           <span id="reset-text" class="reset-time">Resets in --</span>
         </div>
-        <!-- Mode Breakdown Section -->
-        <div id="mode-breakdown" class="mode-breakdown" style="display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255, 255, 255, 0.2); font-size: 11px; color: rgba(255, 255, 255, 0.85); line-height: 1.6;">
-          <!-- Will be populated by JavaScript -->
+        <!-- Credit Breakdown Toggle -->
+        <div id="breakdown-toggle" class="breakdown-toggle" style="display: none;">
+          <button id="breakdown-btn" class="breakdown-btn" aria-expanded="false" aria-controls="breakdown-content">
+            <span>Credit Breakdown</span>
+            <svg id="breakdown-chevron" class="chevron-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M6 9l6 6 6-6"/>
+            </svg>
+          </button>
+          <div id="breakdown-content" class="breakdown-content" style="display: none;">
+            <!-- Populated by JavaScript -->
+          </div>
         </div>
       </div>
 

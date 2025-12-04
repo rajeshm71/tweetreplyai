@@ -50,6 +50,17 @@ export class AuthService {
         break;
     }
 
+    // Include name fields from Google OAuth profile
+    if (profile.firstName) {
+      userData.firstName = profile.firstName;
+    }
+    if (profile.lastName) {
+      userData.lastName = profile.lastName;
+    }
+    if (profile.profileImageUrl) {
+      userData.profileImageUrl = profile.profileImageUrl;
+    }
+
     return await storage.upsertUser(userData);
   }
 
@@ -67,13 +78,14 @@ export class AuthService {
         break;
     }
 
-    if (profile.firstName && !updates.firstName) {
+    // Fix: Removed redundant !updates checks since updates is built locally
+    if (profile.firstName) {
       updates.firstName = profile.firstName;
     }
-    if (profile.lastName && !updates.lastName) {
+    if (profile.lastName) {
       updates.lastName = profile.lastName;
     }
-    if (profile.profileImageUrl && !updates.profileImageUrl) {
+    if (profile.profileImageUrl) {
       updates.profileImageUrl = profile.profileImageUrl;
     }
 

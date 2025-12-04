@@ -4,6 +4,9 @@ export interface User {
   email: string;
   password?: string;
   googleSub?: string;
+  firstName?: string;
+  lastName?: string;
+  profileImageUrl?: string;
   dodoCustomerId?: string;
   authProviders?: string[];
   hasUsedTrial?: boolean;
@@ -16,6 +19,9 @@ export interface UpsertUser {
   email: string;
   password?: string;
   googleSub?: string;
+  firstName?: string;
+  lastName?: string;
+  profileImageUrl?: string;
   dodoCustomerId?: string;
   authProviders?: string[];
   hasUsedTrial?: boolean;

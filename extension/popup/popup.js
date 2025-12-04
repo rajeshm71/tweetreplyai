@@ -235,7 +235,7 @@ class PopupManager {
     this.todayReplies = document.getElementById('today-replies');
     this.successRate = document.getElementById('success-rate');
     this.timeSaved = document.getElementById('time-saved');
-    this.modeBreakdown = document.getElementById('mode-breakdown');
+    // Breakdown toggle is accessed via getElementById in updateModeBreakdown()
     
     // Settings
     this.settingsPanel = document.getElementById('settings-panel');
@@ -576,64 +576,82 @@ class PopupManager {
     this.updateQuickStats();
   }
 
-  formatModeBreakdown(breakdown) {
-    // Always show all three modes, even if breakdown is empty or null
-    const modeNames = {
-      'single-sentence': 'Concise',
-      'base': 'Balanced',
-      'enhanced': 'Enhanced'
-    };
-    
-    // Always show all three modes, even if 0/0
-    const allModes = ['single-sentence', 'base', 'enhanced'];
-    const parts = [];
-    let totalReplies = 0;
-    let totalCredits = 0;
-    
-    for (const modeKey of allModes) {
-      const data = breakdown && typeof breakdown === 'object' ? breakdown[modeKey] : null;
-      const replies = (data && typeof data === 'object' && 'replies' in data) 
-        ? (Number(data.replies) || 0) 
-        : 0;
-      const credits = (data && typeof data === 'object' && 'credits' in data) 
-        ? (Number(data.credits) || 0) 
-        : 0;
-      
-      const modeName = modeNames[modeKey] || modeKey;
-      parts.push(`${modeName}: ${replies} (${credits})`);
-      totalReplies += replies;
-      totalCredits += credits;
-    }
-    
-    return {
-      parts: parts.join(' | '),
-      totalReplies,
-      totalCredits
-    };
-  }
+  // formatModeBreakdown() removed - no longer used after collapsible breakdown implementation
 
   updateModeBreakdown() {
-    if (!this.modeBreakdown) return;
-    
-    if (this.usageData) {
-      // Always format breakdown (will show 0/0 for missing modes)
-      const breakdown = this.usageData.modeBreakdown;
-      const formatted = this.formatModeBreakdown(breakdown);
+    try {
+      const toggle = document.getElementById('breakdown-toggle');
+      const btn = document.getElementById('breakdown-btn');
+      const content = document.getElementById('breakdown-content');
+      const chevron = document.getElementById('breakdown-chevron');
       
-      // Use usage.used as source of truth for total credits
-      const totalCredits = this.usageData.used || formatted.totalCredits;
-      this.modeBreakdown.innerHTML = `
-        <div style="margin-bottom: 4px;">${formatted.parts}</div>
-        <div style="font-weight: 600; color: rgba(255, 255, 255, 0.9);">Total: ${formatted.totalReplies} replies, ${totalCredits} credits</div>
-      `;
-      this.modeBreakdown.style.display = 'block';
-    } else {
-      // Show default 0/0 for all modes if no usage data
-      this.modeBreakdown.innerHTML = `
-        <div style="margin-bottom: 4px;">Concise: 0 (0) | Balanced: 0 (0) | Enhanced: 0 (0)</div>
-        <div style="font-weight: 600; color: rgba(255, 255, 255, 0.9);">Total: 0 replies, 0 credits</div>
-      `;
-      this.modeBreakdown.style.display = 'block';
+      if (!toggle || !btn || !content || !chevron) return;
+      
+      // Setup click handler (once) - Fix: Added accessibility attributes
+      if (!btn.dataset.initialized) {
+        btn.setAttribute('aria-expanded', 'false');
+        btn.setAttribute('aria-controls', 'breakdown-content');
+        
+        btn.addEventListener('click', () => {
+          const isExpanded = content.style.display !== 'none';
+          const newState = !isExpanded;
+          content.style.display = newState ? 'block' : 'none';
+          chevron.classList.toggle('expanded', newState);
+          // Fix: Update aria-expanded for accessibility
+          btn.setAttribute('aria-expanded', String(newState));
+        });
+        btn.dataset.initialized = 'true';
+      }
+      
+      if (this.usageData) {
+        const breakdown = this.usageData.modeBreakdown || {};
+        const totalCredits = this.usageData.used || 0;
+        
+        // Build breakdown rows - Fix: Using numeric conversion for XSS safety
+        const modes = [
+          { key: 'single-sentence', label: 'Concise' },
+          { key: 'base', label: 'Balanced' },
+          { key: 'enhanced', label: 'Enhanced' }
+        ];
+        
+        let totalReplies = 0;
+        let rows = '';
+        
+        for (const mode of modes) {
+          const data = breakdown[mode.key] || { replies: 0, credits: 0 };
+          // Fix: Ensure numeric values to prevent XSS
+          const replies = Number(data.replies) || 0;
+          const credits = Number(data.credits) || 0;
+          totalReplies += replies;
+          
+          // Fix: Mode label is static, numeric values are safe
+          rows += `
+            <div class="breakdown-row">
+              <span class="breakdown-label">${mode.label}:</span>
+              <span class="breakdown-value">${replies} replies, ${credits} credits</span>
+            </div>
+          `;
+        }
+        
+        // Fix: innerHTML is safe here - mode.label is static, values are numeric
+        content.innerHTML = `
+          ${rows}
+          <div class="breakdown-total">
+            Total: ${totalReplies} replies, ${totalCredits} credits
+          </div>
+        `;
+        
+        toggle.style.display = 'block';
+      } else {
+        toggle.style.display = 'none';
+      }
+    } catch (error) {
+      // Fix: Added error handling to prevent crashes
+      console.error('[Popup] Failed to update breakdown:', error);
+      const toggle = document.getElementById('breakdown-toggle');
+      if (toggle) {
+        toggle.style.display = 'none';
+      }
     }
   }
 
@@ -1261,9 +1279,10 @@ class PopupManager {
       // Debug: Log user object to see what fields are available
       console.log('User object for welcome message:', user);
       
+      // Fix: Prioritize full name (firstName + lastName) over firstName alone
       // Try to extract name from various possible fields
       let name = user.name || user.displayName || user.fullName || 
-                 user.firstName || (user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : null);
+                 (user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : user.firstName);
       
       // If no name field exists, extract from email more intelligently
       if (!name && user.email) {
