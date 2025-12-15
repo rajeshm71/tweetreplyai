@@ -118,9 +118,39 @@ export class UsageService {
       }
     }
 
-    // Check if user has already used trial - if so, no access
+    // FIRST: Check for active trial counter (before checking hasUsedTrial flag)
+    // This allows users to continue their existing trial even if flag is set
+    const activeTrialCounter = await storage.getActiveTrialCounter(user.id);
+    if (activeTrialCounter && activeTrialCounter.periodEnd > now) {
+      console.log('Found active trial counter - returning trial window with actual counter dates');
+      // FIX: Validate activeTrialCounter.limit to prevent corrupted data from propagating
+      // If counter has invalid limit, fallback to current config value
+      const validatedLimit = activeTrialCounter.limit > 0 
+        ? activeTrialCounter.limit 
+        : whitelistService.getTrialLimit();
+      
+      if (activeTrialCounter.limit <= 0) {
+        console.warn('[USAGE-DEBUG] WARNING: Active trial counter has invalid limit, using config fallback:', { 
+          counterLimit: activeTrialCounter.limit, 
+          fallbackLimit: validatedLimit 
+        });
+      }
+      
+      const result = {
+        planCode: 'trial',
+        periodStart: activeTrialCounter.periodStart, // Use counter's actual periodStart
+        periodEnd: activeTrialCounter.periodEnd, // Use counter's actual periodEnd
+        limit: validatedLimit, // FIX: Use validated limit instead of raw counter limit
+        resetAt: activeTrialCounter.resetAt, // Use counter's actual resetAt
+      };
+      console.log('Returning active trial window:', result);
+      return result;
+    }
+
+    // ONLY THEN: Check if user has already used trial - if so, no access
+    // This prevents new trials for users who have completed their trial
     if (user.hasUsedTrial) {
-      console.log('User has already used trial - returning no access');
+      console.log('User has already used trial and no active trial counter - returning no access');
       return null; // Will result in no_access status
     }
 
@@ -139,7 +169,7 @@ export class UsageService {
       limit: trialLimit,
       resetAt: trialPeriodEnd, // Reset after 7 days, not daily
     };
-    console.log('Returning trial window:', trialResult);
+    console.log('Returning new trial window:', trialResult);
     return trialResult;
   }
 
@@ -168,22 +198,42 @@ export class UsageService {
     // but keeping it for safety in case the method is modified in the future
     if (!window) {
       console.log('No active window - returning no access');
+      // Note: limit: 0 is intentional for "no_access" status (user has used trial and has no active subscription)
       return {
         planCode: 'none',
         used: 0,
-        limit: 0,
+        limit: 0, // Intentional: indicates no access
         resetAt: new Date(),
         status: 'no_access',
       };
     }
 
     // Get or create usage counter for this period
+    // Note: window.periodStart comes from either:
+    // 1. activeTrialCounter.periodStart (if active trial exists in resolveActiveWindow)
+    // 2. getTodayStart() (if new trial is being created)
+    // This ensures getUsageCounter() finds the correct counter or creates one with matching periodStart
     // Fix 3: For trial users, counter will be created with today's periodStart (first usage)
     // and periodEnd will be 7 days later (handled by getPeriodEnd in resolveActiveWindow)
     console.log('[USAGE-DEBUG] getUsageStatus - Looking up counter with periodStart:', window.periodStart.toISOString());
     let counter = await storage.getUsageCounter(userId, window.periodStart);
     if (!counter) {
       console.log('[USAGE-DEBUG] getUsageStatus - Counter NOT FOUND, creating new');
+      
+      // Validate window.limit before creating counter (P0: Critical fix)
+      // FIX: Return graceful error response instead of throwing to prevent 500 errors
+      if (window.limit <= 0) {
+        console.error('[USAGE-DEBUG] ERROR: window.limit is <= 0:', window.limit);
+        // Return no_access status instead of throwing to provide better UX
+        return {
+          planCode: 'none',
+          used: 0,
+          limit: 0,
+          resetAt: new Date(),
+          status: 'no_access',
+        };
+      }
+      
       // Fix 3: For trial, periodStart is today (first usage), periodEnd is 7 days later
       counter = await storage.createUsageCounter({
         id: crypto.randomUUID(),
@@ -197,24 +247,21 @@ export class UsageService {
         resetAt: window.resetAt,
         modeBreakdown: {}, // Initialize with empty breakdown object
       });
-      console.log('[USAGE-DEBUG] getUsageStatus - Created counter:', { id: counter.id, repliesUsed: counter.repliesUsed, periodStart: counter.periodStart.toISOString() });
       
-      // Mark user as having used trial if this is a trial counter
-      // Wrap in try-catch to handle potential database errors gracefully
-      if (window.planCode === 'trial' && !user.hasUsedTrial) {
-        try {
-          await storage.updateUser(userId, { hasUsedTrial: true });
-          console.log('[USAGE-DEBUG] Marked user as having used trial');
-        } catch (error) {
-          console.error('[USAGE-DEBUG] Failed to mark user as having used trial:', error);
-          // Don't throw - allow user to continue, but log the error for monitoring
-        }
+      // Validate counter was created with valid limit (defensive check)
+      if (counter.limit <= 0) {
+        console.error('[USAGE-DEBUG] WARNING: Counter created with invalid limit:', counter.limit);
       }
+      
+      console.log('[USAGE-DEBUG] getUsageStatus - Created counter:', { id: counter.id, repliesUsed: counter.repliesUsed, limit: counter.limit, periodStart: counter.periodStart.toISOString() });
+      // REMOVED: Premature flag setting - only set flag when trial period ends (see below)
     } else {
       console.log('[USAGE-DEBUG] getUsageStatus - Counter FOUND:', { id: counter.id, repliesUsed: counter.repliesUsed, limit: counter.limit, periodStart: counter.periodStart.toISOString() });
       // Fix 1: Update existing counter if limit doesn't match current config for ANY plan type
       // This handles cases where old counters have outdated limits (e.g., 5 from pre-migration, 50000 from testing)
-      if (counter.limit !== window.limit) {
+      // FIX: Added validation to ensure both counter.limit and window.limit are valid before updating
+      // IMPORTANT: Only update if both limits are valid (>0) to prevent overwriting with 0 or invalid values
+      if (counter.limit !== window.limit && window.limit > 0 && counter.limit > 0) {
         console.log(`[USAGE-DEBUG] Updating counter limit from ${counter.limit} to ${window.limit} (planCode: ${counter.planCode} -> ${window.planCode})`);
         await storage.updateUsageCounter(counter.id, {
           limit: window.limit,
@@ -224,6 +271,10 @@ export class UsageService {
         if (updatedCounter) {
           counter = updatedCounter;
         }
+      } else if (window.limit <= 0) {
+        console.warn(`[USAGE-DEBUG] WARNING: window.limit is ${window.limit}, skipping counter update to prevent overwriting with invalid limit`);
+      } else if (counter.limit <= 0) {
+        console.warn(`[USAGE-DEBUG] WARNING: counter.limit is ${counter.limit}, skipping counter update to prevent overwriting with invalid limit`);
       }
     }
 
@@ -244,21 +295,58 @@ export class UsageService {
     // Calculate current credits (with fallback for migration period)
     const currentCredits = counter.creditsUsed ?? (counter.repliesUsed * 2);
     
-    // Use window.limit to ensure we return the current config value, not the old database value
-    // This ensures the frontend always sees the correct limit even if the counter hasn't been updated yet
+    // Set hasUsedTrial flag only when trial period ends (not when counter is created)
+    // This prevents premature flag setting that blocks trial access
+    if (counter.planCode === 'trial' && !user.hasUsedTrial) {
+      const now = new Date();
+      const trialExpired = counter.periodEnd <= now;
+      
+      // Only mark trial as "used" when trial period has expired
+      // Note: We don't check credits here because:
+      // - If period expired, trial is done regardless of credits
+      // - If credits exhausted but period hasn't ended, user still has trial access until period ends
+      if (trialExpired) {
+        try {
+          await storage.updateUser(userId, { hasUsedTrial: true });
+          console.log('[USAGE-DEBUG] Marked user as having used trial (period ended)');
+        } catch (error) {
+          console.error('[USAGE-DEBUG] Failed to mark user as having used trial:', error);
+          // Don't throw - allow user to continue, but log the error for monitoring
+        }
+      }
+    }
+    
+    // Determine the limit to use: counter.limit is source of truth after creation/update,
+    // but fallback to window.limit if counter.limit is invalid (shouldn't happen, but defensive)
+    // FIX: Added final fallback to default 50 to prevent double-zero case (both counter.limit and window.limit are 0)
+    // This preserves the "current config" intent while ensuring we never return 0 for active users
+    const finalLimit = counter.limit > 0 
+      ? counter.limit 
+      : (window.limit > 0 
+          ? window.limit 
+          : 50); // Final fallback: default to 50 credits if both are invalid (should never happen)
+    
+    // Log warning if we're using fallback (indicates data issue)
+    if (counter.limit <= 0 && window.limit > 0) {
+      console.warn('[USAGE-DEBUG] WARNING: Counter has limit=0, using window.limit as fallback:', { counterLimit: counter.limit, windowLimit: window.limit });
+    } else if (counter.limit <= 0 && window.limit <= 0) {
+      console.error('[USAGE-DEBUG] ERROR: Both counter.limit and window.limit are invalid, using default 50:', { counterLimit: counter.limit, windowLimit: window.limit });
+    }
+    
+    // Use finalLimit for upgrade checks (ensures consistency)
     // FIX: Use credits instead of replies for upgrade check
-    const upgradeRequired = !isWhitelisted && currentCredits >= window.limit;
+    const upgradeRequired = !isWhitelisted && currentCredits >= finalLimit;
     // FIX: Pass credits instead of replies to upgrade message function
     const upgradeMessage = whitelistService.getUpgradeMessage(
       isWhitelisted,
       currentCredits,
-      window.limit
+      finalLimit
     );
 
     const result: UsageStatus = {
       planCode: window.planCode,
       used: counter.creditsUsed ?? (counter.repliesUsed * 2), // CHANGED: Use credits with fallback
-      limit: window.limit, // Already credits from resolveActiveWindow
+      limit: finalLimit, // Use counter.limit (source of truth) with window.limit fallback
       resetAt: counter.resetAt,
       status: 'active',
       isWhitelisted,
@@ -267,7 +355,15 @@ export class UsageService {
       modeBreakdown: counter.modeBreakdown || undefined, // Include mode breakdown in response
     };
     
-    console.log('Returning usage status:', result);
+    // Add debug logging to track limit values
+    console.log('[USAGE-DEBUG] Returning usage status:', {
+      counterLimit: counter.limit,
+      windowLimit: window.limit,
+      finalLimit: result.limit,
+      used: result.used,
+      planCode: result.planCode
+    });
+    
     return result;
   }
 

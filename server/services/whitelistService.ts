@@ -67,9 +67,14 @@ class WhitelistService {
   getBypassLimit(): number {
     // BYPASS_USER_LIMIT now represents credits, not replies
     const limit = parseInt(process.env.BYPASS_USER_LIMIT || '10000', 10);
-    // Validate limit is positive
+    // Validate limit is positive and not zero
     if (isNaN(limit) || limit < 0) {
       console.warn('[WhitelistService] Invalid BYPASS_USER_LIMIT, using default 10000');
+      return 10000;
+    }
+    // Explicitly prevent returning 0 (even if env var is explicitly set to "0") - FIX: Added for consistency with getTrialLimit()
+    if (limit === 0) {
+      console.warn('[WhitelistService] BYPASS_USER_LIMIT is 0, using default 10000');
       return 10000;
     }
     return limit;
@@ -84,9 +89,14 @@ class WhitelistService {
   getTrialLimit(): number {
     // TRIAL_LIMIT now represents credits, not replies
     const limit = parseInt(process.env.TRIAL_LIMIT || '50', 10);
-    // Validate limit is positive
+    // Validate limit is positive and not zero
     if (isNaN(limit) || limit < 0) {
       console.warn('[WhitelistService] Invalid TRIAL_LIMIT, using default 50');
+      return 50;
+    }
+    // Explicitly prevent returning 0 (even if env var is explicitly set to "0")
+    if (limit === 0) {
+      console.warn('[WhitelistService] TRIAL_LIMIT is 0, using default 50');
       return 50;
     }
     return limit;
