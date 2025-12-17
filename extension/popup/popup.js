@@ -358,10 +358,28 @@ class PopupManager {
       // Load quality metrics in parallel (don't block on it)
       this.loadQualityMetrics().catch(err => console.error('Quality metrics load failed:', err));
       
-      // Check if quota is exceeded
-      if (this.usageData && this.usageData.used >= this.usageData.limit) {
-        this.setState('quota-exceeded');
+      // Check usage status - distinguish between "no access" and "quota exceeded"
+      if (this.usageData) {
+        // If status is 'no_access', user has no trial/subscription access
+        if (this.usageData.status === 'no_access') {
+          // Don't show quota-exceeded for no_access - show authenticated state with upgrade message
+          // The upgrade message will guide user to subscribe
+          this.setState('authenticated');
+        } else if (this.usageData.status === 'trial' || this.usageData.status === 'active') {
+          // User has trial or active subscription access
+          if (this.usageData.used >= this.usageData.limit) {
+            // User has access but quota is exceeded (within trial/subscription period)
+            this.setState('quota-exceeded');
+          } else {
+            // User has access and quota available
+            this.setState('authenticated');
+          }
+        } else {
+          // Unknown status - default to authenticated state
+          this.setState('authenticated');
+        }
       } else {
+        // No usage data - default to authenticated state
         this.setState('authenticated');
       }
       
@@ -404,9 +422,6 @@ class PopupManager {
         
         // Update welcome message
         this.updateWelcomeMessage(user);
-        
-        // Update plan badge
-        this.updatePlanBadge(user);
       }
     } catch (error) {
       console.error('Failed to load user data:', error);
@@ -574,6 +589,9 @@ class PopupManager {
 
     // Update quick stats
     this.updateQuickStats();
+    
+    // Update plan badge after usage data is loaded
+    this.updatePlanBadge();
   }
 
   // formatModeBreakdown() removed - no longer used after collapsible breakdown implementation
@@ -1310,24 +1328,23 @@ class PopupManager {
     }
   }
 
-  updatePlanBadge(user) {
-    if (this.planBadge) {
-      // Determine plan based on user data
-      const plan = user.subscription?.plan || 'free';
+  updatePlanBadge() {
+    if (this.planBadge && this.usageData) {
+      // Use planCode from usage data (source of truth)
+      const planCode = this.usageData.planCode || 'trial';
       const planLabels = {
-        'free': 'Free Plan',
-        'pro': 'Pro Plan',
-        'premium': 'Premium Plan'
+        'trial': 'Free Trial',
+        'weekly': 'Weekly Plan',
+        'monthly': 'Monthly Plan',
+        'bypass': 'Pro Plan'
       };
-      this.planBadge.textContent = planLabels[plan] || 'Free Plan';
+      this.planBadge.textContent = planLabels[planCode] || 'Free Plan';
       
       // Update styling based on plan
       this.planBadge.className = 'plan-badge';
-      // Free plan uses CSS default (emerald/green gradient)
-      // Only override for pro and premium plans
-      if (plan === 'pro') {
+      if (planCode === 'weekly' || planCode === 'monthly') {
         this.planBadge.style.background = 'linear-gradient(135deg, #10B981, #059669)';
-      } else if (plan === 'premium') {
+      } else if (planCode === 'bypass') {
         this.planBadge.style.background = 'linear-gradient(135deg, #8B5CF6, #7C3AED)';
       } else {
         // Ensure free plan uses CSS default (remove any inline styles)

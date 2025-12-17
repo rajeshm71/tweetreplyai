@@ -295,20 +295,18 @@ export class UsageService {
     // Calculate current credits (with fallback for migration period)
     const currentCredits = counter.creditsUsed ?? (counter.repliesUsed * 2);
     
-    // Set hasUsedTrial flag only when trial period ends (not when counter is created)
+    // Set hasUsedTrial flag when trial period ends OR limit is reached
     // This prevents premature flag setting that blocks trial access
     if (counter.planCode === 'trial' && !user.hasUsedTrial) {
       const now = new Date();
       const trialExpired = counter.periodEnd <= now;
+      const limitReached = (counter.creditsUsed ?? (counter.repliesUsed * 2)) >= counter.limit;
       
-      // Only mark trial as "used" when trial period has expired
-      // Note: We don't check credits here because:
-      // - If period expired, trial is done regardless of credits
-      // - If credits exhausted but period hasn't ended, user still has trial access until period ends
-      if (trialExpired) {
+      // Mark trial as "used" when period expires OR limit is reached
+      if (trialExpired || limitReached) {
         try {
           await storage.updateUser(userId, { hasUsedTrial: true });
-          console.log('[USAGE-DEBUG] Marked user as having used trial (period ended)');
+          console.log('[USAGE-DEBUG] Marked user as having used trial (period ended or limit reached)');
         } catch (error) {
           console.error('[USAGE-DEBUG] Failed to mark user as having used trial:', error);
           // Don't throw - allow user to continue, but log the error for monitoring
