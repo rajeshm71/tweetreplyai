@@ -481,8 +481,18 @@
         await this.loadUserData();
         await this.loadUsageData();
         this.loadQualityMetrics().catch((err) => console.error("Quality metrics load failed:", err));
-        if (this.usageData && this.usageData.used >= this.usageData.limit) {
-          this.setState("quota-exceeded");
+        if (this.usageData) {
+          if (this.usageData.status === "no_access") {
+            this.setState("authenticated");
+          } else if (this.usageData.status === "trial" || this.usageData.status === "active") {
+            if (this.usageData.used >= this.usageData.limit) {
+              this.setState("quota-exceeded");
+            } else {
+              this.setState("authenticated");
+            }
+          } else {
+            this.setState("authenticated");
+          }
         } else {
           this.setState("authenticated");
         }
@@ -515,7 +525,6 @@
             this.userEmail.textContent = user.email || "Unknown";
           }
           this.updateWelcomeMessage(user);
-          this.updatePlanBadge(user);
         }
       } catch (error) {
         console.error("Failed to load user data:", error);
@@ -650,6 +659,7 @@
       }
       this.updateModeBreakdown();
       this.updateQuickStats();
+      this.updatePlanBadge();
     }
     // formatModeBreakdown() removed - no longer used after collapsible breakdown implementation
     updateModeBreakdown() {
@@ -1210,7 +1220,7 @@
     updateWelcomeMessage(user) {
       if (this.userName) {
         console.log("User object for welcome message:", user);
-        let name = user.name || user.displayName || user.fullName || user.firstName || (user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : null);
+        let name = user.name || user.displayName || user.fullName || (user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : user.firstName);
         if (!name && user.email) {
           const emailPrefix = user.email.split("@")[0];
           const cleanedName = emailPrefix.replace(/[0-9!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/g, "");
@@ -1227,19 +1237,20 @@
         this.userName.textContent = capitalizedName;
       }
     }
-    updatePlanBadge(user) {
-      if (this.planBadge) {
-        const plan = user.subscription?.plan || "free";
+    updatePlanBadge() {
+      if (this.planBadge && this.usageData) {
+        const planCode = this.usageData.planCode || "trial";
         const planLabels = {
-          "free": "Free Plan",
-          "pro": "Pro Plan",
-          "premium": "Premium Plan"
+          "trial": "Free Trial",
+          "weekly": "Weekly Plan",
+          "monthly": "Monthly Plan",
+          "bypass": "Pro Plan"
         };
-        this.planBadge.textContent = planLabels[plan] || "Free Plan";
+        this.planBadge.textContent = planLabels[planCode] || "Free Plan";
         this.planBadge.className = "plan-badge";
-        if (plan === "pro") {
+        if (planCode === "weekly" || planCode === "monthly") {
           this.planBadge.style.background = "linear-gradient(135deg, #10B981, #059669)";
-        } else if (plan === "premium") {
+        } else if (planCode === "bypass") {
           this.planBadge.style.background = "linear-gradient(135deg, #8B5CF6, #7C3AED)";
         } else {
           this.planBadge.style.background = "";
