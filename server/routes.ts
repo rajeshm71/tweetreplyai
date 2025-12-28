@@ -1198,11 +1198,11 @@ export async function registerRoutes(app: Express): Promise<Express> {
       // Serialize subscription dates to ISO strings for JSON response
       const serializedSubscription = subscription ? {
         ...subscription,
-        currentPeriodStart: (subscription.currentPeriodStart as Date).toISOString(),
-        currentPeriodEnd: (subscription.currentPeriodEnd as Date).toISOString(),
-        cancelAt: subscription.cancelAt?.toISOString(),
-        createdAt: (subscription.createdAt as Date).toISOString(),
-        updatedAt: (subscription.updatedAt as Date).toISOString(),
+        currentPeriodStart: subscription.currentPeriodStart instanceof Date ? subscription.currentPeriodStart.toISOString() : subscription.currentPeriodStart,
+        currentPeriodEnd: subscription.currentPeriodEnd instanceof Date ? subscription.currentPeriodEnd.toISOString() : subscription.currentPeriodEnd,
+        cancelAt: subscription.cancelAt instanceof Date ? subscription.cancelAt.toISOString() : subscription.cancelAt,
+        createdAt: subscription.createdAt instanceof Date ? subscription.createdAt.toISOString() : subscription.createdAt,
+        updatedAt: subscription.updatedAt instanceof Date ? subscription.updatedAt.toISOString() : subscription.updatedAt,
       } : null;
 
       res.json({
