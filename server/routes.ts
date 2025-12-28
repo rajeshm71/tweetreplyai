@@ -331,39 +331,6 @@ export async function registerRoutes(app: Express): Promise<Express> {
     }
   });
 
-  // Cancel subscription route
-  app.post('/api/subscription/cancel', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = getUserId(req);
-      const subscription = await storage.getActiveSubscription(userId);
-      
-      if (!subscription) {
-        return res.status(404).json({ message: "No active subscription found" });
-      }
-      
-      if (subscription.userId !== userId) {
-        return res.status(403).json({ message: "Unauthorized" });
-      }
-      
-      // Check if subscription is already canceled to avoid unnecessary API calls
-      if (subscription.status === 'canceled') {
-        return res.status(400).json({ message: "Subscription already canceled" });
-      }
-      
-      await dodoPaymentsService.cancelSubscription(subscription.dodoSubscriptionId);
-      await storage.updateSubscription(subscription.id, {
-        status: 'canceled',
-        cancelAt: new Date(),
-        cancelReason: 'user_canceled', // Added for consistency with webhook/checkout handlers
-      });
-      
-      res.json({ message: "Subscription canceled successfully" });
-    } catch (error: any) {
-      console.error('[Cancel Subscription] Error:', error);
-      res.status(500).json({ message: error.message || "Failed to cancel subscription" });
-    }
-  });
-
   // Usage and quota routes
   app.get('/api/usage', isAuthenticated, async (req: any, res) => {
     try {
@@ -1174,7 +1141,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
       const session = await dodoPaymentsService.createCustomerPortalSession(
         user.dodoCustomerId,
         returnUrl
-      );
+      ) as any;
 
       res.json({ portal_url: session.url });
 
@@ -1231,11 +1198,11 @@ export async function registerRoutes(app: Express): Promise<Express> {
       // Serialize subscription dates to ISO strings for JSON response
       const serializedSubscription = subscription ? {
         ...subscription,
-        currentPeriodStart: subscription.currentPeriodStart.toISOString(),
-        currentPeriodEnd: subscription.currentPeriodEnd.toISOString(),
+        currentPeriodStart: (subscription.currentPeriodStart as Date).toISOString(),
+        currentPeriodEnd: (subscription.currentPeriodEnd as Date).toISOString(),
         cancelAt: subscription.cancelAt?.toISOString(),
-        createdAt: subscription.createdAt.toISOString(),
-        updatedAt: subscription.updatedAt.toISOString(),
+        createdAt: (subscription.createdAt as Date).toISOString(),
+        updatedAt: (subscription.updatedAt as Date).toISOString(),
       } : null;
 
       res.json({
