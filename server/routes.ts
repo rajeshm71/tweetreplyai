@@ -1184,6 +1184,126 @@ export async function registerRoutes(app: Express): Promise<Express> {
     }
   });
 
+  // Get subscription details
+  app.get('/api/subscription', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const subscription = await storage.getActiveSubscription(userId);
+      const usageStatus = await usageService.getUsageStatus(userId);
+      
+      if (!usageStatus) {
+        return res.status(404).json({ message: "Usage status not found" });
+      }
+
+      // Determine plan details
+      let planDetails = null;
+      if (subscription) {
+        planDetails = PLANS[subscription.planCode];
+      } else if (usageStatus.planCode === 'trial') {
+        planDetails = {
+          code: 'trial',
+          name: 'Free Trial',
+          price: 0,
+          replies: 0,
+          credits: usageStatus.limit,
+          interval: 'week' as const,
+        };
+      } else if (usageStatus.planCode === 'bypass') {
+        planDetails = {
+          code: 'bypass',
+          name: 'Pro Plan',
+          price: 0,
+          replies: 0,
+          credits: usageStatus.limit,
+          interval: 'month' as const,
+        };
+      } else {
+        planDetails = {
+          code: 'free',
+          name: 'Free Plan',
+          price: 0,
+          replies: 0,
+          credits: usageStatus.limit,
+          interval: 'month' as const,
+        };
+      }
+
+      // Serialize subscription dates to ISO strings for JSON response
+      const serializedSubscription = subscription ? {
+        ...subscription,
+        currentPeriodStart: subscription.currentPeriodStart.toISOString(),
+        currentPeriodEnd: subscription.currentPeriodEnd.toISOString(),
+        cancelAt: subscription.cancelAt?.toISOString(),
+        createdAt: subscription.createdAt.toISOString(),
+        updatedAt: subscription.updatedAt.toISOString(),
+      } : null;
+
+      res.json({
+        subscription: serializedSubscription,
+        planDetails,
+        usageStatus: {
+          planCode: usageStatus.planCode,
+          used: usageStatus.used,
+          limit: usageStatus.limit,
+          status: usageStatus.status,
+        },
+      });
+    } catch (error) {
+      console.error("Error fetching subscription:", error);
+      res.status(500).json({ message: "Failed to fetch subscription" });
+    }
+  });
+
+  // Cancel subscription
+  app.post('/api/subscription/cancel', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const subscription = await storage.getActiveSubscription(userId);
+      
+      if (!subscription) {
+        return res.status(404).json({ message: "No active subscription found" });
+      }
+
+      if (subscription.status === 'canceled') {
+        return res.status(400).json({ message: "Subscription is already canceled" });
+      }
+
+      // Cancel subscription via Dodo Payments
+      await dodoPaymentsService.cancelSubscription(subscription.dodoSubscriptionId);
+
+      // Update subscription status in database
+      await storage.updateSubscription(subscription.id, {
+        status: 'canceled',
+        cancelAt: new Date(),
+      });
+
+      // Fetch updated subscription to return complete data
+      const updatedSubscription = await storage.getActiveSubscription(userId);
+      
+      // Serialize subscription dates to ISO strings for JSON response
+      const subscriptionToReturn = updatedSubscription || subscription;
+      const serializedSubscription = subscriptionToReturn ? {
+        ...subscriptionToReturn,
+        status: 'canceled' as const,
+        currentPeriodStart: subscriptionToReturn.currentPeriodStart.toISOString(),
+        currentPeriodEnd: subscriptionToReturn.currentPeriodEnd.toISOString(),
+        cancelAt: new Date().toISOString(),
+        createdAt: subscriptionToReturn.createdAt.toISOString(),
+        updatedAt: subscriptionToReturn.updatedAt.toISOString(),
+      } : null;
+      
+      res.json({ 
+        message: "Subscription canceled successfully",
+        subscription: serializedSubscription,
+      });
+    } catch (error: any) {
+      console.error("Error canceling subscription:", error);
+      res.status(500).json({ 
+        message: error.message || "Failed to cancel subscription" 
+      });
+    }
+  });
+
   // Dodo Payments webhook
   // Note: Raw body parser is applied in index.ts before express.json() for this route
   // Uses Dodo Payments SDK's built-in webhook verification

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
-import { Bell, Shield, Trash2, AlertTriangle, Settings } from "lucide-react";
+import { Bell, Shield, Trash2, AlertTriangle, Settings, CreditCard } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -22,6 +22,274 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
+import { format } from "date-fns";
+
+interface SubscriptionData {
+  subscription: {
+    id: string;
+    planCode: string;
+    status: 'active' | 'canceled' | 'past_due' | 'unpaid';
+    currentPeriodEnd: string;
+    cancelAt?: string;
+  } | null;
+  planDetails: {
+    code: string;
+    name: string;
+    price: number;
+    interval: 'week' | 'month';
+  } | null;
+  usageStatus: {
+    planCode: string;
+    used: number;
+    limit: number;
+    status: string;
+  };
+}
+
+function BillingCard() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  
+  // Fetch subscription data
+  const { data: subscriptionData, isLoading: subscriptionLoading } = useQuery<SubscriptionData>({
+    queryKey: ["/api/subscription"],
+    refetchOnWindowFocus: false,
+  });
+
+  // Cancel subscription mutation
+  const cancelSubscriptionMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", "/api/subscription/cancel", {});
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: "Failed to cancel subscription" }));
+        throw new Error(errorData.message || "Failed to cancel subscription");
+      }
+      return response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/subscription"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/usage"] });
+      toast({
+        title: "Subscription Canceled",
+        description: `Your subscription will remain active until ${format(new Date(data.subscription.currentPeriodEnd), "MMMM d, yyyy")}. You'll lose access after that date.`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to cancel subscription",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Handle billing portal
+  const handleManageBilling = async () => {
+    try {
+      const response = await apiRequest("POST", "/api/billing/portal", {});
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: "Billing portal is not available" }));
+        if (errorData.message.includes("Not implemented") || errorData.message.includes("No billing account")) {
+          toast({
+            title: "Billing Portal",
+            description: "Billing portal is coming soon. For now, you can cancel your subscription below.",
+          });
+        } else {
+          throw new Error(errorData.message || "Failed to open billing portal");
+        }
+        return;
+      }
+      const data = await response.json();
+      if (data.portal_url) {
+        window.open(data.portal_url, '_blank');
+      }
+    } catch (error: any) {
+      toast({
+        title: "Billing Portal",
+        description: error.message || "Billing portal is coming soon. For now, you can cancel your subscription below.",
+      });
+    }
+  };
+
+  // Handle upgrade
+  const handleUpgrade = () => {
+    window.location.href = '/pricing';
+  };
+
+  if (subscriptionLoading) {
+    return (
+      <Card data-testid="card-billing">
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <CreditCard className="w-5 h-5" />
+            <CardTitle>Billing & Subscription</CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-center py-8">
+            <div className="animate-spin w-6 h-6 border-2 border-primary border-t-transparent rounded-full" />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const subscription = subscriptionData?.subscription;
+  const planDetails = subscriptionData?.planDetails;
+  const usageStatus = subscriptionData?.usageStatus;
+  const planCode = usageStatus?.planCode || 'free';
+  const isFreeOrTrial = planCode === 'free' || planCode === 'trial';
+  const hasActiveSubscription = subscription && subscription.status === 'active';
+  const isCanceled = subscription && subscription.status === 'canceled';
+
+  // Determine status badge
+  let statusBadge = null;
+  if (hasActiveSubscription) {
+    statusBadge = <Badge className="bg-green-500">Active</Badge>;
+  } else if (isCanceled) {
+    statusBadge = <Badge variant="secondary">Canceled</Badge>;
+  } else if (planCode === 'trial') {
+    statusBadge = <Badge variant="outline">Free Trial</Badge>;
+  } else {
+    statusBadge = <Badge variant="outline">Free Plan</Badge>;
+  }
+
+  // Get next billing date
+  let nextBillingDate = null;
+  if (subscription && subscription.currentPeriodEnd) {
+    nextBillingDate = format(new Date(subscription.currentPeriodEnd), "MMMM d, yyyy");
+  } else if (isFreeOrTrial) {
+    nextBillingDate = "N/A";
+  }
+
+  return (
+    <Card data-testid="card-billing">
+      <CardHeader>
+        <div className="flex items-center gap-2">
+          <CreditCard className="w-5 h-5" />
+          <CardTitle>Billing & Subscription</CardTitle>
+        </div>
+        <CardDescription>
+          Manage your subscription and billing information
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {/* Current Plan */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label>Current Plan</Label>
+            {statusBadge}
+          </div>
+          <p className="text-sm font-medium">
+            {planDetails?.name || 'Free Plan'}
+          </p>
+          {planDetails && planDetails.price > 0 && (
+            <p className="text-sm text-muted-foreground">
+              ${(planDetails.price / 100).toFixed(2)} per {planDetails.interval}
+            </p>
+          )}
+        </div>
+
+        <Separator />
+
+        {/* Next Billing Date */}
+        {nextBillingDate && (
+          <>
+            <div className="space-y-2">
+              <Label>Next Billing Date</Label>
+              <p className="text-sm text-muted-foreground">
+                {isCanceled && subscription?.currentPeriodEnd
+                  ? `Canceled, active until ${nextBillingDate}`
+                  : nextBillingDate !== "N/A"
+                  ? nextBillingDate
+                  : "No upcoming billing"}
+              </p>
+            </div>
+            <Separator />
+          </>
+        )}
+
+        {/* Usage Info */}
+        {usageStatus && (
+          <>
+            <div className="space-y-2">
+              <Label>Usage</Label>
+              <p className="text-sm text-muted-foreground">
+                {usageStatus.used} / {usageStatus.limit} credits used
+              </p>
+            </div>
+            <Separator />
+          </>
+        )}
+
+        {/* Action Buttons */}
+        <div className="flex flex-col gap-3">
+          {isFreeOrTrial && (
+            <Button onClick={handleUpgrade} data-testid="button-upgrade-plan">
+              Upgrade Plan
+            </Button>
+          )}
+          
+          {hasActiveSubscription && (
+            <>
+              <Button 
+                variant="outline" 
+                onClick={handleManageBilling}
+                data-testid="button-manage-billing"
+              >
+                Manage Billing
+              </Button>
+              
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button 
+                    variant="destructive" 
+                    data-testid="button-cancel-subscription"
+                    disabled={cancelSubscriptionMutation.isPending}
+                  >
+                    Cancel Subscription
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Cancel Subscription?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Are you sure you want to cancel your subscription? Your subscription will remain active until{" "}
+                      {subscription?.currentPeriodEnd 
+                        ? format(new Date(subscription.currentPeriodEnd), "MMMM d, yyyy")
+                        : "the end of your billing period"}
+                      . You'll lose access after that date.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Keep Subscription</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => cancelSubscriptionMutation.mutate()}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      Cancel Subscription
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </>
+          )}
+
+          {!hasActiveSubscription && !isFreeOrTrial && (
+            <Button 
+              variant="outline" 
+              onClick={handleManageBilling}
+              data-testid="button-manage-billing"
+            >
+              Manage Billing
+            </Button>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function SettingsPage() {
   const { user, isLoading } = useAuth();
@@ -199,6 +467,9 @@ export default function SettingsPage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Billing & Subscription Card */}
+          <BillingCard />
 
           {/* Security Card */}
           <Card data-testid="card-security">
