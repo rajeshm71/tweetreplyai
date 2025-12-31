@@ -368,9 +368,13 @@ export async function registerRoutes(app: Express): Promise<Express> {
       };
 
       res.json(serializedStatus);
-    } catch (error) {
+    } catch (error: any) {
       console.error("[API-DEBUG] /api/usage - ERROR:", error);
-      res.status(500).json({ message: "Failed to fetch usage" });
+      console.error("[API-DEBUG] /api/usage - ERROR stack:", error?.stack);
+      res.status(500).json({ 
+        message: "Failed to fetch usage",
+        error: process.env.NODE_ENV === 'development' ? error?.message : undefined
+      });
     }
   });
 
