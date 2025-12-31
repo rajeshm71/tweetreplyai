@@ -36,38 +36,6 @@ export function AppHeader() {
     }
   };
 
-  const handleBilling = async () => {
-    try {
-      const response = await fetch('/api/billing/portal', {
-        method: 'POST',
-        credentials: 'include',
-      });
-      
-      if (response.status === 401) {
-        toast({
-          title: "Unauthorized",
-          description: "Please log in again",
-          variant: "destructive",
-        });
-        window.location.href = "/login";
-        return;
-      }
-      
-      if (!response.ok) {
-        throw new Error('Failed to create portal session');
-      }
-      
-      const data = await response.json();
-      window.open(data.portal_url, '_blank');
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to open billing portal",
-        variant: "destructive",
-      });
-    }
-  };
-
   const getUserInitials = () => {
     if (user?.firstName && user?.lastName) {
       return `${user.firstName[0]}${user.lastName[0]}`.toUpperCase();
@@ -139,17 +107,6 @@ export function AppHeader() {
             
             <ThemeToggle />
             
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={handleBilling}
-              className="hidden sm:flex rounded-lg transition-all duration-300 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-              data-testid="button-manage-billing"
-              aria-label="Manage billing and subscription"
-            >
-              Manage billing
-            </Button>
-
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button 

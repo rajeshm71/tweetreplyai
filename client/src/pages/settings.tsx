@@ -84,34 +84,6 @@ function BillingCard() {
     },
   });
 
-  // Handle billing portal
-  const handleManageBilling = async () => {
-    try {
-      const response = await apiRequest("POST", "/api/billing/portal", {});
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: "Billing portal is not available" }));
-        if (errorData.message.includes("Not implemented") || errorData.message.includes("No billing account")) {
-          toast({
-            title: "Billing Portal",
-            description: "Billing portal is coming soon. For now, you can cancel your subscription below.",
-          });
-        } else {
-          throw new Error(errorData.message || "Failed to open billing portal");
-        }
-        return;
-      }
-      const data = await response.json();
-      if (data.portal_url) {
-        window.open(data.portal_url, '_blank');
-      }
-    } catch (error: any) {
-      toast({
-        title: "Billing Portal",
-        description: error.message || "Billing portal is coming soon. For now, you can cancel your subscription below.",
-      });
-    }
-  };
-
   // Handle upgrade
   const handleUpgrade = () => {
     window.location.href = '/pricing';
@@ -232,58 +204,38 @@ function BillingCard() {
           )}
           
           {hasActiveSubscription && (
-            <>
-              <Button 
-                variant="outline" 
-                onClick={handleManageBilling}
-                data-testid="button-manage-billing"
-              >
-                Manage Billing
-              </Button>
-              
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button 
-                    variant="destructive" 
-                    data-testid="button-cancel-subscription"
-                    disabled={cancelSubscriptionMutation.isPending}
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button 
+                  variant="destructive" 
+                  data-testid="button-cancel-subscription"
+                  disabled={cancelSubscriptionMutation.isPending}
+                >
+                  Cancel Subscription
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Cancel Subscription?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Are you sure you want to cancel your subscription? Your subscription will remain active until{" "}
+                    {subscription?.currentPeriodEnd 
+                      ? format(new Date(subscription.currentPeriodEnd), "MMMM d, yyyy")
+                      : "the end of your billing period"}
+                    . You'll lose access after that date.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Keep Subscription</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => cancelSubscriptionMutation.mutate()}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                   >
                     Cancel Subscription
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Cancel Subscription?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Are you sure you want to cancel your subscription? Your subscription will remain active until{" "}
-                      {subscription?.currentPeriodEnd 
-                        ? format(new Date(subscription.currentPeriodEnd), "MMMM d, yyyy")
-                        : "the end of your billing period"}
-                      . You'll lose access after that date.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Keep Subscription</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={() => cancelSubscriptionMutation.mutate()}
-                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                    >
-                      Cancel Subscription
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </>
-          )}
-
-          {!hasActiveSubscription && !isFreeOrTrial && (
-            <Button 
-              variant="outline" 
-              onClick={handleManageBilling}
-              data-testid="button-manage-billing"
-            >
-              Manage Billing
-            </Button>
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           )}
         </div>
       </CardContent>
