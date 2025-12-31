@@ -361,7 +361,13 @@ export async function registerRoutes(app: Express): Promise<Express> {
       });
       console.log('[API-DEBUG] ========== GET /api/usage END ==========');
 
-      res.json(status);
+      // Serialize Date objects to ISO strings for JSON response
+      const serializedStatus = {
+        ...status,
+        resetAt: status.resetAt instanceof Date ? status.resetAt.toISOString() : status.resetAt,
+      };
+
+      res.json(serializedStatus);
     } catch (error) {
       console.error("[API-DEBUG] /api/usage - ERROR:", error);
       res.status(500).json({ message: "Failed to fetch usage" });
