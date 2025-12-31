@@ -1,4 +1,5 @@
-import { storage } from "../storage.js";
+// Import storage directly to avoid bundling issues with re-exports
+import { storage } from "../storage-supabase.js";
 import { PLANS } from "./dodo-payments.js";
 import { whitelistService } from "./whitelistService.js";
 import { getCreditCost } from "./credits.js";
