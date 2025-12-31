@@ -101,7 +101,7 @@ export function AppHeader() {
             </nav>
           </div>
 
-          {/* Right side: Usage, Billing, Theme Toggle, Profile - Sprint 3: Added theme toggle */}
+          {/* Right side: Usage, Theme Toggle, Profile - Sprint 3: Added theme toggle */}
           <div className="flex items-center space-x-3">
             <UsageBadge />
             
@@ -148,10 +148,6 @@ export function AppHeader() {
                 <DropdownMenuItem onClick={() => setLocation('/settings')} data-testid="menu-item-settings" role="menuitem" aria-label="View settings">
                   <Settings className="mr-2 h-4 w-4" aria-hidden="true" />
                   <span>Settings</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleBilling} className="sm:hidden" data-testid="menu-item-billing" role="menuitem" aria-label="Manage billing">
-                  <Settings className="mr-2 h-4 w-4" aria-hidden="true" />
-                  <span>Manage Billing</span>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLogout} data-testid="menu-item-logout" role="menuitem" aria-label="Log out">
