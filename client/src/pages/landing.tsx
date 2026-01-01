@@ -739,7 +739,7 @@ export default function Landing() {
           <Button
             variant="ghost"
             onClick={() => window.location.href = '/login'}
-            className="w-full bg-gradient-to-r from-primary to-primary/80 text-white border-0 font-semibold hover:scale-105 transition-all duration-300"
+            className="w-full bg-primary text-white border-0 font-semibold hover:scale-105 transition-all duration-300"
             size="lg"
             aria-label="Start replying with TweetReplyAI"
           >
@@ -817,7 +817,7 @@ export default function Landing() {
                     variant="ghost"
                     size="lg"
                     onClick={() => window.location.href = '/login'}
-                    className="h-14 px-8 text-lg bg-gradient-to-r from-primary to-primary/80 text-white border-0 font-semibold hover:scale-105 transition-all duration-300"
+                    className="h-14 px-8 text-lg bg-primary text-white border-0 font-semibold hover:scale-105 transition-all duration-300"
                     data-testid="button-start-trial"
                   >
                     <Sparkles className="w-5 h-5 mr-3" />
@@ -1762,7 +1762,7 @@ export default function Landing() {
                   variant="ghost"
                   size="lg"
                   onClick={() => window.location.href = '/login'}
-                  className="h-16 px-10 text-lg bg-gradient-to-r from-primary to-primary/80 text-white border-0 font-semibold hover:scale-105 transition-all duration-300"
+                  className="h-16 px-10 text-lg bg-primary text-white border-0 font-semibold hover:scale-105 transition-all duration-300"
                   data-testid="button-final-cta"
                 >
                   <Sparkles className="w-6 h-6 mr-3" />

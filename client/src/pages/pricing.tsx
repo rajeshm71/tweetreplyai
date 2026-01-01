@@ -29,7 +29,7 @@ export default function Pricing() {
             ) : (
               <Button 
                 onClick={() => window.location.href = '/api/login'}
-                className="bg-gradient-to-r from-primary to-primary/80 text-white shadow-lg hover-lift border-0"
+                className="bg-primary text-white hover-lift border-0 transition-all duration-300"
               >
                 Sign In
                 <ArrowRight className="w-4 h-4 ml-2" />
@@ -96,7 +96,7 @@ export default function Pricing() {
                 <Button 
                   size="lg"
                   onClick={() => window.location.href = '/api/login'}
-                  className="h-14 px-8 text-lg bg-gradient-to-r from-primary to-primary/80 text-white shadow-2xl hover-lift pulse-glow border-0 font-semibold"
+                  className="h-14 px-8 text-lg bg-primary text-white hover-lift border-0 font-semibold transition-all duration-300"
                 >
                   <Sparkles className="w-5 h-5 mr-3" />
                   Start Free Trial
