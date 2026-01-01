@@ -302,8 +302,8 @@ export default function Landing() {
 
   const faqs = [
     {
-      question: "How do the reply quotas work?",
-      answer: "Your quota resets automatically based on your plan. Trial users get 10 replies per day, weekly subscribers get 2,000 replies every 7 days, and monthly subscribers get 10,000 replies every 30 days.",
+      question: "How do the credit quotas work?",
+      answer: "Your quota resets automatically based on your plan. Trial users get 50 credits for trial, weekly subscribers get 4,000 credits every 7 days, and monthly subscribers get 20,000 credits every 30 days.",
       icon: "Zap",
       category: "quota",
       emoji: "💰",

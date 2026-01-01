@@ -74,9 +74,9 @@ export default function TermsOfService() {
                   <div className="bg-purple-50 p-4 rounded-lg">
                     <h3 className="text-lg font-semibold text-purple-800 mb-2">Subscription Plans</h3>
                     <ul className="list-disc list-inside text-gray-700 space-y-1">
-                      <li>Free Trial: 10 replies per day for 7 days</li>
-                      <li>Weekly Plan: 2,000 replies every 7 days</li>
-                      <li>Monthly Plan: 10,000 replies every 30 days</li>
+                      <li>Free Trial: 50 credits for trial</li>
+                      <li>Weekly Plan: 4,000 credits every 7 days</li>
+                      <li>Monthly Plan: 20,000 credits every 30 days</li>
                       <li>All subscriptions are billed in advance</li>
                     </ul>
                   </div>
