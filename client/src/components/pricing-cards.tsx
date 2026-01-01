@@ -137,7 +137,7 @@ export function PricingCards() {
           variant: "destructive",
         });
         setTimeout(() => {
-          window.location.href = "/api/login";
+          window.location.href = "/login";
         }, 500);
         return;
       }
@@ -152,7 +152,7 @@ export function PricingCards() {
 
   const handleSubscribe = (planCode: string) => {
     if (!isAuthenticated) {
-      window.location.href = '/api/login';
+      window.location.href = '/login';
       return;
     }
     
@@ -194,19 +194,26 @@ export function PricingCards() {
           <div className="space-y-4 mb-8">
             <div className="flex items-center space-x-3">
               <Check className={`w-4 h-4 ${pricingTiers.trial.textColor} flex-shrink-0`} />
-              <span className="text-sm">70 total replies during trial</span>
+              <span className="text-sm">Smart Tone Detection</span>
             </div>
             <div className="flex items-center space-x-3">
               <Check className={`w-4 h-4 ${pricingTiers.trial.textColor} flex-shrink-0`} />
-              <span className="text-sm">Chrome extension access</span>
+              <span className="text-sm">Context-Aware Replies</span>
             </div>
             <div className="flex items-center space-x-3">
               <Check className={`w-4 h-4 ${pricingTiers.trial.textColor} flex-shrink-0`} />
-              <span className="text-sm">Mobile web interface</span>
+              <span className="text-sm">Auto Like on Reply</span>
             </div>
             <div className="flex items-center space-x-3">
               <Check className={`w-4 h-4 ${pricingTiers.trial.textColor} flex-shrink-0`} />
-              <span className="text-sm">AI generated replies</span>
+              <span className="text-sm">Quality Scoring</span>
+            </div>
+            <div className="flex items-center space-x-3">
+              <Check className={`w-4 h-4 ${pricingTiers.trial.textColor} flex-shrink-0`} />
+              <span className="text-sm">History Tracking</span>
+            </div>
+            <div className="flex items-center space-x-3 pt-2">
+              <span className="text-sm text-muted-foreground font-medium">+7 more features</span>
             </div>
           </div>
           
@@ -292,19 +299,26 @@ export function PricingCards() {
           <div className="space-y-4 mb-8">
             <div className="flex items-center space-x-3">
               <Check className={`w-4 h-4 ${pricingTiers.weekly.textColor} flex-shrink-0`} />
-              <span className="text-sm">{formatCreditsLimit(PRICING_CONFIG.weekly.creditsLimit)} every 7 days</span>
+              <span className="text-sm">Smart Tone Detection</span>
             </div>
             <div className="flex items-center space-x-3">
               <Check className={`w-4 h-4 ${pricingTiers.weekly.textColor} flex-shrink-0`} />
-              <span className="text-sm">All trial features</span>
+              <span className="text-sm">Context-Aware Replies</span>
             </div>
             <div className="flex items-center space-x-3">
               <Check className={`w-4 h-4 ${pricingTiers.weekly.textColor} flex-shrink-0`} />
-              <span className="text-sm">Priority AI model access</span>
+              <span className="text-sm">Auto Like on Reply</span>
             </div>
             <div className="flex items-center space-x-3">
               <Check className={`w-4 h-4 ${pricingTiers.weekly.textColor} flex-shrink-0`} />
-              <span className="text-sm">Email support</span>
+              <span className="text-sm">Quality Scoring</span>
+            </div>
+            <div className="flex items-center space-x-3">
+              <Check className={`w-4 h-4 ${pricingTiers.weekly.textColor} flex-shrink-0`} />
+              <span className="text-sm">History Tracking</span>
+            </div>
+            <div className="flex items-center space-x-3 pt-2">
+              <span className="text-sm text-muted-foreground font-medium">+7 more features</span>
             </div>
           </div>
           
@@ -383,19 +397,26 @@ export function PricingCards() {
           <div className="space-y-4 mb-8">
             <div className="flex items-center space-x-3">
               <Check className={`w-4 h-4 ${pricingTiers.monthly.textColor} flex-shrink-0`} />
-              <span className="text-sm">{formatCreditsLimit(PRICING_CONFIG.monthly.creditsLimit)} every 30 days</span>
+              <span className="text-sm">Smart Tone Detection</span>
             </div>
             <div className="flex items-center space-x-3">
               <Check className={`w-4 h-4 ${pricingTiers.monthly.textColor} flex-shrink-0`} />
-              <span className="text-sm">All weekly features</span>
+              <span className="text-sm">Context-Aware Replies</span>
             </div>
             <div className="flex items-center space-x-3">
               <Check className={`w-4 h-4 ${pricingTiers.monthly.textColor} flex-shrink-0`} />
-              <span className="text-sm">Best value per reply</span>
+              <span className="text-sm">Auto Like on Reply</span>
             </div>
             <div className="flex items-center space-x-3">
               <Check className={`w-4 h-4 ${pricingTiers.monthly.textColor} flex-shrink-0`} />
-              <span className="text-sm">Priority support</span>
+              <span className="text-sm">Quality Scoring</span>
+            </div>
+            <div className="flex items-center space-x-3">
+              <Check className={`w-4 h-4 ${pricingTiers.monthly.textColor} flex-shrink-0`} />
+              <span className="text-sm">History Tracking</span>
+            </div>
+            <div className="flex items-center space-x-3 pt-2">
+              <span className="text-sm text-muted-foreground font-medium">+7 more features</span>
             </div>
           </div>
           
