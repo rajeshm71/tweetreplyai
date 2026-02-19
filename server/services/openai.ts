@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import { getPromptConfig, applyReplyModeToPrompt, type PromptConfig } from "./prompts.js";
 import { replyPostProcessor } from "./reply-postprocessor.js";
+import { buildSystemPrompt, buildUserPromptWithThread } from "./prompt-builder.js";
 import type { EnrichedTweetAnalysis } from "./tweet-analysis-agents.js";
 
 // TODO: Set OPENAI_API_KEY in environment to enable AI reply generation
@@ -32,7 +33,6 @@ export interface ReplyOptions {
     currentTweetIndex: number;
     threadLength: number;
   };
-  conversationContext?: any; // ConversationContext format for backward compatibility
   tweetMetadata?: {
     has_media?: boolean;
     has_poll?: boolean;
@@ -146,63 +146,13 @@ export class ModelRouter {
     // Apply reply mode modifications to prompt
     const promptConfig = applyReplyModeToPrompt(basePromptConfig, options.replyMode);
 
-    console.log(`🚀 [OpenAI] Starting request with model: ${modelKey}`);
-    console.log(`📝 [OpenAI] Tweet text: "${options.tweetText}"`);
-    console.log(`🎯 [OpenAI] Using prompt: ${promptConfig.name} (mode: ${options.replyMode || 'base'})`);
-    // FIX: Enhanced mode logging for better debugging
-    const modeDescription = options.replyMode === 'single-sentence' ? 'Fast single sentence' :
-                           options.replyMode === 'enhanced' ? 'AI analysis enabled' :
-                           'Standard generation';
-    console.log(`⚙️  [OpenAI] Reply mode: ${options.replyMode || 'base'} - ${modeDescription}`);
-
-    // Generate context-aware prompt if context is available
-    let enhancedSystemPrompt = promptConfig.systemPrompt;
-    const originalPromptLength = enhancedSystemPrompt.length;
-    
-    // Inject enriched analysis context if available (from AI agents)
-    if (options.tweetAnalysis && options.tweetAnalysis.enrichedContextPrompt) {
-      console.log(`🧠 [OpenAI] Injecting enriched tweet analysis context`);
-      console.log(`📊 [OpenAI] Analysis summary:`, {
-        tone: options.tweetAnalysis.understanding?.tone || 'unknown',
-        sentiment: options.tweetAnalysis.understanding?.sentiment || 'unknown',
-        style: options.tweetAnalysis.understanding?.style || 'unknown',
-        intentionPreview: options.tweetAnalysis.intention?.intention?.substring(0, 60) + '...' || 'N/A'
-      });
-      enhancedSystemPrompt = `${options.tweetAnalysis.enrichedContextPrompt}\n\n${enhancedSystemPrompt}`;
-      console.log(`📏 [OpenAI] Prompt length: ${originalPromptLength} → ${enhancedSystemPrompt.length} chars (+${enhancedSystemPrompt.length - originalPromptLength})`);
-    } else {
-      console.log(`⚠️ [OpenAI] No tweet analysis available - using basic prompt only`);
-    }
-    
-    // Add existing tweet context (fallback or additional context)
-    if (options.tweetContext) {
-      const { tweetContextAnalyzer } = await import('./tweet-context.js');
-      const authorInfo = options.authorInfo && options.authorInfo.username ? {
-        username: options.authorInfo.username,
-        verified: options.authorInfo.verified || false,
-        followerCount: options.authorInfo.follower_count || 0
-      } : undefined;
-      // Use conversationContext if provided (already in correct format), otherwise convert from threadContext
-      const conversationContextForPrompt = options.conversationContext || 
-        (options.threadContext ? {
-          parentTweets: options.threadContext.threadChain.map(t => t.text),
-          threadLength: options.threadContext.threadLength,
-          isThread: options.threadContext.isReply,
-          originalTweet: options.threadContext.originalTweet,
-          originalTweetAuthor: options.threadContext.originalTweetAuthor,
-          threadChain: options.threadContext.threadChain,
-          currentTweetIndex: options.threadContext.currentTweetIndex
-        } : undefined);
-      const contextPrompt = tweetContextAnalyzer.generateContextPrompt(
-        options.tweetContext,
-        authorInfo,
-        conversationContextForPrompt
-      );
-      
-      if (contextPrompt) {
-        enhancedSystemPrompt = `${enhancedSystemPrompt}\n\n${contextPrompt}`;
-      }
-    }
+    const enhancedSystemPrompt = await buildSystemPrompt({
+      baseSystemPrompt: promptConfig.systemPrompt,
+      tweetAnalysis: options.tweetAnalysis,
+      tweetContext: options.tweetContext,
+      authorInfo: options.authorInfo,
+      threadContext: options.threadContext,
+    });
 
     if (!openai) {
       console.log("❌ [OpenAI] OpenAI client not configured");
@@ -215,23 +165,12 @@ export class ModelRouter {
     }
 
     try {
-      // Use responses API only for GPT-5 versions
+      const userPromptText = buildUserPromptWithThread(
+        promptConfig.userPrompt(options.tweetText),
+        options.threadContext
+      );
+
       if (modelKey.startsWith("gpt-5") || modelKey.startsWith("gpt-4o")) {
-        // Build user prompt with thread context
-        let userPromptText = promptConfig.userPrompt(options.tweetText);
-        if (options.threadContext && options.threadContext.isReply) {
-          if (options.threadContext.originalTweet) {
-            userPromptText += `\n\nNote: This tweet is a reply. The original tweet that started this conversation was: "${options.threadContext.originalTweet}"`;
-          }
-          if (options.threadContext.threadChain && options.threadContext.threadChain.length > 1) {
-            userPromptText += `\n\nFull conversation thread:`;
-            options.threadContext.threadChain.forEach((tweet, idx) => {
-              const label = tweet.isOriginal ? 'Original' : tweet.isCurrent ? 'Current (replying to)' : `Reply ${idx}`;
-              userPromptText += `\n${label}: "${tweet.text}"`;
-            });
-          }
-        }
-        
         const response = await openai.responses.create({
           model: modelKey,
           input: [
@@ -242,7 +181,6 @@ export class ModelRouter {
           temperature: 0.7,
           //max_output_tokens: 1000,
         });
-        console.log(`📝 [OpenAI] Response received:`, response);
         const rawReply = response.output_text || "";
         const processedReply = this.postProcessReply(rawReply, false, options.replyMode);
         const latencyMs = Date.now() - startTime;
@@ -255,25 +193,6 @@ export class ModelRouter {
           latencyMs,
         };
       } else {
-        // Use chat completions API for GPT-4 models
-        console.log(
-          `🚀 [OpenAI] Using chat completions for model: ${modelKey}`,
-        );
-        // Build user prompt with thread context
-        let userPromptText = promptConfig.userPrompt(options.tweetText);
-        if (options.threadContext && options.threadContext.isReply) {
-          if (options.threadContext.originalTweet) {
-            userPromptText += `\n\nNote: This tweet is a reply. The original tweet that started this conversation was: "${options.threadContext.originalTweet}"`;
-          }
-          if (options.threadContext.threadChain && options.threadContext.threadChain.length > 1) {
-            userPromptText += `\n\nFull conversation thread:`;
-            options.threadContext.threadChain.forEach((tweet, idx) => {
-              const label = tweet.isOriginal ? 'Original' : tweet.isCurrent ? 'Current (replying to)' : `Reply ${idx}`;
-              userPromptText += `\n${label}: "${tweet.text}"`;
-            });
-          }
-        }
-        
         const response = await openai.chat.completions.create({
           model: modelKey,
           messages: [
@@ -284,7 +203,6 @@ export class ModelRouter {
           frequency_penalty: 0.5,
           presence_penalty: 0.5,
         });
-        console.log(`📝 [OpenAI] Response received:`, response);
         const rawReply = response.choices[0]?.message?.content || "";
         const processedReply = this.postProcessReply(rawReply, false, options.replyMode);
         const latencyMs = Date.now() - startTime;
@@ -420,11 +338,6 @@ Return ONLY the improved version of the draft, nothing else.`;
       console.error(`🔧 [OpenAI] Full error:`, error);
       throw new Error(`Failed to improve draft: ${message}`);
     }
-  }
-
-  // Get model information for UI display
-  getModelInfo(modelKey: string) {
-    return this.MODELS[modelKey as keyof typeof this.MODELS] || null;
   }
 
   // Get all available OpenAI models

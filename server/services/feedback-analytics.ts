@@ -1,18 +1,12 @@
 import { storage } from '../storage.js';
 import { supabase } from '../supabase.js';
 
-export interface FeedbackStats {
+interface FeedbackStats {
   overall_quality: {
     upvotes: number;
     downvotes: number;
     upvote_percentage: number;
   };
-  by_prompt: Record<string, {
-    upvotes: number;
-    downvotes: number;
-    upvote_percentage: number;
-    total_replies: number;
-  }>;
   by_model: Record<string, {
     upvotes: number;
     downvotes: number;
@@ -34,16 +28,9 @@ export interface FeedbackStats {
   };
 }
 
-export interface QualityMetrics {
-  avg_quality_score: number;
-  high_quality_replies: number;
-  low_quality_replies: number;
-  regeneration_rate: number;
-  avg_latency: number;
-  cost_efficiency: number; // replies per dollar
-}
+// Removed unused FeedbackQualityMetrics interface (per review — not referenced)
 
-export class FeedbackAnalytics {
+class FeedbackAnalytics {
   async getFeedbackStats(userId?: string, days: number = 30): Promise<FeedbackStats> {
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
@@ -54,24 +41,13 @@ export class FeedbackAnalytics {
       throw new Error('Invalid date range provided');
     }
 
-    // Get overall feedback stats
     const overallStats = await this.getOverallFeedbackStats(userId, startDate);
-    
-    // Get stats by prompt variation
-    const byPrompt = await this.getStatsByPrompt(userId, startDate);
-    
-    // Get stats by model
     const byModel = await this.getStatsByModel(userId, startDate);
-    
-    // Get recent trends (daily for last 7 days)
     const recentTrends = await this.getRecentTrends(userId, 7);
-    
-    // Get quality metrics
     const qualityMetrics = await this.getQualityMetrics(userId, startDate);
 
     return {
       overall_quality: overallStats,
-      by_prompt: byPrompt,
       by_model: byModel,
       recent_trends: recentTrends,
       quality_metrics: qualityMetrics
@@ -104,12 +80,6 @@ export class FeedbackAnalytics {
       downvotes,
       upvote_percentage: total > 0 ? Math.round((upvotes / total) * 100) : 0
     };
-  }
-
-  private async getStatsByPrompt(userId?: string, startDate?: Date) {
-    // This would need to be implemented based on how you track prompt variations
-    // For now, return empty object as prompt tracking needs to be added to replyEvents
-    return {};
   }
 
   private async getStatsByModel(userId?: string, startDate?: Date) {
@@ -286,29 +256,16 @@ export class FeedbackAnalytics {
   }
 
   async getSimpleAnalytics(userId?: string, days: number = 30) {
-    console.log(`[Analytics] ========== getSimpleAnalytics START ==========`);
-    console.log(`[Analytics] User ID: ${userId}, Days: ${days}`);
-    
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
     
-    // Validate startDate
     if (isNaN(startDate.getTime())) {
-      console.error('Invalid startDate created:', startDate);
       throw new Error('Invalid date range provided');
     }
 
-    console.log(`[Analytics] Date range: ${startDate.toISOString()} to ${new Date().toISOString()}`);
-
-    // Calculate previous period for trend comparison
     const previousPeriodStart = new Date(startDate);
     previousPeriodStart.setDate(previousPeriodStart.getDate() - days);
-    console.log(`[Analytics] Previous period: ${previousPeriodStart.toISOString()} to ${startDate.toISOString()}`);
 
-    // Get total replies count from usage_counters table (much more efficient!)
-    console.log('[Analytics] Fetching total replies from usage_counters...');
-    
-    // Note: usage_counters tracks by period_start date, we need to aggregate all periods in our date range
     const { data: usageCounters, error: usageError } = await supabase
       .from('usage_counters')
       .select('replies_used, period_start')
@@ -318,38 +275,28 @@ export class FeedbackAnalytics {
     let totalReplies = 0;
     if (usageError) {
       console.error('[Analytics] Error fetching usage counters:', usageError);
-      // Fall back to counting records if usage_counters query fails
       const { count } = await supabase
         .from('reply_history')
         .select('*', { count: 'exact', head: true })
         .eq('user_id', userId)
         .gte('created_at', startDate.toISOString());
       totalReplies = count || 0;
-      console.log(`[Analytics] Fallback: Counted ${totalReplies} replies from reply_history`);
     } else {
-      // Sum up replies_used across all periods in the date range
       totalReplies = usageCounters?.reduce((sum, counter) => sum + (counter.replies_used || 0), 0) || 0;
-      console.log(`[Analytics] Total replies from usage_counters: ${totalReplies} (across ${usageCounters?.length || 0} periods)`);
     }
 
-    // Still fetch quality scores for average calculations (but much lighter query - just quality_score field)
-    console.log('[Analytics] Fetching quality scores for average calculation...');
     const { data: summaryData, error: summaryError } = await supabase
       .from('reply_history')
       .select('quality_score, created_at')
       .eq('user_id', userId)
       .gte('created_at', startDate.toISOString())
-      .limit(100000); // Explicit high limit to override Supabase's default 1000 row cap
+      .limit(100000);
 
     if (summaryError) {
       console.error('[Analytics] Error fetching quality scores:', summaryError);
       return this.getEmptyAnalytics();
     }
 
-    console.log(`[Analytics] Quality score query returned ${summaryData?.length || 0} records`);
-
-    // Now fetch only records with performance data for parameter breakdown (much smaller subset)
-    console.log('[Analytics] Fetching records with performance data for parameter breakdown...');
     let currentData: any[] = [];
     let from = 0;
     const pageSize = 1000;
@@ -371,114 +318,47 @@ export class FeedbackAnalytics {
 
       if (data && data.length > 0) {
         currentData = currentData.concat(data);
-        console.log(`[Analytics] Fetched ${data.length} records with performance (total: ${currentData.length})`);
         from += pageSize;
         hasMore = data.length === pageSize;
       } else {
         hasMore = false;
       }
     }
-    
-    console.log(`[Analytics] Current period: ${summaryData?.length || 0} total replies, ${currentData.length} with performance data`);
 
-    if (currentData && currentData.length > 0) {
-      const sampleScores = currentData.slice(0, 5).map(r => r.quality_score);
-      console.log(`[Analytics] Sample quality scores (first 5):`, sampleScores);
-      
-      const withPerformance = currentData.filter(r => r.performance?.qualityParameters).length;
-      console.log(`[Analytics] Replies with performance.qualityParameters: ${withPerformance}/${currentData.length}`);
-      
-      if (withPerformance > 0) {
-        const sampleParams = currentData.find(r => r.performance?.qualityParameters)?.performance?.qualityParameters;
-        console.log(`[Analytics] Sample performance parameters:`, sampleParams?.slice(0, 3));
-      }
-    }
-
-    // Query reply history for the previous period (for trend)
-    console.log('[Analytics] Fetching previous period data...');
-    
     const { data: previousData, error: previousError } = await supabase
       .from('reply_history')
       .select('quality_score')
       .eq('user_id', userId)
       .gte('created_at', previousPeriodStart.toISOString())
       .lt('created_at', startDate.toISOString())
-      .limit(100000); // Explicit high limit
+      .limit(100000);
 
     if (previousError) {
       console.error('[Analytics] Error fetching previous period:', previousError);
     }
 
-    console.log(`[Analytics] Previous period query returned: ${previousData?.length || 0} replies`);
-
-    // Calculate summary metrics
     const scores = summaryData?.map((r: any) => r.quality_score).filter((s: number) => s != null) || [];
-    console.log(`[Analytics] Valid quality scores in current period: ${scores.length}`);
-    
     const avgQuality = scores.length > 0 ? Math.round(scores.reduce((a: number, b: number) => a + b, 0) / scores.length) : 0;
-    // totalReplies now comes from usage_counters (already calculated above)
-    console.log(`[Analytics] Total replies: ${totalReplies}`);
-    
-    // Calculate time saved in hours (4 min per reply average, converted to hours with 1 decimal)
-    const timeSavedMinutes = totalReplies * 4; // 4 minutes average per reply (random 2-6 min)
-    const timeSavedHours = Math.round((timeSavedMinutes / 60) * 10) / 10; // Convert to hours with 1 decimal place
-    console.log(`[Analytics] Time saved: ${timeSavedMinutes} minutes = ${timeSavedHours} hours`);
-    
+    const timeSavedMinutes = totalReplies * 4;
+    const timeSavedHours = Math.round((timeSavedMinutes / 60) * 10) / 10;
     const highQualityCount = scores.filter((s: number) => s > 80).length;
 
-    console.log(`[Analytics] Score calculation: sum=${scores.reduce((a, b) => a + b, 0)}, count=${scores.length}, avg=${avgQuality}`);
-
-    // Calculate quality trend
     const previousScores = previousData?.map((r: any) => r.quality_score).filter((s: number) => s != null) || [];
-    console.log(`[Analytics] Valid quality scores in previous period: ${previousScores.length}`);
-    
     const previousAvgQuality = previousScores.length > 0 ? Math.round(previousScores.reduce((a: number, b: number) => a + b, 0) / previousScores.length) : 0;
     const qualityTrend = avgQuality - previousAvgQuality;
-    
-    console.log(`[Analytics] Quality trend: current=${avgQuality}, previous=${previousAvgQuality}, trend=${qualityTrend}`);
 
-    // Extract and aggregate quality parameters
     const parameterBreakdown = this.aggregateQualityParameters(currentData || []);
-    console.log(`[Analytics] Parameter breakdown: ${parameterBreakdown.length} parameters`);
-    if (parameterBreakdown.length > 0) {
-      console.log(`[Analytics] Top 3 parameters:`, parameterBreakdown.slice(0, 3));
-    }
-
-    // Calculate daily activity trend (last 7 days) using summary data
     const activityTrend = this.calculateActivityTrend(summaryData || [], 7);
-    console.log(`[Analytics] Activity trend (7 days): ${activityTrend.length} days`);
-    const totalActivityCount = activityTrend.reduce((sum, day) => sum + day.count, 0);
-    console.log(`[Analytics] Total activity in trend: ${totalActivityCount} replies`);
-
-    // Generate user-focused insights
     const insights = this.generateUserInsights({
-      avgQuality,
-      qualityTrend,
-      totalReplies,
-      timeSavedHours,
-      highQualityCount,
-      activityTrend,
-      days
+      avgQuality, qualityTrend, totalReplies, timeSavedHours, highQualityCount, activityTrend, days
     });
-    console.log(`[Analytics] Generated ${insights.length} insights`);
 
-    const result = {
-      summary: {
-        avgQuality,
-        qualityTrend,
-        totalReplies,
-        timeSavedHours,
-        highQualityCount
-      },
+    return {
+      summary: { avgQuality, qualityTrend, totalReplies, timeSavedHours, highQualityCount },
       parameterBreakdown,
       activityTrend,
       insights
     };
-
-    console.log(`[Analytics] Final result summary:`, JSON.stringify(result.summary, null, 2));
-    console.log(`[Analytics] ========== getSimpleAnalytics END ==========`);
-
-    return result;
   }
 
   private getEmptyAnalytics() {
@@ -500,15 +380,10 @@ export class FeedbackAnalytics {
   }
 
   private aggregateQualityParameters(data: any[]): Array<{ name: string; avgScore: number }> {
-    // Extract all quality parameters from performance field
     const parameterSums: Record<string, { total: number; count: number }> = {};
-    
-    console.log(`[Analytics] aggregateQualityParameters: Processing ${data.length} replies`);
-    
-    let repliesWithParams = 0;
+
     for (const reply of data) {
       if (reply.performance && reply.performance.qualityParameters) {
-        repliesWithParams++;
         for (const param of reply.performance.qualityParameters) {
           if (!parameterSums[param.name]) {
             parameterSums[param.name] = { total: 0, count: 0 };
@@ -519,10 +394,6 @@ export class FeedbackAnalytics {
       }
     }
 
-    console.log(`[Analytics] Found ${repliesWithParams} replies with qualityParameters out of ${data.length} total`);
-    console.log(`[Analytics] Unique parameters found: ${Object.keys(parameterSums).length}`);
-
-    // Calculate averages and sort by average score
     const breakdown = Object.entries(parameterSums)
       .map(([name, { total, count }]) => ({
         name,

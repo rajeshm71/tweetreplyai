@@ -2,6 +2,7 @@ import { Groq } from "groq-sdk";
 import { ReplyOptions, ReplyResponse } from "./openai.js";
 import { getPromptConfig, applyReplyModeToPrompt, type PromptConfig } from "./prompts.js";
 import { replyPostProcessor } from "./reply-postprocessor.js";
+import { buildSystemPrompt, buildUserPromptWithThread } from "./prompt-builder.js";
 
 // Initialize Groq client
 const groq = process.env.GROQ_API_KEY ? new Groq() : null;
@@ -34,22 +35,6 @@ export class GroqModelRouter {
     return getPromptConfig(promptVariation);
   }
 
-  private isComplexTweet(tweetText: string): boolean {
-    // Same complexity detection as OpenAI and Gemini services
-    const complexPatterns = [
-      /https?:\/\/[^\s]+/g, // URLs
-      /@\w+/g, // Mentions
-      /#\w+/g, // Hashtags
-      /[🎯📊💡🚀⚡️🔥💪]/g, // Complex emojis
-    ];
-
-    const matches = complexPatterns.reduce((count, pattern) => {
-      return count + (tweetText.match(pattern) || []).length;
-    }, 0);
-
-    return matches > 2 || tweetText.split("\n").length > 2;
-  }
-
   private postProcessReply(reply: string, replyMode?: string): string {
     // Use comprehensive postprocessor service, passing replyMode
     return replyPostProcessor.processReply(reply, replyMode);
@@ -66,63 +51,13 @@ export class GroqModelRouter {
     // Apply reply mode modifications to prompt
     const promptConfig = applyReplyModeToPrompt(basePromptConfig, options.replyMode);
 
-    console.log(`🚀 [Groq] Starting request with model: ${modelKey}`);
-    console.log(`📝 [Groq] Tweet text: "${options.tweetText}"`);
-    console.log(`🎯 [Groq] Using prompt: ${promptConfig.name} (mode: ${options.replyMode || 'base'})`);
-    // FIX: Enhanced mode logging for better debugging
-    const modeDescription = options.replyMode === 'single-sentence' ? 'Fast single sentence' :
-                           options.replyMode === 'enhanced' ? 'AI analysis enabled' :
-                           'Standard generation';
-    console.log(`⚙️  [Groq] Reply mode: ${options.replyMode || 'base'} - ${modeDescription}`);
-
-    // Generate context-aware prompt if context is available
-    let enhancedSystemPrompt = promptConfig.systemPrompt;
-    const originalPromptLength = enhancedSystemPrompt.length;
-    
-    // Inject enriched analysis context if available (from AI agents)
-    if (options.tweetAnalysis && options.tweetAnalysis.enrichedContextPrompt) {
-      console.log(`🧠 [Groq] Injecting enriched tweet analysis context`);
-      console.log(`📊 [Groq] Analysis summary:`, {
-        tone: options.tweetAnalysis.understanding?.tone || 'unknown',
-        sentiment: options.tweetAnalysis.understanding?.sentiment || 'unknown',
-        style: options.tweetAnalysis.understanding?.style || 'unknown',
-        intentionPreview: options.tweetAnalysis.intention?.intention?.substring(0, 60) + '...' || 'N/A'
-      });
-      enhancedSystemPrompt = `${options.tweetAnalysis.enrichedContextPrompt}\n\n${enhancedSystemPrompt}`;
-      console.log(`📏 [Groq] Prompt length: ${originalPromptLength} → ${enhancedSystemPrompt.length} chars (+${enhancedSystemPrompt.length - originalPromptLength})`);
-    } else {
-      console.log(`⚠️ [Groq] No tweet analysis available - using basic prompt only`);
-    }
-    
-    // Add existing tweet context (fallback or additional context)
-    if (options.tweetContext) {
-      const { tweetContextAnalyzer } = await import('./tweet-context.js');
-      const authorInfo = options.authorInfo && options.authorInfo.username ? {
-        username: options.authorInfo.username,
-        verified: options.authorInfo.verified || false,
-        followerCount: options.authorInfo.follower_count || 0
-      } : undefined;
-      // Use conversationContext if provided (already in correct format), otherwise convert from threadContext
-      const conversationContextForPrompt = options.conversationContext || 
-        (options.threadContext ? {
-          parentTweets: options.threadContext.threadChain.map(t => t.text),
-          threadLength: options.threadContext.threadLength,
-          isThread: options.threadContext.isReply,
-          originalTweet: options.threadContext.originalTweet,
-          originalTweetAuthor: options.threadContext.originalTweetAuthor,
-          threadChain: options.threadContext.threadChain,
-          currentTweetIndex: options.threadContext.currentTweetIndex
-        } : undefined);
-      const contextPrompt = tweetContextAnalyzer.generateContextPrompt(
-        options.tweetContext,
-        authorInfo,
-        conversationContextForPrompt
-      );
-      
-      if (contextPrompt) {
-        enhancedSystemPrompt = `${enhancedSystemPrompt}\n\n${contextPrompt}`;
-      }
-    }
+    const enhancedSystemPrompt = await buildSystemPrompt({
+      baseSystemPrompt: promptConfig.systemPrompt,
+      tweetAnalysis: options.tweetAnalysis,
+      tweetContext: options.tweetContext,
+      authorInfo: options.authorInfo,
+      threadContext: options.threadContext,
+    });
 
     if (!groq) {
       console.log(`❌ [Groq] Groq client not configured`);
@@ -136,28 +71,11 @@ export class GroqModelRouter {
     }
 
     try {
-      console.log(
-        `🔑 [Groq] API key configured: ${!!process.env.GROQ_API_KEY}`,
+      const userPromptText = buildUserPromptWithThread(
+        promptConfig.userPrompt(options.tweetText),
+        options.threadContext
       );
 
-      // Create the chat completion with streaming
-      console.log(`🤖 [Groq] Creating chat completion with streaming...`);
-      
-      // Build user prompt with thread context
-      let userPromptText = promptConfig.userPrompt(options.tweetText);
-      if (options.threadContext && options.threadContext.isReply) {
-        if (options.threadContext.originalTweet) {
-          userPromptText += `\n\nNote: This tweet is a reply. The original tweet that started this conversation was: "${options.threadContext.originalTweet}"`;
-        }
-        if (options.threadContext.threadChain && options.threadContext.threadChain.length > 1) {
-          userPromptText += `\n\nFull conversation thread:`;
-          options.threadContext.threadChain.forEach((tweet, idx) => {
-            const label = tweet.isOriginal ? 'Original' : tweet.isCurrent ? 'Current (replying to)' : `Reply ${idx}`;
-            userPromptText += `\n${label}: "${tweet.text}"`;
-          });
-        }
-      }
-      
       const chatCompletion = await groq.chat.completions.create({
         messages: [
           { role: "system", content: enhancedSystemPrompt },
@@ -178,21 +96,11 @@ export class GroqModelRouter {
         fullReply += content;
       }
 
-      console.log(`📝 [Groq] Raw reply: "${fullReply}"`);
-
       const processedReply = this.postProcessReply(fullReply, options.replyMode);
-      console.log(`✨ [Groq] Processed reply: "${processedReply}"`);
-
       const latencyMs = Date.now() - startTime;
-      console.log(`⏱️ [Groq] Total latency: ${latencyMs}ms`);
 
-      // Estimate token usage (Groq doesn't provide exact counts in streaming)
       const estimatedInputTokens = Math.ceil((enhancedSystemPrompt + userPromptText).length / 4);
       const estimatedOutputTokens = Math.ceil(processedReply.length / 4);
-
-      console.log(
-        `📊 [Groq] Estimated tokens - Input: ${estimatedInputTokens}, Output: ${estimatedOutputTokens}`,
-      );
 
       return {
         reply: processedReply,
@@ -209,11 +117,6 @@ export class GroqModelRouter {
       console.error(`🔧 [Groq] Full error:`, error);
       throw new Error(`Failed to generate reply with Groq: ${message}`);
     }
-  }
-
-  // Get model information for UI display
-  getModelInfo(modelKey: string) {
-    return this.MODELS[modelKey as keyof typeof this.MODELS] || null;
   }
 
   // Get all available models
