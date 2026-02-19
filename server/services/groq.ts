@@ -76,6 +76,17 @@ export class GroqModelRouter {
         options.threadContext
       );
 
+      // Log full prompts used for generate-reply
+      console.log('[PROMPT] [Groq] generate-reply', {
+        replyMode: options.replyMode,
+        modelKey,
+        promptVariation: options.promptVariation,
+        systemPromptLength: enhancedSystemPrompt.length,
+        userPromptLength: userPromptText.length,
+      });
+      console.log('[PROMPT] [Groq] system:', enhancedSystemPrompt);
+      console.log('[PROMPT] [Groq] user:', userPromptText);
+
       const chatCompletion = await groq.chat.completions.create({
         messages: [
           { role: "system", content: enhancedSystemPrompt },

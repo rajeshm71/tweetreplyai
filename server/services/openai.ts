@@ -170,6 +170,17 @@ export class ModelRouter {
         options.threadContext
       );
 
+      // Log full prompts used for generate-reply
+      console.log('[PROMPT] [OpenAI] generate-reply', {
+        replyMode: options.replyMode,
+        modelKey,
+        promptVariation: options.promptVariation,
+        systemPromptLength: enhancedSystemPrompt.length,
+        userPromptLength: userPromptText.length,
+      });
+      console.log('[PROMPT] [OpenAI] system:', enhancedSystemPrompt);
+      console.log('[PROMPT] [OpenAI] user:', userPromptText);
+
       if (modelKey.startsWith("gpt-5") || modelKey.startsWith("gpt-4o")) {
         const response = await openai.responses.create({
           model: modelKey,
