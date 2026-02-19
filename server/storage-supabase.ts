@@ -487,6 +487,59 @@ export class SupabaseStorage implements IStorage {
     } as UsageCounter;
   }
 
+  async getActiveTrialCounter(userId: string): Promise<UsageCounter | undefined> {
+    const now = new Date().toISOString();
+    console.log('[STORAGE-DEBUG] getActiveTrialCounter - Query params:', { userId, now });
+    
+    const { data, error } = await supabase
+      .from('usage_counters')
+      .select('id, user_id, plan_code, period_start, period_end, replies_used, credits_used, limit, reset_at, mode_breakdown, created_at, updated_at')
+      .eq('user_id', userId)
+      .eq('plan_code', 'trial')
+      .gt('period_end', now) // Trial period not expired
+      .order('created_at', { ascending: false }) // Get most recent first
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      if (error.code !== 'PGRST116') {
+        console.error('[STORAGE-DEBUG] getActiveTrialCounter - ERROR:', error);
+      } else {
+        console.log('[STORAGE-DEBUG] getActiveTrialCounter - NOT FOUND (no active trial counter)');
+      }
+      return undefined;
+    }
+
+    if (!data) {
+      console.log('[STORAGE-DEBUG] getActiveTrialCounter - NOT FOUND');
+      return undefined;
+    }
+
+    console.log('[STORAGE-DEBUG] getActiveTrialCounter - FOUND:', {
+      id: data.id,
+      period_start: data.period_start,
+      period_end: data.period_end,
+      credits_used: data.credits_used,
+      limit: data.limit
+    });
+
+    // Map database fields to our UsageCounter interface
+    return {
+      id: data.id,
+      userId: data.user_id,
+      planCode: data.plan_code,
+      periodStart: new Date(data.period_start),
+      periodEnd: new Date(data.period_end),
+      repliesUsed: data.replies_used,
+      creditsUsed: data.credits_used ?? (data.replies_used * 2),
+      limit: data.limit,
+      resetAt: new Date(data.reset_at),
+      modeBreakdown: data.mode_breakdown || undefined,
+      createdAt: new Date(data.created_at),
+      updatedAt: new Date(data.updated_at)
+    } as UsageCounter;
+  }
+
   async createUsageCounter(usageCounter: InsertUsageCounter): Promise<UsageCounter> {
     // Map camelCase fields to snake_case database columns
     const dbUsageCounter: any = {
@@ -562,122 +615,121 @@ export class SupabaseStorage implements IStorage {
     }
   }
 
-  async incrementUsage(userId: string, periodStart: Date, creditCost: number, replyMode?: string): Promise<UsageCounter> {
+  async incrementUsage(userId: string, periodStart: Date, creditCost: number, replyMode?: string, existingCounter?: UsageCounter): Promise<UsageCounter> {
     console.log('[STORAGE-DEBUG] ========== incrementUsage START ==========');
     console.log('[STORAGE-DEBUG] incrementUsage - userId:', userId);
     console.log('[STORAGE-DEBUG] incrementUsage - periodStart:', periodStart.toISOString());
     console.log('[STORAGE-DEBUG] incrementUsage - creditCost:', creditCost);
     console.log('[STORAGE-DEBUG] incrementUsage - replyMode:', replyMode);
-    
-    let counter = await this.getUsageCounter(userId, periodStart);
-    
+
+    // When existingCounter is provided, skip lookup to avoid read-after-write issues (counter may have been just created)
+    let counter: UsageCounter | undefined = existingCounter;
     if (!counter) {
-      // This should not happen as getUsageStatus creates the counter if it doesn't exist
-      console.error('[STORAGE-DEBUG] incrementUsage - COUNTER NOT FOUND!');
-      throw new Error('Usage counter not found - this should be created by getUsageStatus first');
-    } else {
-      const currentCredits = counter.creditsUsed ?? (counter.repliesUsed * 2);
-      
-      // Update mode breakdown if replyMode is provided
-      let updatedBreakdown = counter.modeBreakdown || {};
-      if (replyMode) {
-        // Validate replyMode is one of the expected values before type assertion
-        const validModes: Array<'single-sentence' | 'base' | 'enhanced'> = ['single-sentence', 'base', 'enhanced'];
-        if (validModes.includes(replyMode as any)) {
-          const modeKey = replyMode as 'single-sentence' | 'base' | 'enhanced';
-          if (!updatedBreakdown[modeKey]) {
-            updatedBreakdown[modeKey] = { replies: 0, credits: 0 };
-          }
-          updatedBreakdown[modeKey] = {
-            replies: (updatedBreakdown[modeKey]?.replies || 0) + 1,
-            credits: (updatedBreakdown[modeKey]?.credits || 0) + creditCost
-          };
-        } else {
-          console.warn(`[STORAGE-DEBUG] Invalid replyMode: ${replyMode}, skipping breakdown update`);
-        }
+      counter = await this.getUsageCounter(userId, periodStart);
+      if (!counter) {
+        console.error('[STORAGE-DEBUG] incrementUsage - COUNTER NOT FOUND!');
+        throw new Error('Usage counter not found - this should be created by getUsageStatus first');
       }
-      
-      // Validate breakdown structure before saving (defensive check)
-      if (updatedBreakdown && typeof updatedBreakdown === 'object') {
-        for (const [key, value] of Object.entries(updatedBreakdown)) {
-          if (value && (typeof value !== 'object' || typeof value.replies !== 'number' || typeof value.credits !== 'number')) {
-            console.error(`[STORAGE-DEBUG] Invalid breakdown entry for ${key}:`, value);
-            delete updatedBreakdown[key];
-          }
-        }
-      }
-      
-      console.log('[STORAGE-DEBUG] incrementUsage - Counter before update:', {
-        id: counter.id,
-        currentRepliesUsed: counter.repliesUsed,
-        currentCreditsUsed: currentCredits,
-        willBecomeReplies: counter.repliesUsed + 1,
-        willBecomeCredits: currentCredits + creditCost,
-        modeBreakdown: updatedBreakdown
-      });
-      
-      const periodStartISO = periodStart.toISOString();
-      console.log('[STORAGE-DEBUG] incrementUsage - UPDATE query WHERE:', {
-        user_id: userId,
-        period_start: periodStartISO
-      });
-      
-      const updateData: any = { 
-        replies_used: counter.repliesUsed + 1,
-        credits_used: currentCredits + creditCost, // Handle null with fallback
-        updated_at: new Date().toISOString()
-      };
-      
-      // Include mode_breakdown in update
-      updateData.mode_breakdown = updatedBreakdown;
-      
-      const { data, error } = await supabase
-        .from('usage_counters')
-        .update(updateData)
-        .eq('user_id', userId)
-        .eq('period_start', periodStartISO)
-        .select('id, user_id, plan_code, period_start, period_end, replies_used, credits_used, limit, reset_at, mode_breakdown, created_at, updated_at')
-        .single();
-      
-      if (error) {
-        console.error('[STORAGE-DEBUG] incrementUsage - UPDATE FAILED:', error);
-        throw error;
-      }
-
-      if (!data) {
-        console.error('[STORAGE-DEBUG] incrementUsage - UPDATE returned NO DATA (no rows matched)');
-        throw new Error('Failed to increment usage - no rows affected');
-      }
-
-      console.log('[STORAGE-DEBUG] incrementUsage - UPDATE SUCCESS:', {
-        id: data.id,
-        period_start: data.period_start,
-        replies_used: data.replies_used,
-        credits_used: data.credits_used,
-        limit: data.limit,
-        mode_breakdown: data.mode_breakdown
-      });
-
-      // Map database fields back to our UsageCounter interface
-      counter = {
-        id: data.id,
-        userId: data.user_id,
-        planCode: data.plan_code,
-        periodStart: new Date(data.period_start),
-        periodEnd: new Date(data.period_end),
-        repliesUsed: data.replies_used,
-        creditsUsed: data.credits_used ?? (data.replies_used * 2), // FALLBACK
-        limit: data.limit,
-        resetAt: new Date(data.reset_at),
-        modeBreakdown: data.mode_breakdown || undefined,
-        createdAt: new Date(data.created_at),
-        updatedAt: new Date(data.updated_at)
-      } as UsageCounter;
     }
-    
-    console.log('[STORAGE-DEBUG] incrementUsage - Returning counter with repliesUsed:', counter.repliesUsed, 'creditsUsed:', counter.creditsUsed);
+
+    const currentCredits = counter.creditsUsed ?? (counter.repliesUsed * 2);
+
+    // Update mode breakdown if replyMode is provided
+    let updatedBreakdown = counter.modeBreakdown || {};
+    if (replyMode) {
+      const validModes: Array<'single-sentence' | 'base' | 'enhanced'> = ['single-sentence', 'base', 'enhanced'];
+      if (validModes.includes(replyMode as any)) {
+        const modeKey = replyMode as 'single-sentence' | 'base' | 'enhanced';
+        if (!updatedBreakdown[modeKey]) {
+          updatedBreakdown[modeKey] = { replies: 0, credits: 0 };
+        }
+        updatedBreakdown[modeKey] = {
+          replies: (updatedBreakdown[modeKey]?.replies || 0) + 1,
+          credits: (updatedBreakdown[modeKey]?.credits || 0) + creditCost
+        };
+      } else {
+        console.warn(`[STORAGE-DEBUG] Invalid replyMode: ${replyMode}, skipping breakdown update`);
+      }
+    }
+
+    if (updatedBreakdown && typeof updatedBreakdown === 'object') {
+      for (const [key, value] of Object.entries(updatedBreakdown)) {
+        if (value && (typeof value !== 'object' || typeof value.replies !== 'number' || typeof value.credits !== 'number')) {
+          console.error(`[STORAGE-DEBUG] Invalid breakdown entry for ${key}:`, value);
+          delete updatedBreakdown[key as keyof typeof updatedBreakdown];
+        }
+      }
+    }
+
+    console.log('[STORAGE-DEBUG] incrementUsage - Counter before update:', {
+      id: counter.id,
+      currentRepliesUsed: counter.repliesUsed,
+      currentCreditsUsed: currentCredits,
+      willBecomeReplies: counter.repliesUsed + 1,
+      willBecomeCredits: currentCredits + creditCost,
+      modeBreakdown: updatedBreakdown
+    });
+
+    const updateData: any = {
+      replies_used: counter.repliesUsed + 1,
+      credits_used: currentCredits + creditCost,
+      updated_at: new Date().toISOString(),
+      mode_breakdown: updatedBreakdown
+    };
+
+    // Update by primary key when counter was passed in (avoids read-after-write); otherwise by user_id + period_start
+    const query = supabase
+      .from('usage_counters')
+      .update(updateData);
+    if (existingCounter) {
+      console.log('[STORAGE-DEBUG] incrementUsage - UPDATE by id (existing counter):', { id: existingCounter.id });
+      query.eq('id', existingCounter.id);
+    } else {
+      console.log('[STORAGE-DEBUG] incrementUsage - UPDATE query WHERE:', { user_id: userId, period_start: periodStart.toISOString() });
+      query.eq('user_id', userId).eq('period_start', periodStart.toISOString());
+    }
+
+    const { data, error } = await query
+      .select('id, user_id, plan_code, period_start, period_end, replies_used, credits_used, limit, reset_at, mode_breakdown, created_at, updated_at')
+      .single();
+
+    if (error) {
+      console.error('[STORAGE-DEBUG] incrementUsage - UPDATE FAILED:', error);
+      throw error;
+    }
+
+    if (!data) {
+      console.error('[STORAGE-DEBUG] incrementUsage - UPDATE returned NO DATA (no rows matched)');
+      throw new Error('Failed to increment usage - no rows affected');
+    }
+
+    console.log('[STORAGE-DEBUG] incrementUsage - UPDATE SUCCESS:', {
+      id: data.id,
+      period_start: data.period_start,
+      replies_used: data.replies_used,
+      credits_used: data.credits_used,
+      limit: data.limit,
+      mode_breakdown: data.mode_breakdown
+    });
+
+    const result: UsageCounter = {
+      id: data.id,
+      userId: data.user_id,
+      planCode: data.plan_code,
+      periodStart: new Date(data.period_start),
+      periodEnd: new Date(data.period_end),
+      repliesUsed: data.replies_used,
+      creditsUsed: data.credits_used ?? (data.replies_used * 2),
+      limit: data.limit,
+      resetAt: new Date(data.reset_at),
+      modeBreakdown: data.mode_breakdown || undefined,
+      createdAt: new Date(data.created_at),
+      updatedAt: new Date(data.updated_at)
+    } as UsageCounter;
+
+    console.log('[STORAGE-DEBUG] incrementUsage - Returning counter with repliesUsed:', result.repliesUsed, 'creditsUsed:', result.creditsUsed);
     console.log('[STORAGE-DEBUG] ========== incrementUsage END ==========');
-    return counter;
+    return result;
   }
 
   // Reply event operations
