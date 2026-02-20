@@ -77,9 +77,11 @@ export function buildUserPromptWithThread(
     }
     if (threadContext.threadChain?.length > 1) {
       userPrompt += `\n\nFull conversation thread:`;
-      threadContext.threadChain.forEach((tweet, idx) => {
-        const label = tweet.isOriginal ? 'Original' : tweet.isCurrent ? 'Current (replying to)' : `Reply ${idx}`;
-        userPrompt += `\n${label}: "${tweet.text}"`;
+      let replyIndex = 0;
+      threadContext.threadChain.forEach((tweet) => {
+        if (tweet.isOriginal || tweet.isCurrent) return; // already in Note and at top
+        replyIndex += 1;
+        userPrompt += `\nReply ${replyIndex}: "${tweet.text}"`;
       });
     }
   }
