@@ -57,6 +57,7 @@ export class GroqModelRouter {
       tweetContext: options.tweetContext,
       authorInfo: options.authorInfo,
       threadContext: options.threadContext,
+      viewerIsOriginalAuthor: options.viewerIsOriginalAuthor,
     });
 
     if (!groq) {

@@ -693,6 +693,11 @@ export async function registerRoutes(app: Express): Promise<Express> {
         conversationContextForTweetAnalyzer
       );
 
+      // Derive viewerIsOriginalAuthor: reply author is the original tweet author
+      const userHandle = (user?.xUsername ?? '').trim().replace(/^@+/, '').toLowerCase();
+      const originalAuthor = (normalizedThreadContext?.originalTweetAuthor ?? '').trim().replace(/^@+/, '').toLowerCase();
+      const viewerIsOriginalAuthor = !!userHandle && !!originalAuthor && userHandle === originalAuthor;
+
       // Generate the reply with enriched analysis and context
       // Log analysis data being passed to AI router
       if (tweetAnalysis) {
@@ -720,6 +725,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
         threadContext: normalizedThreadContext, // NEW: Pass structured thread context
         conversationContext: conversationContextForTweetAnalyzer, // For backward compatibility
         tweetMetadata: tweet_metadata,
+        viewerIsOriginalAuthor,
       });
 
       // Quality check with detailed parameters (new 10-parameter system)
@@ -748,6 +754,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
             threadContext: normalizedThreadContext, // NEW: Pass structured thread context
             conversationContext: conversationContextForTweetAnalyzer, // For backward compatibility
             tweetMetadata: tweet_metadata,
+            viewerIsOriginalAuthor,
           });
           
           const retryQualityResult = qualityChecker.checkQuality(retryResponse.reply, tweet_text);

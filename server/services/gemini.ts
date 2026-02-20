@@ -97,6 +97,7 @@ export class GeminiModelRouter {
         tweetContext: options.tweetContext,
         authorInfo: options.authorInfo,
         threadContext: options.threadContext,
+        viewerIsOriginalAuthor: options.viewerIsOriginalAuthor,
       });
 
       const userPromptText = buildUserPromptWithThread(

@@ -38,6 +38,7 @@ export interface ReplyOptions {
     has_poll?: boolean;
     timestamp?: string;
   };
+  viewerIsOriginalAuthor?: boolean;
 }
 
 export interface ReplyResponse {
@@ -152,6 +153,7 @@ export class ModelRouter {
       tweetContext: options.tweetContext,
       authorInfo: options.authorInfo,
       threadContext: options.threadContext,
+      viewerIsOriginalAuthor: options.viewerIsOriginalAuthor,
     });
 
     if (!openai) {

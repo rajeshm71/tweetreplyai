@@ -24,6 +24,7 @@ interface PromptBuilderOptions {
     currentTweetIndex: number;
     threadLength: number;
   };
+  viewerIsOriginalAuthor?: boolean;
 }
 
 export async function buildSystemPrompt(options: PromptBuilderOptions): Promise<string> {
@@ -56,6 +57,10 @@ export async function buildSystemPrompt(options: PromptBuilderOptions): Promise<
     if (contextPrompt) {
       prompt = `${prompt}\n\n${contextPrompt}`;
     }
+  }
+
+  if (options.viewerIsOriginalAuthor === true) {
+    prompt += '\n\nThe user writing the reply is the original author of the tweet they are replying to.';
   }
 
   return prompt;
