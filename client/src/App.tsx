@@ -1,5 +1,5 @@
-import { Suspense, lazy } from "react";
-import { Switch, Route } from "wouter";
+import { Suspense, lazy, useEffect } from "react";
+import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -16,6 +16,7 @@ const ProfilePage = lazy(() => import("@/pages/profile"));
 const SettingsPage = lazy(() => import("@/pages/settings"));
 const PrivacyPolicy = lazy(() => import("@/pages/privacy"));
 const TermsOfService = lazy(() => import("@/pages/terms"));
+const CompleteProfile = lazy(() => import("@/pages/complete-profile"));
 const NotFound = lazy(() => import("@/pages/not-found"));
 
 // Loading component for Suspense fallback
@@ -30,8 +31,17 @@ function LoadingFallback() {
   );
 }
 
+function RedirectToCompleteProfile() {
+  const [, navigate] = useLocation();
+  useEffect(() => {
+    navigate("/complete-profile");
+  }, [navigate]);
+  return null;
+}
+
 function Router() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { user, isAuthenticated, isLoading } = useAuth();
+  const needsXUsername = isAuthenticated && user && !user.xUsername;
 
   return (
     <Suspense fallback={<LoadingFallback />}>
@@ -43,6 +53,14 @@ function Router() {
             <Route path="/pricing" component={Pricing} />
             <Route path="/privacy" component={PrivacyPolicy} />
             <Route path="/terms" component={TermsOfService} />
+          </>
+        ) : needsXUsername ? (
+          <>
+            <Route path="/" component={CompleteProfile} />
+            <Route path="/complete-profile" component={CompleteProfile} />
+            <Route path="/app" component={RedirectToCompleteProfile} />
+            <Route path="/profile" component={RedirectToCompleteProfile} />
+            <Route path="/settings" component={RedirectToCompleteProfile} />
           </>
         ) : (
           <>

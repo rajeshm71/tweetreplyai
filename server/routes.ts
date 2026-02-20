@@ -118,10 +118,32 @@ export async function registerRoutes(app: Express): Promise<Express> {
         profileImageUrl: user.profileImageUrl,
         authProviders: user.authProviders || [],
         isWhitelisted: whitelistService.isWhitelisted(user.email),
+        xUsername: user.xUsername ?? null,
       });
     } catch (error) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
+    }
+  });
+
+  // X username (complete profile) - require auth
+  app.post('/api/user/x-username', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const schema = z.object({ xUsername: z.string().min(1).max(100) });
+      const { xUsername: raw } = schema.parse(req.body);
+      const normalized = raw.trim().replace(/^@+/, '');
+      if (!normalized) {
+        return res.status(400).json({ message: 'X username is required' });
+      }
+      await storage.updateUser(userId, { xUsername: normalized });
+      return res.status(200).json({ success: true, xUsername: normalized });
+    } catch (err) {
+      if (err instanceof ZodError) {
+        return res.status(400).json({ message: 'Invalid X username', errors: err.errors });
+      }
+      console.error('Error updating X username:', err);
+      return res.status(500).json({ message: 'Failed to update X username' });
     }
   });
 

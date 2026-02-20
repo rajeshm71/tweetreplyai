@@ -10,6 +10,7 @@ export interface User {
   dodoCustomerId?: string;
   authProviders?: string[];
   hasUsedTrial?: boolean;
+  xUsername?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -25,6 +26,7 @@ export interface UpsertUser {
   dodoCustomerId?: string;
   authProviders?: string[];
   hasUsedTrial?: boolean;
+  xUsername?: string | null;
   createdAt?: Date;
   updatedAt?: Date;
 }

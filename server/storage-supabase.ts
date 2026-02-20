@@ -25,7 +25,7 @@ export class SupabaseStorage implements IStorage {
     
     const { data, error } = await supabase
       .from('users')
-      .select('id, email, password_hash, google_sub, first_name, last_name, profile_image_url, auth_providers, stripe_customer_id, has_used_trial, created_at, updated_at')
+      .select('id, email, password_hash, google_sub, first_name, last_name, profile_image_url, auth_providers, stripe_customer_id, has_used_trial, handle, created_at, updated_at')
       .eq('id', id)
       .single();
     
@@ -61,6 +61,7 @@ export class SupabaseStorage implements IStorage {
       dodoCustomerId: data.stripe_customer_id, // Map from old column name
       authProviders: data.auth_providers || [],
       hasUsedTrial: data.has_used_trial || false,
+      xUsername: data.handle ?? null,
       createdAt: new Date(data.created_at),
       updatedAt: new Date(data.updated_at)
     } as User;
@@ -73,7 +74,7 @@ export class SupabaseStorage implements IStorage {
     console.log('=== SUPABASE: getUserByEmail called (line 49) ===');
     const { data, error } = await supabase
       .from('users')
-      .select('id, email, password_hash, google_sub, first_name, last_name, profile_image_url, auth_providers, stripe_customer_id, has_used_trial, created_at, updated_at')
+      .select('id, email, password_hash, google_sub, first_name, last_name, profile_image_url, auth_providers, stripe_customer_id, has_used_trial, handle, created_at, updated_at')
       .eq('email', email)
       .single();
     
@@ -96,6 +97,7 @@ export class SupabaseStorage implements IStorage {
       dodoCustomerId: data.stripe_customer_id, // Map from old column name
       authProviders: data.auth_providers || [],
       hasUsedTrial: data.has_used_trial || false,
+      xUsername: data.handle ?? null,
       createdAt: new Date(data.created_at),
       updatedAt: new Date(data.updated_at)
     } as User;
@@ -105,7 +107,7 @@ export class SupabaseStorage implements IStorage {
     console.log('=== SUPABASE: getUserByGoogleSub called (line 77) ===');
     const { data, error } = await supabase
       .from('users')
-      .select('id, email, password_hash, google_sub, first_name, last_name, profile_image_url, auth_providers, stripe_customer_id, has_used_trial, created_at, updated_at')
+      .select('id, email, password_hash, google_sub, first_name, last_name, profile_image_url, auth_providers, stripe_customer_id, has_used_trial, handle, created_at, updated_at')
       .eq('google_sub', googleSub)
       .single();
     
@@ -128,6 +130,7 @@ export class SupabaseStorage implements IStorage {
       dodoCustomerId: data.stripe_customer_id, // Map from old column name
       authProviders: data.auth_providers || [],
       hasUsedTrial: data.has_used_trial || false,
+      xUsername: data.handle ?? null,
       createdAt: new Date(data.created_at),
       updatedAt: new Date(data.updated_at)
     } as User;
@@ -164,11 +167,14 @@ export class SupabaseStorage implements IStorage {
     if (userData.hasUsedTrial !== undefined) {
       dbData.has_used_trial = userData.hasUsedTrial;
     }
+    if (userData.xUsername !== undefined) {
+      dbData.handle = userData.xUsername;
+    }
     
     const { data, error } = await supabase
       .from('users')
       .upsert(dbData, { onConflict: 'id' })
-      .select('id, email, password_hash, google_sub, first_name, last_name, profile_image_url, auth_providers, stripe_customer_id, has_used_trial, created_at, updated_at')
+      .select('id, email, password_hash, google_sub, first_name, last_name, profile_image_url, auth_providers, stripe_customer_id, has_used_trial, handle, created_at, updated_at')
       .single();
     
     if (error) {
@@ -188,6 +194,7 @@ export class SupabaseStorage implements IStorage {
       dodoCustomerId: data.stripe_customer_id, // Map from old column name
       authProviders: data.auth_providers || [],
       hasUsedTrial: data.has_used_trial || false,
+      xUsername: data.handle ?? null,
       createdAt: new Date(data.created_at),
       updatedAt: new Date(data.updated_at)
     } as User;
@@ -207,12 +214,13 @@ export class SupabaseStorage implements IStorage {
     if (updates.profileImageUrl !== undefined) dbUpdates.profile_image_url = updates.profileImageUrl;
     if (updates.authProviders !== undefined) dbUpdates.auth_providers = updates.authProviders;
     if (updates.hasUsedTrial !== undefined) dbUpdates.has_used_trial = updates.hasUsedTrial;
+    if (updates.xUsername !== undefined) dbUpdates.handle = updates.xUsername;
     
     const { data, error } = await supabase
       .from('users')
       .update(dbUpdates)
       .eq('id', id)
-      .select('id, email, password_hash, google_sub, first_name, last_name, profile_image_url, auth_providers, stripe_customer_id, has_used_trial, created_at, updated_at')
+      .select('id, email, password_hash, google_sub, first_name, last_name, profile_image_url, auth_providers, stripe_customer_id, has_used_trial, handle, created_at, updated_at')
       .single();
     
     if (error) {
@@ -232,6 +240,7 @@ export class SupabaseStorage implements IStorage {
       dodoCustomerId: data.stripe_customer_id,
       authProviders: data.auth_providers || [],
       hasUsedTrial: data.has_used_trial || false,
+      xUsername: data.handle ?? null,
       createdAt: new Date(data.created_at),
       updatedAt: new Date(data.updated_at)
     } as User;

@@ -9,6 +9,7 @@ export interface User {
   authProviders: string[];
   emailVerified: boolean;
   isWhitelisted?: boolean;
+  xUsername?: string | null;
 }
 
 export function useAuth() {
