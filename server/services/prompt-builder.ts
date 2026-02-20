@@ -71,7 +71,7 @@ export function buildUserPromptWithThread(
   threadContext?: PromptBuilderOptions['threadContext']
 ): string {
   let userPrompt = baseUserPrompt;
-  if (threadContext?.isReply) {
+  if (threadContext?.isReply && threadContext.threadLength > 1) {
     if (threadContext.originalTweet) {
       userPrompt += `\n\nNote: This tweet is a reply. The original tweet that started this conversation was: "${threadContext.originalTweet}"`;
     }

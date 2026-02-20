@@ -258,7 +258,7 @@ export class TweetContextAnalyzer {
     }
     
     // ENHANCED THREAD CONTEXT (NEW - Most Important)
-    if (conversationContext && conversationContext.isThread) {
+    if (conversationContext && conversationContext.isThread && conversationContext.threadLength > 1) {
       // LOG: Display original tweet and thread chain being used in prompt
       if (conversationContext.originalTweet) {
         console.log('[TweetContext] 📋 THREAD CONTEXT FOR PROMPT:');

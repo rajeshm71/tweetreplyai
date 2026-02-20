@@ -2515,8 +2515,8 @@ class TwitterReplyInjector {
       const tweets = document.querySelectorAll('[data-testid="tweet"]');
       const parentTweets = [];
       
-      // Get up to 3 parent tweets for context
-      for (let i = 0; i < Math.min(tweets.length, 3); i++) {
+      // Get up to 4 parent tweets for context
+      for (let i = 0; i < Math.min(tweets.length, 4); i++) {
         const tweet = tweets[i];
         const tweetText = tweet.querySelector('[data-testid="tweetText"]');
         if (tweetText) {
@@ -2555,6 +2555,29 @@ class TwitterReplyInjector {
           threadChain: [],
           currentTweetIndex: 0,
           threadLength: 0
+        };
+      }
+
+      // Only extract full conversation context on tweet detail pages (URL containing /status/<digits>)
+      const currentPath = window.location.pathname;
+      const isDetailPage = /\/status\/\d+/.test(currentPath);
+      console.log('[TweetReply] Page URL:', currentPath, '| isDetailPage:', isDetailPage);
+
+      if (!isDetailPage) {
+        console.log('[TweetReply] Not on detail page, using single-tweet context only');
+        const authorInfo = this.extractAuthorInfo();
+        return {
+          isReply: true,
+          originalTweet: currentTweetText,
+          originalTweetAuthor: authorInfo?.username || 'unknown',
+          threadChain: [{
+            text: currentTweetText,
+            author: authorInfo?.username || 'unknown',
+            isOriginal: true,
+            isCurrent: true
+          }],
+          currentTweetIndex: 0,
+          threadLength: 1
         };
       }
 
@@ -2636,17 +2659,17 @@ class TwitterReplyInjector {
         isCurrent: index === currentTweetIndex
       }));
 
-      // Limit thread chain to 10 tweets or 5000 chars
+      // Limit thread chain to 4 tweets or 2000 chars
       let limitedChain = threadChain;
       let totalChars = threadChain.reduce((sum, t) => sum + t.text.length, 0);
-      if (threadChain.length > 10 || totalChars > 5000) {
-        // Keep original + current + most recent tweets
+      if (threadChain.length > 4 || totalChars > 2000) {
+        // Keep original + current + up to 2 most recent tweets (max 4 total)
         const keepIndices = new Set([0, currentTweetIndex]); // Always keep original and current
         const recentIndices = [];
-        for (let i = Math.max(1, threadChain.length - 8); i < threadChain.length; i++) {
+        for (let i = Math.max(1, threadChain.length - 2); i < threadChain.length; i++) {
           if (i !== currentTweetIndex) recentIndices.push(i);
         }
-        recentIndices.slice(0, 8).forEach(idx => keepIndices.add(idx));
+        recentIndices.slice(0, 2).forEach(idx => keepIndices.add(idx));
         limitedChain = threadChain.filter((_, idx) => keepIndices.has(idx));
       }
 
@@ -2847,35 +2870,40 @@ class TwitterReplyInjector {
         const text = tweetTextEl.textContent?.trim();
         if (!text || text.length < 10) continue;
 
-        // Extract author
+        // Extract author @handle from the tweet
         let author = 'unknown';
-        const authorSelectors = [
-          '[data-testid="User-Name"]',
-          '[data-testid="User-Names"]',
-          'a[href*="/"] span', // Username link
-          'div[dir="ltr"] span' // Username span
-        ];
+        const userNameEl = tweet.querySelector('[data-testid="User-Name"]');
 
-        for (const selector of authorSelectors) {
-          const authorEl = tweet.querySelector(selector);
-          if (authorEl) {
-            const authorText = authorEl.textContent?.trim();
-            // Check if it looks like a username (starts with @ or is short)
-            if (authorText && (authorText.startsWith('@') || authorText.length < 20)) {
-              author = authorText.replace('@', '');
-              break;
+        // Strategy A: extract @handle from User-Name textContent via regex
+        if (userNameEl) {
+          const fullText = userNameEl.textContent?.trim() || '';
+          const handleMatch = fullText.match(/@([A-Za-z0-9_]+)/);
+          if (handleMatch) {
+            author = handleMatch[1];
+          }
+        }
+
+        // Strategy B: extract handle from profile link href inside User-Name
+        if (author === 'unknown' && userNameEl) {
+          const profileLink = userNameEl.querySelector('a[href]');
+          if (profileLink) {
+            const href = profileLink.getAttribute('href') || '';
+            const hrefMatch = href.match(/^\/([A-Za-z0-9_]+)$/);
+            if (hrefMatch) {
+              author = hrefMatch[1];
             }
           }
         }
 
-        // Fallback: try to extract from any link with @
+        // Strategy C: scan profile-path hrefs in the article (last resort)
         if (author === 'unknown') {
-          const links = tweet.querySelectorAll('a[href*="/"]');
+          const links = tweet.querySelectorAll('a[href]');
+          const reservedPaths = new Set(['status', 'search', 'intent', 'i', 'home', 'hashtag', 'compose', 'settings', 'explore', 'notifications', 'messages']);
           for (const link of links) {
             const href = link.getAttribute('href') || '';
-            const match = href.match(/\/([^\/]+)$/);
-            if (match && match[1] && match[1].length < 20) {
-              author = match[1];
+            const hrefMatch = href.match(/^\/([A-Za-z0-9_]+)$/);
+            if (hrefMatch && !reservedPaths.has(hrefMatch[1].toLowerCase())) {
+              author = hrefMatch[1];
               break;
             }
           }

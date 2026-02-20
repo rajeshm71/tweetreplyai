@@ -695,7 +695,9 @@ export async function registerRoutes(app: Express): Promise<Express> {
 
       // Derive viewerIsOriginalAuthor: reply author is the original tweet author
       const userHandle = (user?.xUsername ?? '').trim().replace(/^@+/, '').toLowerCase();
-      const originalAuthor = (normalizedThreadContext?.originalTweetAuthor ?? '').trim().replace(/^@+/, '').toLowerCase();
+      const rawOriginalAuthor = (normalizedThreadContext?.originalTweetAuthor ?? '').trim().replace(/^@+/, '').toLowerCase();
+      const handlePattern = /^[a-z0-9_]+$/;
+      const originalAuthor = handlePattern.test(rawOriginalAuthor) ? rawOriginalAuthor : '';
       const viewerIsOriginalAuthor = !!userHandle && !!originalAuthor && userHandle === originalAuthor;
       console.log('[API] Authors — original:', originalAuthor || 'unknown', '| reply (viewer):', userHandle || 'unknown', '| same:', viewerIsOriginalAuthor);
 

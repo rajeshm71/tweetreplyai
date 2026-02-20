@@ -2091,7 +2091,7 @@
       try {
         const tweets = document.querySelectorAll('[data-testid="tweet"]');
         const parentTweets = [];
-        for (let i = 0; i < Math.min(tweets.length, 3); i++) {
+        for (let i = 0; i < Math.min(tweets.length, 4); i++) {
           const tweet = tweets[i];
           const tweetText = tweet.querySelector('[data-testid="tweetText"]');
           if (tweetText) {
@@ -2126,6 +2126,26 @@
             threadChain: [],
             currentTweetIndex: 0,
             threadLength: 0
+          };
+        }
+        const currentPath = window.location.pathname;
+        const isDetailPage = /\/status\/\d+/.test(currentPath);
+        console.log("[TweetReply] Page URL:", currentPath, "| isDetailPage:", isDetailPage);
+        if (!isDetailPage) {
+          console.log("[TweetReply] Not on detail page, using single-tweet context only");
+          const authorInfo = this.extractAuthorInfo();
+          return {
+            isReply: true,
+            originalTweet: currentTweetText,
+            originalTweetAuthor: authorInfo?.username || "unknown",
+            threadChain: [{
+              text: currentTweetText,
+              author: authorInfo?.username || "unknown",
+              isOriginal: true,
+              isCurrent: true
+            }],
+            currentTweetIndex: 0,
+            threadLength: 1
           };
         }
         const isReply = this.detectReplyContext();
@@ -2193,13 +2213,13 @@
         }));
         let limitedChain = threadChain;
         let totalChars = threadChain.reduce((sum, t) => sum + t.text.length, 0);
-        if (threadChain.length > 10 || totalChars > 5e3) {
+        if (threadChain.length > 4 || totalChars > 2e3) {
           const keepIndices = /* @__PURE__ */ new Set([0, currentTweetIndex]);
           const recentIndices = [];
-          for (let i = Math.max(1, threadChain.length - 8); i < threadChain.length; i++) {
+          for (let i = Math.max(1, threadChain.length - 2); i < threadChain.length; i++) {
             if (i !== currentTweetIndex) recentIndices.push(i);
           }
-          recentIndices.slice(0, 8).forEach((idx) => keepIndices.add(idx));
+          recentIndices.slice(0, 2).forEach((idx) => keepIndices.add(idx));
           limitedChain = threadChain.filter((_, idx) => keepIndices.has(idx));
         }
         let recalculatedCurrentIndex = limitedChain.findIndex((tweet) => tweet.isCurrent);
@@ -2363,31 +2383,32 @@
           const text = tweetTextEl.textContent?.trim();
           if (!text || text.length < 10) continue;
           let author = "unknown";
-          const authorSelectors = [
-            '[data-testid="User-Name"]',
-            '[data-testid="User-Names"]',
-            'a[href*="/"] span',
-            // Username link
-            'div[dir="ltr"] span'
-            // Username span
-          ];
-          for (const selector of authorSelectors) {
-            const authorEl = tweet.querySelector(selector);
-            if (authorEl) {
-              const authorText = authorEl.textContent?.trim();
-              if (authorText && (authorText.startsWith("@") || authorText.length < 20)) {
-                author = authorText.replace("@", "");
-                break;
+          const userNameEl = tweet.querySelector('[data-testid="User-Name"]');
+          if (userNameEl) {
+            const fullText = userNameEl.textContent?.trim() || "";
+            const handleMatch = fullText.match(/@([A-Za-z0-9_]+)/);
+            if (handleMatch) {
+              author = handleMatch[1];
+            }
+          }
+          if (author === "unknown" && userNameEl) {
+            const profileLink = userNameEl.querySelector("a[href]");
+            if (profileLink) {
+              const href = profileLink.getAttribute("href") || "";
+              const hrefMatch = href.match(/^\/([A-Za-z0-9_]+)$/);
+              if (hrefMatch) {
+                author = hrefMatch[1];
               }
             }
           }
           if (author === "unknown") {
-            const links = tweet.querySelectorAll('a[href*="/"]');
+            const links = tweet.querySelectorAll("a[href]");
+            const reservedPaths = /* @__PURE__ */ new Set(["status", "search", "intent", "i", "home", "hashtag", "compose", "settings", "explore", "notifications", "messages"]);
             for (const link of links) {
               const href = link.getAttribute("href") || "";
-              const match = href.match(/\/([^\/]+)$/);
-              if (match && match[1] && match[1].length < 20) {
-                author = match[1];
+              const hrefMatch = href.match(/^\/([A-Za-z0-9_]+)$/);
+              if (hrefMatch && !reservedPaths.has(hrefMatch[1].toLowerCase())) {
+                author = hrefMatch[1];
                 break;
               }
             }
