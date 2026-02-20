@@ -697,6 +697,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
       const userHandle = (user?.xUsername ?? '').trim().replace(/^@+/, '').toLowerCase();
       const originalAuthor = (normalizedThreadContext?.originalTweetAuthor ?? '').trim().replace(/^@+/, '').toLowerCase();
       const viewerIsOriginalAuthor = !!userHandle && !!originalAuthor && userHandle === originalAuthor;
+      console.log('[API] Authors — original:', originalAuthor || 'unknown', '| reply (viewer):', userHandle || 'unknown', '| same:', viewerIsOriginalAuthor);
 
       // Generate the reply with enriched analysis and context
       // Log analysis data being passed to AI router
