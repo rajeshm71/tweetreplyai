@@ -21,6 +21,13 @@ class TwitterReplyInjector {
     this.usageData = null;
     this.injectedButtons = new Set();
     this.injectedContainers = new Set(); // Track injected container IDs
+    this.lastNonComposePath = window.location.pathname;
+    this.urlTrackingInterval = setInterval(() => {
+      const path = window.location.pathname;
+      if (!/\/compose\//.test(path)) {
+        this.lastNonComposePath = path;
+      }
+    }, 300);
     
     // Store global reference
     window.__tweetReplyInjector = this;
@@ -2560,8 +2567,9 @@ class TwitterReplyInjector {
 
       // Only extract full conversation context on tweet detail pages (URL containing /status/<digits>)
       const currentPath = window.location.pathname;
-      const isDetailPage = /\/status\/\d+/.test(currentPath);
-      console.log('[TweetReply] Page URL:', currentPath, '| isDetailPage:', isDetailPage);
+      const effectivePath = /\/compose\//.test(currentPath) ? this.lastNonComposePath : currentPath;
+      const isDetailPage = /\/status\/\d+/.test(effectivePath);
+      console.log('[TweetReply] Page URL:', currentPath, '| effectivePath:', effectivePath, '| isDetailPage:', isDetailPage);
 
       if (!isDetailPage) {
         console.log('[TweetReply] Not on detail page, using single-tweet context only');
@@ -3278,6 +3286,10 @@ class TwitterReplyInjector {
     if (this.trackingCleanupInterval) {
       clearInterval(this.trackingCleanupInterval);
       this.trackingCleanupInterval = null;
+    }
+    if (this.urlTrackingInterval) {
+      clearInterval(this.urlTrackingInterval);
+      this.urlTrackingInterval = null;
     }
     
     // Clear timeouts

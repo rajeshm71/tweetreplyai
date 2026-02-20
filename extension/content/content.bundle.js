@@ -245,6 +245,13 @@
       this.usageData = null;
       this.injectedButtons = /* @__PURE__ */ new Set();
       this.injectedContainers = /* @__PURE__ */ new Set();
+      this.lastNonComposePath = window.location.pathname;
+      this.urlTrackingInterval = setInterval(() => {
+        const path = window.location.pathname;
+        if (!/\/compose\//.test(path)) {
+          this.lastNonComposePath = path;
+        }
+      }, 300);
       window.__tweetReplyInjector = this;
       this.beforeUnloadHandler = () => this.destroy();
       window.addEventListener("beforeunload", this.beforeUnloadHandler);
@@ -2129,8 +2136,9 @@
           };
         }
         const currentPath = window.location.pathname;
-        const isDetailPage = /\/status\/\d+/.test(currentPath);
-        console.log("[TweetReply] Page URL:", currentPath, "| isDetailPage:", isDetailPage);
+        const effectivePath = /\/compose\//.test(currentPath) ? this.lastNonComposePath : currentPath;
+        const isDetailPage = /\/status\/\d+/.test(effectivePath);
+        console.log("[TweetReply] Page URL:", currentPath, "| effectivePath:", effectivePath, "| isDetailPage:", isDetailPage);
         if (!isDetailPage) {
           console.log("[TweetReply] Not on detail page, using single-tweet context only");
           const authorInfo = this.extractAuthorInfo();
@@ -2680,6 +2688,10 @@
       if (this.trackingCleanupInterval) {
         clearInterval(this.trackingCleanupInterval);
         this.trackingCleanupInterval = null;
+      }
+      if (this.urlTrackingInterval) {
+        clearInterval(this.urlTrackingInterval);
+        this.urlTrackingInterval = null;
       }
       if (this.mainObserverDebounceTimer) {
         clearTimeout(this.mainObserverDebounceTimer);
