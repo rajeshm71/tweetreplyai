@@ -1876,20 +1876,8 @@ export async function registerRoutes(app: Express): Promise<Express> {
         });
       }
 
-      // Consume credits quota after successful improvement (default to Balanced mode)
-      let updatedCounter;
-      if (!isWhitelisted) {
-        updatedCounter = await usageService.consumeReply(userId, 'improve');
-      } else {
-        // Whitelisted users don't consume quota
-        const status = await usageService.getUsageStatus(userId);
-        updatedCounter = {
-          repliesUsed: 0,
-          creditsUsed: status?.used || 0, // Credits
-          limit: status?.limit || 0, // Credits
-          resetAt: status?.resetAt || new Date(),
-        } as UsageCounter;
-      }
+      // Consume credits after successful improvement
+      const updatedCounter = await usageService.consumeReply(userId, 'improve');
       
       // Analyze the draft for quality metrics with detailed breakdown
       const qualityResult = qualityChecker.checkQuality(draft_reply, original_tweet);
