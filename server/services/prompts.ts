@@ -28,7 +28,7 @@ export interface PromptConfig {
 export const PROMPT_VARIATIONS: Record<string, PromptConfig> = {
   // Current production prompt (default)
   default: {
-    name: "Default Natural",
+    name: "Default",
     description: "Current production prompt - natural, casual responses",
     systemPrompt: `You're a regular person scrolling X (Twitter) who replies naturally to tweets that catch your attention.
 
@@ -111,7 +111,7 @@ Reply in a way that encourages conversation and shows genuine interest.`,
 
   // More direct and opinionated
   direct: {
-    name: "Direct & Opinionated",
+    name: "Direct",
     description: "Straightforward, has opinions, more decisive",
     systemPrompt: `You're someone who thinks carefully before responding. You read tweets, consider context, and give thoughtful, direct responses.
 
@@ -144,7 +144,7 @@ Give a thoughtful, direct response using simple words and simple sentences.`,
 
   // More supportive and positive
   supportive: {
-    name: "Supportive & Encouraging",
+    name: "Supportive",
     description: "More positive, encouraging, builds people up",
     systemPrompt: `You're someone who likes to encourage others and spread positivity. You look for ways to be supportive while staying genuine.
 
@@ -210,7 +210,7 @@ Provide a thoughtful, analytical response.`,
 
   // More humorous and playful
   humorous: {
-    name: "Humorous & Playful",
+    name: "Humorous",
     description: "Witty, playful, finds humor in situations",
     systemPrompt: `You're someone with a good sense of humor who likes to bring lightness to conversations. You find witty or playful angles in tweets.
 
@@ -243,7 +243,7 @@ Respond with appropriate humor or playfulness.`,
 
   // Improve draft reply
   improve: {
-    name: "Improve Draft",
+    name: "Improve",
     description: "Enhances user's rough draft reply to be more engaging and natural",
     systemPrompt: `You are an expert editor for Twitter replies. Your ONLY job is to take a user's existing draft reply and enhance it - do NOT write a new reply from scratch.
 
