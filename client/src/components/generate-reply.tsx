@@ -40,7 +40,7 @@ interface GenerateReplyResponse {
 interface ModelInfo {
   key: string;
   name: string;
-  provider: "openai" | "gemini" | "groq"; // Fix: Added "groq" to match backend response
+  provider: "openai" | "groq";
   inputCost: number;
   outputCost: number;
   contextWindow: number;
@@ -114,7 +114,7 @@ interface QualityMetrics {
 
 export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
   const [tweetText, setTweetText] = useState("");
-  const [selectedModel, setSelectedModel] = useState<string>("gpt-4o-mini");
+  const [selectedModel, setSelectedModel] = useState<string>("");
   const [selectedPrompt, setSelectedPrompt] = useState<string>("default");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [feedbackGiven, setFeedbackGiven] = useState(false);
@@ -171,19 +171,17 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
   };
 
   // Fetch available models
-  const { data: modelsData, isLoading: modelsLoading, error: modelsError } = useQuery<{openai: ModelInfo[], gemini: ModelInfo[], groq: ModelInfo[]}>({
+  const { data: modelsData, isLoading: modelsLoading, error: modelsError } = useQuery<{openai: ModelInfo[], groq: ModelInfo[]}>({
     queryKey: ["/api/models"],
     refetchOnWindowFocus: false,
-    retry: 2, // Fix: Added retry logic for better resilience
-    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff
-    // Fix: More explicit null handling in select function
+    retry: 2,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
     select: (data) => {
       if (!data) {
-        return { openai: [], gemini: [], groq: [] };
+        return { openai: [], groq: [] };
       }
       return {
         openai: Array.isArray(data.openai) ? data.openai : [],
-        gemini: Array.isArray(data.gemini) ? data.gemini : [],
         groq: Array.isArray(data.groq) ? data.groq : [],
       };
     },
@@ -203,9 +201,8 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
   const allAvailableModelKeys = useMemo(() => {
     if (!modelsData) return [];
     return [
-      ...(modelsData.openai || []).filter(isValidModel).map(m => m.key),
-      ...(modelsData.gemini || []).filter(isValidModel).map(m => m.key),
       ...(modelsData.groq || []).filter(isValidModel).map(m => m.key),
+      ...(modelsData.openai || []).filter(isValidModel).map(m => m.key),
     ];
   }, [modelsData]);
 
@@ -726,75 +723,23 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
               ) : (
                 modelsData && (
                   <>
-                    {/* OpenAI Models */}
-                    {modelsData.openai && Array.isArray(modelsData.openai) && modelsData.openai.length > 0 && (
-                      <>
-                        <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">OpenAI</div>
-                        {modelsData.openai
-                          .filter(isValidModel) // Fix: Use extracted validation function for maintainability
-                          .map((model) => (
-                            <SelectItem key={model.key} value={model.key} data-testid={`model-${model.key}`}>
-                              <div className="flex items-center justify-between w-full">
-                                <div className="flex flex-col">
-                                  <span className="font-medium">{model.name || 'Unknown'}</span>
-                                  <span className="text-xs text-muted-foreground">{model.description || ''}</span>
-                                </div>
-                                <Badge variant="outline" className="ml-2 text-xs">
-                                  ${(model.inputCost ?? 0).toFixed(2)}/1M
-                                </Badge>
-                              </div>
-                            </SelectItem>
-                          ))}
-                      </>
-                    )}
-                    
-                    {/* Gemini Models */}
-                    {modelsData.gemini && Array.isArray(modelsData.gemini) && modelsData.gemini.length > 0 && (
-                      <>
-                        <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground mt-2">Google Gemini</div>
-                        {modelsData.gemini
-                          .filter(isValidModel) // Fix: Use extracted validation function for maintainability
-                          .map((model) => (
-                            <SelectItem key={model.key} value={model.key} data-testid={`model-${model.key}`}>
-                              <div className="flex items-center justify-between w-full">
-                                <div className="flex flex-col">
-                                  <span className="font-medium">{model.name || 'Unknown'}</span>
-                                  <span className="text-xs text-muted-foreground">{model.description || ''}</span>
-                                </div>
-                                <Badge variant="outline" className="ml-2 text-xs">
-                                  ${(model.inputCost ?? 0).toFixed(2)}/1M
-                                </Badge>
-                              </div>
-                            </SelectItem>
-                          ))}
-                      </>
-                    )}
-                    
-                    {/* Groq Models */}
-                    {modelsData.groq && Array.isArray(modelsData.groq) && modelsData.groq.length > 0 && (
-                      <>
-                        <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground mt-2">Groq</div>
-                        {modelsData.groq
-                          .filter(isValidModel) // Fix: Use extracted validation function for maintainability
-                          .map((model) => (
-                            <SelectItem key={model.key} value={model.key} data-testid={`model-${model.key}`}>
-                              <div className="flex items-center justify-between w-full">
-                                <div className="flex flex-col">
-                                  <span className="font-medium">{model.name || 'Unknown'}</span>
-                                  <span className="text-xs text-muted-foreground">{model.description || ''}</span>
-                                </div>
-                                <Badge variant="outline" className="ml-2 text-xs">
-                                  ${(model.inputCost ?? 0).toFixed(2)}/1M
-                                </Badge>
-                              </div>
-                            </SelectItem>
-                          ))}
-                      </>
-                    )}
-                    
-                    {/* Show message if no models available */}
+                    {[
+                      ...(modelsData.groq || []),
+                      ...(modelsData.openai || []),
+                    ]
+                      .filter(isValidModel)
+                      .map((model) => (
+                        <SelectItem key={model.key} value={model.key} data-testid={`model-${model.key}`}>
+                          <div className="flex items-center justify-between w-full">
+                            <div className="flex flex-col">
+                              <span className="font-medium">{model.name || 'Unknown'}</span>
+                              <span className="text-xs text-muted-foreground">{model.description || ''}</span>
+                            </div>
+                          </div>
+                        </SelectItem>
+                      ))}
+
                     {(!modelsData.openai || modelsData.openai.length === 0) &&
-                     (!modelsData.gemini || modelsData.gemini.length === 0) &&
                      (!modelsData.groq || modelsData.groq.length === 0) && (
                       <SelectItem value="no-models" disabled>No models available</SelectItem>
                     )}

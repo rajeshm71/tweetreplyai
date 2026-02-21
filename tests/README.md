@@ -19,8 +19,7 @@ tests/
 ├── mocks/
 │   ├── handlers.ts                 # MSW handlers
 │   ├── stripe.mock.ts              # Stripe mocks
-│   ├── openai.mock.ts              # OpenAI mocks
-│   └── gemini.mock.ts              # Gemini mocks
+│   └── openai.mock.ts              # OpenAI mocks
 ├── unit/
 │   ├── routes/
 │   │   ├── auth.test.ts           # Auth endpoints
@@ -100,7 +99,7 @@ GOOGLE_CLIENT_ID=test-google-client-id
 GOOGLE_CLIENT_SECRET=test-google-client-secret
 STRIPE_SECRET_KEY=sk_test_xxx
 OPENAI_API_KEY=test-openai-key
-GEMINI_API_KEY=test-gemini-key
+GROQ_API_KEY=test-groq-key
 NODE_ENV=test
 ```
 
@@ -228,7 +227,7 @@ vi.mock('../../../server/storage', () => ({
 - Test edge cases and boundary conditions
 
 ### Mocking Strategy
-- Mock external APIs (Stripe, OpenAI, Gemini)
+- Mock external APIs (Stripe, OpenAI, Groq)
 - Mock database operations for unit tests
 - Use real database for integration tests
 - Reset mocks between tests

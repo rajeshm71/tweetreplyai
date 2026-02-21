@@ -29,7 +29,7 @@ TweetReply uses advanced AI to help you craft engaging, human-like replies to tw
 
 **Features:**
 - One-click AI reply generation
-- Multiple AI models (OpenAI, Gemini, Groq)
+- Multiple AI models for best results
 - Various reply styles (Direct, Professional, Casual, etc.)
 - Smart text replacement that works seamlessly with Twitter's interface
 - Quality scoring for generated replies

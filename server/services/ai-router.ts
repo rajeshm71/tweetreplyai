@@ -1,11 +1,13 @@
 import { modelRouter as openaiRouter, ReplyOptions, ReplyResponse } from "./openai.js";
-import { geminiModelRouter } from "./gemini.js";
 import { groqModelRouter } from "./groq.js";
+
+const LLAMA_SCOUT = "meta-llama/llama-4-scout-17b-16e-instruct";
+const FALLBACK_MODEL = "gpt-4o-mini";
 
 export interface ModelInfo {
   key: string;
   name: string;
-  provider: "openai" | "gemini" | "groq";
+  provider: "openai" | "groq";
   inputCost: number;
   outputCost: number;
   contextWindow: number;
@@ -13,19 +15,11 @@ export interface ModelInfo {
 }
 
 export class UnifiedAIRouter {
-  // Determine which provider handles a given model
-  private getProviderForModel(modelKey: string): "openai" | "gemini" | "groq" | null {
-    // OpenAI models
+  private getProviderForModel(modelKey: string): "openai" | "groq" | null {
     if (modelKey.startsWith("gpt-")) {
       return "openai";
     }
-    
-    // Gemini models
-    if (modelKey.startsWith("gemini-")) {
-      return "gemini";
-    }
 
-    // Groq models (Llama models)
     if (modelKey.startsWith("meta-llama/") || modelKey.startsWith("llama-")) {
       return "groq";
     }
@@ -34,155 +28,93 @@ export class UnifiedAIRouter {
   }
 
   async generateReply(options: ReplyOptions): Promise<ReplyResponse> {
-    if (!options.modelPreference) {
-      // Default to GPT-4o-mini for automatic routing (most cost-effective stable model)
-      return openaiRouter.generateReply({
-        ...options,
-        modelPreference: "gpt-4o-mini",
-      });
-    }
+    const modelKey = options.modelPreference || LLAMA_SCOUT;
+    const provider = this.getProviderForModel(modelKey);
 
-    const provider = this.getProviderForModel(options.modelPreference);
-    
-    switch (provider) {
-      case "openai":
-        return openaiRouter.generateReply(options);
-      
-      case "gemini":
-        return geminiModelRouter.generateReply(options);
-      
-      case "groq":
-        return groqModelRouter.generateReply(options);
-      
-      default:
-        throw new Error(`Unknown model: ${options.modelPreference}`);
+    try {
+      switch (provider) {
+        case "groq":
+          return await groqModelRouter.generateReply({ ...options, modelPreference: modelKey });
+
+        case "openai":
+          return await openaiRouter.generateReply({ ...options, modelPreference: modelKey });
+
+        default:
+          throw new Error(`Unknown model: ${modelKey}`);
+      }
+    } catch (error) {
+      if (modelKey !== FALLBACK_MODEL) {
+        const message = error instanceof Error ? error.message : "Unknown error";
+        console.log(`⚠️ [AI Router] ${modelKey} failed (${message}), falling back to ${FALLBACK_MODEL}`);
+        return openaiRouter.generateReply({ ...options, modelPreference: FALLBACK_MODEL });
+      }
+      throw error;
     }
   }
 
   async improveDraft(tweetText: string, draftReply: string, modelPreference?: string): Promise<ReplyResponse> {
-    // For now, only OpenAI supports improveDraft
-    // Default to GPT-4o-mini if no preference
-    const modelKey = modelPreference || "gpt-4o-mini";
-    const provider = this.getProviderForModel(modelKey);
-    
-    console.log(`🔧 [AI Router] improveDraft called - Model: ${modelKey}, Provider: ${provider || 'unknown'}`);
+    const modelKey = modelPreference || FALLBACK_MODEL;
+
+    console.log(`🔧 [AI Router] improveDraft called - Model: ${modelKey}`);
     console.log(`📝 [AI Router] Tweet text: "${tweetText.substring(0, 50)}..."`);
     console.log(`📝 [AI Router] Draft reply: "${draftReply.substring(0, 50)}..."`);
-    
-    if (provider === "openai") {
-      return openaiRouter.improveDraft(tweetText, draftReply, modelKey);
-    }
-    
-    // Fallback to OpenAI if provider doesn't support improvement
-    console.log(`⚠️ [AI Router] Provider ${provider} doesn't support improveDraft, falling back to OpenAI`);
-    return openaiRouter.improveDraft(tweetText, draftReply, "gpt-4o-mini");
+
+    return openaiRouter.improveDraft(tweetText, draftReply, modelKey);
   }
 
-  // Get all available models from all providers
   getAllModels(): ModelInfo[] {
-    const openaiModels = openaiRouter.getAvailableModels().map(model => ({
-      ...model,
-      provider: "openai" as const,
-    }));
-
-    const geminiModels = geminiModelRouter.getAvailableModels().map(model => ({
-      ...model,
-      provider: "gemini" as const,
-    }));
-
     const groqModels = groqModelRouter.getAvailableModels().map(model => ({
       ...model,
       provider: "groq" as const,
     }));
 
-    return [...openaiModels, ...geminiModels, ...groqModels].sort((a, b) => {
-      // Sort by provider first, then by cost (cheapest first)
-      if (a.provider !== b.provider) {
-        return a.provider.localeCompare(b.provider);
-      }
-      return a.inputCost - b.inputCost;
-    });
+    const openaiModels = openaiRouter.getAvailableModels().map(model => ({
+      ...model,
+      provider: "openai" as const,
+    }));
+
+    return [...groqModels, ...openaiModels];
   }
 
-  // Get models grouped by provider for UI display
   getModelsByProvider() {
     const allModels = this.getAllModels();
-    
+
     return {
       openai: allModels.filter(m => m.provider === "openai"),
-      gemini: allModels.filter(m => m.provider === "gemini"),
       groq: allModels.filter(m => m.provider === "groq"),
     };
   }
 
-  // Get model information
   getModelInfo(modelKey: string): ModelInfo | null {
     const provider = this.getProviderForModel(modelKey);
-    
-    if (provider === "openai") {
-      const info = openaiRouter.getModelInfo(modelKey);
-      return info ? { ...info, key: modelKey, provider: "openai" } : null;
-    }
-    
-    if (provider === "gemini") {
-      const info = geminiModelRouter.getModelInfo(modelKey);
-      return info ? { ...info, key: modelKey, provider: "gemini" } : null;
-    }
 
     if (provider === "groq") {
-      const info = groqModelRouter.getModelInfo(modelKey);
-      return info ? { ...info, key: modelKey, provider: "groq" } : null;
+      const models = groqModelRouter.getAvailableModels();
+      const info = models.find(m => m.key === modelKey);
+      return info ? { ...info, provider: "groq" } : null;
+    }
+
+    if (provider === "openai") {
+      const models = openaiRouter.getAvailableModels();
+      const info = models.find(m => m.key === modelKey);
+      return info ? { ...info, provider: "openai" } : null;
     }
 
     return null;
   }
 
-  // Calculate estimated cost for a request
   estimateCost(modelKey: string, inputTokens: number, outputTokens: number): number {
     const modelInfo = this.getModelInfo(modelKey);
     if (!modelInfo) return 0;
 
     const inputCost = (inputTokens / 1_000_000) * modelInfo.inputCost;
     const outputCost = (outputTokens / 1_000_000) * modelInfo.outputCost;
-    
+
     return inputCost + outputCost;
   }
 
-  // Get recommended model based on tweet complexity and budget
-  getRecommendedModel(tweetText: string, maxCostPerRequest?: number): string {
-    const allModels = this.getAllModels();
-    
-    // Estimate token usage (rough approximation)
-    const estimatedInputTokens = Math.ceil(tweetText.length / 4) + 100; // +100 for system prompt
-    const estimatedOutputTokens = 50; // Typical reply length
-    
-    // Filter models by cost if budget is specified
-    let availableModels = allModels;
-    if (maxCostPerRequest) {
-      availableModels = allModels.filter(model => {
-        const estimatedCost = this.estimateCost(model.key, estimatedInputTokens, estimatedOutputTokens);
-        return estimatedCost <= maxCostPerRequest;
-      });
-    }
-    
-    if (availableModels.length === 0) {
-      // Fallback to cheapest model
-      return allModels.sort((a, b) => a.inputCost - b.inputCost)[0].key;
-    }
-    
-    // For complex tweets, prefer more capable models
-    const isComplex = tweetText.length > 280 || 
-      /https?:\/\/[^\s]+/.test(tweetText) || 
-      /@\w+/.test(tweetText) ||
-      /#\w+/.test(tweetText);
-    
-    if (isComplex) {
-      // Return most capable model within budget
-      return availableModels.sort((a, b) => b.inputCost - a.inputCost)[0].key;
-    } else {
-      // Return cheapest model for simple tweets
-      return availableModels.sort((a, b) => a.inputCost - b.inputCost)[0].key;
-    }
+  getRecommendedModel(): string {
+    return LLAMA_SCOUT;
   }
 }
 

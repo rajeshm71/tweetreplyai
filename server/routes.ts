@@ -1862,8 +1862,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
         // Use the new improveDraft method
         const improvementResponse = await aiRouter.improveDraft(
           original_tweet,
-          draft_reply,
-          'gpt-4o-mini'
+          draft_reply
         );
         improvedReply = improvementResponse.reply;
       } catch (error) {

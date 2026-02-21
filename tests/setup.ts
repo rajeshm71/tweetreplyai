@@ -15,7 +15,6 @@ if (!process.env.DATABASE_URL) {
   process.env.GOOGLE_CLIENT_SECRET = 'test-google-client-secret';
   process.env.STRIPE_SECRET_KEY = 'sk_test_51234567890abcdef';
   process.env.OPENAI_API_KEY = 'test-openai-key-12345';
-  process.env.GEMINI_API_KEY = 'test-gemini-key-67890';
   process.env.GROQ_API_KEY = 'test-groq-key-54321';
   process.env.NODE_ENV = 'test';
   process.env.PORT = '5001';

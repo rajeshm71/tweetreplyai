@@ -146,8 +146,8 @@ describe('AI Endpoints - Unit Tests', () => {
   describe('GET /api/models', () => {
     it('should return list of available AI models', async () => {
       const mockModels = {
-        openai: ['gpt-3.5-turbo', 'gpt-4'],
-        gemini: ['gemini-pro'],
+        openai: ['gpt-4o-mini'],
+        groq: ['meta-llama/llama-4-scout-17b-16e-instruct'],
       };
 
       const { aiRouter } = await import('../../../server/services/ai-router');

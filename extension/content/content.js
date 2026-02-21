@@ -970,14 +970,6 @@ class TwitterReplyInjector {
           select.appendChild(option);
         });
       }
-      if (models && models.gemini) {
-        models.gemini.forEach(model => {
-          const option = document.createElement('option');
-          option.value = model.key;
-          option.textContent = model.name;
-          select.appendChild(option);
-        });
-      }
       if (models && models.groq) {
         models.groq.forEach(model => {
           const option = document.createElement('option');
@@ -993,10 +985,7 @@ class TwitterReplyInjector {
       if (savedModelKey && options.some(o => o.value === savedModelKey)) {
         select.value = savedModelKey;
       } else {
-        // Move "LLama Scout" (case-insensitive) to top and select it
-        const preferred = options.find(o => /llama\s*scout/i.test(o.textContent || ''))
-          || options.find(o => /llama/i.test(o.textContent || ''))
-          || null;
+        const preferred = options.length > 1 ? options[1] : null;
         if (preferred && preferred !== defaultOption) {
           select.insertBefore(preferred, select.children[1] || null);
           select.value = preferred.value;

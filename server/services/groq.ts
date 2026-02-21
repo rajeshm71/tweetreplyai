@@ -11,11 +11,11 @@ export class GroqModelRouter {
   // Available Groq models with their characteristics
   private readonly MODELS = {
     "meta-llama/llama-4-scout-17b-16e-instruct": {
-      name: "Llama 4 Scout 17B",
-      inputCost: 0.1, // per 1M tokens (estimated - Groq typically very competitive)
-      outputCost: 0.4, // per 1M tokens (estimated)
-      contextWindow: 16384, // 16k extended context
-      description: "Latest Llama 4 Scout model with enhanced reasoning and instruction following",
+      name: "Fast",
+      inputCost: 0.1,
+      outputCost: 0.4,
+      contextWindow: 16384,
+      description: "Fast, low-latency model for quick replies",
     },
   } as const;
 

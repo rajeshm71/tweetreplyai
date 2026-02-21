@@ -327,7 +327,7 @@ export default function Landing() {
     },
     {
       question: "What AI models do you use?",
-      answer: "We use the latest GPT and Gemini models, automatically selecting the best model based on tweet complexity for optimal results.",
+      answer: "We use the latest AI models, automatically selecting the best one for optimal results.",
       icon: "Sparkles",
       category: "ai",
       emoji: "🤖",
