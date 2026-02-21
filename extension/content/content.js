@@ -1019,12 +1019,6 @@ class TwitterReplyInjector {
     select.className = 'tweetreply-prompt-select';
     select.title = 'Choose reply style';
     
-    // Default option
-    const defaultOption = document.createElement('option');
-    defaultOption.value = '';
-    defaultOption.textContent = 'Default';
-    select.appendChild(defaultOption);
-    
     // Try to restore previously selected prompt/style
     let savedPrompt = null;
     try {
@@ -1039,8 +1033,9 @@ class TwitterReplyInjector {
     this.loadPrompts().then(prompts => {
       if (prompts && Array.isArray(prompts)) {
         prompts.forEach(prompt => {
+          if (prompt.key === 'improve') return;
           const option = document.createElement('option');
-          option.value = prompt.name;
+          option.value = prompt.key;
           option.textContent = prompt.name;
           select.appendChild(option);
         });
@@ -1050,10 +1045,10 @@ class TwitterReplyInjector {
       if (savedPrompt && options.some(o => (o.value === savedPrompt))) {
         select.value = savedPrompt;
       } else {
-        // Move "Direct response" to top and select it
-        const preferred = options.find(o => /direct\s*response/i.test(o.textContent || '')) || null;
-        if (preferred && preferred !== defaultOption) {
-          select.insertBefore(preferred, select.children[1] || null);
+        // Move "Direct & Opinionated" to top and select it
+        const preferred = options.find(o => /direct/i.test(o.textContent || '')) || null;
+        if (preferred) {
+          select.insertBefore(preferred, select.children[0] || null);
           select.value = preferred.value;
         }
       }

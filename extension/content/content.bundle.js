@@ -948,10 +948,6 @@
       const select = document.createElement("select");
       select.className = "tweetreply-prompt-select";
       select.title = "Choose reply style";
-      const defaultOption = document.createElement("option");
-      defaultOption.value = "";
-      defaultOption.textContent = "Default";
-      select.appendChild(defaultOption);
       let savedPrompt = null;
       try {
         chrome.storage?.local?.get(["tweetreply_prompt"], (data) => {
@@ -964,8 +960,9 @@
       this.loadPrompts().then((prompts) => {
         if (prompts && Array.isArray(prompts)) {
           prompts.forEach((prompt) => {
+            if (prompt.key === "improve") return;
             const option = document.createElement("option");
-            option.value = prompt.name;
+            option.value = prompt.key;
             option.textContent = prompt.name;
             select.appendChild(option);
           });
@@ -974,9 +971,9 @@
         if (savedPrompt && options.some((o) => o.value === savedPrompt)) {
           select.value = savedPrompt;
         } else {
-          const preferred = options.find((o) => /direct\s*response/i.test(o.textContent || "")) || null;
-          if (preferred && preferred !== defaultOption) {
-            select.insertBefore(preferred, select.children[1] || null);
+          const preferred = options.find((o) => /direct/i.test(o.textContent || "")) || null;
+          if (preferred) {
+            select.insertBefore(preferred, select.children[0] || null);
             select.value = preferred.value;
           }
         }

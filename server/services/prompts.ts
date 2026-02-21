@@ -292,11 +292,13 @@ export function getPromptConfig(promptName: string = "default"): PromptConfig {
 
 // Function to list all available prompts
 export function getAvailablePrompts(): Array<{
+  key: string;
   name: string;
   description: string;
 }> {
   return Object.entries(PROMPT_VARIATIONS).map(([key, config]) => ({
-    name: key,
+    key,
+    name: config.name,
     description: config.description,
   }));
 }
