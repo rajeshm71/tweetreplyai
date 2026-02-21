@@ -646,9 +646,9 @@ export class SupabaseStorage implements IStorage {
     // Update mode breakdown if replyMode is provided
     let updatedBreakdown = counter.modeBreakdown || {};
     if (replyMode) {
-      const validModes: Array<'single-sentence' | 'base' | 'enhanced'> = ['single-sentence', 'base', 'enhanced'];
+      const validModes: Array<'single-sentence' | 'base' | 'enhanced' | 'improve'> = ['single-sentence', 'base', 'enhanced', 'improve'];
       if (validModes.includes(replyMode as any)) {
-        const modeKey = replyMode as 'single-sentence' | 'base' | 'enhanced';
+        const modeKey = replyMode as 'single-sentence' | 'base' | 'enhanced' | 'improve';
         if (!updatedBreakdown[modeKey]) {
           updatedBreakdown[modeKey] = { replies: 0, credits: 0 };
         }

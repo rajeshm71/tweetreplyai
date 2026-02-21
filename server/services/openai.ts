@@ -246,22 +246,11 @@ export class ModelRouter {
     console.log(`📝 [OpenAI] Tweet text: "${tweetText}"`);
     console.log(`📝 [OpenAI] Draft reply: "${draftReply}"`);
 
-    // Create custom user prompt for improvement - make it explicit that we're improving the draft
-    const userPrompt = `Original Tweet: "${tweetText}"
+    const userPrompt = `Tweet: "${tweetText}"
 
-User's Draft Reply (needs improvement): "${draftReply}"
+User's draft idea: "${draftReply}"
 
-IMPORTANT: The user has already written a draft reply above. Your task is to ENHANCE and IMPROVE this specific draft, not write a new reply.
-
-Please:
-1. Fix any spelling errors (e.g., "bt" → "but")
-2. Fix grammar mistakes
-3. Make it more natural and conversational
-4. Improve clarity while keeping the same meaning
-5. Keep it under 200 characters
-6. Preserve the user's intent and message
-
-Return ONLY the improved version of the draft, nothing else.`;
+Write a clean, natural reply based on the user's draft idea. Keep it under 30 words.`;
 
     if (!openai) {
       console.log("❌ [OpenAI] OpenAI client not configured");

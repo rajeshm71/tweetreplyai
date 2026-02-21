@@ -20,6 +20,7 @@ interface UsageStatus {
     'single-sentence'?: { replies: number; credits: number };
     'base'?: { replies: number; credits: number };
     'enhanced'?: { replies: number; credits: number };
+    'improve'?: { replies: number; credits: number };
   };
 }
 
@@ -124,6 +125,14 @@ export function UsageBadge({ showDetails = false }: UsageBadgeProps) {
                         <span className="text-muted-foreground">Enhanced:</span>
                         <span className="font-medium">
                           {usage.modeBreakdown['enhanced'].replies} replies, {usage.modeBreakdown['enhanced'].credits} credits
+                        </span>
+                      </div>
+                    )}
+                    {usage.modeBreakdown['improve'] && (
+                      <div className="flex justify-between text-xs">
+                        <span className="text-muted-foreground">Improve:</span>
+                        <span className="font-medium">
+                          {usage.modeBreakdown['improve'].replies} replies, {usage.modeBreakdown['improve'].credits} credits
                         </span>
                       </div>
                     )}

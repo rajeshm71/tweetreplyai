@@ -34,6 +34,7 @@ type UsageStatus = {
     'single-sentence'?: { replies: number; credits: number };
     'base'?: { replies: number; credits: number };
     'enhanced'?: { replies: number; credits: number };
+    'improve'?: { replies: number; credits: number };
   };
 };
 
@@ -365,6 +366,14 @@ export default function Home() {
                                 <span className="text-muted-foreground">Enhanced:</span>
                                 <span className="font-medium">
                                   {usageStatus.modeBreakdown['enhanced'].replies} replies, {usageStatus.modeBreakdown['enhanced'].credits} credits
+                                </span>
+                              </div>
+                            )}
+                            {usageStatus.modeBreakdown['improve'] && (
+                              <div className="flex justify-between text-xs">
+                                <span className="text-muted-foreground">Improve:</span>
+                                <span className="font-medium">
+                                  {usageStatus.modeBreakdown['improve'].replies} replies, {usageStatus.modeBreakdown['improve'].credits} credits
                                 </span>
                               </div>
                             )}

@@ -687,7 +687,8 @@
           const modes = [
             { key: "single-sentence", label: "Concise" },
             { key: "base", label: "Balanced" },
-            { key: "enhanced", label: "Enhanced" }
+            { key: "enhanced", label: "Enhanced" },
+            { key: "improve", label: "Improve" }
           ];
           let totalReplies = 0;
           let rows = "";

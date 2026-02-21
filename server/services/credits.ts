@@ -2,6 +2,7 @@ export const CREDIT_COSTS = {
   'single-sentence': 1,  // Concise
   'base': 2,             // Balanced (default)
   'enhanced': 3,         // Enhanced
+  'improve': 2,          // Improve draft
 } as const;
 
 export type ReplyMode = keyof typeof CREDIT_COSTS;

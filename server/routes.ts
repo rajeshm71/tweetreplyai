@@ -1879,7 +1879,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
       // Consume credits quota after successful improvement (default to Balanced mode)
       let updatedCounter;
       if (!isWhitelisted) {
-        updatedCounter = await usageService.consumeReply(userId, 'base'); // Default to Balanced (2 credits)
+        updatedCounter = await usageService.consumeReply(userId, 'improve');
       } else {
         // Whitelisted users don't consume quota
         const status = await usageService.getUsageStatus(userId);
