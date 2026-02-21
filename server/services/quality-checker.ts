@@ -1,3 +1,5 @@
+import { QUALITY } from "../config/constants.js";
+
 // New interfaces for detailed quality scoring
 export interface QualityParameter {
   name: string;
@@ -563,7 +565,7 @@ export class QualityChecker {
 
     return {
       totalScore,
-      passed: totalScore >= 60,
+      passed: totalScore >= QUALITY.PASS_SCORE,
       parameters,
       issues,
       suggestions
@@ -575,7 +577,7 @@ export class QualityChecker {
     const suggestions: string[] = [];
 
     for (const param of parameters) {
-      if (param.score <= 4) {
+      if (param.score <= QUALITY.LOW_PARAMETER_SCORE) {
         // Add suggestions for low-scoring parameters
         switch (param.name) {
           case 'Length Appropriateness':

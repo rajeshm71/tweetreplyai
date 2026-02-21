@@ -9,6 +9,7 @@ import { getAvailablePrompts } from "./services/prompts.js";
 import { dodoPaymentsService, PLANS } from "./services/dodo-payments.js";
 import { usageService } from "./services/usage.js";
 import { whitelistService } from "./services/whitelistService.js";
+import { ANALYTICS, PERIODS, QUALITY, VALIDATION } from "./config/constants.js";
 import { z, ZodError } from "zod";
 import passport from "passport";
 import session from "express-session";
@@ -476,7 +477,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
       
       // Validate request body
       const schema = z.object({
-        tweet_text: z.string().min(1).max(2000),
+        tweet_text: z.string().min(1).max(VALIDATION.MAX_TWEET_LENGTH),
         tweet_id: z.string().optional(),
         model_key: z.string().optional(),
         prompt_variation: z.string().optional(),
@@ -489,16 +490,16 @@ export async function registerRoutes(app: Express): Promise<Express> {
         thread_context: z.object({
           isReply: z.boolean(),
           // FIX: Apply max() before nullable() - Zod requires this order
-          originalTweet: z.string().max(2000).nullable(),
+          originalTweet: z.string().max(VALIDATION.MAX_TWEET_LENGTH).nullable(),
           originalTweetAuthor: z.string().max(50).nullable(),
           threadChain: z.array(z.object({
-            text: z.string().min(1).max(2000), // FIX: Add min/max length validation
-            author: z.string().max(50), // FIX: Add max length validation
+            text: z.string().min(1).max(VALIDATION.MAX_TWEET_LENGTH),
+            author: z.string().max(50),
             isOriginal: z.boolean(),
             isCurrent: z.boolean(),
-          })).max(20), // FIX: Limit array size to prevent abuse
-          currentTweetIndex: z.number().int().min(0), // FIX: Ensure non-negative integer
-          threadLength: z.number().int().min(0).max(20), // FIX: Ensure valid range
+          })).max(VALIDATION.MAX_THREAD_CHAIN),
+          currentTweetIndex: z.number().int().min(0),
+          threadLength: z.number().int().min(0).max(VALIDATION.MAX_THREAD_INDEX),
         }).optional(),
         conversation_context: z.array(z.string()).optional(), // Backward compatibility
         tweet_metadata: z.object({
@@ -737,7 +738,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
       
       if (!qualityResult.passed) {
         console.log(`⚠️ [Quality] Reply failed quality check (score: ${qualityResult.totalScore}/100)`);
-        const lowScores = qualityResult.parameters.filter(p => p.score <= 4);
+        const lowScores = qualityResult.parameters.filter(p => p.score <= QUALITY.LOW_PARAMETER_SCORE);
         if (lowScores.length > 0) {
           console.log(`🔧 [Quality] Low scores: ${lowScores.map(p => `${p.name}(${p.score})`).join(', ')}`);
         }
@@ -1040,9 +1041,9 @@ export async function registerRoutes(app: Express): Promise<Express> {
       const periodEnd = parseDodoDate(subData.current_period_end, (() => {
         const end = new Date(periodStart);
         if (planCode === 'monthly') {
-          end.setDate(end.getDate() + 30);
+          end.setDate(end.getDate() + PERIODS.MONTHLY_DAYS);
         } else {
-          end.setDate(end.getDate() + 7);
+          end.setDate(end.getDate() + PERIODS.WEEKLY_DAYS);
         }
         return end;
       })());
@@ -1472,9 +1473,9 @@ export async function registerRoutes(app: Express): Promise<Express> {
           (() => {
             const end = new Date(periodStart);
             if (planCode === 'monthly') {
-              end.setDate(end.getDate() + 30);
+              end.setDate(end.getDate() + PERIODS.MONTHLY_DAYS);
             } else {
-              end.setDate(end.getDate() + 7);
+              end.setDate(end.getDate() + PERIODS.WEEKLY_DAYS);
             }
             return end;
           })()
@@ -1768,7 +1769,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
   app.get('/api/reply-history', isAuthenticated, async (req: any, res) => {
     try {
       const userId = getUserId(req);
-      const limit = parseInt(req.query.limit as string) || 50;
+      const limit = parseInt(req.query.limit as string) || ANALYTICS.DEFAULT_REPLY_HISTORY_LIMIT;
       
       const history = await storage.getReplyHistory(userId, limit);
       res.json({ history });
@@ -1795,11 +1796,11 @@ export async function registerRoutes(app: Express): Promise<Express> {
   app.get('/api/reply-templates', isAuthenticated, async (req: any, res) => {
     try {
       const userId = getUserId(req);
-      const history = await storage.getReplyHistory(userId, 20);
+      const history = await storage.getReplyHistory(userId, ANALYTICS.TEMPLATE_LIMIT);
       
       // Extract successful replies as templates
       const templates = history
-        .filter(entry => entry.wasUsed && entry.qualityScore && entry.qualityScore > 70)
+        .filter(entry => entry.wasUsed && entry.qualityScore && entry.qualityScore > QUALITY.TEMPLATE_SCORE)
         .map(entry => ({
           id: entry.id,
           template: entry.generatedReply,
@@ -1827,7 +1828,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
       }
       
       const schema = z.object({
-        draft_reply: z.string().min(1).max(500),
+        draft_reply: z.string().min(1).max(VALIDATION.MAX_DRAFT_LENGTH),
         original_tweet: z.string().min(1, "Original tweet is required"), // Required, not optional
       });
 

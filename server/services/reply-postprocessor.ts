@@ -2,6 +2,7 @@
  * Postprocessing service for AI-generated replies
  * Applies specific cleaning rules in an optimized order
  */
+import { REPLY_LIMITS } from "../config/constants.js";
 
 // Configuration for removable start phrases - easily extensible
 const START_PHRASES = ["Couldn't agree more", "Preach", "Spot on"];
@@ -27,17 +28,6 @@ const BANNED_PATTERNS = [
   /Revolutionary/gi,
   /Game-changing/gi,
 ];
-
-// Maximum word count (from previous postprocessing)
-const MAX_WORDS = 50;
-
-// Minimum word count required for removal operations
-const MIN_WORDS_FOR_REMOVAL = 5;
-
-// Meta-commentary removal constants
-const MIN_TEXT_LENGTH_FOR_PROCESSING = 20; // Minimum text length to process for meta-commentary
-const MIN_EXTRACTED_LENGTH = 10; // Minimum length for extracted reply to be considered valid
-const MAX_LENGTH_REDUCTION_PERCENT = 0.5; // Maximum allowed reduction (50%) before rejecting extraction
 
 export class ReplyPostProcessor {
   /**
@@ -65,7 +55,7 @@ export class ReplyPostProcessor {
     // Step 4: Apply basic cleanup rules only (no aggressive removal)
     processed = this.removeWrapperQuotes(processed); // Remove quotes if AI wrapped response
     processed = this.removeBannedPatterns(processed); // Remove hashtags and banned phrases
-    processed = this.limitWordCount(processed, MAX_WORDS); // Limit to 50 words
+    processed = this.limitWordCount(processed, REPLY_LIMITS.POST_PROCESSOR_MAX_WORDS);
     
     // Step 5: Apply format cleanup rules
     processed = this.applyFormatCleanup(processed);
@@ -98,7 +88,7 @@ export class ReplyPostProcessor {
     const isSingleSentence = replyMode === 'single-sentence';
 
     // Step 3: Check if original has minimum words for removal operations
-    const hasMinWords = this.hasMinimumWords(originalReply, MIN_WORDS_FOR_REMOVAL);
+    const hasMinWords = this.hasMinimumWords(originalReply, REPLY_LIMITS.POST_PROCESSOR_MIN_WORDS);
 
     // Step 4: Start with original reply
     let processed = originalReply;
@@ -109,7 +99,7 @@ export class ReplyPostProcessor {
     // Step 5: Apply previous postprocessing rules (always executed)
     processed = this.removeWrapperQuotes(processed); // Previous rule: Remove quotes if AI wrapped response
     processed = this.removeBannedPatterns(processed); // Previous rule: Remove hashtags and banned phrases
-    processed = this.limitWordCount(processed, MAX_WORDS); // Previous rule: Limit to 50 words
+    processed = this.limitWordCount(processed, REPLY_LIMITS.POST_PROCESSOR_MAX_WORDS);
     
     // Step 6: Apply new format cleanup rules (always executed)
     processed = this.applyFormatCleanup(processed);
@@ -135,13 +125,13 @@ export class ReplyPostProcessor {
 
     // Step 9: Final validation - check if processed has minimum words
     const processedWordCount = this.countWords(processed);
-    if (processedWordCount < MIN_WORDS_FOR_REMOVAL) {
+    if (processedWordCount < REPLY_LIMITS.POST_PROCESSOR_MIN_WORDS) {
       // Return original with all cleanup applied (previous rules + new format cleanup)
       const originalWithBasicCleanup = this.limitWordCount(
         this.removeBannedPatterns(
           this.removeWrapperQuotes(originalReply)
         ),
-        MAX_WORDS
+        REPLY_LIMITS.POST_PROCESSOR_MAX_WORDS
       );
       const originalWithCleanup = this.normalizeWhitespace(
         this.removeEndingPunctuation(
@@ -188,7 +178,7 @@ export class ReplyPostProcessor {
     }
 
     // Only process if text is long enough (avoid processing very short replies)
-    if (text.length < MIN_TEXT_LENGTH_FOR_PROCESSING) {
+    if (text.length < REPLY_LIMITS.MIN_TEXT_LENGTH_FOR_PROCESSING) {
       return text;
     }
 
@@ -270,8 +260,8 @@ export class ReplyPostProcessor {
     }
 
     // Safety check: If extracted reply is too short, return original
-    if (extractedReply.length < MIN_EXTRACTED_LENGTH) {
-      console.log(`[PostProcessor] Extracted reply too short (${extractedReply.length} < ${MIN_EXTRACTED_LENGTH}), returning original`);
+    if (extractedReply.length < REPLY_LIMITS.MIN_EXTRACTED_LENGTH) {
+      console.log(`[PostProcessor] Extracted reply too short (${extractedReply.length} < ${REPLY_LIMITS.MIN_EXTRACTED_LENGTH}), returning original`);
       return original;
     }
 
@@ -279,7 +269,7 @@ export class ReplyPostProcessor {
     // it might be wrong extraction, so return original
     // Use both percentage AND fixed minimum to handle edge cases
     const lengthReduction = 1 - (extractedReply.length / original.length);
-    if (lengthReduction > MAX_LENGTH_REDUCTION_PERCENT && extractedReply.length < MIN_EXTRACTED_LENGTH * 2) {
+    if (lengthReduction > REPLY_LIMITS.MAX_LENGTH_REDUCTION_PERCENT && extractedReply.length < REPLY_LIMITS.MIN_EXTRACTED_LENGTH * 2) {
       console.log(`[PostProcessor] Extracted reply too short relative to original (${Math.round(lengthReduction * 100)}% reduction), returning original`);
       return original;
     }

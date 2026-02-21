@@ -1,4 +1,5 @@
 import { AuthManager } from './auth.js';
+import { API, DEFAULTS } from '../config/constants.js';
 
 export class ApiClient {
   constructor() {
@@ -12,7 +13,7 @@ export class ApiClient {
         chrome.runtime.sendMessage({ action: 'getApiDomain' }, resolve);
       });
       
-      const domain = response.domain || 'tweetreplyai.vercel.app';
+      const domain = response.domain || API.DEFAULT_DOMAIN;
       const protocol = domain.includes('localhost') ? 'http' : 'https';
       this.baseUrl = `${protocol}://${domain}`;
     }
@@ -141,15 +142,15 @@ export class ApiClient {
     return this.makeRequest('/api/prompts');
   }
 
-  async getAnalytics(days = 30) {
+  async getAnalytics(days = DEFAULTS.ANALYTICS_DAYS) {
     return this.makeRequest(`/api/analytics/feedback-stats?days=${days}`);
   }
 
-  async getQualityMetrics(days = 30) {
+  async getQualityMetrics(days = DEFAULTS.ANALYTICS_DAYS) {
     return this.makeRequest(`/api/quality/metrics?days=${days}`);
   }
 
-  async getSimpleAnalytics(days = 30) {
+  async getSimpleAnalytics(days = DEFAULTS.ANALYTICS_DAYS) {
     console.log(`[ApiClient] getSimpleAnalytics called with days=${days}`);
     const result = await this.makeRequest(`/api/analytics/simple?days=${days}`);
     console.log('[ApiClient] getSimpleAnalytics result:', result);

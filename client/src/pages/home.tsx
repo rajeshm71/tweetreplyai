@@ -14,6 +14,7 @@ import type { GenerateReplyRef } from "@/components/generate-reply";
 const GenerateReply = lazy(() => import("@/components/generate-reply").then(module => ({ default: module.GenerateReply })));
 // Removed framer-motion imports - animations removed except for Upgrade to Pro button
 import { formatDistanceToNow } from "date-fns";
+import { APP_URLS, POLLING, UI } from "@/config/constants";
 
 type Usage = {
   today: number;
@@ -37,8 +38,6 @@ type UsageStatus = {
     'improve'?: { replies: number; credits: number };
   };
 };
-
-const CHROME_EXTENSION_URL = "https://chromewebstore.google.com/detail/tweetreply-ai-powered-twi/nhpilcnghmcdhcbhndmemiggfekmdgem";
 
 export default function Home() {
   const { user, isLoading } = useAuth();
@@ -157,7 +156,7 @@ export default function Home() {
   // Fetch usage status for the counter
   const { data: usageStatus } = useQuery<UsageStatus>({
     queryKey: ["/api/usage"],
-    refetchInterval: 30000, // Refetch every 30 seconds
+    refetchInterval: POLLING.USAGE_REFETCH_INTERVAL_MS,
     refetchOnWindowFocus: true,
     enabled: !!user,
   });
@@ -172,7 +171,7 @@ export default function Home() {
       });
       setTimeout(() => {
         window.location.href = "/login";
-      }, 500);
+      }, UI.REDIRECT_DELAY_MS);
       return;
     }
   }, [user, isLoading, toast]);
@@ -229,7 +228,7 @@ export default function Home() {
               </div>
               <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0 w-full sm:w-auto justify-end">
                 <Button 
-                  onClick={() => window.open(CHROME_EXTENSION_URL, '_blank')}
+                  onClick={() => window.open(APP_URLS.CHROME_STORE, '_blank')}
                   className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white hover:from-blue-600 hover:to-indigo-700 font-semibold h-8 sm:h-9 px-3 sm:px-4 text-xs sm:text-sm flex-1 sm:flex-initial rounded-lg shadow-md"
                   data-testid="button-chrome-extension-banner"
                 >

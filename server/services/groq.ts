@@ -3,18 +3,16 @@ import { ReplyOptions, ReplyResponse } from "./openai.js";
 import { getPromptConfig, applyReplyModeToPrompt, type PromptConfig } from "./prompts.js";
 import { replyPostProcessor } from "./reply-postprocessor.js";
 import { buildSystemPrompt, buildUserPromptWithThread } from "./prompt-builder.js";
+import { AI_MODELS, AI_PARAMS, MODEL_SPECS } from "../config/constants.js";
 
 // Initialize Groq client
 const groq = process.env.GROQ_API_KEY ? new Groq() : null;
 
 export class GroqModelRouter {
-  // Available Groq models with their characteristics
   private readonly MODELS = {
-    "meta-llama/llama-4-scout-17b-16e-instruct": {
+    [AI_MODELS.DEFAULT]: {
       name: "Fast",
-      inputCost: 0.1,
-      outputCost: 0.4,
-      contextWindow: 16384,
+      ...MODEL_SPECS.LLAMA_SCOUT,
       description: "Fast, low-latency model for quick replies",
     },
   } as const;
@@ -26,9 +24,7 @@ export class GroqModelRouter {
     if (modelPreference && modelPreference in this.MODELS) {
       return modelPreference;
     }
-
-    // Default to the single available model for now
-    return "meta-llama/llama-4-scout-17b-16e-instruct";
+    return AI_MODELS.DEFAULT;
   }
 
   private getPromptConfig(promptVariation?: string): PromptConfig {
@@ -94,8 +90,8 @@ export class GroqModelRouter {
           { role: "user", content: userPromptText },
         ],
         model: modelKey,
-        temperature: 0.7,
-        max_completion_tokens: 1024,
+        temperature: AI_PARAMS.TEMPERATURE,
+        max_completion_tokens: AI_PARAMS.GROQ_MAX_TOKENS,
         top_p: 1,
         stream: true,
         stop: null,
@@ -111,8 +107,8 @@ export class GroqModelRouter {
       const processedReply = this.postProcessReply(fullReply, options.replyMode);
       const latencyMs = Date.now() - startTime;
 
-      const estimatedInputTokens = Math.ceil((enhancedSystemPrompt + userPromptText).length / 4);
-      const estimatedOutputTokens = Math.ceil(processedReply.length / 4);
+      const estimatedInputTokens = Math.ceil((enhancedSystemPrompt + userPromptText).length / AI_PARAMS.TOKEN_ESTIMATION_CHARS_PER_TOKEN);
+      const estimatedOutputTokens = Math.ceil(processedReply.length / AI_PARAMS.TOKEN_ESTIMATION_CHARS_PER_TOKEN);
 
       return {
         reply: processedReply,

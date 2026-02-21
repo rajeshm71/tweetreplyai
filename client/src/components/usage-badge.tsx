@@ -6,6 +6,7 @@ import { Clock, AlertCircle, Crown, ChevronDown, ChevronUp } from "lucide-react"
 import { formatDistanceToNow } from "date-fns";
 import { useLocation } from "wouter";
 import { useState } from "react";
+import { POLLING } from "@/config/constants";
 
 interface UsageStatus {
   planCode: string;
@@ -33,7 +34,7 @@ export function UsageBadge({ showDetails = false }: UsageBadgeProps) {
   const [showBreakdown, setShowBreakdown] = useState(false);
   const { data: usage, isLoading, error } = useQuery<UsageStatus>({
     queryKey: ["/api/usage"],
-    refetchInterval: 30000, // Refetch every 30 seconds
+    refetchInterval: POLLING.USAGE_REFETCH_INTERVAL_MS,
   });
 
   if (isLoading) {

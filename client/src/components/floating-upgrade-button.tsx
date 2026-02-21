@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
+import { POLLING } from "@/config/constants";
 
 interface UsageStatus {
   planCode: string;
@@ -27,7 +28,7 @@ export function FloatingUpgradeButton() {
   
   const { data: usage } = useQuery<UsageStatus>({
     queryKey: ["/api/usage"],
-    refetchInterval: 30000,
+    refetchInterval: POLLING.USAGE_REFETCH_INTERVAL_MS,
     enabled: isAuthenticated,
   });
 

@@ -1,20 +1,13 @@
 import OpenAI from "openai";
 import crypto from "crypto";
+import { AI_MODELS, AI_PARAMS, CACHE, VALIDATION } from "../config/constants.js";
 
 // Initialize OpenAI client for agents
 const openai = process.env.OPENAI_API_KEY ? new OpenAI() : null;
 
-// Feature flag and configuration
-// TODO: Move these to environment variables for production configuration
 const TWEET_ANALYSIS_ENABLED = process.env.TWEET_ANALYSIS_ENABLED !== 'false';
-const TWEET_ANALYSIS_CACHE_TTL = parseInt(process.env.TWEET_ANALYSIS_CACHE_TTL || '3600', 10);
-const TWEET_ANALYSIS_MODEL = process.env.TWEET_ANALYSIS_MODEL || 'gpt-4o-mini';
-// Fix: Prevent memory leak - cache size limit (can be moved to env var later)
-const MAX_CACHE_SIZE = 1000;
-// Fix: Add timeout mechanism - agent call timeout in milliseconds (can be moved to env var later)
-const AGENT_TIMEOUT_MS = 10000;
-// Maximum tweet length for validation
-const MAX_TWEET_LENGTH = 2000;
+const TWEET_ANALYSIS_CACHE_TTL = parseInt(process.env.TWEET_ANALYSIS_CACHE_TTL || String(CACHE.DEFAULT_TTL_SECONDS), 10);
+const TWEET_ANALYSIS_MODEL = process.env.TWEET_ANALYSIS_MODEL || AI_MODELS.ANALYSIS;
 
 // Interfaces
 export interface TweetUnderstandingResult {
@@ -62,7 +55,7 @@ function normalizeCacheKey(
     ? `|thread:${conversationContext.threadLength || 0}` 
     : '';
   // Fix: Add hash to cache key for better uniqueness and collision prevention
-  const textHash = crypto.createHash('md5').update(tweetText).digest('hex').substring(0, 8);
+  const textHash = crypto.createHash('md5').update(tweetText).digest('hex').substring(0, CACHE.HASH_LENGTH);
   return `${normalized}|${author}${contextHash}|${textHash}`;
 }
 
@@ -74,7 +67,7 @@ function isCacheValid(entry: CacheEntry): boolean {
 
 // Fix: Helper to enforce cache size limit (FIFO eviction)
 function enforceCacheSizeLimit(): void {
-  if (analysisCache.size >= MAX_CACHE_SIZE) {
+  if (analysisCache.size >= CACHE.MAX_SIZE) {
     // Remove oldest entry (FIFO - first in, first out)
     const firstKey = analysisCache.keys().next().value;
     if (firstKey) {
@@ -125,8 +118,8 @@ Return ONLY valid JSON, no additional text.`;
           { role: "system", content: "You are an expert at analyzing social media content. Return only valid JSON." },
           { role: "user", content: prompt }
         ],
-        temperature: 0.3,
-        max_tokens: 300,
+        temperature: AI_PARAMS.ANALYSIS_TEMPERATURE_QUICK,
+        max_tokens: AI_PARAMS.ANALYSIS_MAX_TOKENS_QUICK,
         response_format: { type: "json_object" }
       });
 
@@ -210,8 +203,8 @@ Return ONLY valid JSON, no additional text.`;
           { role: "system", content: "You are an expert at understanding human intentions in social media. Return only valid JSON." },
           { role: "user", content: prompt }
         ],
-        temperature: 0.4,
-        max_tokens: 400,
+        temperature: AI_PARAMS.ANALYSIS_TEMPERATURE_DEEP,
+        max_tokens: AI_PARAMS.ANALYSIS_MAX_TOKENS_DEEP,
         response_format: { type: "json_object" }
       });
 
@@ -283,8 +276,8 @@ export class TweetAnalysisOrchestrator {
       console.warn('[TweetAnalysisOrchestrator] ❌ Invalid tweet text: empty or not a string');
       return null;
     }
-    if (tweetText.length > MAX_TWEET_LENGTH) {
-      console.warn(`[TweetAnalysisOrchestrator] ❌ Tweet text exceeds maximum length (${tweetText.length} > ${MAX_TWEET_LENGTH})`);
+    if (tweetText.length > VALIDATION.MAX_TWEET_LENGTH) {
+      console.warn(`[TweetAnalysisOrchestrator] ❌ Tweet text exceeds maximum length (${tweetText.length} > ${VALIDATION.MAX_TWEET_LENGTH})`);
       return null;
     }
 
@@ -311,12 +304,12 @@ export class TweetAnalysisOrchestrator {
       const [understanding, intention] = await Promise.all([
         withTimeout(
           this.understandingAgent.analyze(tweetText, authorInfo),
-          AGENT_TIMEOUT_MS,
+          CACHE.AGENT_TIMEOUT_MS,
           'TweetUnderstandingAgent'
         ),
         withTimeout(
           this.intentionAgent.extract(tweetText, authorInfo),
-          AGENT_TIMEOUT_MS,
+          CACHE.AGENT_TIMEOUT_MS,
           'IntentionExtractionAgent'
         )
       ]);

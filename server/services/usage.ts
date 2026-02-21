@@ -5,6 +5,7 @@ import { whitelistService } from "./whitelistService.js";
 import { getCreditCost } from "./credits.js";
 import type { User, UsageCounter } from "../../shared/types.js";
 import crypto from "crypto";
+import { PERIODS } from "../config/constants.js";
 
 interface UsageWindow {
   planCode: string;
@@ -55,12 +56,11 @@ export class UsageService {
   private getPeriodEnd(planCode: string, periodStart: Date): Date {
     const end = new Date(periodStart);
     if (planCode === 'monthly') {
-      end.setDate(end.getDate() + 30); // 30 days for monthly
+      end.setDate(end.getDate() + PERIODS.MONTHLY_DAYS);
     } else if (planCode === 'weekly' || planCode === 'trial') {
-      end.setDate(end.getDate() + 7); // 7 days for weekly and trial
+      end.setDate(end.getDate() + PERIODS.WEEKLY_DAYS);
     } else {
-      // Default to daily for bypass/other plans
-      end.setDate(end.getDate() + 1);
+      end.setDate(end.getDate() + PERIODS.DAILY_DAYS);
     }
     return end;
   }

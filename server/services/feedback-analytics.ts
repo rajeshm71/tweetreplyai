@@ -1,5 +1,6 @@
 import { storage } from '../storage.js';
 import { supabase } from '../supabase.js';
+import { ANALYTICS, PERIODS, QUALITY } from "../config/constants.js";
 
 interface FeedbackStats {
   overall_quality: {
@@ -31,7 +32,7 @@ interface FeedbackStats {
 // Removed unused FeedbackQualityMetrics interface (per review — not referenced)
 
 class FeedbackAnalytics {
-  async getFeedbackStats(userId?: string, days: number = 30): Promise<FeedbackStats> {
+  async getFeedbackStats(userId?: string, days: number = PERIODS.DEFAULT_ANALYTICS_DAYS): Promise<FeedbackStats> {
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
     
@@ -43,7 +44,7 @@ class FeedbackAnalytics {
 
     const overallStats = await this.getOverallFeedbackStats(userId, startDate);
     const byModel = await this.getStatsByModel(userId, startDate);
-    const recentTrends = await this.getRecentTrends(userId, 7);
+    const recentTrends = await this.getRecentTrends(userId, PERIODS.ANALYTICS_RECENT_TRENDS_DAYS);
     const qualityMetrics = await this.getQualityMetrics(userId, startDate);
 
     return {
@@ -139,7 +140,7 @@ class FeedbackAnalytics {
     return modelStats;
   }
 
-  private async getRecentTrends(userId?: string, days: number = 7) {
+  private async getRecentTrends(userId?: string, days: number = PERIODS.ANALYTICS_RECENT_TRENDS_DAYS) {
     const trends = [];
     
     for (let i = days - 1; i >= 0; i--) {
@@ -206,8 +207,8 @@ class FeedbackAnalytics {
 
     const scores = data?.map((r: any) => r.quality_score).filter((s: number) => s != null) || [];
     const avgQuality = scores.length > 0 ? scores.reduce((a: number, b: number) => a + b, 0) / scores.length : 0;
-    const highQuality = scores.filter((s: number) => s > 80).length;
-    const lowQuality = scores.filter((s: number) => s < 60).length;
+    const highQuality = scores.filter((s: number) => s > QUALITY.HIGH_SCORE).length;
+    const lowQuality = scores.filter((s: number) => s < QUALITY.PASS_SCORE).length;
     const totalReplies = scores.length;
 
     // Calculate regeneration rate (this would need to be tracked in replyEvents)
@@ -224,7 +225,7 @@ class FeedbackAnalytics {
   }
 
 
-  async getLowPerformingPatterns(userId?: string, days: number = 30): Promise<string[]> {
+  async getLowPerformingPatterns(userId?: string, days: number = PERIODS.DEFAULT_ANALYTICS_DAYS): Promise<string[]> {
     // This would analyze feedback comments and downvoted replies to find patterns
     // For now, return common issues
     return [
@@ -237,18 +238,18 @@ class FeedbackAnalytics {
   }
 
   async getRecommendations(userId?: string): Promise<string[]> {
-    const stats = await this.getFeedbackStats(userId, 30);
+    const stats = await this.getFeedbackStats(userId, PERIODS.DEFAULT_ANALYTICS_DAYS);
     const recommendations: string[] = [];
 
-    if (stats.overall_quality.upvote_percentage < 70) {
+    if (stats.overall_quality.upvote_percentage < ANALYTICS.UPVOTE_GOOD_THRESHOLD) {
       recommendations.push('Consider using more specific and engaging language');
     }
 
-    if (stats.quality_metrics.regeneration_rate > 20) {
+    if (stats.quality_metrics.regeneration_rate > ANALYTICS.REGEN_RATE_BAD_THRESHOLD) {
       recommendations.push('Quality checker is regenerating too many replies - consider prompt improvements');
     }
 
-    if (stats.quality_metrics.avg_quality_score < 75) {
+    if (stats.quality_metrics.avg_quality_score < ANALYTICS.AVG_QUALITY_GOOD_THRESHOLD) {
       recommendations.push('Focus on improving reply quality through better context analysis');
     }
 
@@ -339,16 +340,16 @@ class FeedbackAnalytics {
 
     const scores = summaryData?.map((r: any) => r.quality_score).filter((s: number) => s != null) || [];
     const avgQuality = scores.length > 0 ? Math.round(scores.reduce((a: number, b: number) => a + b, 0) / scores.length) : 0;
-    const timeSavedMinutes = totalReplies * 4;
+    const timeSavedMinutes = totalReplies * ANALYTICS.TIME_SAVED_MINS_PER_REPLY;
     const timeSavedHours = Math.round((timeSavedMinutes / 60) * 10) / 10;
-    const highQualityCount = scores.filter((s: number) => s > 80).length;
+    const highQualityCount = scores.filter((s: number) => s > QUALITY.HIGH_SCORE).length;
 
     const previousScores = previousData?.map((r: any) => r.quality_score).filter((s: number) => s != null) || [];
     const previousAvgQuality = previousScores.length > 0 ? Math.round(previousScores.reduce((a: number, b: number) => a + b, 0) / previousScores.length) : 0;
     const qualityTrend = avgQuality - previousAvgQuality;
 
     const parameterBreakdown = this.aggregateQualityParameters(currentData || []);
-    const activityTrend = this.calculateActivityTrend(summaryData || [], 7);
+    const activityTrend = this.calculateActivityTrend(summaryData || [], PERIODS.WEEKLY_DAYS);
     const insights = this.generateUserInsights({
       avgQuality, qualityTrend, totalReplies, timeSavedHours, highQualityCount, activityTrend, days
     });
@@ -443,7 +444,7 @@ class FeedbackAnalytics {
     // Activity insight
     if (stats.totalReplies > 0) {
       insights.push({
-        text: `You've generated ${stats.totalReplies} ${stats.totalReplies === 1 ? 'reply' : 'replies'} this ${stats.days === 7 ? 'week' : 'month'} - ${stats.totalReplies > 20 ? 'excellent' : 'great'} engagement!`,
+        text: `You've generated ${stats.totalReplies} ${stats.totalReplies === 1 ? 'reply' : 'replies'} this ${stats.days === PERIODS.WEEKLY_DAYS ? 'week' : 'month'} - ${stats.totalReplies > 20 ? 'excellent' : 'great'} engagement!`,
         type: 'info'
       });
     }
@@ -464,7 +465,7 @@ class FeedbackAnalytics {
     // High quality milestone
     if (stats.highQualityCount > 0) {
       insights.push({
-        text: `${stats.highQualityCount} high-quality ${stats.highQualityCount === 1 ? 'reply' : 'replies'} (80+) this period - excellent work!`,
+        text: `${stats.highQualityCount} high-quality ${stats.highQualityCount === 1 ? 'reply' : 'replies'} (${QUALITY.HIGH_SCORE}+) this period - excellent work!`,
         type: 'success'
       });
     }

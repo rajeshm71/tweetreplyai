@@ -12,11 +12,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
 import { generateStats, initializeStats, type Stats } from '@/utils/stats-generator';
-
-// Constants for better maintainability
-const SCROLL_THRESHOLD = 0.5; // Threshold for showing sticky CTA (50% of hero height)
-const COPY_SUCCESS_DURATION = 2000; // Duration to show copy success feedback (ms)
-const DEMO_REPLY_DELAY = 800; // Delay before showing demo reply (ms)
+import { APP_URLS, POLLING, UI } from "@/config/constants";
 
 export default function Landing() {
   const { isAuthenticated } = useAuth();
@@ -91,7 +87,7 @@ export default function Landing() {
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentExampleIndex((prev) => (prev + 1) % exampleReplies.length);
-    }, 5000); // Change every 5 seconds
+    }, UI.LANDING_EXAMPLE_CYCLE_MS);
 
     return () => clearInterval(interval);
   }, [exampleReplies.length]);
@@ -107,8 +103,8 @@ export default function Landing() {
     queryFn: () => {
       return generateStats();
     },
-    staleTime: 60 * 60 * 1000, // Consider data stale after 1 hour
-    refetchInterval: 60 * 60 * 1000, // Refetch every hour
+    staleTime: POLLING.STATS_STALE_TIME_MS,
+    refetchInterval: POLLING.STATS_STALE_TIME_MS,
     refetchOnWindowFocus: false,
     refetchOnMount: false,
   });
@@ -146,7 +142,7 @@ export default function Landing() {
     }
   ];
 
-  const [testimonialEmblaRef, testimonialEmblaApi] = useEmblaCarousel({ loop: true }, [Autoplay({ delay: 5000, stopOnInteraction: false })]);
+  const [testimonialEmblaRef, testimonialEmblaApi] = useEmblaCarousel({ loop: true }, [Autoplay({ delay: UI.TESTIMONIAL_AUTOPLAY_MS, stopOnInteraction: false })]);
   const [testimonialIndex, setTestimonialIndex] = useState(0);
 
   const onTestimonialSelect = useCallback(() => {
@@ -405,7 +401,7 @@ export default function Landing() {
             if (!heroSection) return;
             
             const heroHeight = heroSection.offsetHeight || 0;
-            setShowStickyCTA(window.scrollY > heroHeight * SCROLL_THRESHOLD);
+            setShowStickyCTA(window.scrollY > heroHeight * 0.5);
           } catch (error) {
             console.error('Scroll handler error:', error);
           } finally {
@@ -535,7 +531,7 @@ export default function Landing() {
             
             <Button 
               onClick={() => {
-                window.open('https://chromewebstore.google.com/detail/tweetreply-ai-powered-twi/nhpilcnghmcdhcbhndmemiggfekmdgem', '_blank');
+                window.open(APP_URLS.CHROME_STORE, '_blank');
               }}
               className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl border-0 font-medium shadow-md hover:shadow-xl hover:shadow-blue-500/20 hover:scale-105 transition-all duration-300 hidden sm:flex"
               data-testid="button-add-to-chrome"
@@ -687,7 +683,7 @@ export default function Landing() {
             <div className="container py-4 space-y-3">
               <Button
                 onClick={() => {
-                  window.open('https://chromewebstore.google.com/detail/tweetreply-ai-powered-twi/nhpilcnghmcdhcbhndmemiggfekmdgem', '_blank');
+                  window.open(APP_URLS.CHROME_STORE, '_blank');
                   setMobileMenuOpen(false);
                 }}
                 className="w-full justify-start bg-gradient-to-r from-blue-500 to-indigo-600 text-white hover:shadow-lg hover:shadow-blue-500/20 transition-all duration-300"

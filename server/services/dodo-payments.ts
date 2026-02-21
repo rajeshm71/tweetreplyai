@@ -1,5 +1,6 @@
 // Dodo Payments Service
 import DodoPayments from 'dodopayments';
+import { PLAN_LIMITS } from '../../shared/constants.js';
 
 export interface PlanConfig {
   code: string;
@@ -16,8 +17,8 @@ export const PLANS: Record<string, PlanConfig> = {
     code: 'weekly',
     name: 'Weekly Plan',
     price: 299,
-    replies: 700,
-    credits: 4000,
+    replies: PLAN_LIMITS.weekly.replies,
+    credits: PLAN_LIMITS.weekly.credits,
     interval: 'week',
     dodoPriceId: process.env.DODO_PRICE_WEEKLY || 'dodo_price_weekly_placeholder',
   },
@@ -25,8 +26,8 @@ export const PLANS: Record<string, PlanConfig> = {
     code: 'monthly',
     name: 'Monthly Plan',
     price: 999,
-    replies: 3000,
-    credits: 20000,
+    replies: PLAN_LIMITS.monthly.replies,
+    credits: PLAN_LIMITS.monthly.credits,
     interval: 'month',
     dodoPriceId: process.env.DODO_PRICE_MONTHLY || 'dodo_price_monthly_placeholder',
   },

@@ -1,5 +1,6 @@
 import { AuthManager } from '../utils/auth.js';
 import { ApiClient } from '../utils/api.js';
+import { API, POLLING, TIMEOUTS, DEFAULTS, VALIDATION, AUTH } from '../config/constants.js';
 
 class TwitterReplyInjector {
   constructor() {
@@ -27,8 +28,8 @@ class TwitterReplyInjector {
       if (!/\/compose\//.test(path)) {
         this.lastNonComposePath = path;
       }
-    }, 300);
-    
+    }, POLLING.URL_TRACKING_MS);
+
     // Store global reference
     window.__tweetReplyInjector = this;
     
@@ -254,7 +255,7 @@ class TwitterReplyInjector {
       likeButton.click();
       
       // Wait a bit to ensure Twitter's handler processes it
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise(resolve => setTimeout(resolve, TIMEOUTS.DOM_DEBOUNCE_MS));
       
       return true;
     } catch (error) {
@@ -268,7 +269,7 @@ class TwitterReplyInjector {
           view: window
         });
         likeButton.dispatchEvent(event);
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise(resolve => setTimeout(resolve, TIMEOUTS.DOM_DEBOUNCE_MS));
         return true;
       } catch (e) {
         console.warn('[TweetReply] MouseEvent simulation failed:', e);
@@ -418,7 +419,7 @@ class TwitterReplyInjector {
       if (this.isAuthenticated) {
         this.loadUsageData();
       }
-    }, 30000);
+    }, POLLING.USAGE_REFRESH_MS);
   }
 
   async refreshAuthState() {
@@ -485,9 +486,9 @@ class TwitterReplyInjector {
             } catch (error) {
               console.error('[TweetReply] Error updating reply counts:', error);
             }
-          }, 500);
+          }, TIMEOUTS.AUTH_SYNC_DELAY_MS);
         }
-      }, 100);
+      }, TIMEOUTS.DOM_DEBOUNCE_MS);
     });
 
     this.mainObserver.observe(document.body, {
@@ -751,7 +752,7 @@ class TwitterReplyInjector {
       tryPlace();
     });
     observer.observe(toolbarEl, { childList: true, subtree: true });
-    setTimeout(tryPlace, 150);
+    setTimeout(tryPlace, TIMEOUTS.PLACEMENT_OBSERVER_MS);
   }
 
   // Ensure Suggest stays left of Reply across focus/typing/renders
@@ -763,7 +764,7 @@ class TwitterReplyInjector {
 
     // Throttled re-placement on user interaction
     let last = 0;
-    const throttleMs = 200;
+    const throttleMs = TIMEOUTS.BUTTON_THROTTLE_MS;
     const maybePlace = () => {
       const now = Date.now();
       if (now - last < throttleMs) return;
@@ -906,7 +907,7 @@ class TwitterReplyInjector {
           await Promise.race([
             this.loadUsageData(),
             new Promise((_, reject) => 
-              setTimeout(() => reject(new Error('Timeout after 10 seconds')), 10000)
+              setTimeout(() => reject(new Error('Timeout after 10 seconds')), TIMEOUTS.USAGE_LOAD_MS)
             )
           ]);
           
@@ -918,7 +919,7 @@ class TwitterReplyInjector {
           this.usageData = { 
             used: 0, 
             limit: 999, 
-            resetAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+            resetAt: new Date(Date.now() + AUTH.ONE_DAY_MS).toISOString()
           };
         }
       }
@@ -1285,7 +1286,7 @@ class TwitterReplyInjector {
         });
       });
       
-      const domain = response?.domain || 'tweetreplyai.vercel.app';
+      const domain = response?.domain || API.DEFAULT_DOMAIN;
       const protocol = domain.includes('localhost') ? 'http' : 'https';
       const loginUrl = `${protocol}://${domain}/login`;
       
@@ -1301,7 +1302,7 @@ class TwitterReplyInjector {
     } catch (error) {
       console.error('[TweetReply] Failed to get API domain, using fallback:', error);
       // Fallback: use default domain
-      const loginUrl = 'https://tweetreplyai.vercel.app/login';
+      const loginUrl = API.LOGIN_URL;
       chrome.runtime.sendMessage({ 
         action: 'openLoginPage', 
         url: loginUrl 
@@ -1728,7 +1729,7 @@ class TwitterReplyInjector {
         }
         
         const text = element.textContent?.trim();
-        if (text && text.length > 20 && text.length < 500) {
+        if (text && text.length > VALIDATION.MIN_TWEET_LENGTH && text.length < VALIDATION.MAX_TWEET_LENGTH) {
           console.log('[TweetReply] ✅ Tweet text found via contentEditable');
           return text;
         }
@@ -1781,7 +1782,7 @@ class TwitterReplyInjector {
     // Method 6: Fallback to sentence detection from body text
     try {
     const allText = document.body.textContent;
-    const sentences = allText.split(/[.!?]+/).filter(s => s.trim().length > 20);
+    const sentences = allText.split(/[.!?]+/).filter(s => s.trim().length > VALIDATION.MIN_TWEET_LENGTH);
       if (sentences.length > 0) {
         console.log('[TweetReply] ✅ Tweet text found via sentence detection');
     return sentences[0]?.trim() || null;
@@ -1974,16 +1975,16 @@ class TwitterReplyInjector {
     try {
       const result = await chrome.storage.local.get(['replyTrackingSettings']);
       const settings = result.replyTrackingSettings || {
-        trackingPeriodDays: 7
+        trackingPeriodDays: DEFAULTS.TRACKING_DAYS
       };
       
       // Validate and clamp values
       return {
-        trackingPeriodDays: Math.max(1, Math.min(30, parseInt(settings.trackingPeriodDays) || 7))
+        trackingPeriodDays: Math.max(DEFAULTS.TRACKING_DAYS_MIN, Math.min(DEFAULTS.TRACKING_DAYS_MAX, parseInt(settings.trackingPeriodDays) || DEFAULTS.TRACKING_DAYS))
       };
     } catch (error) {
       console.warn('[TweetReply] Failed to get tracking settings:', error);
-      return { trackingPeriodDays: 7 };
+      return { trackingPeriodDays: DEFAULTS.TRACKING_DAYS };
     }
   }
 
@@ -2048,7 +2049,7 @@ class TwitterReplyInjector {
       history[username].replies.push({ timestamp: now });
       
       // Cleanup old replies (older than trackingPeriodDays)
-      const cutoff = now - (settings.trackingPeriodDays * 24 * 60 * 60 * 1000);
+      const cutoff = now - (settings.trackingPeriodDays * AUTH.ONE_DAY_MS);
       history[username].replies = history[username].replies.filter(
         r => r.timestamp > cutoff
       );
@@ -2071,7 +2072,7 @@ class TwitterReplyInjector {
   async cleanupExpiredHistory() {
     const history = await this.getReplyHistory();
     const settings = await this.getTrackingSettings();
-    const cutoff = Date.now() - (settings.trackingPeriodDays * 24 * 60 * 60 * 1000);
+    const cutoff = Date.now() - (settings.trackingPeriodDays * AUTH.ONE_DAY_MS);
     let hasChanges = false;
     
     for (const [username, data] of Object.entries(history)) {
@@ -2192,7 +2193,7 @@ class TwitterReplyInjector {
       }
       
       const now = Date.now();
-      const cutoff = now - (days * 24 * 60 * 60 * 1000);
+      const cutoff = now - (days * AUTH.ONE_DAY_MS);
       
       const count = userData.replies.filter(r => r.timestamp > cutoff).length;
       return count;
@@ -2498,7 +2499,7 @@ class TwitterReplyInjector {
     this.trackingCleanupInterval = setInterval(() => {
       this.cleanupExpiredHistory();
       this.updateReplyCountsOnTweets();
-    }, 60000); // Every minute
+    }, POLLING.TRACKING_CLEANUP_MS);
   }
 
   extractConversationContext() {
@@ -2654,7 +2655,7 @@ class TwitterReplyInjector {
       // Limit thread chain to 4 tweets or 2000 chars
       let limitedChain = threadChain;
       let totalChars = threadChain.reduce((sum, t) => sum + t.text.length, 0);
-      if (threadChain.length > 4 || totalChars > 2000) {
+      if (threadChain.length > VALIDATION.MAX_THREAD_CHAIN || totalChars > VALIDATION.MAX_THREAD_CHARS) {
         // Keep original + current + up to 2 most recent tweets (max 4 total)
         const keepIndices = new Set([0, currentTweetIndex]); // Always keep original and current
         const recentIndices = [];

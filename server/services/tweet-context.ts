@@ -1,3 +1,5 @@
+import { VALIDATION } from "../config/constants.js";
+
 export interface TweetContext {
   sentiment: 'positive' | 'negative' | 'neutral' | 'sarcastic';
   category: 'question' | 'announcement' | 'opinion' | 'meme' | 'tech' | 'personal' | 'news' | 'other';
@@ -252,7 +254,7 @@ export class TweetContextAnalyzer {
       if (authorInfo.verified) {
         contextParts.push(`Replying to a verified account (@${authorInfo.username}).`);
       }
-      if (authorInfo.followerCount > 100000) {
+      if (authorInfo.followerCount > VALIDATION.FOLLOWER_HIGH_PROFILE_THRESHOLD) {
         contextParts.push('This is a high-profile account with many followers.');
       }
     }

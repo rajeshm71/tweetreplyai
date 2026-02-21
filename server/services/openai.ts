@@ -3,6 +3,7 @@ import { getPromptConfig, applyReplyModeToPrompt, type PromptConfig } from "./pr
 import { replyPostProcessor } from "./reply-postprocessor.js";
 import { buildSystemPrompt, buildUserPromptWithThread } from "./prompt-builder.js";
 import type { EnrichedTweetAnalysis } from "./tweet-analysis-agents.js";
+import { AI_MODELS, AI_PARAMS, MODEL_SPECS, REPLY_LIMITS } from "../config/constants.js";
 
 // TODO: Set OPENAI_API_KEY in environment to enable AI reply generation
 const openai = process.env.OPENAI_API_KEY ? new OpenAI() : null;
@@ -51,11 +52,9 @@ export interface ReplyResponse {
 
 export class ModelRouter {
   private readonly MODELS = {
-    "gpt-4o-mini": {
+    [AI_MODELS.FALLBACK]: {
       name: "Standard",
-      inputCost: 0.15,
-      outputCost: 0.6,
-      contextWindow: 128000,
+      ...MODEL_SPECS.GPT_4O_MINI,
       description: "Reliable general-purpose model",
     },
   } as const;
@@ -64,7 +63,7 @@ export class ModelRouter {
     if (modelPreference && modelPreference in this.MODELS) {
       return modelPreference;
     }
-    return "gpt-4o-mini";
+    return AI_MODELS.FALLBACK;
   }
 
   private getPromptConfig(promptVariation?: string): PromptConfig {
@@ -129,7 +128,7 @@ export class ModelRouter {
           { role: "user", content: userPromptText },
         ],
         top_p: 1,
-        temperature: 0.7,
+        temperature: AI_PARAMS.TEMPERATURE,
       });
       const rawReply = response.output_text || "";
       const processedReply = this.postProcessReply(rawReply, false, options.replyMode);
@@ -164,7 +163,7 @@ export class ModelRouter {
 
 User's draft idea: "${draftReply}"
 
-Write a clean, natural reply based on the user's draft idea. Keep it under 30 words.`;
+Write a clean, natural reply based on the user's draft idea. Keep it under ${REPLY_LIMITS.MAX_WORDS} words.`;
 
     if (!openai) {
       console.log("❌ [OpenAI] OpenAI client not configured");
@@ -183,7 +182,7 @@ Write a clean, natural reply based on the user's draft idea. Keep it under 30 wo
           { role: "user", content: userPrompt },
         ],
         top_p: 1,
-        temperature: 0.7,
+        temperature: AI_PARAMS.TEMPERATURE,
       });
       const rawReply = response.output_text || "";
       console.log(`🔍 [OpenAI] Raw AI response before post-processing: "${rawReply}"`);

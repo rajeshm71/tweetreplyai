@@ -7,10 +7,12 @@
  * For whitelist email changes, restart the server to reload the email list.
  * For limit changes, the new values are read on each request (no restart needed).
  */
+import { WHITELIST } from "../config/constants.js";
+
 class WhitelistService {
   private whitelistedEmails: Set<string>;
   private lastEmailReload: number = 0;
-  private readonly EMAIL_RELOAD_INTERVAL = 60000; // Reload emails every 60 seconds
+  private readonly EMAIL_RELOAD_INTERVAL = WHITELIST.EMAIL_RELOAD_INTERVAL_MS;
   
   constructor() {
     this.reloadWhitelistEmails();
@@ -120,7 +122,7 @@ class WhitelistService {
     }
     
     const remaining = limit - used;
-    if (remaining <= 10) {
+    if (remaining <= WHITELIST.LOW_CREDITS_WARNING_THRESHOLD) {
       // FIX: Updated message to say "credits" instead of "replies"
       return `Only ${remaining} credits left in your trial. Upgrade for unlimited access.`;
     }

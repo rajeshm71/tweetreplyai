@@ -1,3 +1,5 @@
+import { PLAN_LIMITS, PLAN_PERIODS_DAYS } from "@shared/constants";
+
 export interface PricingOffer {
   active: boolean;
   label: string; // e.g., "_ 50% off"
@@ -26,10 +28,10 @@ export const PRICING_CONFIG = {
     name: 'Free Trial',
     billingCycle: 'trial',
     price: 0,
-    repliesLimit: 10, // Keep for analytics display
-    creditsLimit: 50, // NEW - actual limit (from TRIAL_LIMIT env)
+    repliesLimit: PLAN_LIMITS.trial.replies,
+    creditsLimit: PLAN_LIMITS.trial.credits,
     features: [
-      '70 total replies during trial',
+      `${PLAN_LIMITS.trial.credits} credits during trial`,
       'Chrome extension access',
       'Mobile web interface',
       'AI generated replies',
@@ -42,8 +44,8 @@ export const PRICING_CONFIG = {
     billingCycle: 'weekly',
     price: 3.99,
     originalPrice: 7.99,
-    repliesLimit: 2000, // Keep for analytics
-    creditsLimit: 4000, // NEW - actual limit
+    repliesLimit: PLAN_LIMITS.weekly.replies,
+    creditsLimit: PLAN_LIMITS.weekly.credits,
     features: [
       'All trial features',
       'Priority AI model access',
@@ -62,8 +64,8 @@ export const PRICING_CONFIG = {
     billingCycle: 'monthly',
     price: 9.99,
     originalPrice: 19.99,
-    repliesLimit: 10000, // Keep for analytics
-    creditsLimit: 20000, // NEW - actual limit
+    repliesLimit: PLAN_LIMITS.monthly.replies,
+    creditsLimit: PLAN_LIMITS.monthly.credits,
     features: [
       'All weekly features',
       'Best value per reply',
@@ -99,9 +101,16 @@ export function creditsPerCycleLabel(cfg: PricingTierConfig): string {
 }
 
 export function repliesEveryPeriodBullet(cfg: PricingTierConfig): string {
-  if (cfg.billingCycle === 'weekly') return `${formatRepliesLimit(cfg.repliesLimit)} every 7 days`;
-  if (cfg.billingCycle === 'monthly') return `${formatRepliesLimit(cfg.repliesLimit)} every 30 days`;
-  return '70 total replies during trial';
+  if (cfg.billingCycle === 'weekly') return `${formatRepliesLimit(cfg.repliesLimit)} every ${PLAN_PERIODS_DAYS.weekly} days`;
+  if (cfg.billingCycle === 'monthly') return `${formatRepliesLimit(cfg.repliesLimit)} every ${PLAN_PERIODS_DAYS.monthly} days`;
+  return `${formatCreditsLimit(cfg.creditsLimit)} during trial`;
+}
+
+/** Credits-based period bullet (single source for quota display). Use instead of repliesEveryPeriodBullet for plan limits. */
+export function creditsEveryPeriodBullet(cfg: PricingTierConfig): string {
+  if (cfg.billingCycle === 'weekly') return `${formatCreditsLimit(cfg.creditsLimit)} every ${PLAN_PERIODS_DAYS.weekly} days`;
+  if (cfg.billingCycle === 'monthly') return `${formatCreditsLimit(cfg.creditsLimit)} every ${PLAN_PERIODS_DAYS.monthly} days`;
+  return `${formatCreditsLimit(cfg.creditsLimit)} during trial`;
 }
 
 

@@ -1,5 +1,6 @@
 import { AuthManager } from '../utils/auth.js';
 import { ApiClient } from '../utils/api.js';
+import { POLLING, DEFAULTS } from '../config/constants.js';
 
 class PopupManager {
   constructor() {
@@ -72,7 +73,7 @@ class PopupManager {
           console.error('Failed to refresh usage data:', error);
         }
       }
-    }, 30000); // 30 seconds
+    }, POLLING.USAGE_REFRESH_MS);
   }
 
   startQualityMetricsRefresh() {
@@ -90,7 +91,7 @@ class PopupManager {
           console.error('Failed to refresh quality metrics:', error);
         }
       }
-    }, 30000); // 30 seconds
+    }, POLLING.ANALYTICS_REFRESH_MS);
   }
 
   setupFocusRefresh() {
@@ -442,7 +443,7 @@ class PopupManager {
     console.log('[LOG][Quality] loadQualityMetrics() invoked at', new Date(startTime).toISOString());
     try {
       console.log('[LOG][Quality] -> requesting /api/quality/metrics?days=30');
-      const response = await this.apiClient.getQualityMetrics(30);
+      const response = await this.apiClient.getQualityMetrics(DEFAULTS.ANALYTICS_DAYS);
       console.log('[LOG][Quality] <- response received in', Date.now() - startTime, 'ms:', response);
       this.processQualityMetricsResponse(response);
       // Update quick stats after loading quality metrics
@@ -1030,7 +1031,7 @@ class PopupManager {
     
     try {
       console.log('[Analytics] Calling API: /api/analytics/simple?days=30');
-      const response = await this.apiClient.getSimpleAnalytics(30);
+      const response = await this.apiClient.getSimpleAnalytics(DEFAULTS.ANALYTICS_DAYS);
       console.log('[Analytics] ✓ API Response received:', JSON.stringify(response, null, 2));
       
       // Validate response structure

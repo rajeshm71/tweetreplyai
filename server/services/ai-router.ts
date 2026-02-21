@@ -1,8 +1,6 @@
 import { modelRouter as openaiRouter, ReplyOptions, ReplyResponse } from "./openai.js";
 import { groqModelRouter } from "./groq.js";
-
-const LLAMA_SCOUT = "meta-llama/llama-4-scout-17b-16e-instruct";
-const FALLBACK_MODEL = "gpt-4o-mini";
+import { AI_MODELS, AI_PARAMS } from "../config/constants.js";
 
 export interface ModelInfo {
   key: string;
@@ -28,7 +26,7 @@ export class UnifiedAIRouter {
   }
 
   async generateReply(options: ReplyOptions): Promise<ReplyResponse> {
-    const modelKey = options.modelPreference || LLAMA_SCOUT;
+    const modelKey = options.modelPreference || AI_MODELS.DEFAULT;
     const provider = this.getProviderForModel(modelKey);
 
     try {
@@ -43,17 +41,17 @@ export class UnifiedAIRouter {
           throw new Error(`Unknown model: ${modelKey}`);
       }
     } catch (error) {
-      if (modelKey !== FALLBACK_MODEL) {
+      if (modelKey !== AI_MODELS.FALLBACK) {
         const message = error instanceof Error ? error.message : "Unknown error";
-        console.log(`⚠️ [AI Router] ${modelKey} failed (${message}), falling back to ${FALLBACK_MODEL}`);
-        return openaiRouter.generateReply({ ...options, modelPreference: FALLBACK_MODEL });
+        console.log(`⚠️ [AI Router] ${modelKey} failed (${message}), falling back to ${AI_MODELS.FALLBACK}`);
+        return openaiRouter.generateReply({ ...options, modelPreference: AI_MODELS.FALLBACK });
       }
       throw error;
     }
   }
 
   async improveDraft(tweetText: string, draftReply: string, modelPreference?: string): Promise<ReplyResponse> {
-    const modelKey = modelPreference || FALLBACK_MODEL;
+    const modelKey = modelPreference || AI_MODELS.FALLBACK;
 
     console.log(`🔧 [AI Router] improveDraft called - Model: ${modelKey}`);
     console.log(`📝 [AI Router] Tweet text: "${tweetText.substring(0, 50)}..."`);
@@ -107,14 +105,14 @@ export class UnifiedAIRouter {
     const modelInfo = this.getModelInfo(modelKey);
     if (!modelInfo) return 0;
 
-    const inputCost = (inputTokens / 1_000_000) * modelInfo.inputCost;
-    const outputCost = (outputTokens / 1_000_000) * modelInfo.outputCost;
+    const inputCost = (inputTokens / AI_PARAMS.TOKEN_COST_DIVISOR) * modelInfo.inputCost;
+    const outputCost = (outputTokens / AI_PARAMS.TOKEN_COST_DIVISOR) * modelInfo.outputCost;
 
     return inputCost + outputCost;
   }
 
   getRecommendedModel(): string {
-    return LLAMA_SCOUT;
+    return AI_MODELS.DEFAULT;
   }
 }
 

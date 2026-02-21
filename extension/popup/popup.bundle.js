@@ -98,6 +98,30 @@
     }
   };
 
+  // extension/config/constants.js
+  var API = {
+    DEFAULT_DOMAIN: "tweetreplyai.vercel.app",
+    LOGIN_URL: "https://tweetreplyai.vercel.app/login",
+    TAB_PATTERN: "https://tweetreplyai.vercel.app/*"
+  };
+  var POLLING = {
+    USAGE_REFRESH_MS: 3e4,
+    ANALYTICS_REFRESH_MS: 3e4,
+    URL_TRACKING_MS: 300,
+    TRACKING_CLEANUP_MS: 6e4
+  };
+  var DEFAULTS = {
+    ANALYTICS_DAYS: 30,
+    TRACKING_DAYS: 7,
+    TRACKING_DAYS_MIN: 1,
+    TRACKING_DAYS_MAX: 30,
+    REPLY_HISTORY_LIMIT: 50
+  };
+  var AUTH = {
+    TOKEN_EXPIRY_MS: 7 * 24 * 60 * 60 * 1e3,
+    ONE_DAY_MS: 24 * 60 * 60 * 1e3
+  };
+
   // extension/utils/api.js
   var ApiClient = class {
     constructor() {
@@ -109,7 +133,7 @@
         const response = await new Promise((resolve) => {
           chrome.runtime.sendMessage({ action: "getApiDomain" }, resolve);
         });
-        const domain = response.domain || "tweetreplyai.vercel.app";
+        const domain = response.domain || API.DEFAULT_DOMAIN;
         const protocol = domain.includes("localhost") ? "http" : "https";
         this.baseUrl = `${protocol}://${domain}`;
       }
@@ -214,13 +238,13 @@
     async getPrompts() {
       return this.makeRequest("/api/prompts");
     }
-    async getAnalytics(days = 30) {
+    async getAnalytics(days = DEFAULTS.ANALYTICS_DAYS) {
       return this.makeRequest(`/api/analytics/feedback-stats?days=${days}`);
     }
-    async getQualityMetrics(days = 30) {
+    async getQualityMetrics(days = DEFAULTS.ANALYTICS_DAYS) {
       return this.makeRequest(`/api/quality/metrics?days=${days}`);
     }
-    async getSimpleAnalytics(days = 30) {
+    async getSimpleAnalytics(days = DEFAULTS.ANALYTICS_DAYS) {
       console.log(`[ApiClient] getSimpleAnalytics called with days=${days}`);
       const result = await this.makeRequest(`/api/analytics/simple?days=${days}`);
       console.log("[ApiClient] getSimpleAnalytics result:", result);
@@ -277,7 +301,7 @@
             console.error("Failed to refresh usage data:", error);
           }
         }
-      }, 3e4);
+      }, POLLING.USAGE_REFRESH_MS);
     }
     startQualityMetricsRefresh() {
       if (this.qualityMetricsInterval) {
@@ -291,7 +315,7 @@
             console.error("Failed to refresh quality metrics:", error);
           }
         }
-      }, 3e4);
+      }, POLLING.ANALYTICS_REFRESH_MS);
     }
     setupFocusRefresh() {
       this.focusHandler = async () => {
@@ -543,7 +567,7 @@
       console.log("[LOG][Quality] loadQualityMetrics() invoked at", new Date(startTime).toISOString());
       try {
         console.log("[LOG][Quality] -> requesting /api/quality/metrics?days=30");
-        const response = await this.apiClient.getQualityMetrics(30);
+        const response = await this.apiClient.getQualityMetrics(DEFAULTS.ANALYTICS_DAYS);
         console.log("[LOG][Quality] <- response received in", Date.now() - startTime, "ms:", response);
         this.processQualityMetricsResponse(response);
         this.updateQuickStats();
@@ -1009,7 +1033,7 @@
       if (this.analyticsData) this.analyticsData.classList.add("hidden");
       try {
         console.log("[Analytics] Calling API: /api/analytics/simple?days=30");
-        const response = await this.apiClient.getSimpleAnalytics(30);
+        const response = await this.apiClient.getSimpleAnalytics(DEFAULTS.ANALYTICS_DAYS);
         console.log("[Analytics] \u2713 API Response received:", JSON.stringify(response, null, 2));
         if (!response || !response.summary) {
           throw new Error("Invalid response structure: missing summary");

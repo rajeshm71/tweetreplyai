@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Check, Sparkles, Rocket, Crown, Gift, TrendingUp, Star } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
-import { PRICING_CONFIG, repliesPerCycleLabel, repliesEveryPeriodBullet, creditsPerCycleLabel, formatCreditsLimit } from "@/config/pricing";
+import { PRICING_CONFIG, creditsPerCycleLabel, formatCreditsLimit } from "@/config/pricing";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import { ManageSubscriptionModal } from "@/components/manage-subscription-modal";
 

@@ -16,6 +16,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
+import { APP_URLS } from "@/config/constants";
 
 export function AppHeader() {
   const { user } = useAuth();
@@ -78,7 +79,7 @@ export function AppHeader() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => window.open('https://chromewebstore.google.com/detail/tweetreply-ai-powered-twi/nhpilcnghmcdhcbhndmemiggfekmdgem', '_blank')}
+                onClick={() => window.open(APP_URLS.CHROME_STORE, '_blank')}
                 className="flex items-center gap-2 rounded-lg transition-all duration-300 hover:bg-primary/10 hover:text-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 data-testid="button-nav-extension"
                 aria-label="Download Chrome extension (opens in new tab)"

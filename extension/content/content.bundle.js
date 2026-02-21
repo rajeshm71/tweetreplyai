@@ -98,6 +98,43 @@
     }
   };
 
+  // extension/config/constants.js
+  var API = {
+    DEFAULT_DOMAIN: "tweetreplyai.vercel.app",
+    LOGIN_URL: "https://tweetreplyai.vercel.app/login",
+    TAB_PATTERN: "https://tweetreplyai.vercel.app/*"
+  };
+  var POLLING = {
+    USAGE_REFRESH_MS: 3e4,
+    ANALYTICS_REFRESH_MS: 3e4,
+    URL_TRACKING_MS: 300,
+    TRACKING_CLEANUP_MS: 6e4
+  };
+  var TIMEOUTS = {
+    USAGE_LOAD_MS: 1e4,
+    AUTH_SYNC_DELAY_MS: 500,
+    DOM_DEBOUNCE_MS: 100,
+    BUTTON_THROTTLE_MS: 200,
+    PLACEMENT_OBSERVER_MS: 150
+  };
+  var DEFAULTS = {
+    ANALYTICS_DAYS: 30,
+    TRACKING_DAYS: 7,
+    TRACKING_DAYS_MIN: 1,
+    TRACKING_DAYS_MAX: 30,
+    REPLY_HISTORY_LIMIT: 50
+  };
+  var VALIDATION = {
+    MIN_TWEET_LENGTH: 20,
+    MAX_TWEET_LENGTH: 500,
+    MAX_THREAD_CHAIN: 4,
+    MAX_THREAD_CHARS: 2e3
+  };
+  var AUTH = {
+    TOKEN_EXPIRY_MS: 7 * 24 * 60 * 60 * 1e3,
+    ONE_DAY_MS: 24 * 60 * 60 * 1e3
+  };
+
   // extension/utils/api.js
   var ApiClient = class {
     constructor() {
@@ -109,7 +146,7 @@
         const response = await new Promise((resolve) => {
           chrome.runtime.sendMessage({ action: "getApiDomain" }, resolve);
         });
-        const domain = response.domain || "tweetreplyai.vercel.app";
+        const domain = response.domain || API.DEFAULT_DOMAIN;
         const protocol = domain.includes("localhost") ? "http" : "https";
         this.baseUrl = `${protocol}://${domain}`;
       }
@@ -214,13 +251,13 @@
     async getPrompts() {
       return this.makeRequest("/api/prompts");
     }
-    async getAnalytics(days = 30) {
+    async getAnalytics(days = DEFAULTS.ANALYTICS_DAYS) {
       return this.makeRequest(`/api/analytics/feedback-stats?days=${days}`);
     }
-    async getQualityMetrics(days = 30) {
+    async getQualityMetrics(days = DEFAULTS.ANALYTICS_DAYS) {
       return this.makeRequest(`/api/quality/metrics?days=${days}`);
     }
-    async getSimpleAnalytics(days = 30) {
+    async getSimpleAnalytics(days = DEFAULTS.ANALYTICS_DAYS) {
       console.log(`[ApiClient] getSimpleAnalytics called with days=${days}`);
       const result = await this.makeRequest(`/api/analytics/simple?days=${days}`);
       console.log("[ApiClient] getSimpleAnalytics result:", result);
@@ -251,7 +288,7 @@
         if (!/\/compose\//.test(path)) {
           this.lastNonComposePath = path;
         }
-      }, 300);
+      }, POLLING.URL_TRACKING_MS);
       window.__tweetReplyInjector = this;
       this.beforeUnloadHandler = () => this.destroy();
       window.addEventListener("beforeunload", this.beforeUnloadHandler);
@@ -416,7 +453,7 @@
       if (!likeButton) return false;
       try {
         likeButton.click();
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, TIMEOUTS.DOM_DEBOUNCE_MS));
         return true;
       } catch (error) {
         console.warn("[TweetReply] Failed to auto-like:", error);
@@ -427,7 +464,7 @@
             view: window
           });
           likeButton.dispatchEvent(event);
-          await new Promise((resolve) => setTimeout(resolve, 100));
+          await new Promise((resolve) => setTimeout(resolve, TIMEOUTS.DOM_DEBOUNCE_MS));
           return true;
         } catch (e) {
           console.warn("[TweetReply] MouseEvent simulation failed:", e);
@@ -516,7 +553,7 @@
         if (this.isAuthenticated) {
           this.loadUsageData();
         }
-      }, 3e4);
+      }, POLLING.USAGE_REFRESH_MS);
     }
     async refreshAuthState() {
       const wasAuthenticated = this.isAuthenticated;
@@ -563,9 +600,9 @@
               } catch (error) {
                 console.error("[TweetReply] Error updating reply counts:", error);
               }
-            }, 500);
+            }, TIMEOUTS.AUTH_SYNC_DELAY_MS);
           }
-        }, 100);
+        }, TIMEOUTS.DOM_DEBOUNCE_MS);
       });
       this.mainObserver.observe(document.body, {
         childList: true,
@@ -752,7 +789,7 @@
         tryPlace();
       });
       observer.observe(toolbarEl, { childList: true, subtree: true });
-      setTimeout(tryPlace, 150);
+      setTimeout(tryPlace, TIMEOUTS.PLACEMENT_OBSERVER_MS);
     }
     // Ensure Suggest stays left of Reply across focus/typing/renders
     ensureSuggestLeftOfReply(toolbarEl, controlsRow, containerEl) {
@@ -760,7 +797,7 @@
         this.observePlacement(toolbarEl, controlsRow);
       }
       let last = 0;
-      const throttleMs = 200;
+      const throttleMs = TIMEOUTS.BUTTON_THROTTLE_MS;
       const maybePlace = () => {
         const now = Date.now();
         if (now - last < throttleMs) return;
@@ -858,7 +895,7 @@
             await Promise.race([
               this.loadUsageData(),
               new Promise(
-                (_, reject) => setTimeout(() => reject(new Error("Timeout after 10 seconds")), 1e4)
+                (_, reject) => setTimeout(() => reject(new Error("Timeout after 10 seconds")), TIMEOUTS.USAGE_LOAD_MS)
               )
             ]);
             console.log("[TweetReply] Usage data loaded:", this.usageData);
@@ -867,7 +904,7 @@
             this.usageData = {
               used: 0,
               limit: 999,
-              resetAt: new Date(Date.now() + 24 * 60 * 60 * 1e3).toISOString()
+              resetAt: new Date(Date.now() + AUTH.ONE_DAY_MS).toISOString()
             };
           }
         }
@@ -1164,7 +1201,7 @@
             resolve(response2);
           });
         });
-        const domain = response?.domain || "tweetreplyai.vercel.app";
+        const domain = response?.domain || API.DEFAULT_DOMAIN;
         const protocol = domain.includes("localhost") ? "http" : "https";
         const loginUrl = `${protocol}://${domain}/login`;
         chrome.runtime.sendMessage({
@@ -1177,7 +1214,7 @@
         });
       } catch (error) {
         console.error("[TweetReply] Failed to get API domain, using fallback:", error);
-        const loginUrl = "https://tweetreplyai.vercel.app/login";
+        const loginUrl = API.LOGIN_URL;
         chrome.runtime.sendMessage({
           action: "openLoginPage",
           url: loginUrl
@@ -1495,7 +1532,7 @@
             continue;
           }
           const text = element.textContent?.trim();
-          if (text && text.length > 20 && text.length < 500) {
+          if (text && text.length > VALIDATION.MIN_TWEET_LENGTH && text.length < VALIDATION.MAX_TWEET_LENGTH) {
             console.log("[TweetReply] \u2705 Tweet text found via contentEditable");
             return text;
           }
@@ -1536,7 +1573,7 @@
       }
       try {
         const allText = document.body.textContent;
-        const sentences = allText.split(/[.!?]+/).filter((s) => s.trim().length > 20);
+        const sentences = allText.split(/[.!?]+/).filter((s) => s.trim().length > VALIDATION.MIN_TWEET_LENGTH);
         if (sentences.length > 0) {
           console.log("[TweetReply] \u2705 Tweet text found via sentence detection");
           return sentences[0]?.trim() || null;
@@ -1690,14 +1727,14 @@
       try {
         const result = await chrome.storage.local.get(["replyTrackingSettings"]);
         const settings = result.replyTrackingSettings || {
-          trackingPeriodDays: 7
+          trackingPeriodDays: DEFAULTS.TRACKING_DAYS
         };
         return {
-          trackingPeriodDays: Math.max(1, Math.min(30, parseInt(settings.trackingPeriodDays) || 7))
+          trackingPeriodDays: Math.max(DEFAULTS.TRACKING_DAYS_MIN, Math.min(DEFAULTS.TRACKING_DAYS_MAX, parseInt(settings.trackingPeriodDays) || DEFAULTS.TRACKING_DAYS))
         };
       } catch (error) {
         console.warn("[TweetReply] Failed to get tracking settings:", error);
-        return { trackingPeriodDays: 7 };
+        return { trackingPeriodDays: DEFAULTS.TRACKING_DAYS };
       }
     }
     // Set tracking settings
@@ -1746,7 +1783,7 @@
           return;
         }
         history[username].replies.push({ timestamp: now });
-        const cutoff = now - settings.trackingPeriodDays * 24 * 60 * 60 * 1e3;
+        const cutoff = now - settings.trackingPeriodDays * AUTH.ONE_DAY_MS;
         history[username].replies = history[username].replies.filter(
           (r) => r.timestamp > cutoff
         );
@@ -1762,7 +1799,7 @@
     async cleanupExpiredHistory() {
       const history = await this.getReplyHistory();
       const settings = await this.getTrackingSettings();
-      const cutoff = Date.now() - settings.trackingPeriodDays * 24 * 60 * 60 * 1e3;
+      const cutoff = Date.now() - settings.trackingPeriodDays * AUTH.ONE_DAY_MS;
       let hasChanges = false;
       for (const [username, data] of Object.entries(history)) {
         const originalCount = data.replies?.length || 0;
@@ -1850,7 +1887,7 @@
           return 0;
         }
         const now = Date.now();
-        const cutoff = now - days * 24 * 60 * 60 * 1e3;
+        const cutoff = now - days * AUTH.ONE_DAY_MS;
         const count = userData.replies.filter((r) => r.timestamp > cutoff).length;
         return count;
       } catch (error) {
@@ -2081,7 +2118,7 @@
       this.trackingCleanupInterval = setInterval(() => {
         this.cleanupExpiredHistory();
         this.updateReplyCountsOnTweets();
-      }, 6e4);
+      }, POLLING.TRACKING_CLEANUP_MS);
     }
     extractConversationContext() {
       try {
@@ -2210,7 +2247,7 @@
         }));
         let limitedChain = threadChain;
         let totalChars = threadChain.reduce((sum, t) => sum + t.text.length, 0);
-        if (threadChain.length > 4 || totalChars > 2e3) {
+        if (threadChain.length > VALIDATION.MAX_THREAD_CHAIN || totalChars > VALIDATION.MAX_THREAD_CHARS) {
           const keepIndices = /* @__PURE__ */ new Set([0, currentTweetIndex]);
           const recentIndices = [];
           for (let i = Math.max(1, threadChain.length - 2); i < threadChain.length; i++) {

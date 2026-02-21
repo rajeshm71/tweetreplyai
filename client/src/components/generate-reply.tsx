@@ -18,6 +18,7 @@ import { useLocation } from "wouter";
 import { formatDistanceToNow } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import type { UserPreferences, SimpleAnalytics } from "@shared/types";
+import { POLLING, UI, QUALITY_THRESHOLDS, INPUT_LIMITS } from "@/config/constants";
 
 // Expose methods to parent components via ref
 export interface GenerateReplyRef {
@@ -273,7 +274,7 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
 
   const { data: usage } = useQuery<UsageStatus>({
     queryKey: ["/api/usage"],
-    refetchInterval: 30000, // Refetch every 30 seconds
+    refetchInterval: POLLING.USAGE_REFETCH_INTERVAL_MS,
     refetchOnWindowFocus: true,
   });
 
@@ -298,7 +299,7 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
       setCopiedHistoryId(entryId);
       
       // Reset after 2 seconds
-      setTimeout(() => setCopiedHistoryId(null), 2000);
+      setTimeout(() => setCopiedHistoryId(null), UI.COPY_FEEDBACK_DURATION_MS);
       
       toast({
         title: "Copied!",
@@ -347,7 +348,7 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
         });
         setTimeout(() => {
           window.location.href = "/api/login";
-        }, 500);
+        }, UI.REDIRECT_DELAY_MS);
         return;
       }
 
@@ -389,7 +390,7 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
         });
         setTimeout(() => {
           window.location.href = "/api/login";
-        }, 500);
+        }, UI.REDIRECT_DELAY_MS);
         return;
       }
 
@@ -438,7 +439,7 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
           description: "You are logged out. Logging in again...",
           variant: "destructive",
         });
-        setTimeout(() => window.location.href = "/api/login", 500);
+        setTimeout(() => window.location.href = "/api/login", UI.REDIRECT_DELAY_MS);
         return;
       }
       
@@ -447,7 +448,7 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
         const errorData = (error as any).data;
         toast({
           title: "Quota Exceeded",
-          description: errorData.upgradeMessage || "You've used all your replies. Upgrade to continue.",
+          description: errorData.upgradeMessage || "You've used all your credits. Upgrade to continue.",
           variant: "destructive",
         });
         return;
@@ -495,7 +496,7 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
     try {
       await navigator.clipboard.writeText(content);
       setCopiedId(id);
-      setTimeout(() => setCopiedId(null), 1500);
+      setTimeout(() => setCopiedId(null), UI.COPY_FEEDBACK_DURATION_MS);
     } catch (error) {
       toast({
         title: "Error",
@@ -585,7 +586,7 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
                   <div className="mt-3 pt-2 border-t border-border/20 flex items-center justify-between">
                     <div className="flex items-center space-x-3 text-xs text-muted-foreground">
                       {message.qualityScore && (
-                        <Badge variant={message.qualityScore >= 80 ? "default" : message.qualityScore >= 60 ? "secondary" : "destructive"}>
+                        <Badge variant={message.qualityScore >= QUALITY_THRESHOLDS.HIGH ? "default" : message.qualityScore >= QUALITY_THRESHOLDS.MEDIUM ? "secondary" : "destructive"}>
                           Quality: {message.qualityScore}
                         </Badge>
                       )}
@@ -655,7 +656,7 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
                 <div className="flex items-center gap-2 mb-2">
                   <Crown className="w-4 h-4 text-primary" />
                   <AlertDescription className="text-sm font-medium text-foreground m-0">
-                    {usage.upgradeMessage || "You've used all your trial replies. Upgrade to continue generating replies."}
+                    {usage.upgradeMessage || "You've used all your trial credits. Upgrade to continue generating replies."}
                   </AlertDescription>
                 </div>
                 <Button
@@ -962,10 +963,10 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
                   });
                   return;
                 }
-                if (improveModalTweetText.length > 1000) {
+                if (improveModalTweetText.length > INPUT_LIMITS.MAX_TWEET_TEXT) {
                   toast({
                     title: "Tweet Too Long",
-                    description: "Tweet text must be under 1000 characters.",
+                    description: `Tweet text must be under ${INPUT_LIMITS.MAX_TWEET_TEXT} characters.`,
                     variant: "destructive",
                   });
                   return;
@@ -978,10 +979,10 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
                   });
                   return;
                 }
-                if (draftText.length > 500) {
+                if (draftText.length > INPUT_LIMITS.MAX_DRAFT_REPLY) {
                   toast({
                     title: "Draft Too Long",
-                    description: "Draft reply must be under 500 characters.",
+                    description: `Draft reply must be under ${INPUT_LIMITS.MAX_DRAFT_REPLY} characters.`,
                     variant: "destructive",
                   });
                   return;
@@ -1072,7 +1073,7 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
                         {improveMutation.data.qualityScore !== undefined && (
                           <div>
                             <p className="text-sm font-medium mb-1">Quality Score</p>
-                            <Badge variant={improveMutation.data.qualityScore >= 70 ? "default" : "destructive"}>
+                            <Badge variant={improveMutation.data.qualityScore >= QUALITY_THRESHOLDS.IMPROVE_FEATURE ? "default" : "destructive"}>
                               {improveMutation.data.qualityScore}/100
                             </Badge>
                           </div>
@@ -1153,7 +1154,7 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
                         </p>
                       </div>
                       <div>
-                        <p className="text-xs text-muted-foreground">High Quality (80+)</p>
+                        <p className="text-xs text-muted-foreground">High Quality ({QUALITY_THRESHOLDS.HIGH}+)</p>
                         <p className="text-2xl font-bold text-green-600">
                           {simpleAnalyticsData.summary.highQualityCount}
                         </p>

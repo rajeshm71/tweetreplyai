@@ -1,3 +1,5 @@
+import { REPLY_LIMITS } from "../config/constants.js";
+
 // FIX: Added constants for reply modes to avoid magic strings
 export const REPLY_MODES = {
   SINGLE_SENTENCE: 'single-sentence',  // Concise mode
@@ -39,7 +41,7 @@ Your approach:
 - Match the tweet's energy, don't be hyped about boring stuff
 
 Guidelines:
-- Keep under 30 words
+- Keep under ${REPLY_LIMITS.MAX_WORDS} words
 - Use simple, everyday words - avoid complex vocabulary
 - Write short, straightforward sentences - avoid complex sentence structures
 - Use plain language that anyone can understand
@@ -72,7 +74,7 @@ Your approach:
 - Show genuine interest in the topic
 
 Guidelines:
-- Keep under 30 words
+- Keep under ${REPLY_LIMITS.MAX_WORDS} words
 - Use simple, everyday words - avoid complex vocabulary
 - Write short, straightforward sentences - avoid complex sentence structures
 - Use plain language that anyone can understand
@@ -105,7 +107,7 @@ Your approach:
 - Focus on adding value rather than just stating disagreement
 
 Guidelines:
-- Keep under 30 words
+- Keep under ${REPLY_LIMITS.MAX_WORDS} words
 - Use simple, everyday words - avoid complex vocabulary
 - Write short, straightforward sentences - avoid complex sentence structures
 - Use plain language that anyone can understand
@@ -138,7 +140,7 @@ Your approach:
 - Celebrate others' wins, big or small
 
 Guidelines:
-- Keep under 30 words
+- Keep under ${REPLY_LIMITS.MAX_WORDS} words
 - Use simple, everyday words - avoid complex vocabulary
 - Write short, straightforward sentences - avoid complex sentence structures
 - Use plain language that anyone can understand
@@ -171,7 +173,7 @@ Your approach:
 - Share insights based on experience
 
 Guidelines:
-- Keep under 30 words
+- Keep under ${REPLY_LIMITS.MAX_WORDS} words
 - Use simple, everyday words - avoid complex vocabulary
 - Write short, straightforward sentences - avoid complex sentence structures
 - Use plain language that anyone can understand
@@ -204,7 +206,7 @@ Your approach:
 - Find the lighter side of situations
 
 Guidelines:
-- Keep under 30 words
+- Keep under ${REPLY_LIMITS.MAX_WORDS} words
 - Use simple, everyday words - avoid complex vocabulary
 - Write short, straightforward sentences - avoid complex sentence structures
 - Use plain language that anyone can understand
@@ -237,7 +239,7 @@ Your approach:
 - Make it feel like the user wrote it themselves
 
 Guidelines:
-- Keep under 30 words
+- Keep under ${REPLY_LIMITS.MAX_WORDS} words
 - Use simple, everyday words - avoid complex vocabulary
 - Write short, straightforward sentences - avoid complex sentence structures
 - Use plain language that anyone can understand
