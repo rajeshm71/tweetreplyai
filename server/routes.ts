@@ -9,6 +9,7 @@ import { getAvailablePrompts } from "./services/prompts.js";
 import { dodoPaymentsService, PLANS } from "./services/dodo-payments.js";
 import { usageService } from "./services/usage.js";
 import { whitelistService } from "./services/whitelistService.js";
+import { runGuardrail, generateGuardrailFriendlyReply } from "./services/guardrail.js";
 import { ANALYTICS, PERIODS, QUALITY, VALIDATION } from "./config/constants.js";
 import { z, ZodError } from "zod";
 import passport from "passport";
@@ -584,7 +585,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
-
+      
       // Check if user can generate reply (applies to ALL users including whitelisted)
       const { canUse, reason } = await usageService.canUseReply(userId);
       if (!canUse) {
@@ -599,6 +600,30 @@ export async function registerRoutes(app: Express): Promise<Express> {
           upgradeMessage: whitelistService.getUpgradeMessage(false, status?.used || 0, status?.limit || 0),
         });
       }
+
+      // Run guardrail check on all user-facing text that will reach LLMs
+      let guardrailResult: { violation: number; category: string | null; rationale: string } | null = null;
+      let guardrailViolation = false;
+      try {
+        const guardrailParts: string[] = [];
+        guardrailParts.push(`Tweet: ${tweet_text}`);
+        if (normalizedThreadContext?.originalTweet) {
+          guardrailParts.push(`Original tweet: ${normalizedThreadContext.originalTweet}`);
+        }
+        if (normalizedThreadContext?.threadChain?.length) {
+          guardrailParts.push(
+            `Thread chain:\n` +
+              normalizedThreadContext.threadChain
+                .map((t, idx) => `#${idx + 1}: "${t.text}"`)
+                .join("\n"),
+          );
+        }
+        const guardrailInput = guardrailParts.join("\n\n");
+        guardrailResult = await runGuardrail(guardrailInput);
+        guardrailViolation = guardrailResult?.violation === 1;
+      } catch (error) {
+        console.error("[Guardrail] Error running guardrail for /api/generate-reply:", error);
+      }
       
       // Consume credits from quota (applies to ALL users including whitelisted)
       console.log('[API-DEBUG] /api/generate-reply - About to call consumeReply for userId:', userId, 'reply_mode:', reply_mode);
@@ -608,6 +633,85 @@ export async function registerRoutes(app: Express): Promise<Express> {
         creditsUsed: updatedCounter.creditsUsed,
         limit: updatedCounter.limit
       });
+
+      // If guardrail detected a violation, generate a friendly refusal reply and return early
+      if (guardrailViolation && guardrailResult) {
+        console.log('[Guardrail] Violation detected; routing to friendly guardrail_violation prompt.', {
+          category: guardrailResult.category,
+        });
+
+        const guardrailReply = await generateGuardrailFriendlyReply(tweet_text, guardrailResult.rationale);
+
+        // Log the reply event
+        await storage.createReplyEvent({
+          id: crypto.randomUUID(),
+          userId,
+          modelKey: guardrailReply.modelKey,
+          promptKey: 'guardrail_violation',
+          latencyMs: guardrailReply.latencyMs,
+          tokensUsed: (guardrailReply.tokensIn || 0) + (guardrailReply.tokensOut || 0),
+          cost: 0,
+        });
+
+        // Save to reply history with safety metadata
+        const historyEntry = await storage.createReplyHistory({
+          id: crypto.randomUUID(),
+          userId,
+          originalTweet: tweet_text,
+          generatedReply: guardrailReply.reply,
+          modelKey: guardrailReply.modelKey,
+          promptKey: 'guardrail_violation',
+          replyMode: reply_mode,
+          performance: {
+            safetyOutcome: 'violation_friendly_reply',
+            guardrailCategory: guardrailResult.category,
+            guardrailRationale: guardrailResult.rationale,
+            latencyMs: guardrailReply.latencyMs,
+          },
+        });
+
+        // Persist reply_tokens with a guardrail_violation stage
+        const tokensIn = guardrailReply.tokensIn ?? 0;
+        const tokensOut = guardrailReply.tokensOut ?? 0;
+        const guardrailCost = aiRouter.estimateCost(guardrailReply.modelKey, tokensIn, tokensOut);
+        const stageBreakdown = [
+          {
+            stage: 'guardrail_violation',
+            modelKey: guardrailReply.modelKey,
+            promptTokens: tokensIn,
+            completionTokens: tokensOut,
+            totalTokens: tokensIn + tokensOut,
+            cost: guardrailCost,
+            latencyMs: guardrailReply.latencyMs,
+          },
+        ];
+        await storage.createReplyTokens({
+          id: crypto.randomUUID(),
+          userId,
+          replyHistoryId: historyEntry.id,
+          stageBreakdown,
+          totalPromptTokens: tokensIn,
+          totalCompletionTokens: tokensOut,
+          totalTokens: tokensIn + tokensOut,
+          totalCost: guardrailCost,
+        });
+
+        return res.json({
+          reply: guardrailReply.reply,
+          qualityScore: null,
+          used: updatedCounter.creditsUsed ?? (updatedCounter.repliesUsed * 2),
+          limit: updatedCounter.limit,
+          resetAt: updatedCounter.resetAt,
+          analysis: null,
+          meta: {
+            modelKey: guardrailReply.modelKey,
+            latencyMs: guardrailReply.latencyMs,
+            qualityBreakdown: [],
+            safetyOutcome: 'violation_friendly_reply',
+            guardrailCategory: guardrailResult.category,
+          },
+        });
+      }
 
       // Prepare author info for analysis
       const authorInfo = author_info && author_info.username ? {
@@ -1909,6 +2013,97 @@ export async function registerRoutes(app: Express): Promise<Express> {
             upgradeMessage: whitelistService.getUpgradeMessage(false, status?.used || 0, status?.limit || 0),
           });
         }
+      }
+
+      // Run guardrail check on all user-facing text (original tweet + draft)
+      let guardrailResult: { violation: number; category: string | null; rationale: string } | null = null;
+      let guardrailViolation = false;
+      try {
+        const guardrailInput = `Original tweet: ${original_tweet}
+
+User draft reply: ${draft_reply}`;
+        guardrailResult = await runGuardrail(guardrailInput);
+        guardrailViolation = guardrailResult?.violation === 1;
+      } catch (error) {
+        console.error("[Guardrail] Error running guardrail for /api/suggest-improvements:", error);
+      }
+
+      // If guardrail fires, generate a friendly refusal reply instead of improving the draft
+      if (guardrailViolation && guardrailResult) {
+        const guardrailReply = await generateGuardrailFriendlyReply(
+          `Original tweet: ${original_tweet}\nUser draft reply: ${draft_reply}`,
+          guardrailResult.rationale,
+        );
+
+        const { qualityChecker } = await import('./services/quality-checker.js');
+
+        // Consume credits after successful friendly reply
+        const updatedCounter = await usageService.consumeReply(userId, 'improve');
+
+        // Analyze quality for analytics (same as normal flow)
+        const qualityResult = qualityChecker.checkQuality(draft_reply, original_tweet);
+        const improvedQualityResult = qualityChecker.checkQuality(guardrailReply.reply, original_tweet);
+
+        const historyEntry = await storage.createReplyHistory({
+          id: crypto.randomUUID(),
+          userId,
+          originalTweet: original_tweet,
+          generatedReply: guardrailReply.reply,
+          modelKey: guardrailReply.modelKey,
+          promptKey: 'guardrail_violation',
+          qualityScore: improvedQualityResult.totalScore,
+          replyMode: 'improve',
+          performance: {
+            safetyOutcome: 'violation_friendly_reply',
+            guardrailCategory: guardrailResult.category,
+            guardrailRationale: guardrailResult.rationale,
+            latencyMs: guardrailReply.latencyMs,
+          },
+        });
+
+        const tokensIn = guardrailReply.tokensIn ?? 0;
+        const tokensOut = guardrailReply.tokensOut ?? 0;
+        const guardrailCost = aiRouter.estimateCost(guardrailReply.modelKey, tokensIn, tokensOut);
+        const stageBreakdown = [
+          {
+            stage: 'guardrail_violation',
+            modelKey: guardrailReply.modelKey,
+            promptTokens: tokensIn,
+            completionTokens: tokensOut,
+            totalTokens: tokensIn + tokensOut,
+            cost: guardrailCost,
+            latencyMs: guardrailReply.latencyMs,
+          },
+        ];
+        await storage.createReplyTokens({
+          id: crypto.randomUUID(),
+          userId,
+          replyHistoryId: historyEntry.id,
+          stageBreakdown,
+          totalPromptTokens: tokensIn,
+          totalCompletionTokens: tokensOut,
+          totalTokens: tokensIn + tokensOut,
+          totalCost: guardrailCost,
+        });
+
+        return res.json({
+          original: draft_reply,
+          improved: guardrailReply.reply,
+          qualityScore: qualityResult.totalScore,
+          improvedQualityScore: improvedQualityResult.totalScore,
+          qualityParameters: qualityResult.parameters,
+          suggestions: qualityResult.suggestions,
+          analysis: {
+            wordCount: draft_reply.split(/\s+/).length,
+            length: draft_reply.length,
+            hasEmojis: /[😀😁😂😃😄😅😆😇😈😉😊😋😌😍😎😏😐😑😒😓😔😕😖😗😘😙😚😛😜😝😞😟😠😡😢😣😤😥😦😧😨😩😪😫😬😭😮😯😰😱😲😳😴😵😶😷🙁🙂🙃🙄🙅🙆🙇🙈🙉🙊🙋🙌🙍🙎🙏]/.test(draft_reply),
+          },
+          usage: {
+            used: updatedCounter.creditsUsed ?? (updatedCounter.repliesUsed * 2),
+            limit: updatedCounter.limit,
+            resetAt: updatedCounter.resetAt,
+          },
+        });
       }
 
       // Use AI to improve the draft
