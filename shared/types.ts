@@ -170,6 +170,41 @@ export interface InsertReplyHistory {
   updatedAt?: Date;
 }
 
+export interface ReplyTokensStageEntry {
+  stage: string;
+  modelKey: string;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens?: number;
+  cost: number;
+  latencyMs?: number;
+  rawUsage?: Record<string, unknown>;
+}
+
+export interface ReplyTokens {
+  id: string;
+  userId: string;
+  replyHistoryId: string;
+  stageBreakdown: ReplyTokensStageEntry[];
+  totalPromptTokens: number;
+  totalCompletionTokens: number;
+  totalTokens: number;
+  totalCost: number;
+  createdAt: Date;
+}
+
+export interface InsertReplyTokens {
+  id?: string;
+  userId: string;
+  replyHistoryId: string;
+  stageBreakdown: ReplyTokensStageEntry[];
+  totalPromptTokens: number;
+  totalCompletionTokens: number;
+  totalTokens: number;
+  totalCost: number;
+  createdAt?: Date;
+}
+
 export interface UserPreferences {
   id: string;
   userId: string;

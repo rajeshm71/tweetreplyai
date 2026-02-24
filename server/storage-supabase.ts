@@ -12,6 +12,9 @@ import type {
   InsertFeedback,
   ReplyHistory,
   InsertReplyHistory,
+  ReplyTokens,
+  InsertReplyTokens,
+  ReplyTokensStageEntry,
   UserPreferences,
   InsertUserPreferences,
 } from "../shared/types.js";
@@ -808,13 +811,14 @@ export class SupabaseStorage implements IStorage {
       used_at: replyHistory.usedAt ? replyHistory.usedAt.toISOString() : null,
       tweet_url: replyHistory.tweetUrl,
       performance: replyHistory.performance,
+      reply_mode: replyHistory.replyMode ?? 'base',
       created_at: replyHistory.createdAt ? replyHistory.createdAt.toISOString() : new Date().toISOString()
     };
 
     const { data, error } = await supabase
       .from('reply_history')
       .insert(dbReplyHistory)
-      .select('id, user_id, original_tweet, generated_reply, model_key, prompt_variation, quality_score, was_used, used_at, tweet_url, performance, created_at')
+      .select('id, user_id, original_tweet, generated_reply, model_key, prompt_variation, quality_score, was_used, used_at, tweet_url, performance, reply_mode, created_at')
       .single();
     
     if (error) {
@@ -835,6 +839,7 @@ export class SupabaseStorage implements IStorage {
       usedAt: data.used_at ? new Date(data.used_at) : undefined,
       tweetUrl: data.tweet_url,
       performance: data.performance,
+      replyMode: data.reply_mode,
       createdAt: new Date(data.created_at)
     } as ReplyHistory;
   }
@@ -842,7 +847,7 @@ export class SupabaseStorage implements IStorage {
   async getReplyHistory(userId: string, limit: number = 50): Promise<ReplyHistory[]> {
     const { data, error } = await supabase
       .from('reply_history')
-      .select('id, user_id, original_tweet, generated_reply, model_key, prompt_variation, quality_score, was_used, used_at, tweet_url, performance, created_at')
+      .select('id, user_id, original_tweet, generated_reply, model_key, prompt_variation, quality_score, was_used, used_at, tweet_url, performance, reply_mode, created_at')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .limit(limit);
@@ -865,6 +870,7 @@ export class SupabaseStorage implements IStorage {
       usedAt: item.used_at ? new Date(item.used_at) : undefined,
       tweetUrl: item.tweet_url,
       performance: item.performance,
+      replyMode: item.reply_mode,
       createdAt: new Date(item.created_at)
     })) as ReplyHistory[];
   }
@@ -882,6 +888,59 @@ export class SupabaseStorage implements IStorage {
       console.error('Supabase markReplyAsUsed error (line 420):', error);
       throw error;
     }
+  }
+
+  async createReplyTokens(entry: InsertReplyTokens): Promise<ReplyTokens> {
+    const stageBreakdownDb = (entry.stageBreakdown || []).map((s: ReplyTokensStageEntry) => ({
+      stage: s.stage,
+      model_key: s.modelKey,
+      prompt_tokens: s.promptTokens,
+      completion_tokens: s.completionTokens,
+      total_tokens: s.totalTokens ?? s.promptTokens + s.completionTokens,
+      cost: s.cost,
+      latency_ms: s.latencyMs ?? null,
+      raw_usage: s.rawUsage ?? null,
+    }));
+    const dbRow = {
+      ...(entry.id && { id: entry.id }),
+      user_id: entry.userId,
+      reply_history_id: entry.replyHistoryId,
+      stage_breakdown: stageBreakdownDb,
+      total_prompt_tokens: entry.totalPromptTokens,
+      total_completion_tokens: entry.totalCompletionTokens,
+      total_tokens: entry.totalTokens,
+      total_cost: entry.totalCost,
+      ...(entry.createdAt && { created_at: entry.createdAt.toISOString() }),
+    };
+    const { data, error } = await supabase
+      .from('reply_tokens')
+      .insert(dbRow)
+      .select('id, user_id, reply_history_id, stage_breakdown, total_prompt_tokens, total_completion_tokens, total_tokens, total_cost, created_at')
+      .single();
+    if (error) {
+      console.error('Supabase createReplyTokens error:', error);
+      throw error;
+    }
+    return {
+      id: data.id,
+      userId: data.user_id,
+      replyHistoryId: data.reply_history_id,
+      stageBreakdown: (data.stage_breakdown || []).map((s: any) => ({
+        stage: s.stage,
+        modelKey: s.model_key,
+        promptTokens: s.prompt_tokens,
+        completionTokens: s.completion_tokens,
+        totalTokens: s.total_tokens,
+        cost: Number(s.cost),
+        latencyMs: s.latency_ms ?? undefined,
+        rawUsage: s.raw_usage,
+      })),
+      totalPromptTokens: data.total_prompt_tokens,
+      totalCompletionTokens: data.total_completion_tokens,
+      totalTokens: data.total_tokens,
+      totalCost: Number(data.total_cost),
+      createdAt: new Date(data.created_at),
+    } as ReplyTokens;
   }
 
   async updateReplyPerformance(replyHistoryId: string, performance: any): Promise<void> {

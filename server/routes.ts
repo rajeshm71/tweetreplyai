@@ -803,6 +803,36 @@ export async function registerRoutes(app: Express): Promise<Express> {
         },
       });
 
+      // Build stage_breakdown (one entry per LLM call) and persist reply_tokens
+      const tokensIn = replyResponse.tokensIn ?? 0;
+      const tokensOut = replyResponse.tokensOut ?? 0;
+      const replyGenCost = aiRouter.estimateCost(replyResponse.modelKey, tokensIn, tokensOut);
+      const stageBreakdown = [
+        {
+          stage: 'reply_generation',
+          modelKey: replyResponse.modelKey,
+          promptTokens: tokensIn,
+          completionTokens: tokensOut,
+          totalTokens: tokensIn + tokensOut,
+          cost: replyGenCost,
+          latencyMs: replyResponse.latencyMs,
+        },
+      ];
+      const totalPromptTokens = tokensIn;
+      const totalCompletionTokens = tokensOut;
+      const totalTokens = tokensIn + tokensOut;
+      const totalCost = replyGenCost;
+      await storage.createReplyTokens({
+        id: crypto.randomUUID(),
+        userId,
+        replyHistoryId: historyEntry.id,
+        stageBreakdown,
+        totalPromptTokens,
+        totalCompletionTokens,
+        totalTokens,
+        totalCost,
+      });
+
       // Return response with updated usage and quality details
       // Safely include analysis data for client-side logging
       let analysisData = null;
@@ -1857,11 +1887,12 @@ export async function registerRoutes(app: Express): Promise<Express> {
       const { qualityChecker } = await import('./services/quality-checker.js');
       
       let improvedReply = '';
+      let improvementResponse: { reply: string; modelKey: string; tokensIn?: number; tokensOut?: number; latencyMs: number } | null = null;
       let aiError = null;
       
       try {
         // Use the new improveDraft method
-        const improvementResponse = await aiRouter.improveDraft(
+        improvementResponse = await aiRouter.improveDraft(
           original_tweet,
           draft_reply
         );
@@ -1882,6 +1913,45 @@ export async function registerRoutes(app: Express): Promise<Express> {
       // Analyze the draft for quality metrics with detailed breakdown
       const qualityResult = qualityChecker.checkQuality(draft_reply, original_tweet);
       const improvedQualityResult = qualityChecker.checkQuality(improvedReply, original_tweet);
+
+      // Create reply_history (mode 'improve') and reply_tokens for this improve-draft reply
+      if (improvementResponse) {
+        const historyEntry = await storage.createReplyHistory({
+          id: crypto.randomUUID(),
+          userId,
+          originalTweet: original_tweet,
+          generatedReply: improvedReply,
+          modelKey: improvementResponse.modelKey,
+          promptKey: 'improve',
+          qualityScore: improvedQualityResult.totalScore,
+          replyMode: 'improve',
+          performance: { latencyMs: improvementResponse.latencyMs },
+        });
+        const tokensIn = improvementResponse.tokensIn ?? 0;
+        const tokensOut = improvementResponse.tokensOut ?? 0;
+        const improveCost = aiRouter.estimateCost(improvementResponse.modelKey, tokensIn, tokensOut);
+        const stageBreakdown = [
+          {
+            stage: 'improve_draft',
+            modelKey: improvementResponse.modelKey,
+            promptTokens: tokensIn,
+            completionTokens: tokensOut,
+            totalTokens: tokensIn + tokensOut,
+            cost: improveCost,
+            latencyMs: improvementResponse.latencyMs,
+          },
+        ];
+        await storage.createReplyTokens({
+          id: crypto.randomUUID(),
+          userId,
+          replyHistoryId: historyEntry.id,
+          stageBreakdown,
+          totalPromptTokens: tokensIn,
+          totalCompletionTokens: tokensOut,
+          totalTokens: tokensIn + tokensOut,
+          totalCost: improveCost,
+        });
+      }
 
       res.json({
         original: draft_reply,

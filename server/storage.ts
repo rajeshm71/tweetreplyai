@@ -11,6 +11,8 @@ import type {
   InsertFeedback,
   ReplyHistory,
   InsertReplyHistory,
+  ReplyTokens,
+  InsertReplyTokens,
   UserPreferences,
   InsertUserPreferences,
 } from "../shared/types.js";
@@ -47,7 +49,10 @@ export interface IStorage {
   createReplyHistory(replyHistory: InsertReplyHistory): Promise<ReplyHistory>;
   getReplyHistory(userId: string, limit?: number): Promise<ReplyHistory[]>;
   markReplyAsUsed(replyHistoryId: string, tweetUrl?: string): Promise<void>;
-  
+
+  // Reply tokens operations
+  createReplyTokens(entry: InsertReplyTokens): Promise<ReplyTokens>;
+
   // User preferences operations
   getUserPreferences(userId: string): Promise<UserPreferences | undefined>;
   upsertUserPreferences(preferences: InsertUserPreferences): Promise<UserPreferences>;
