@@ -11,6 +11,12 @@ export interface GuardrailResult {
   violation: number;
   category: string | null;
   rationale: string;
+  usage?: {
+    promptTokens: number;
+    completionTokens: number;
+    modelKey: string;
+    latencyMs: number;
+  };
 }
 
 /**
@@ -26,9 +32,10 @@ export async function runGuardrail(userInput: string): Promise<GuardrailResult> 
     };
   }
 
+  const startTime = Date.now();
   try {
     const response = await groq.chat.completions.create({
-      model: "openai/gpt-oss-safeguard-20b",
+      model: AI_MODELS.GUARDRAIL,
       messages: [
         { role: "system", content: GUARDRAIL_POLICY_PROMPT },
         { role: "user", content: userInput },
@@ -38,6 +45,11 @@ export async function runGuardrail(userInput: string): Promise<GuardrailResult> 
       top_p: 1,
       response_format: { type: "json_object" },
     });
+
+    const latencyMs = Date.now() - startTime;
+    const usageRaw = response.usage as { prompt_tokens?: number; completion_tokens?: number } | undefined;
+    const promptTokens = usageRaw?.prompt_tokens ?? 0;
+    const completionTokens = usageRaw?.completion_tokens ?? 0;
 
     const raw = response.choices[0]?.message?.content;
     let parsed: any = {};
@@ -79,7 +91,14 @@ export async function runGuardrail(userInput: string): Promise<GuardrailResult> 
           : null,
     });
 
-    return { violation, category, rationale };
+    const usage = {
+      promptTokens,
+      completionTokens,
+      modelKey: AI_MODELS.GUARDRAIL,
+      latencyMs,
+    };
+
+    return { violation, category, rationale, usage };
   } catch (error: any) {
     console.error("[Guardrail] Error calling safeguard model:", error?.message || error);
     return {

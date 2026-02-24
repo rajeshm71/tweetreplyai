@@ -1,6 +1,6 @@
 import { modelRouter as openaiRouter, ReplyOptions, ReplyResponse } from "./openai.js";
 import { groqModelRouter } from "./groq.js";
-import { AI_MODELS, AI_PARAMS } from "../config/constants.js";
+import { AI_MODELS, AI_PARAMS, MODEL_SPECS } from "../config/constants.js";
 
 export interface ModelInfo {
   key: string;
@@ -92,6 +92,19 @@ export class UnifiedAIRouter {
   }
 
   getModelInfo(modelKey: string): ModelInfo | null {
+    if (modelKey === AI_MODELS.GUARDRAIL) {
+      const spec = MODEL_SPECS.GUARDRAIL_SAFEGUARD;
+      return {
+        key: AI_MODELS.GUARDRAIL,
+        name: "Guardrail Safeguard",
+        provider: "groq",
+        inputCost: spec.inputCost,
+        outputCost: spec.outputCost,
+        contextWindow: spec.contextWindow,
+        description: "Safeguard model for prompt-injection and safety classification",
+      };
+    }
+
     const provider = this.getProviderForModel(modelKey);
 
     if (provider === "groq") {

@@ -674,30 +674,50 @@ export async function registerRoutes(app: Express): Promise<Express> {
           },
         });
 
-        // Persist reply_tokens with a guardrail_violation stage
-        const tokensIn = guardrailReply.tokensIn ?? 0;
-        const tokensOut = guardrailReply.tokensOut ?? 0;
-        const guardrailCost = aiRouter.estimateCost(guardrailReply.modelKey, tokensIn, tokensOut);
-        const stageBreakdown = [
-          {
-            stage: 'guardrail_violation',
-            modelKey: guardrailReply.modelKey,
-            promptTokens: tokensIn,
-            completionTokens: tokensOut,
-            totalTokens: tokensIn + tokensOut,
-            cost: guardrailCost,
-            latencyMs: guardrailReply.latencyMs,
-          },
-        ];
+        // Persist reply_tokens: guardrail_classification (if usage present) + guardrail_violation (friendly reply)
+        const replyTokensIn = guardrailReply.tokensIn ?? 0;
+        const replyTokensOut = guardrailReply.tokensOut ?? 0;
+        const replyCost = aiRouter.estimateCost(guardrailReply.modelKey, replyTokensIn, replyTokensOut);
+        const stageBreakdown: Array<{ stage: string; modelKey: string; promptTokens: number; completionTokens: number; totalTokens: number; cost: number; latencyMs: number }> = [];
+
+        if (guardrailResult.usage) {
+          const u = guardrailResult.usage;
+          const classificationCost = aiRouter.estimateCost(u.modelKey, u.promptTokens, u.completionTokens);
+          stageBreakdown.push({
+            stage: 'guardrail_classification',
+            modelKey: u.modelKey,
+            promptTokens: u.promptTokens,
+            completionTokens: u.completionTokens,
+            totalTokens: u.promptTokens + u.completionTokens,
+            cost: classificationCost,
+            latencyMs: u.latencyMs,
+          });
+        }
+
+        stageBreakdown.push({
+          stage: 'guardrail_violation',
+          modelKey: guardrailReply.modelKey,
+          promptTokens: replyTokensIn,
+          completionTokens: replyTokensOut,
+          totalTokens: replyTokensIn + replyTokensOut,
+          cost: replyCost,
+          latencyMs: guardrailReply.latencyMs,
+        });
+
+        const totalPromptTokens = stageBreakdown.reduce((s, e) => s + e.promptTokens, 0);
+        const totalCompletionTokens = stageBreakdown.reduce((s, e) => s + e.completionTokens, 0);
+        const totalTokens = stageBreakdown.reduce((s, e) => s + e.totalTokens, 0);
+        const totalCost = stageBreakdown.reduce((s, e) => s + e.cost, 0);
+
         await storage.createReplyTokens({
           id: crypto.randomUUID(),
           userId,
           replyHistoryId: historyEntry.id,
           stageBreakdown,
-          totalPromptTokens: tokensIn,
-          totalCompletionTokens: tokensOut,
-          totalTokens: tokensIn + tokensOut,
-          totalCost: guardrailCost,
+          totalPromptTokens,
+          totalCompletionTokens,
+          totalTokens,
+          totalCost,
         });
 
         return res.json({
@@ -2069,29 +2089,49 @@ User draft reply: ${draft_reply}`;
           },
         });
 
-        const tokensIn = guardrailReply.tokensIn ?? 0;
-        const tokensOut = guardrailReply.tokensOut ?? 0;
-        const guardrailCost = aiRouter.estimateCost(guardrailReply.modelKey, tokensIn, tokensOut);
-        const stageBreakdown = [
-          {
-            stage: 'guardrail_violation',
-            modelKey: guardrailReply.modelKey,
-            promptTokens: tokensIn,
-            completionTokens: tokensOut,
-            totalTokens: tokensIn + tokensOut,
-            cost: guardrailCost,
-            latencyMs: guardrailReply.latencyMs,
-          },
-        ];
+        const replyTokensIn = guardrailReply.tokensIn ?? 0;
+        const replyTokensOut = guardrailReply.tokensOut ?? 0;
+        const replyCost = aiRouter.estimateCost(guardrailReply.modelKey, replyTokensIn, replyTokensOut);
+        const stageBreakdown: Array<{ stage: string; modelKey: string; promptTokens: number; completionTokens: number; totalTokens: number; cost: number; latencyMs: number }> = [];
+
+        if (guardrailResult.usage) {
+          const u = guardrailResult.usage;
+          const classificationCost = aiRouter.estimateCost(u.modelKey, u.promptTokens, u.completionTokens);
+          stageBreakdown.push({
+            stage: 'guardrail_classification',
+            modelKey: u.modelKey,
+            promptTokens: u.promptTokens,
+            completionTokens: u.completionTokens,
+            totalTokens: u.promptTokens + u.completionTokens,
+            cost: classificationCost,
+            latencyMs: u.latencyMs,
+          });
+        }
+
+        stageBreakdown.push({
+          stage: 'guardrail_violation',
+          modelKey: guardrailReply.modelKey,
+          promptTokens: replyTokensIn,
+          completionTokens: replyTokensOut,
+          totalTokens: replyTokensIn + replyTokensOut,
+          cost: replyCost,
+          latencyMs: guardrailReply.latencyMs,
+        });
+
+        const totalPromptTokens = stageBreakdown.reduce((s, e) => s + e.promptTokens, 0);
+        const totalCompletionTokens = stageBreakdown.reduce((s, e) => s + e.completionTokens, 0);
+        const totalTokens = stageBreakdown.reduce((s, e) => s + e.totalTokens, 0);
+        const totalCost = stageBreakdown.reduce((s, e) => s + e.cost, 0);
+
         await storage.createReplyTokens({
           id: crypto.randomUUID(),
           userId,
           replyHistoryId: historyEntry.id,
           stageBreakdown,
-          totalPromptTokens: tokensIn,
-          totalCompletionTokens: tokensOut,
-          totalTokens: tokensIn + tokensOut,
-          totalCost: guardrailCost,
+          totalPromptTokens,
+          totalCompletionTokens,
+          totalTokens,
+          totalCost,
         });
 
         return res.json({

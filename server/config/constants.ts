@@ -6,6 +6,7 @@ export const AI_MODELS = {
   DEFAULT: "meta-llama/llama-4-scout-17b-16e-instruct",
   FALLBACK: "gpt-4o-mini",
   ANALYSIS: "meta-llama/llama-4-scout-17b-16e-instruct",
+  GUARDRAIL: "openai/gpt-oss-safeguard-20b",
 } as const;
 
 export const AI_PARAMS = {
@@ -22,6 +23,7 @@ export const AI_PARAMS = {
 export const MODEL_SPECS = {
   GPT_4O_MINI: { inputCost: 0.15, outputCost: 0.6, contextWindow: 128000 },
   LLAMA_SCOUT: { inputCost: 0.11, outputCost: 0.34, contextWindow: 131072 },
+  GUARDRAIL_SAFEGUARD: { inputCost: 0.075, outputCost: 0.3, contextWindow: 128000 },
 } as const;
 
 export const REPLY_LIMITS = {
