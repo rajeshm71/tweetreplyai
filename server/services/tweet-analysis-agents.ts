@@ -10,7 +10,9 @@ const groq = process.env.GROQ_API_KEY ? new Groq() : null;
 const TWEET_ANALYSIS_ENABLED = process.env.TWEET_ANALYSIS_ENABLED !== 'false';
 const TWEET_ANALYSIS_CACHE_TTL = parseInt(process.env.TWEET_ANALYSIS_CACHE_TTL || String(CACHE.DEFAULT_TTL_SECONDS), 10);
 const TWEET_ANALYSIS_MODEL = AI_MODELS.ANALYSIS;
-console.log('[TweetAnalysis] TWEET_ANALYSIS_MODEL (used for both agents):', TWEET_ANALYSIS_MODEL);
+console.log('[TweetAnalysis] TWEET_ANALYSIS_DEFAULT_MODEL:', AI_MODELS.DEFAULT);
+console.log('[TweetAnalysis] TWEET_ANALYSIS_FALLBACK:', AI_MODELS.FALLBACK);
+console.log('[TweetAnalysis] TWEET_ANALYSIS_MODEL (used for both agents):', AI_MODELS.ANALYSIS);
 
 function isGroqModel(modelKey: string): boolean {
   return modelKey.startsWith("meta-llama/") || modelKey.startsWith("llama-");
