@@ -1,13 +1,19 @@
 import OpenAI from "openai";
+import { Groq } from "groq-sdk";
 import crypto from "crypto";
 import { AI_MODELS, AI_PARAMS, CACHE, VALIDATION } from "../config/constants.js";
 
-// Initialize OpenAI client for agents
+// Initialize OpenAI and Groq clients for agents
 const openai = process.env.OPENAI_API_KEY ? new OpenAI() : null;
+const groq = process.env.GROQ_API_KEY ? new Groq() : null;
 
 const TWEET_ANALYSIS_ENABLED = process.env.TWEET_ANALYSIS_ENABLED !== 'false';
 const TWEET_ANALYSIS_CACHE_TTL = parseInt(process.env.TWEET_ANALYSIS_CACHE_TTL || String(CACHE.DEFAULT_TTL_SECONDS), 10);
 const TWEET_ANALYSIS_MODEL = process.env.TWEET_ANALYSIS_MODEL || AI_MODELS.ANALYSIS;
+
+function isGroqModel(modelKey: string): boolean {
+  return modelKey.startsWith("meta-llama/") || modelKey.startsWith("llama-");
+}
 
 // Interfaces
 export interface TweetUnderstandingResult {
@@ -26,11 +32,24 @@ export interface IntentionExtractionResult {
   underlyingPurpose: string; // Deeper purpose or goal
 }
 
+/** Per-call usage from a tweet-analysis agent (for stage_breakdown). */
+export interface AgentUsage {
+  promptTokens: number;
+  completionTokens: number;
+  modelKey: string;
+  latencyMs: number;
+}
+
 export interface EnrichedTweetAnalysis {
   understanding: TweetUnderstandingResult;
   intention: IntentionExtractionResult;
   enrichedContextPrompt: string; // Formatted context for injection into prompts
   timestamp: Date;
+  /** Set only on fresh runs when agents return usage; not set for cached responses. */
+  stageUsage?: {
+    tweet_understanding?: AgentUsage;
+    tweet_intention?: AgentUsage;
+  };
 }
 
 // Cache entry interface
@@ -89,12 +108,14 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, operation: strin
 
 // Tweet Understanding Agent
 export class TweetUnderstandingAgent {
-  async analyze(tweetText: string, authorInfo?: { username?: string; verified?: boolean; followerCount?: number }): Promise<TweetUnderstandingResult> {
+  async analyze(tweetText: string, authorInfo?: { username?: string; verified?: boolean; followerCount?: number }): Promise<{ result: TweetUnderstandingResult; usage?: AgentUsage }> {
     const startTime = Date.now();
-    
-    if (!openai) {
-      console.warn('[TweetUnderstandingAgent] OpenAI not configured, returning default analysis');
-      return this.getDefaultAnalysis();
+    const useGroq = isGroqModel(TWEET_ANALYSIS_MODEL) && groq;
+    const useOpenAI = !useGroq && openai;
+
+    if (!useGroq && !useOpenAI) {
+      console.warn('[TweetUnderstandingAgent] No provider configured for model, returning default analysis');
+      return { result: this.getDefaultAnalysis() };
     }
 
     try {
@@ -112,20 +133,51 @@ Respond with a JSON object containing:
 
 Return ONLY valid JSON, no additional text.`;
 
-      const response = await openai.chat.completions.create({
-        model: TWEET_ANALYSIS_MODEL,
-        messages: [
-          { role: "system", content: "You are an expert at analyzing social media content. Return only valid JSON." },
-          { role: "user", content: prompt }
-        ],
-        temperature: AI_PARAMS.ANALYSIS_TEMPERATURE_QUICK,
-        max_tokens: AI_PARAMS.ANALYSIS_MAX_TOKENS_QUICK,
-        response_format: { type: "json_object" }
-      });
+      const messages = [
+        { role: "system" as const, content: "You are an expert at analyzing social media content. Return only valid JSON." },
+        { role: "user" as const, content: prompt }
+      ];
 
-      const content = response.choices[0]?.message?.content;
+      let content: string | null = null;
+      let usage: AgentUsage | undefined;
+      if (useGroq) {
+        const response = await groq!.chat.completions.create({
+          model: TWEET_ANALYSIS_MODEL,
+          messages,
+          temperature: AI_PARAMS.ANALYSIS_TEMPERATURE_QUICK,
+          max_tokens: AI_PARAMS.ANALYSIS_MAX_TOKENS_QUICK,
+          response_format: { type: "json_object" }
+        });
+        content = response.choices[0]?.message?.content ?? null;
+        const u = response.usage as { prompt_tokens?: number; completion_tokens?: number } | undefined;
+        const latencyMs = Date.now() - startTime;
+        usage = {
+          promptTokens: u?.prompt_tokens ?? 0,
+          completionTokens: u?.completion_tokens ?? 0,
+          modelKey: TWEET_ANALYSIS_MODEL,
+          latencyMs,
+        };
+      } else {
+        const response = await openai!.chat.completions.create({
+          model: TWEET_ANALYSIS_MODEL,
+          messages,
+          temperature: AI_PARAMS.ANALYSIS_TEMPERATURE_QUICK,
+          max_tokens: AI_PARAMS.ANALYSIS_MAX_TOKENS_QUICK,
+          response_format: { type: "json_object" }
+        });
+        content = response.choices[0]?.message?.content ?? null;
+        const u = response.usage;
+        const latencyMs = Date.now() - startTime;
+        usage = {
+          promptTokens: u?.prompt_tokens ?? 0,
+          completionTokens: u?.completion_tokens ?? 0,
+          modelKey: TWEET_ANALYSIS_MODEL,
+          latencyMs,
+        };
+      }
+
       if (!content) {
-        throw new Error('Empty response from OpenAI');
+        throw new Error('Empty response from model');
       }
 
       // Parse and validate JSON response
@@ -143,22 +195,20 @@ Return ONLY valid JSON, no additional text.`;
           ? parsed.sentiment 
           : 'neutral',
         style: parsed.style || 'casual',
-        complexity: ['simple', 'medium', 'complex'].includes(parsed.complexity)
-          ? parsed.complexity
+        complexity: ['simple', 'medium', 'complex'].includes(parsed.complexity) 
+          ? parsed.complexity 
           : 'medium',
         emotionalMarkers: Array.isArray(parsed.emotionalMarkers) ? parsed.emotionalMarkers : [],
         keyThemes: Array.isArray(parsed.keyThemes) ? parsed.keyThemes : []
       };
 
-      const latency = Date.now() - startTime;
-      
-      console.log(`[TweetUnderstandingAgent] Analysis completed in ${latency}ms`);
+      console.log(`[TweetUnderstandingAgent] Analysis completed in ${usage.latencyMs}ms`);
       console.log(`[TweetUnderstandingAgent] Tone: ${analysis.tone}, Sentiment: ${analysis.sentiment}, Style: ${analysis.style}`);
       
-      return analysis;
+      return { result: analysis, usage };
     } catch (error: any) {
       console.error('[TweetUnderstandingAgent] Error:', error.message);
-      return this.getDefaultAnalysis();
+      return { result: this.getDefaultAnalysis() };
     }
   }
 
@@ -176,12 +226,14 @@ Return ONLY valid JSON, no additional text.`;
 
 // Intention Extraction Agent
 export class IntentionExtractionAgent {
-  async extract(tweetText: string, authorInfo?: { username?: string; verified?: boolean; followerCount?: number }): Promise<IntentionExtractionResult> {
+  async extract(tweetText: string, authorInfo?: { username?: string; verified?: boolean; followerCount?: number }): Promise<{ result: IntentionExtractionResult; usage?: AgentUsage }> {
     const startTime = Date.now();
-    
-    if (!openai) {
-      console.warn('[IntentionExtractionAgent] OpenAI not configured, returning default extraction');
-      return this.getDefaultExtraction();
+    const useGroq = isGroqModel(TWEET_ANALYSIS_MODEL) && groq;
+    const useOpenAI = !useGroq && openai;
+
+    if (!useGroq && !useOpenAI) {
+      console.warn('[IntentionExtractionAgent] No provider configured for model, returning default extraction');
+      return { result: this.getDefaultExtraction() };
     }
 
     try {
@@ -197,20 +249,51 @@ Respond with a JSON object containing:
 
 Return ONLY valid JSON, no additional text.`;
 
-      const response = await openai.chat.completions.create({
-        model: TWEET_ANALYSIS_MODEL,
-        messages: [
-          { role: "system", content: "You are an expert at understanding human intentions in social media. Return only valid JSON." },
-          { role: "user", content: prompt }
-        ],
-        temperature: AI_PARAMS.ANALYSIS_TEMPERATURE_DEEP,
-        max_tokens: AI_PARAMS.ANALYSIS_MAX_TOKENS_DEEP,
-        response_format: { type: "json_object" }
-      });
+      const messages = [
+        { role: "system" as const, content: "You are an expert at understanding human intentions in social media. Return only valid JSON." },
+        { role: "user" as const, content: prompt }
+      ];
 
-      const content = response.choices[0]?.message?.content;
+      let content: string | null = null;
+      let usage: AgentUsage | undefined;
+      if (useGroq) {
+        const response = await groq!.chat.completions.create({
+          model: TWEET_ANALYSIS_MODEL,
+          messages,
+          temperature: AI_PARAMS.ANALYSIS_TEMPERATURE_DEEP,
+          max_tokens: AI_PARAMS.ANALYSIS_MAX_TOKENS_DEEP,
+          response_format: { type: "json_object" }
+        });
+        content = response.choices[0]?.message?.content ?? null;
+        const u = response.usage as { prompt_tokens?: number; completion_tokens?: number } | undefined;
+        const latencyMs = Date.now() - startTime;
+        usage = {
+          promptTokens: u?.prompt_tokens ?? 0,
+          completionTokens: u?.completion_tokens ?? 0,
+          modelKey: TWEET_ANALYSIS_MODEL,
+          latencyMs,
+        };
+      } else {
+        const response = await openai!.chat.completions.create({
+          model: TWEET_ANALYSIS_MODEL,
+          messages,
+          temperature: AI_PARAMS.ANALYSIS_TEMPERATURE_DEEP,
+          max_tokens: AI_PARAMS.ANALYSIS_MAX_TOKENS_DEEP,
+          response_format: { type: "json_object" }
+        });
+        content = response.choices[0]?.message?.content ?? null;
+        const u = response.usage;
+        const latencyMs = Date.now() - startTime;
+        usage = {
+          promptTokens: u?.prompt_tokens ?? 0,
+          completionTokens: u?.completion_tokens ?? 0,
+          modelKey: TWEET_ANALYSIS_MODEL,
+          latencyMs,
+        };
+      }
+
       if (!content) {
-        throw new Error('Empty response from OpenAI');
+        throw new Error('Empty response from model');
       }
 
       // Parse and validate JSON response
@@ -229,16 +312,14 @@ Return ONLY valid JSON, no additional text.`;
         underlyingPurpose: parsed.underlyingPurpose || 'To communicate with others'
       };
 
-      const latency = Date.now() - startTime;
-      
-      console.log(`[IntentionExtractionAgent] Extraction completed in ${latency}ms`);
+      console.log(`[IntentionExtractionAgent] Extraction completed in ${usage.latencyMs}ms`);
       const intentionPreview = extraction.intention ? extraction.intention.substring(0, 100) : 'N/A';
       console.log(`[IntentionExtractionAgent] Intention: ${intentionPreview}...`);
       
-      return extraction;
+      return { result: extraction, usage };
     } catch (error: any) {
       console.error('[IntentionExtractionAgent] Error:', error.message);
-      return this.getDefaultExtraction();
+      return { result: this.getDefaultExtraction() };
     }
   }
 
@@ -301,7 +382,7 @@ export class TweetAnalysisOrchestrator {
 
     try {
       // Fix: Run both agents in parallel with timeout protection
-      const [understanding, intention] = await Promise.all([
+      const [understandingOut, intentionOut] = await Promise.all([
         withTimeout(
           this.understandingAgent.analyze(tweetText, authorInfo),
           CACHE.AGENT_TIMEOUT_MS,
@@ -313,6 +394,9 @@ export class TweetAnalysisOrchestrator {
           'IntentionExtractionAgent'
         )
       ]);
+
+      const understanding = understandingOut.result;
+      const intention = intentionOut.result;
 
       // Fix: Check if both agents returned default values (error masking detection)
       const isDefaultUnderstanding = understanding.tone === 'neutral' && 
@@ -347,7 +431,7 @@ export class TweetAnalysisOrchestrator {
       // Fix: Enforce cache size limit before storing new entry
       enforceCacheSizeLimit();
       
-      // Store in cache
+      // Store in cache (without stageUsage; cached responses won't have per-call usage)
       analysisCache.set(cacheKey, {
         analysis,
         timestamp: Date.now()
@@ -358,7 +442,11 @@ export class TweetAnalysisOrchestrator {
       const intentionPreview = intention.intention ? intention.intention.substring(0, 80) : 'N/A';
       console.log(`[TweetAnalysisOrchestrator] Intention: ${intentionPreview}...`);
 
-      return analysis;
+      // Attach stageUsage for reply_tokens (only on fresh run; not stored in cache)
+      const stageUsage: EnrichedTweetAnalysis['stageUsage'] = {};
+      if (understandingOut.usage) stageUsage.tweet_understanding = understandingOut.usage;
+      if (intentionOut.usage) stageUsage.tweet_intention = intentionOut.usage;
+      return { ...analysis, stageUsage: Object.keys(stageUsage).length > 0 ? stageUsage : undefined };
     } catch (error: any) {
       console.error('[TweetAnalysisOrchestrator] Error during analysis:', error.message);
       console.error('[TweetAnalysisOrchestrator] Stack:', error.stack);

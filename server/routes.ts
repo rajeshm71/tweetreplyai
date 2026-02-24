@@ -807,7 +807,33 @@ export async function registerRoutes(app: Express): Promise<Express> {
       const tokensIn = replyResponse.tokensIn ?? 0;
       const tokensOut = replyResponse.tokensOut ?? 0;
       const replyGenCost = aiRouter.estimateCost(replyResponse.modelKey, tokensIn, tokensOut);
+      const analysisStages: Array<{ stage: string; modelKey: string; promptTokens: number; completionTokens: number; totalTokens: number; cost: number; latencyMs: number }> = [];
+      if (tweetAnalysis?.stageUsage?.tweet_understanding) {
+        const u = tweetAnalysis.stageUsage.tweet_understanding;
+        analysisStages.push({
+          stage: 'tweet_understanding',
+          modelKey: u.modelKey,
+          promptTokens: u.promptTokens,
+          completionTokens: u.completionTokens,
+          totalTokens: u.promptTokens + u.completionTokens,
+          cost: aiRouter.estimateCost(u.modelKey, u.promptTokens, u.completionTokens),
+          latencyMs: u.latencyMs,
+        });
+      }
+      if (tweetAnalysis?.stageUsage?.tweet_intention) {
+        const u = tweetAnalysis.stageUsage.tweet_intention;
+        analysisStages.push({
+          stage: 'tweet_intention',
+          modelKey: u.modelKey,
+          promptTokens: u.promptTokens,
+          completionTokens: u.completionTokens,
+          totalTokens: u.promptTokens + u.completionTokens,
+          cost: aiRouter.estimateCost(u.modelKey, u.promptTokens, u.completionTokens),
+          latencyMs: u.latencyMs,
+        });
+      }
       const stageBreakdown = [
+        ...analysisStages,
         {
           stage: 'reply_generation',
           modelKey: replyResponse.modelKey,
@@ -818,10 +844,10 @@ export async function registerRoutes(app: Express): Promise<Express> {
           latencyMs: replyResponse.latencyMs,
         },
       ];
-      const totalPromptTokens = tokensIn;
-      const totalCompletionTokens = tokensOut;
-      const totalTokens = tokensIn + tokensOut;
-      const totalCost = replyGenCost;
+      const totalPromptTokens = stageBreakdown.reduce((s, e) => s + e.promptTokens, 0);
+      const totalCompletionTokens = stageBreakdown.reduce((s, e) => s + e.completionTokens, 0);
+      const totalTokens = stageBreakdown.reduce((s, e) => s + e.totalTokens, 0);
+      const totalCost = stageBreakdown.reduce((s, e) => s + e.cost, 0);
       await storage.createReplyTokens({
         id: crypto.randomUUID(),
         userId,
