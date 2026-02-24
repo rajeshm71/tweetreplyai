@@ -1,3 +1,5 @@
+import { API, TIMEOUTS } from '../config/constants.js';
+
 class BackgroundManager {
   constructor() {
     this.debug = false; // Set to true for development debugging
@@ -83,7 +85,7 @@ class BackgroundManager {
     chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
       if (changeInfo.status === 'complete' && tab.url) {
         // Only monitor our web app domain
-        if (tab.url.includes('tweetreplyai.vercel.app')) {
+        if (tab.url.includes(API.DEFAULT_DOMAIN)) {
           this.checkForAuthCompletion(tab.url, tabId);
         }
       }
@@ -91,22 +93,23 @@ class BackgroundManager {
   }
 
   async checkForAuthCompletion(url, tabId) {
-    // Check if this is a successful auth redirect - updated patterns
+    // Build domain-based patterns from config so domain change requires no code edit
+    const escaped = API.DEFAULT_DOMAIN.replace(/\./g, '\\.');
     const authSuccessPatterns = [
-      /tweetreplyai\.vercel\.app\/$/,           // Redirected to home after login
-      /tweetreplyai\.vercel\.app\/app/,         // Redirected to app after login
-      /tweetreplyai\.vercel\.app\/\?.*success/, // Success query param
-      /\/app\?/,                                 // Old pattern (backward compatibility)
-      /\/\?session_id=/,                         // Session ID param
-      /auth.*success/i                          // Generic success
+      new RegExp(`${escaped}\\/$`),              // Redirected to home after login
+      new RegExp(`${escaped}\\/app`),            // Redirected to app after login
+      new RegExp(`${escaped}\\/\\?.*success`),   // Success query param
+      /\/app\?/,                                  // Old pattern (backward compatibility)
+      /\/\?session_id=/,                          // Session ID param
+      /auth.*success/i                            // Generic success
     ];
-    
+
     const isAuthSuccess = authSuccessPatterns.some(pattern => pattern.test(url));
     
     if (isAuthSuccess) {
       try {
         // Add delay to ensure cookies are set
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise(resolve => setTimeout(resolve, TIMEOUTS.AUTH_SYNC_DELAY_MS));
         
         // Try to get auth token from the tab's context
         const results = await chrome.scripting.executeScript({
@@ -263,7 +266,7 @@ class BackgroundManager {
       
       if (!domain) {
         // Default to production API domain
-        domain = 'tweetreplyai.vercel.app'; // Default for production
+        domain = API.DEFAULT_DOMAIN;
         
         // Store the default domain for future use
         await chrome.storage.local.set({ apiDomain: domain });
@@ -272,7 +275,7 @@ class BackgroundManager {
       sendResponse({ domain });
     } catch (error) {
       console.error('Failed to get API domain:', error);
-      sendResponse({ domain: 'tweetreplyai.vercel.app' });
+      sendResponse({ domain: API.DEFAULT_DOMAIN });
     }
   }
 
@@ -366,7 +369,7 @@ class BackgroundManager {
 
   handleOpenLoginPage(url, sendResponse) {
     try {
-      const loginUrl = url || 'https://tweetreplyai.vercel.app/login';
+      const loginUrl = url || API.LOGIN_URL;
       chrome.tabs.create({ url: loginUrl });
       // Call sendResponse immediately after synchronous operation
       sendResponse({ success: true });

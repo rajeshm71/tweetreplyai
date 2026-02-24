@@ -431,7 +431,6 @@
       this.analyticsRetryBtn = document.getElementById("analytics-retry-btn");
       this.analyticsData = document.getElementById("analytics-data");
       this.analyticsSummary = document.getElementById("analytics-summary");
-      this.parameterBreakdown = document.getElementById("parameter-breakdown");
       this.activityTrend = document.getElementById("activity-trend");
       this.insightsPanel = document.getElementById("insights-panel");
     }
@@ -836,6 +835,7 @@
     showSettings() {
       this.settingsPanel?.classList.remove("hidden");
       if (this.settingsPanel) {
+        this.settingsPanel.style.display = "";
         this.settingsPanel.setAttribute("aria-hidden", "false");
         this.settingsBtn?.setAttribute("aria-expanded", "true");
         this.loadTrackingSettings();
@@ -1021,7 +1021,6 @@
         error: !!this.analyticsError,
         data: !!this.analyticsData,
         summary: !!this.analyticsSummary,
-        parameters: !!this.parameterBreakdown,
         trend: !!this.activityTrend,
         insights: !!this.insightsPanel
       });
@@ -1046,8 +1045,6 @@
         }
         console.log("[Analytics] Rendering summary...");
         this.renderAnalyticsSummary(response.summary);
-        console.log("[Analytics] Rendering parameter breakdown...");
-        this.renderParameterBreakdown(response.parameterBreakdown);
         console.log("[Analytics] Rendering activity trend...");
         this.renderActivityTrend(response.activityTrend);
         console.log("[Analytics] Rendering insights...");
@@ -1090,37 +1087,6 @@
       </div>
     `;
     }
-    renderParameterBreakdown(parameters) {
-      if (!this.parameterBreakdown) return;
-      if (parameters.length === 0) {
-        this.parameterBreakdown.innerHTML = `
-        <h3>Quality Breakdown</h3>
-        <p class="empty-state">No quality data available yet</p>
-      `;
-        return;
-      }
-      const parameterItems = parameters.map((param) => {
-        const barWidth = param.avgScore / 10 * 100;
-        const barClass = param.avgScore >= 8 ? "bar-high" : param.avgScore >= 5 ? "bar-medium" : "bar-low";
-        return `
-        <div class="parameter-item">
-          <div class="parameter-header">
-            <span class="parameter-name">${this.escapeHtml(param.name)}</span>
-            <span class="parameter-score">${param.avgScore.toFixed(1)}/10</span>
-          </div>
-          <div class="parameter-bar-container">
-            <div class="parameter-bar ${barClass}" style="width: ${barWidth}%"></div>
-          </div>
-        </div>
-      `;
-      }).join("");
-      this.parameterBreakdown.innerHTML = `
-      <h3>Quality Breakdown</h3>
-      <div class="parameter-list">
-        ${parameterItems}
-      </div>
-    `;
-    }
     renderActivityTrend(trend) {
       if (!this.activityTrend) return;
       if (trend.length === 0) {
@@ -1131,44 +1097,80 @@
         return;
       }
       const maxCount = Math.max(...trend.map((d) => d.count), 1);
-      const width = 300;
-      const height = 150;
-      const padding = 20;
-      const chartWidth = width - padding * 2;
-      const chartHeight = height - padding * 2;
-      const points = trend.map((d, i) => {
-        const x = padding + i / (trend.length - 1) * chartWidth;
-        const y = height - padding - d.count / maxCount * chartHeight;
-        return `${x},${y}`;
-      }).join(" ");
+      const width = 320;
+      const height = 180;
+      const leftPad = 28;
+      const rightPad = 12;
+      const topPad = 22;
+      const bottomPad = 26;
+      const chartWidth = width - leftPad - rightPad;
+      const chartHeight = height - topPad - bottomPad;
+      const chartBottom = height - bottomPad;
+      const chartTop = topPad;
+      const yTicks = (() => {
+        const ticks = [0];
+        if (maxCount <= 0) return ticks;
+        const step = maxCount <= 5 ? 1 : maxCount <= 20 ? Math.ceil(maxCount / 4) : Math.ceil(maxCount / 4 / 10) * 10;
+        for (let v = step; v < maxCount; v += step) ticks.push(v);
+        if (maxCount > 0 && ticks[ticks.length - 1] !== maxCount) ticks.push(maxCount);
+        return ticks;
+      })();
+      const getX = (i) => leftPad + (trend.length <= 1 ? 0 : i / (trend.length - 1) * chartWidth);
+      const getY = (count) => chartBottom - count / maxCount * chartHeight;
+      const points = trend.map((d, i) => `${getX(i)},${getY(d.count)}`).join(" ");
+      const xLabels = trend.map((d, i) => {
+        const x = getX(i);
+        const dayLabel = (/* @__PURE__ */ new Date(d.date + "T12:00:00")).toLocaleDateString("en-US", { weekday: "short" });
+        return `<text x="${x}" y="${chartBottom + 14}" text-anchor="middle" class="activity-chart-axis" font-size="10">${dayLabel}</text>`;
+      }).join("");
+      const yLabels = yTicks.map((val) => {
+        const y = chartBottom - val / maxCount * chartHeight;
+        return `<text x="${leftPad - 4}" y="${y + 4}" text-anchor="end" class="activity-chart-axis" font-size="10">${val}</text>`;
+      }).join("");
+      const countLabels = trend.map((d, i) => {
+        const x = getX(i);
+        const y = getY(d.count);
+        return `<text x="${x}" y="${y - 6}" text-anchor="middle" class="activity-chart-count" font-size="11" font-weight="600">${d.count}</text>`;
+      }).join("");
       this.activityTrend.innerHTML = `
       <h3>Activity Trend (Last 7 Days)</h3>
       <div class="activity-chart">
         <svg viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
-          <!-- Grid lines -->
-          <line x1="${padding}" y1="${padding}" x2="${padding}" y2="${height - padding}" stroke="#e5e7eb" stroke-width="1"/>
-          <line x1="${padding}" y1="${height - padding}" x2="${width - padding}" y2="${height - padding}" stroke="#e5e7eb" stroke-width="1"/>
-          
-          <!-- Area fill -->
-          <polygon points="${padding},${height - padding} ${points} ${width - padding},${height - padding}" fill="url(#gradient)" opacity="0.3"/>
-          
-          <!-- Line -->
-          <polyline points="${points}" fill="none" stroke="#3B82F6" stroke-width="2"/>
-          
-          <!-- Points -->
-          ${trend.map((d, i) => {
-        const x = padding + i / (trend.length - 1) * chartWidth;
-        const y = height - padding - d.count / maxCount * chartHeight;
-        return `<circle cx="${x}" cy="${y}" r="3" fill="#3B82F6"/>`;
-      }).join("")}
-          
-          <!-- Gradient definition -->
           <defs>
-            <linearGradient id="gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+            <linearGradient id="activityGradient" x1="0%" y1="0%" x2="0%" y2="100%">
               <stop offset="0%" style="stop-color:#3B82F6;stop-opacity:0.5" />
               <stop offset="100%" style="stop-color:#3B82F6;stop-opacity:0" />
             </linearGradient>
           </defs>
+          <!-- Y-axis grid -->
+          ${yTicks.map((val) => {
+        const y = chartBottom - val / maxCount * chartHeight;
+        return `<line x1="${leftPad}" y1="${y}" x2="${width - rightPad}" y2="${y}" stroke="#e5e7eb" stroke-width="1" stroke-dasharray="2,2"/>`;
+      }).join("")}
+          <!-- X-axis grid -->
+          ${trend.map((_, i) => {
+        const x = getX(i);
+        return `<line x1="${x}" y1="${chartTop}" x2="${x}" y2="${chartBottom}" stroke="#e5e7eb" stroke-width="1" stroke-dasharray="2,2"/>`;
+      }).join("")}
+          <!-- Axes -->
+          <line x1="${leftPad}" y1="${chartTop}" x2="${leftPad}" y2="${chartBottom}" stroke="#94a3b8" stroke-width="1"/>
+          <line x1="${leftPad}" y1="${chartBottom}" x2="${width - rightPad}" y2="${chartBottom}" stroke="#94a3b8" stroke-width="1"/>
+          <!-- Y-axis labels -->
+          ${yLabels}
+          <!-- X-axis labels -->
+          ${xLabels}
+          <!-- Area fill -->
+          <polygon points="${leftPad},${chartBottom} ${points} ${width - rightPad},${chartBottom}" fill="url(#activityGradient)" opacity="0.3"/>
+          <!-- Line -->
+          <polyline points="${points}" fill="none" stroke="#3B82F6" stroke-width="2"/>
+          <!-- Count at each day -->
+          ${countLabels}
+          <!-- Points -->
+          ${trend.map((d, i) => {
+        const x = getX(i);
+        const y = getY(d.count);
+        return `<circle cx="${x}" cy="${y}" r="3" fill="#3B82F6"/>`;
+      }).join("")}
         </svg>
       </div>
     `;
@@ -1255,6 +1257,7 @@
             name = emailPrefix;
           }
         }
+        name = (name || "").trim().split(/\s+/)[0] || name || "there";
         if (!name) {
           name = "there";
         }
@@ -1279,6 +1282,9 @@
           this.planBadge.style.background = "linear-gradient(135deg, #8B5CF6, #7C3AED)";
         } else {
           this.planBadge.style.background = "";
+        }
+        if (this.upgradeCta) {
+          this.upgradeCta.style.display = planCode === "bypass" || planCode === "weekly" || planCode === "monthly" ? "none" : "";
         }
       }
     }

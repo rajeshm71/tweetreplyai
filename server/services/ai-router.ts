@@ -26,7 +26,11 @@ export class UnifiedAIRouter {
   }
 
   async generateReply(options: ReplyOptions): Promise<ReplyResponse> {
-    const modelKey = options.modelPreference || AI_MODELS.DEFAULT;
+    const preferFallbackAsPrimary =
+      !options.modelPreference ||
+      options.modelPreference === "auto" ||
+      options.modelPreference === AI_MODELS.FALLBACK;
+    const modelKey = preferFallbackAsPrimary ? AI_MODELS.DEFAULT : options.modelPreference!;
     const provider = this.getProviderForModel(modelKey);
 
     try {
@@ -51,12 +55,16 @@ export class UnifiedAIRouter {
   }
 
   async improveDraft(tweetText: string, draftReply: string, modelPreference?: string): Promise<ReplyResponse> {
-    const modelKey = modelPreference || AI_MODELS.FALLBACK;
+    const modelKey = modelPreference || AI_MODELS.DEFAULT;
+    const provider = this.getProviderForModel(modelKey);
 
     console.log(`🔧 [AI Router] improveDraft called - Model: ${modelKey}`);
     console.log(`📝 [AI Router] Tweet text: "${tweetText.substring(0, 50)}..."`);
     console.log(`📝 [AI Router] Draft reply: "${draftReply.substring(0, 50)}..."`);
 
+    if (provider === "groq") {
+      return groqModelRouter.improveDraft(tweetText, draftReply, modelKey);
+    }
     return openaiRouter.improveDraft(tweetText, draftReply, modelKey);
   }
 

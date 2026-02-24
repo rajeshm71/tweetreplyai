@@ -620,6 +620,10 @@ export async function registerRoutes(app: Express): Promise<Express> {
         }
         const guardrailInput = guardrailParts.join("\n\n");
         guardrailResult = await runGuardrail(guardrailInput);
+        console.log("[Guardrail] /api/generate-reply result:", {
+          violation: guardrailResult.violation,
+          category: guardrailResult.category,
+        });
         guardrailViolation = guardrailResult?.violation === 1;
       } catch (error) {
         console.error("[Guardrail] Error running guardrail for /api/generate-reply:", error);
@@ -2023,6 +2027,10 @@ export async function registerRoutes(app: Express): Promise<Express> {
 
 User draft reply: ${draft_reply}`;
         guardrailResult = await runGuardrail(guardrailInput);
+        console.log("[Guardrail] /api/suggest-improvements result:", {
+          violation: guardrailResult.violation,
+          category: guardrailResult.category,
+        });
         guardrailViolation = guardrailResult?.violation === 1;
       } catch (error) {
         console.error("[Guardrail] Error running guardrail for /api/suggest-improvements:", error);

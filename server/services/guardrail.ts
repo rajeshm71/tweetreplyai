@@ -39,7 +39,23 @@ export async function runGuardrail(userInput: string): Promise<GuardrailResult> 
       response_format: { type: "json_object" },
     });
 
-    const parsed: any = response.choices[0]?.message?.content ?? {};
+    const raw = response.choices[0]?.message?.content;
+    let parsed: any = {};
+
+    if (typeof raw === "string") {
+      try {
+        parsed = JSON.parse(raw);
+      } catch (parseError: any) {
+        console.error(
+          "[Guardrail] Failed to parse safeguard JSON:",
+          parseError?.message || parseError,
+        );
+        parsed = {};
+      }
+    } else if (raw && typeof raw === "object") {
+      parsed = raw;
+    }
+
     const violation =
       parsed?.violation === 1 || parsed?.violation === 0 ? parsed.violation : 0;
     const category =
@@ -50,6 +66,18 @@ export async function runGuardrail(userInput: string): Promise<GuardrailResult> 
       typeof parsed?.rationale === "string" && parsed.rationale.length > 0
         ? parsed.rationale
         : "No rationale provided.";
+
+    console.log("[Guardrail] Decision:", {
+      violation,
+      category,
+      hasRationale: !!rationale,
+      raw:
+        typeof raw === "string"
+          ? raw.slice(0, 500)
+          : raw
+          ? JSON.stringify(raw).slice(0, 500)
+          : null,
+    });
 
     return { violation, category, rationale };
   } catch (error: any) {

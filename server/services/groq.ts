@@ -3,7 +3,7 @@ import { ReplyOptions, ReplyResponse } from "./openai.js";
 import { getPromptConfig, applyReplyModeToPrompt, type PromptConfig } from "./prompts.js";
 import { replyPostProcessor } from "./reply-postprocessor.js";
 import { buildSystemPrompt, buildUserPromptWithThread } from "./prompt-builder.js";
-import { AI_MODELS, AI_PARAMS, MODEL_SPECS } from "../config/constants.js";
+import { AI_MODELS, AI_PARAMS, MODEL_SPECS, REPLY_LIMITS } from "../config/constants.js";
 
 // Initialize Groq client
 const groq = process.env.GROQ_API_KEY ? new Groq() : null;
@@ -124,6 +124,66 @@ export class GroqModelRouter {
       console.error(`🔧 [Groq] Model used: ${modelKey}`);
       console.error(`🔧 [Groq] Full error:`, error);
       throw new Error(`Failed to generate reply with Groq: ${message}`);
+    }
+  }
+
+  async improveDraft(tweetText: string, draftReply: string, modelPreference?: string): Promise<ReplyResponse> {
+    const startTime = Date.now();
+    const modelKey = modelPreference && modelPreference in this.MODELS ? modelPreference : AI_MODELS.DEFAULT;
+    const promptConfig = this.getPromptConfig("improve");
+
+    console.log(`🚀 [Groq] Starting improvement with model: ${modelKey}`);
+    console.log(`📝 [Groq] Tweet text: "${tweetText.substring(0, 50)}..."`);
+    console.log(`📝 [Groq] Draft reply: "${draftReply.substring(0, 50)}..."`);
+
+    const userPrompt = `Tweet: "${tweetText}"
+
+User's draft idea: "${draftReply}"
+
+Write a clean, natural reply based on the user's draft idea. Keep it under ${REPLY_LIMITS.MAX_WORDS} words.`;
+
+    if (!groq) {
+      console.log("❌ [Groq] Groq client not configured");
+      return {
+        reply: draftReply,
+        modelKey: "demo-groq",
+        latencyMs: Date.now() - startTime,
+      };
+    }
+
+    try {
+      const response = await groq.chat.completions.create({
+        messages: [
+          { role: "system", content: promptConfig.systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+        model: modelKey,
+        temperature: AI_PARAMS.TEMPERATURE,
+        max_completion_tokens: AI_PARAMS.GROQ_MAX_TOKENS,
+        top_p: 1,
+      });
+      const rawReply = response.choices[0]?.message?.content ?? "";
+      console.log(`🔍 [Groq] Raw AI response before post-processing: "${rawReply.substring(0, 80)}..."`);
+      const processedReply = replyPostProcessor.processReplyLight(rawReply);
+      console.log(`✨ [Groq] Post-processed improved reply: "${processedReply.substring(0, 80)}..."`);
+
+      const latencyMs = Date.now() - startTime;
+      const estimatedInputTokens = Math.ceil((promptConfig.systemPrompt + userPrompt).length / AI_PARAMS.TOKEN_ESTIMATION_CHARS_PER_TOKEN);
+      const estimatedOutputTokens = Math.ceil(processedReply.length / AI_PARAMS.TOKEN_ESTIMATION_CHARS_PER_TOKEN);
+
+      const usage = response.usage as { prompt_tokens?: number; completion_tokens?: number } | undefined;
+      return {
+        reply: processedReply,
+        modelKey,
+        tokensIn: usage?.prompt_tokens ?? estimatedInputTokens,
+        tokensOut: usage?.completion_tokens ?? estimatedOutputTokens,
+        latencyMs,
+      };
+    } catch (error: any) {
+      const message = error?.message || error?.error?.message || "Unknown error";
+      console.error(`❌ [Groq] Error improving draft: ${message}`);
+      console.error(`🔧 [Groq] Model used: ${modelKey}`);
+      throw new Error(`Failed to improve draft with Groq: ${message}`);
     }
   }
 

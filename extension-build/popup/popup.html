@@ -28,6 +28,7 @@
           <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" aria-hidden="true">
             <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
           </svg>
+          <span class="settings-btn-label">Settings</span>
         </button>
       </div>
     </div>
@@ -178,6 +179,10 @@
         <div class="settings-actions">
           <button id="signout-btn" class="secondary-btn" aria-label="Sign out from TweetReply">Sign Out</button>
         </div>
+
+        <div class="settings-section">
+          <a id="settings-web-link" href="https://tweetreplyai.vercel.app/settings" target="_blank" rel="noopener noreferrer" class="settings-web-link" aria-label="Open settings on web">Settings on web</a>
+        </div>
         
         <!-- Reply Tracking Settings -->
         <div class="settings-section">
@@ -240,7 +245,6 @@
       <!-- Analytics Sections -->
       <div id="analytics-data" class="hidden">
         <div id="analytics-summary" class="analytics-section"></div>
-        <div id="parameter-breakdown" class="analytics-section"></div>
         <div id="activity-trend" class="analytics-section"></div>
         <div id="insights-panel" class="analytics-section"></div>
       </div>
