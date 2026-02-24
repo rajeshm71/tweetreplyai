@@ -41,7 +41,7 @@ export async function runGuardrail(userInput: string): Promise<GuardrailResult> 
         { role: "user", content: userInput },
       ],
       temperature: 0,
-      max_completion_tokens: 256,
+      max_completion_tokens: 512,
       top_p: 1,
       response_format: { type: "json_object" },
     });
