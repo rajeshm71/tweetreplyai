@@ -10,6 +10,7 @@ const groq = process.env.GROQ_API_KEY ? new Groq() : null;
 const TWEET_ANALYSIS_ENABLED = process.env.TWEET_ANALYSIS_ENABLED !== 'false';
 const TWEET_ANALYSIS_CACHE_TTL = parseInt(process.env.TWEET_ANALYSIS_CACHE_TTL || String(CACHE.DEFAULT_TTL_SECONDS), 10);
 const TWEET_ANALYSIS_MODEL = AI_MODELS.ANALYSIS;
+console.log('[TweetAnalysis] TWEET_ANALYSIS_MODEL (used for both agents):', TWEET_ANALYSIS_MODEL);
 
 function isGroqModel(modelKey: string): boolean {
   return modelKey.startsWith("meta-llama/") || modelKey.startsWith("llama-");
@@ -203,6 +204,7 @@ Return ONLY valid JSON, no additional text.`;
       };
 
       console.log(`[TweetUnderstandingAgent] Analysis completed in ${usage.latencyMs}ms`);
+      console.log('[TweetUnderstandingAgent] model_key for stage_breakdown:', usage.modelKey);
       console.log(`[TweetUnderstandingAgent] Tone: ${analysis.tone}, Sentiment: ${analysis.sentiment}, Style: ${analysis.style}`);
       
       return { result: analysis, usage };
@@ -313,6 +315,7 @@ Return ONLY valid JSON, no additional text.`;
       };
 
       console.log(`[IntentionExtractionAgent] Extraction completed in ${usage.latencyMs}ms`);
+      console.log('[IntentionExtractionAgent] model_key for stage_breakdown:', usage.modelKey);
       const intentionPreview = extraction.intention ? extraction.intention.substring(0, 100) : 'N/A';
       console.log(`[IntentionExtractionAgent] Intention: ${intentionPreview}...`);
       

@@ -810,6 +810,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
       const analysisStages: Array<{ stage: string; modelKey: string; promptTokens: number; completionTokens: number; totalTokens: number; cost: number; latencyMs: number }> = [];
       if (tweetAnalysis?.stageUsage?.tweet_understanding) {
         const u = tweetAnalysis.stageUsage.tweet_understanding;
+        console.log('[API] stage_breakdown tweet_understanding model_key:', u.modelKey);
         analysisStages.push({
           stage: 'tweet_understanding',
           modelKey: u.modelKey,
@@ -822,6 +823,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
       }
       if (tweetAnalysis?.stageUsage?.tweet_intention) {
         const u = tweetAnalysis.stageUsage.tweet_intention;
+        console.log('[API] stage_breakdown tweet_intention model_key:', u.modelKey);
         analysisStages.push({
           stage: 'tweet_intention',
           modelKey: u.modelKey,
@@ -848,6 +850,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
       const totalCompletionTokens = stageBreakdown.reduce((s, e) => s + e.completionTokens, 0);
       const totalTokens = stageBreakdown.reduce((s, e) => s + e.totalTokens, 0);
       const totalCost = stageBreakdown.reduce((s, e) => s + e.cost, 0);
+      console.log('[API] stage_breakdown stages:', stageBreakdown.map(s => ({ stage: s.stage, model_key: s.modelKey })));
       await storage.createReplyTokens({
         id: crypto.randomUUID(),
         userId,
