@@ -709,7 +709,6 @@
           const totalCredits = this.usageData.used || 0;
           const modes = [
             { key: "single-sentence", label: "Concise" },
-            { key: "base", label: "Balanced" },
             { key: "enhanced", label: "Enhanced" },
             { key: "improve", label: "Improve" }
           ];

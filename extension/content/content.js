@@ -1062,7 +1062,6 @@ class TwitterReplyInjector {
     // Create options - Centralized labels for easy updates
     const modes = [
       { value: 'single-sentence', label: '⚡ Concise', tooltip: 'Fast one-sentence reply' },
-      { value: 'base', label: '📝 Balanced', tooltip: 'Natural conversational reply' },
       { value: 'enhanced', label: '🧠 Enhanced', tooltip: 'Context-aware with deep analysis' }
     ];
     
@@ -1075,17 +1074,20 @@ class TwitterReplyInjector {
     });
     
     // FIX: Set default immediately to prevent race condition
-    select.value = 'base';
+    select.value = 'enhanced';
     
     // Try to restore previously selected reply mode (async)
     try {
       chrome.storage?.local?.get(['tweetreply_reply_mode'], data => {
         if (data && typeof data.tweetreply_reply_mode === 'string') {
           const savedMode = data.tweetreply_reply_mode;
-          // Verify saved mode is valid before applying
           if (modes.some(m => m.value === savedMode)) {
             select.value = savedMode;
             console.log('[TweetReply] Restored reply mode from storage:', savedMode);
+          } else {
+            select.value = 'enhanced';
+            try { chrome.storage?.local?.set({ tweetreply_reply_mode: 'enhanced' }); } catch (_) {}
+            console.log('[TweetReply] Saved reply mode not valid, using default');
           }
         }
       });

@@ -1023,7 +1023,6 @@
       select.title = "Choose reply generation mode";
       const modes = [
         { value: "single-sentence", label: "\u26A1 Concise", tooltip: "Fast one-sentence reply" },
-        { value: "base", label: "\u{1F4DD} Balanced", tooltip: "Natural conversational reply" },
         { value: "enhanced", label: "\u{1F9E0} Enhanced", tooltip: "Context-aware with deep analysis" }
       ];
       modes.forEach((mode) => {
@@ -1033,7 +1032,7 @@
         option.title = mode.tooltip;
         select.appendChild(option);
       });
-      select.value = "base";
+      select.value = "enhanced";
       try {
         chrome.storage?.local?.get(["tweetreply_reply_mode"], (data) => {
           if (data && typeof data.tweetreply_reply_mode === "string") {
@@ -1041,6 +1040,13 @@
             if (modes.some((m) => m.value === savedMode)) {
               select.value = savedMode;
               console.log("[TweetReply] Restored reply mode from storage:", savedMode);
+            } else {
+              select.value = "enhanced";
+              try {
+                chrome.storage?.local?.set({ tweetreply_reply_mode: "enhanced" });
+              } catch (_) {
+              }
+              console.log("[TweetReply] Saved reply mode not valid, using default");
             }
           }
         });

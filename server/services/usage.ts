@@ -26,7 +26,6 @@ export interface UsageStatus {
   upgradeMessage?: string;
   modeBreakdown?: {
     'single-sentence'?: { replies: number; credits: number };
-    'base'?: { replies: number; credits: number };
     'enhanced'?: { replies: number; credits: number };
     'improve'?: { replies: number; credits: number };
   };

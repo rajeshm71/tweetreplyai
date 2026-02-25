@@ -71,7 +71,7 @@ export class ReplyPostProcessor {
   /**
    * Main processing function - applies all rules in optimized order
    * @param rawReply - The raw reply text to process
-   * @param replyMode - Optional reply mode: 'single-sentence' | 'base' | 'enhanced'
+   * @param replyMode - Optional reply mode: 'single-sentence' | 'enhanced'
    */
   processReply(rawReply: string, replyMode?: string): string {
     // Step 1: Store original reply for fallback (handle null/undefined)
