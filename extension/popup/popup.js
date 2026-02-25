@@ -533,11 +533,8 @@ class PopupManager {
     if (!this.usageData) return;
 
     const { used, limit, resetAt, status } = this.usageData;
-    const noPlan = limit === 0 || status === 'no_access';
-    const percentage = noPlan ? 0 : Math.min((used / limit) * 100, 100);
-    const isExceeded = noPlan ? false : used >= limit;
-    const usageLabel = noPlan ? '-- / -- credits' : `${used} / ${limit} credits`;
-    const percentageLabel = noPlan ? '--' : `${Math.round(percentage)}%`;
+    const percentage = Math.min((used / limit) * 100, 100);
+    const isExceeded = used >= limit;
 
     // Update progress bar
     if (this.progressFill) {
@@ -548,18 +545,18 @@ class PopupManager {
     // Update progress bar ARIA attributes
     const progressBar = document.querySelector('.usage-progress-bar[role="progressbar"]');
     if (progressBar) {
-      progressBar.setAttribute('aria-valuenow', noPlan ? 0 : Math.round(percentage));
-      progressBar.setAttribute('aria-valuetext', noPlan ? 'No plan' : `${used} of ${limit} credits used`);
+      progressBar.setAttribute('aria-valuenow', Math.round(percentage));
+      progressBar.setAttribute('aria-valuetext', `${used} of ${limit} credits used`);
     }
 
     // Update usage numbers (show credits for limits)
     if (this.usageText) {
-      this.usageText.textContent = usageLabel;
+      this.usageText.textContent = `${used} / ${limit} credits`;
     }
 
     // Update usage percentage
     if (this.usagePercentage) {
-      this.usagePercentage.textContent = percentageLabel;
+      this.usagePercentage.textContent = `${Math.round(percentage)}%`;
     }
     
     // Update status indicator
