@@ -649,9 +649,9 @@ export class SupabaseStorage implements IStorage {
     // Update mode breakdown if replyMode is provided
     let updatedBreakdown = counter.modeBreakdown || {};
     if (replyMode) {
-      const validModes: Array<'single-sentence' | 'base' | 'enhanced' | 'improve'> = ['single-sentence', 'base', 'enhanced', 'improve'];
+      const validModes: Array<'single-sentence' | 'enhanced' | 'improve'> = ['single-sentence', 'enhanced', 'improve'];
       if (validModes.includes(replyMode as any)) {
-        const modeKey = replyMode as 'single-sentence' | 'base' | 'enhanced' | 'improve';
+        const modeKey = replyMode as 'single-sentence' | 'enhanced' | 'improve';
         if (!updatedBreakdown[modeKey]) {
           updatedBreakdown[modeKey] = { replies: 0, credits: 0 };
         }
@@ -811,7 +811,7 @@ export class SupabaseStorage implements IStorage {
       used_at: replyHistory.usedAt ? replyHistory.usedAt.toISOString() : null,
       tweet_url: replyHistory.tweetUrl,
       performance: replyHistory.performance,
-      reply_mode: replyHistory.replyMode ?? 'base',
+      reply_mode: replyHistory.replyMode ?? 'enhanced',
       created_at: replyHistory.createdAt ? replyHistory.createdAt.toISOString() : new Date().toISOString()
     };
 

@@ -482,7 +482,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
         tweet_id: z.string().optional(),
         model_key: z.string().optional(),
         prompt_variation: z.string().optional(),
-        reply_mode: z.enum(['single-sentence', 'base', 'enhanced']).optional().default('base'),
+        reply_mode: z.enum(['single-sentence', 'enhanced']).optional().default('enhanced'),
         author_info: z.object({
           username: z.string().optional(),
           verified: z.boolean().optional(),

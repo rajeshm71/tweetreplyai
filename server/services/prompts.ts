@@ -3,8 +3,7 @@ import { REPLY_LIMITS } from "../config/constants.js";
 // FIX: Added constants for reply modes to avoid magic strings
 export const REPLY_MODES = {
   SINGLE_SENTENCE: 'single-sentence',  // Concise mode
-  BASE: 'base',                        // Balanced mode (default)
-  ENHANCED: 'enhanced',                // Enhanced mode
+  ENHANCED: 'enhanced',                // Enhanced mode (default)
 } as const;
 
 export type ReplyMode = typeof REPLY_MODES[keyof typeof REPLY_MODES];
@@ -358,13 +357,8 @@ export function getAvailablePrompts(): Array<{
 // Function to apply reply mode modifications to a prompt configuration
 // FIX: Updated to use REPLY_MODES constants instead of magic strings
 export function applyReplyModeToPrompt(promptConfig: PromptConfig, replyMode?: string): PromptConfig {
-  // If no reply mode or base mode, return unchanged
-  if (!replyMode || replyMode === REPLY_MODES.BASE) {
-    return promptConfig;
-  }
-
-  // For enhanced mode, return unchanged (analysis is handled separately)
-  if (replyMode === REPLY_MODES.ENHANCED) {
+  // If no reply mode or enhanced mode, return unchanged (analysis is handled separately for enhanced)
+  if (!replyMode || replyMode === REPLY_MODES.ENHANCED) {
     return promptConfig;
   }
 

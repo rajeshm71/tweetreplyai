@@ -13,7 +13,7 @@ export interface ReplyOptions {
   tweetId?: string;
   modelPreference?: string;
   promptVariation?: string;
-  replyMode?: string; // Reply mode: 'single-sentence' | 'base' | 'enhanced'
+  replyMode?: string; // Reply mode: 'single-sentence' | 'enhanced'
   tweetContext?: any; // Will be imported from tweet-context.ts
   tweetAnalysis?: EnrichedTweetAnalysis; // AI-powered tweet analysis from agents
   authorInfo?: {

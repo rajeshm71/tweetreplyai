@@ -628,7 +628,6 @@ class PopupManager {
         // Build breakdown rows - Fix: Using numeric conversion for XSS safety
         const modes = [
           { key: 'single-sentence', label: 'Concise' },
-          { key: 'base', label: 'Balanced' },
           { key: 'enhanced', label: 'Enhanced' },
           { key: 'improve', label: 'Improve' }
         ];
