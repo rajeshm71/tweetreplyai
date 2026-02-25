@@ -832,6 +832,12 @@ export async function registerRoutes(app: Express): Promise<Express> {
       const viewerIsOriginalAuthor = !!userHandle && !!originalAuthor && userHandle === originalAuthor;
       console.log('[API] Authors — original:', originalAuthor || 'unknown', '| reply (viewer):', userHandle || 'unknown', '| same:', viewerIsOriginalAuthor);
 
+      // Handles used only for internal role disambiguation in prompts
+      const replyAuthorHandle = (user?.xUsername ?? '').trim().replace(/^@+/, '') || undefined;
+      const targetAuthorHandle = author_info?.username
+        ? author_info.username.trim().replace(/^@+/, '')
+        : undefined;
+
       // Generate the reply with enriched analysis and context
       // Log analysis data being passed to AI router
       if (tweetAnalysis) {
@@ -854,12 +860,14 @@ export async function registerRoutes(app: Express): Promise<Express> {
         promptVariation: prompt_variation,
         replyMode: reply_mode, // Pass reply mode for prompt modification
         tweetContext,
-        tweetAnalysis, // Pass enriched analysis from agents
+        tweetAnalysis: tweetAnalysis ?? undefined, // Pass enriched analysis from agents
         authorInfo: author_info,
-        threadContext: normalizedThreadContext, // NEW: Pass structured thread context
+        threadContext: normalizedThreadContext ?? undefined, // NEW: Pass structured thread context
         conversationContext: conversationContextForTweetAnalyzer, // For backward compatibility
         tweetMetadata: tweet_metadata,
         viewerIsOriginalAuthor,
+        replyAuthorHandle,
+        targetAuthorHandle,
       });
 
       // Quality check with detailed parameters (new 10-parameter system)
@@ -883,12 +891,14 @@ export async function registerRoutes(app: Express): Promise<Express> {
             promptVariation: prompt_variation === 'default' ? 'direct' : 'default', // Try different prompt
             replyMode: reply_mode, // Pass reply mode for prompt modification
             tweetContext,
-            tweetAnalysis, // Include enriched analysis in retry
+            tweetAnalysis: tweetAnalysis ?? undefined, // Include enriched analysis in retry
             authorInfo: author_info,
-            threadContext: normalizedThreadContext, // NEW: Pass structured thread context
+            threadContext: normalizedThreadContext ?? undefined, // NEW: Pass structured thread context
             conversationContext: conversationContextForTweetAnalyzer, // For backward compatibility
             tweetMetadata: tweet_metadata,
             viewerIsOriginalAuthor,
+            replyAuthorHandle,
+            targetAuthorHandle,
           });
           
           const retryQualityResult = qualityChecker.checkQuality(retryResponse.reply, tweet_text);

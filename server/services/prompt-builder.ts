@@ -25,6 +25,9 @@ interface PromptBuilderOptions {
     threadLength: number;
   };
   viewerIsOriginalAuthor?: boolean;
+  // Optional handles used only for internal role disambiguation in prompts.
+  replyAuthorHandle?: string;
+  targetAuthorHandle?: string;
 }
 
 export async function buildSystemPrompt(options: PromptBuilderOptions): Promise<string> {
@@ -66,6 +69,21 @@ export async function buildSystemPrompt(options: PromptBuilderOptions): Promise<
     'Always write from their point of view, speaking to the author of the tweet they are replying to. ' +
     'Do not write as if you are the author of that tweet.';
 
+  // When we know both handles, give the model explicit internal role labels while
+  // explicitly forbidding it from introducing new handles in the reply text.
+  if (options.replyAuthorHandle && options.targetAuthorHandle) {
+    prompt +=
+      '\n\nInternally, treat the reply author as @' +
+      options.replyAuthorHandle +
+      ' and the tweet author they are responding to as @' +
+      options.targetAuthorHandle +
+      '. Write the reply from the reply author\'s point of view, speaking to the tweet author.';
+
+    prompt +=
+      ' Do not introduce or mention any usernames or handles in the reply text that are not already present in the tweet or thread. ' +
+      'Prefer using "you" and "I" instead of explicit handles when referring to people in the reply.';
+  }
+
   if (options.viewerIsOriginalAuthor === true) {
     prompt +=
       '\n\nThe logged-in user wrote the original tweet that started this thread, but they are now replying to another user\'s tweet in the conversation. ' +
@@ -77,7 +95,8 @@ export async function buildSystemPrompt(options: PromptBuilderOptions): Promise<
 
 export function buildUserPromptWithThread(
   baseUserPrompt: string,
-  threadContext?: PromptBuilderOptions['threadContext']
+  threadContext?: PromptBuilderOptions['threadContext'],
+  handles?: { replyAuthorHandle?: string; targetAuthorHandle?: string }
 ): string {
   let userPrompt = baseUserPrompt;
   if (threadContext?.isReply && threadContext.threadLength > 1) {
@@ -97,7 +116,16 @@ export function buildUserPromptWithThread(
     // Make the target tweet explicit so the model replies to the correct message.
     userPrompt +=
       '\n\nThe tweet you are replying to is the one shown above as Tweet: "...". ' +
-      'The original tweet and other replies listed here are background context only. ' +
+      'The original tweet and other replies listed here are background context only. ';
+
+    // When handle information is available, reinforce roles generically (without
+    // surfacing actual handles).
+    if (handles?.replyAuthorHandle && handles?.targetAuthorHandle) {
+      userPrompt +=
+        'You are writing on behalf of the person who will send this reply (the reply author), responding to that tweet written by another user (the tweet author). ';
+    }
+
+    userPrompt +=
       'Write a reply that directly responds to that tweet from the logged-in user\'s perspective.';
   }
   return userPrompt;

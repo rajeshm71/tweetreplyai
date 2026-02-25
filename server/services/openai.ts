@@ -40,6 +40,11 @@ export interface ReplyOptions {
     timestamp?: string;
   };
   viewerIsOriginalAuthor?: boolean;
+  // Optional handles used only for internal role disambiguation in prompts.
+  replyAuthorHandle?: string;
+  targetAuthorHandle?: string;
+  // Backward-compatibility field, currently unused by prompt builder but passed from routes.
+  conversationContext?: any;
 }
 
 export interface ReplyResponse {
@@ -93,6 +98,8 @@ export class ModelRouter {
       authorInfo: options.authorInfo,
       threadContext: options.threadContext,
       viewerIsOriginalAuthor: options.viewerIsOriginalAuthor,
+      replyAuthorHandle: options.replyAuthorHandle,
+      targetAuthorHandle: options.targetAuthorHandle,
     });
 
     if (!openai) {
@@ -108,7 +115,8 @@ export class ModelRouter {
     try {
       const userPromptText = buildUserPromptWithThread(
         promptConfig.userPrompt(options.tweetText),
-        options.threadContext
+        options.threadContext,
+        { replyAuthorHandle: options.replyAuthorHandle, targetAuthorHandle: options.targetAuthorHandle }
       );
 
       console.log('[PROMPT] [OpenAI] generate-reply', {
