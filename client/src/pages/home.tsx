@@ -33,7 +33,6 @@ type UsageStatus = {
   upgradeMessage?: string;
   modeBreakdown?: {
     'single-sentence'?: { replies: number; credits: number };
-    'base'?: { replies: number; credits: number };
     'enhanced'?: { replies: number; credits: number };
     'improve'?: { replies: number; credits: number };
   };
@@ -349,14 +348,6 @@ export default function Home() {
                                 <span className="text-muted-foreground">Concise:</span>
                                 <span className="font-medium">
                                   {usageStatus.modeBreakdown['single-sentence'].replies} replies, {usageStatus.modeBreakdown['single-sentence'].credits} credits
-                                </span>
-                              </div>
-                            )}
-                            {usageStatus.modeBreakdown['base'] && (
-                              <div className="flex justify-between text-xs">
-                                <span className="text-muted-foreground">Balanced:</span>
-                                <span className="font-medium">
-                                  {usageStatus.modeBreakdown['base'].replies} replies, {usageStatus.modeBreakdown['base'].credits} credits
                                 </span>
                               </div>
                             )}

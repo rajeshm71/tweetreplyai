@@ -267,7 +267,6 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
     upgradeMessage?: string;
     modeBreakdown?: {
       'single-sentence'?: { replies: number; credits: number };
-      'base'?: { replies: number; credits: number };
       'enhanced'?: { replies: number; credits: number };
     };
   }
