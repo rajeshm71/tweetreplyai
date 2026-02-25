@@ -80,8 +80,7 @@ export async function buildSystemPrompt(options: PromptBuilderOptions): Promise<
       '. Write the reply from the reply author\'s point of view, speaking to the tweet author.';
 
     prompt +=
-      ' Do not introduce or mention any usernames or handles in the reply text that are not already present in the tweet or thread. ' +
-      'Prefer using "you" and "I" instead of explicit handles when referring to people in the reply.';
+      ' Do not introduce or mention any usernames or handles in the reply text that are not already present in the tweet or thread. ' ;
   }
 
   if (options.viewerIsOriginalAuthor === true) {
