@@ -9,7 +9,7 @@ import { getAvailablePrompts } from "./services/prompts.js";
 import { dodoPaymentsService, PLANS } from "./services/dodo-payments.js";
 import { usageService } from "./services/usage.js";
 import { whitelistService } from "./services/whitelistService.js";
-import { runGuardrail, generateGuardrailFriendlyReply } from "./services/guardrail.js";
+import { runGuardrail, generateGuardrailFriendlyReply, type GuardrailResult } from "./services/guardrail.js";
 import { ANALYTICS, PERIODS, QUALITY, VALIDATION } from "./config/constants.js";
 import { z, ZodError } from "zod";
 import passport from "passport";
@@ -602,7 +602,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
       }
 
       // Run guardrail check on all user-facing text that will reach LLMs
-      let guardrailResult: { violation: number; category: string | null; rationale: string } | null = null;
+      let guardrailResult: GuardrailResult | null = null;
       let guardrailViolation = false;
       try {
         const guardrailParts: string[] = [];
@@ -628,7 +628,22 @@ export async function registerRoutes(app: Express): Promise<Express> {
       } catch (error) {
         console.error("[Guardrail] Error running guardrail for /api/generate-reply:", error);
       }
-      
+
+      const guardrailClassificationStage: Array<{ stage: string; modelKey: string; promptTokens: number; completionTokens: number; totalTokens: number; cost: number; latencyMs: number }> =
+        guardrailResult?.usage
+          ? [
+              {
+                stage: "guardrail_classification",
+                modelKey: guardrailResult.usage.modelKey,
+                promptTokens: guardrailResult.usage.promptTokens,
+                completionTokens: guardrailResult.usage.completionTokens,
+                totalTokens: guardrailResult.usage.promptTokens + guardrailResult.usage.completionTokens,
+                cost: aiRouter.estimateCost(guardrailResult.usage.modelKey, guardrailResult.usage.promptTokens, guardrailResult.usage.completionTokens),
+                latencyMs: guardrailResult.usage.latencyMs,
+              },
+            ]
+          : [];
+
       // Consume credits from quota (applies to ALL users including whitelisted)
       console.log('[API-DEBUG] /api/generate-reply - About to call consumeReply for userId:', userId, 'reply_mode:', reply_mode);
       const updatedCounter = await usageService.consumeReply(userId, reply_mode);
@@ -674,35 +689,22 @@ export async function registerRoutes(app: Express): Promise<Express> {
           },
         });
 
-        // Persist reply_tokens: guardrail_classification (if usage present) + guardrail_violation (friendly reply)
+        // Persist reply_tokens: guardrail_classification (when usage present) + guardrail_violation (friendly reply)
         const replyTokensIn = guardrailReply.tokensIn ?? 0;
         const replyTokensOut = guardrailReply.tokensOut ?? 0;
         const replyCost = aiRouter.estimateCost(guardrailReply.modelKey, replyTokensIn, replyTokensOut);
-        const stageBreakdown: Array<{ stage: string; modelKey: string; promptTokens: number; completionTokens: number; totalTokens: number; cost: number; latencyMs: number }> = [];
-
-        if (guardrailResult.usage) {
-          const u = guardrailResult.usage;
-          const classificationCost = aiRouter.estimateCost(u.modelKey, u.promptTokens, u.completionTokens);
-          stageBreakdown.push({
-            stage: 'guardrail_classification',
-            modelKey: u.modelKey,
-            promptTokens: u.promptTokens,
-            completionTokens: u.completionTokens,
-            totalTokens: u.promptTokens + u.completionTokens,
-            cost: classificationCost,
-            latencyMs: u.latencyMs,
-          });
-        }
-
-        stageBreakdown.push({
-          stage: 'guardrail_violation',
-          modelKey: guardrailReply.modelKey,
-          promptTokens: replyTokensIn,
-          completionTokens: replyTokensOut,
-          totalTokens: replyTokensIn + replyTokensOut,
-          cost: replyCost,
-          latencyMs: guardrailReply.latencyMs,
-        });
+        const stageBreakdown = [
+          ...guardrailClassificationStage,
+          {
+            stage: "guardrail_violation",
+            modelKey: guardrailReply.modelKey,
+            promptTokens: replyTokensIn,
+            completionTokens: replyTokensOut,
+            totalTokens: replyTokensIn + replyTokensOut,
+            cost: replyCost,
+            latencyMs: guardrailReply.latencyMs,
+          },
+        ];
 
         const totalPromptTokens = stageBreakdown.reduce((s, e) => s + e.promptTokens, 0);
         const totalCompletionTokens = stageBreakdown.reduce((s, e) => s + e.completionTokens, 0);
@@ -963,9 +965,10 @@ export async function registerRoutes(app: Express): Promise<Express> {
         });
       }
       const stageBreakdown = [
+        ...guardrailClassificationStage,
         ...analysisStages,
         {
-          stage: 'reply_generation',
+          stage: "reply_generation",
           modelKey: replyResponse.modelKey,
           promptTokens: tokensIn,
           completionTokens: tokensOut,
@@ -978,7 +981,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
       const totalCompletionTokens = stageBreakdown.reduce((s, e) => s + e.completionTokens, 0);
       const totalTokens = stageBreakdown.reduce((s, e) => s + e.totalTokens, 0);
       const totalCost = stageBreakdown.reduce((s, e) => s + e.cost, 0);
-      console.log('[API] stage_breakdown stages:', stageBreakdown.map(s => ({ stage: s.stage, model_key: s.modelKey })));
+      console.log("[API] stage_breakdown stages:", stageBreakdown.map((s) => ({ stage: s.stage, model_key: s.modelKey })));
       await storage.createReplyTokens({
         id: crypto.randomUUID(),
         userId,
@@ -2040,7 +2043,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
       }
 
       // Run guardrail check on all user-facing text (original tweet + draft)
-      let guardrailResult: { violation: number; category: string | null; rationale: string } | null = null;
+      let guardrailResult: GuardrailResult | null = null;
       let guardrailViolation = false;
       try {
         const guardrailInput = `Original tweet: ${original_tweet}
@@ -2055,6 +2058,21 @@ User draft reply: ${draft_reply}`;
       } catch (error) {
         console.error("[Guardrail] Error running guardrail for /api/suggest-improvements:", error);
       }
+
+      const guardrailClassificationStageSuggest: Array<{ stage: string; modelKey: string; promptTokens: number; completionTokens: number; totalTokens: number; cost: number; latencyMs: number }> =
+        guardrailResult?.usage
+          ? [
+              {
+                stage: "guardrail_classification",
+                modelKey: guardrailResult.usage.modelKey,
+                promptTokens: guardrailResult.usage.promptTokens,
+                completionTokens: guardrailResult.usage.completionTokens,
+                totalTokens: guardrailResult.usage.promptTokens + guardrailResult.usage.completionTokens,
+                cost: aiRouter.estimateCost(guardrailResult.usage.modelKey, guardrailResult.usage.promptTokens, guardrailResult.usage.completionTokens),
+                latencyMs: guardrailResult.usage.latencyMs,
+              },
+            ]
+          : [];
 
       // If guardrail fires, generate a friendly refusal reply instead of improving the draft
       if (guardrailViolation && guardrailResult) {
@@ -2092,31 +2110,18 @@ User draft reply: ${draft_reply}`;
         const replyTokensIn = guardrailReply.tokensIn ?? 0;
         const replyTokensOut = guardrailReply.tokensOut ?? 0;
         const replyCost = aiRouter.estimateCost(guardrailReply.modelKey, replyTokensIn, replyTokensOut);
-        const stageBreakdown: Array<{ stage: string; modelKey: string; promptTokens: number; completionTokens: number; totalTokens: number; cost: number; latencyMs: number }> = [];
-
-        if (guardrailResult.usage) {
-          const u = guardrailResult.usage;
-          const classificationCost = aiRouter.estimateCost(u.modelKey, u.promptTokens, u.completionTokens);
-          stageBreakdown.push({
-            stage: 'guardrail_classification',
-            modelKey: u.modelKey,
-            promptTokens: u.promptTokens,
-            completionTokens: u.completionTokens,
-            totalTokens: u.promptTokens + u.completionTokens,
-            cost: classificationCost,
-            latencyMs: u.latencyMs,
-          });
-        }
-
-        stageBreakdown.push({
-          stage: 'guardrail_violation',
-          modelKey: guardrailReply.modelKey,
-          promptTokens: replyTokensIn,
-          completionTokens: replyTokensOut,
-          totalTokens: replyTokensIn + replyTokensOut,
-          cost: replyCost,
-          latencyMs: guardrailReply.latencyMs,
-        });
+        const stageBreakdown = [
+          ...guardrailClassificationStageSuggest,
+          {
+            stage: "guardrail_violation",
+            modelKey: guardrailReply.modelKey,
+            promptTokens: replyTokensIn,
+            completionTokens: replyTokensOut,
+            totalTokens: replyTokensIn + replyTokensOut,
+            cost: replyCost,
+            latencyMs: guardrailReply.latencyMs,
+          },
+        ];
 
         const totalPromptTokens = stageBreakdown.reduce((s, e) => s + e.promptTokens, 0);
         const totalCompletionTokens = stageBreakdown.reduce((s, e) => s + e.completionTokens, 0);
