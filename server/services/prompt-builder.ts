@@ -59,8 +59,17 @@ export async function buildSystemPrompt(options: PromptBuilderOptions): Promise<
     }
   }
 
+  // Anchor persona: always write as the logged-in user replying to the tweet,
+  // not as the author of the tweet being replied to.
+  prompt +=
+    '\n\nYou are writing a reply on behalf of the logged-in user (the person sending this reply). ' +
+    'Always write from their point of view, speaking to the author of the tweet they are replying to. ' +
+    'Do not write as if you are the author of that tweet.';
+
   if (options.viewerIsOriginalAuthor === true) {
-    prompt += '\n\nThe user writing the reply is the original author of the tweet they are replying to.';
+    prompt +=
+      '\n\nThe logged-in user wrote the original tweet that started this thread, but they are now replying to another user\'s tweet in the conversation. ' +
+      'Write as the original author replying to that other user, not as the other user.';
   }
 
   return prompt;
@@ -84,6 +93,12 @@ export function buildUserPromptWithThread(
         userPrompt += `\nReply ${replyIndex}: "${tweet.text}"`;
       });
     }
+
+    // Make the target tweet explicit so the model replies to the correct message.
+    userPrompt +=
+      '\n\nThe tweet you are replying to is the one shown above as Tweet: "...". ' +
+      'The original tweet and other replies listed here are background context only. ' +
+      'Write a reply that directly responds to that tweet from the logged-in user\'s perspective.';
   }
   return userPrompt;
 }
