@@ -256,17 +256,25 @@ export class UsageService {
     }
     
     // Determine the limit to use: counter.limit is source of truth after creation/update,
-    // but fallback to window.limit if counter.limit is invalid (shouldn't happen, but defensive)
-    // FIX: Added final fallback to default 50 to prevent double-zero case (both counter.limit and window.limit are 0)
-    // This preserves the "current config" intent while ensuring we never return 0 for active users
-    const finalLimit = counter.limit > 0 
-      ? counter.limit 
-      : (window.limit > 0 
-          ? window.limit 
-          : 50); // Final fallback: default to 50 credits if both are invalid (should never happen)
-    
-    if (counter.limit <= 0 && window.limit <= 0) {
-      console.error('[Usage] Both counter and window limits are invalid, using default 50');
+    // but fallback to window.limit if counter.limit is invalid (shouldn't happen, but defensive).
+    // If both are invalid, treat as misconfiguration and surface as no_access instead of
+    // silently defaulting to a magic number.
+    const finalLimit = counter.limit > 0
+      ? counter.limit
+      : window.limit;
+
+    if (finalLimit <= 0) {
+      console.error('[Usage] Both counter and window limits are invalid, treating as no_access', {
+        counterLimit: counter.limit,
+        windowLimit: window.limit,
+      });
+      return {
+        planCode: 'none',
+        used: 0,
+        limit: 0,
+        resetAt: new Date(),
+        status: 'no_access',
+      };
     }
     const upgradeRequired = !isWhitelisted && currentCredits >= finalLimit;
     // FIX: Pass credits instead of replies to upgrade message function
