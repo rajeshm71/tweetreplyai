@@ -112,5 +112,31 @@ export function creditsEveryPeriodBullet(cfg: PricingTierConfig): string {
   if (cfg.billingCycle === 'monthly') return `${formatCreditsLimit(cfg.creditsLimit)} every ${PLAN_PERIODS_DAYS.monthly} days`;
   return `${formatCreditsLimit(cfg.creditsLimit)} during trial`;
 }
+/**
+ * Single source of truth for quota FAQ copy.
+ * Uses PLAN_LIMITS and PLAN_PERIODS_DAYS so changes propagate automatically.
+ */
+export function getQuotaSummaryText(): string {
+  const trialCredits = formatCreditsLimit(PLAN_LIMITS.trial.credits);
+  const weeklyCredits = formatCreditsLimit(PLAN_LIMITS.weekly.credits);
+  const monthlyCredits = formatCreditsLimit(PLAN_LIMITS.monthly.credits);
 
+  return `Your quota resets automatically based on your plan. Trial users get ${trialCredits} for trial, weekly subscribers get ${weeklyCredits} every ${PLAN_PERIODS_DAYS.weekly} days, and monthly subscribers get ${monthlyCredits} every ${PLAN_PERIODS_DAYS.monthly} days.`;
+}
+
+/**
+ * Helper for plan quota bullets (e.g., Terms page).
+ * Returns human-readable bullet strings for each plan.
+ */
+export function getPlanQuotaBullets(): string[] {
+  const trialCredits = formatCreditsLimit(PLAN_LIMITS.trial.credits);
+  const weeklyCredits = formatCreditsLimit(PLAN_LIMITS.weekly.credits);
+  const monthlyCredits = formatCreditsLimit(PLAN_LIMITS.monthly.credits);
+
+  return [
+    `Free Trial: ${trialCredits} for trial`,
+    `Weekly Plan: ${weeklyCredits} every ${PLAN_PERIODS_DAYS.weekly} days`,
+    `Monthly Plan: ${monthlyCredits} every ${PLAN_PERIODS_DAYS.monthly} days`,
+  ];
+}
 
