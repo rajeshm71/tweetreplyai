@@ -9,10 +9,7 @@ const buildDir = 'extension-build';
 
 console.log('🚀 Building Chrome extension for production...');
 
-// Clean build directory
-if (fs.existsSync(buildDir)) {
-  fs.rmSync(buildDir, { recursive: true });
-}
+// Ensure build directory exists (do not wipe - avoids Chrome cold SW / loading screen on reload)
 fs.mkdirSync(buildDir, { recursive: true });
 
 // Build extension scripts
