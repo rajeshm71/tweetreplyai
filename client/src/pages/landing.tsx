@@ -13,6 +13,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
 import { generateStats, initializeStats, type Stats } from '@/utils/stats-generator';
 import { APP_URLS, POLLING, UI } from "@/config/constants";
+import { getQuotaSummaryText } from "@/config/pricing";
 
 export default function Landing() {
   const { isAuthenticated } = useAuth();
@@ -299,7 +300,7 @@ export default function Landing() {
   const faqs = [
     {
       question: "How do the credit quotas work?",
-      answer: "Your quota resets automatically based on your plan. Trial users get 50 credits for trial, weekly subscribers get 4,000 credits every 7 days, and monthly subscribers get 20,000 credits every 30 days.",
+      answer: getQuotaSummaryText(),
       icon: "Zap",
       category: "quota",
       emoji: "💰",
