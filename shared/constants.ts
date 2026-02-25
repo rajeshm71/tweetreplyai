@@ -4,8 +4,8 @@
  */
 export const PLAN_LIMITS = {
   trial: { credits: 50, replies: 10 },
-  weekly: { credits: 4000, replies: 700 },
-  monthly: { credits: 20000, replies: 3000 },
+  weekly: { credits: 2000, replies: 700 },
+  monthly: { credits: 10000, replies: 3000 },
 } as const;
 
 export const PLAN_PERIODS_DAYS = {
