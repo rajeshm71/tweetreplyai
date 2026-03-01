@@ -6,7 +6,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
 
-// Sprint 4: Lazy load routes for code-splitting
+// Sprint 4: Lazy load routes for code-splitting (Passport/session auth)
 const Landing = lazy(() => import("@/pages/landing"));
 const Home = lazy(() => import("@/pages/home"));
 const Pricing = lazy(() => import("@/pages/pricing"));
