@@ -81,5 +81,5 @@ export const WHITELIST = {
   DEFAULT_BYPASS_LIMIT: 10000,
   DEFAULT_TRIAL_LIMIT: 50,
   /** When true, whitelisted users see the model dropdown in the extension; when false, nobody sees it. */
-  SHOW_MODEL_SELECT_FOR_WHITELIST: true,
+  SHOW_MODEL_SELECT_FOR_WHITELIST: false,
 } as const;
