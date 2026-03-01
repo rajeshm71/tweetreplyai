@@ -1,3 +1,4 @@
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,6 +35,24 @@ const registerSchema = z.object({
 type LoginForm = z.infer<typeof loginSchema>;
 type RegisterForm = z.infer<typeof registerSchema>;
 
+/** Parse API error message from thrown error (e.g. "400: {\"message\":\"...\"}") and return friendly text. */
+function getRegisterErrorMessage(errorMessage: string): string {
+  const jsonMatch = errorMessage.match(/\{[\s\S]*\}/);
+  if (jsonMatch) {
+    try {
+      const data = JSON.parse(jsonMatch[0]) as { message?: string };
+      const msg = data?.message?.trim();
+      if (msg === "Email already registered") {
+        return "This email is already registered. Sign in or use a different email.";
+      }
+      if (msg) return msg;
+    } catch {
+      // ignore parse errors
+    }
+  }
+  return "Registration failed. Please try again.";
+}
+
 export default function AuthPage() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
@@ -45,6 +64,7 @@ export default function AuthPage() {
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotLoading, setForgotLoading] = useState(false);
+  const [registerError, setRegisterError] = useState<string | null>(null);
 
   const loginForm = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
@@ -102,11 +122,7 @@ export default function AuthPage() {
       navigate('/');
     },
     onError: (error: any) => {
-      toast({
-        title: "Registration failed",
-        description: error.message || "Please try again",
-        variant: "destructive",
-      });
+      setRegisterError(getRegisterErrorMessage(error?.message ?? ""));
     },
   });
 
@@ -115,6 +131,7 @@ export default function AuthPage() {
   });
 
   const handleRegister = registerForm.handleSubmit((data) => {
+    setRegisterError(null);
     registerMutation.mutate(data);
   });
 
@@ -126,6 +143,7 @@ export default function AuthPage() {
 
   const switchToLogin = () => {
     registerForm.reset();
+    setRegisterError(null);
     setIsRegisterMode(false);
   };
 
@@ -347,6 +365,12 @@ export default function AuthPage() {
             </div>
 
             <form onSubmit={handleRegister} className="space-y-4">
+              {registerError && (
+                <Alert variant="destructive" role="alert">
+                  <AlertTitle>Registration failed</AlertTitle>
+                  <AlertDescription>{registerError}</AlertDescription>
+                </Alert>
+              )}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="register-firstName">First Name</Label>
@@ -389,7 +413,9 @@ export default function AuthPage() {
                     placeholder="Enter your email"
                     className="pl-10"
                     data-testid="input-register-email"
-                    {...registerForm.register("email")}
+                    {...registerForm.register("email", {
+                      onChange: () => setRegisterError(null),
+                    })}
                   />
                 </div>
                 {registerForm.formState.errors.email && (
