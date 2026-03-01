@@ -649,6 +649,7 @@ class TwitterReplyInjector {
         if (replyRow) {
           const controlsRow = this.createSuggestButton(composer, containerId);
           controlsRow.hidden = (ctx.type === 'post');
+          // Insert our row above the reply row so Suggest stays in line with Concise, Direct, Improve (not on toolbar)
           replyRow.parentNode.insertBefore(controlsRow, replyRow);
           const display = replyRow.style.display || getComputedStyle(replyRow).display;
           if (display !== 'flex' && display !== 'inline-flex' && display !== 'grid' && display !== 'inline-grid') {
@@ -686,19 +687,11 @@ class TwitterReplyInjector {
       const controlsRow = this.createSuggestButton(composer, containerId);
       // Hide controls for non-reply contexts as a safety net
       controlsRow.hidden = (ctx.type === 'post');
-      // Insert our controls row ABOVE the native toolbar so emoji/media stay in place
+      // Insert our controls row ABOVE the toolbar (not inside it) so Suggest stays in line with Concise, Direct, Improve
       if (toolbar.parentNode) {
         toolbar.parentNode.insertBefore(controlsRow, toolbar);
       } else {
-        // Fallback to previous behavior if no parent (shouldn't happen normally)
         this.insertButtonInToolbar(toolbar, controlsRow);
-      }
-
-      // Move the actual Suggest button into the native toolbar, just left of Reply
-      try {
-        this.ensureSuggestLeftOfReply(toolbar, controlsRow, composerContainer);
-      } catch (err) {
-        console.warn('[TweetReply] Could not place Suggest button next to Reply:', err);
       }
       this.injectedButtons.add(composer);
     }
@@ -893,15 +886,6 @@ class TwitterReplyInjector {
     const promptSelect = this.createPromptSelect();
     container.appendChild(promptSelect);
     
-    // Create button group container for vertical stacking
-    const buttonGroup = document.createElement('div');
-    buttonGroup.className = 'tweetreply-button-group';
-    buttonGroup.style.cssText = `
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    `;
-    
     // Suggest button
     const suggestButton = document.createElement('button');
     suggestButton.className = 'tweetreply-suggest-btn';
@@ -969,12 +953,9 @@ class TwitterReplyInjector {
     // Create Improve Reply button
     const improveButton = this.createImproveButton(composer);
     
-    // Add both buttons to button group - IMPROVE FIRST so it appears above Suggest Reply
-    buttonGroup.appendChild(improveButton);
-    buttonGroup.appendChild(suggestButton);
-    
-    // Add button group to container
-    container.appendChild(buttonGroup);
+    // Append Suggest then Improve directly to container so all controls are on one line
+    container.appendChild(suggestButton);
+    container.appendChild(improveButton);
     return container;
   }
 

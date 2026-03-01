@@ -756,11 +756,6 @@
         } else {
           this.insertButtonInToolbar(toolbar, controlsRow);
         }
-        try {
-          this.ensureSuggestLeftOfReply(toolbar, controlsRow, composerContainer);
-        } catch (err) {
-          console.warn("[TweetReply] Could not place Suggest button next to Reply:", err);
-        }
         this.injectedButtons.add(composer);
       }
     }
@@ -905,13 +900,6 @@
       container.appendChild(replyModeSelect);
       const promptSelect = this.createPromptSelect();
       container.appendChild(promptSelect);
-      const buttonGroup = document.createElement("div");
-      buttonGroup.className = "tweetreply-button-group";
-      buttonGroup.style.cssText = `
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    `;
       const suggestButton = document.createElement("button");
       suggestButton.className = "tweetreply-suggest-btn";
       suggestButton.dataset.authPending = "true";
@@ -955,9 +943,8 @@
         });
       });
       const improveButton = this.createImproveButton(composer);
-      buttonGroup.appendChild(improveButton);
-      buttonGroup.appendChild(suggestButton);
-      container.appendChild(buttonGroup);
+      container.appendChild(suggestButton);
+      container.appendChild(improveButton);
       return container;
     }
     async updateButtonStateAsync(button) {
