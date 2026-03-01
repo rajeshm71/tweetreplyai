@@ -17,6 +17,7 @@ const SettingsPage = lazy(() => import("@/pages/settings"));
 const PrivacyPolicy = lazy(() => import("@/pages/privacy"));
 const TermsOfService = lazy(() => import("@/pages/terms"));
 const CompleteProfile = lazy(() => import("@/pages/complete-profile"));
+const ResetPasswordPage = lazy(() => import("@/pages/reset-password"));
 const NotFound = lazy(() => import("@/pages/not-found"));
 
 // Loading component for Suspense fallback
@@ -50,6 +51,7 @@ function Router() {
           <>
             <Route path="/" component={Landing} />
             <Route path="/login" component={AuthPage} />
+            <Route path="/reset-password" component={ResetPasswordPage} />
             <Route path="/pricing" component={Pricing} />
             <Route path="/privacy" component={PrivacyPolicy} />
             <Route path="/terms" component={TermsOfService} />

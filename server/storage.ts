@@ -22,6 +22,9 @@ export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
   getUserByGoogleSub(googleSub: string): Promise<User | undefined>;
+  setUserResetToken(userId: string, token: string, expiresAt: Date): Promise<void>;
+  getUserByResetToken(token: string): Promise<User | undefined>;
+  clearUserResetToken(userId: string): Promise<void>;
   upsertUser(user: UpsertUser): Promise<User>;
   updateUser(id: string, updates: Partial<User>): Promise<User>;
   

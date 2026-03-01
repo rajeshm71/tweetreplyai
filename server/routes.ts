@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import express from "express";
+import rateLimit from "express-rate-limit";
 import type { UsageCounter } from "../shared/types.js";
 import { storage } from "./storage.js";
 import { setupLocalAuth } from "./localAuth.js";
@@ -16,6 +17,8 @@ import passport from "passport";
 import session from "express-session";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
+import { hashPassword, verifyPassword, validatePasswordStrength } from "./utils/password.js";
+import { sendPasswordResetEmail } from "./utils/email.js";
 // Use crypto.randomUUID() instead of uuid package
 const generateId = () => {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -101,6 +104,15 @@ export async function registerRoutes(app: Express): Promise<Express> {
   setupLocalAuth();
   setupGoogleAuth();
 
+  // Auth rate limiter: 15 min window, max 10 requests per IP (login, register, forgot-password)
+  const authRateLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    message: { message: 'Too many attempts. Try again later.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
   // Auth routes
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
     try {
@@ -150,7 +162,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
   });
 
   // Local authentication routes
-  app.post('/api/auth/register', (req, res, next) => {
+  app.post('/api/auth/register', authRateLimiter, (req, res, next) => {
     passport.authenticate('local-register', (err: any, user: any, info: any) => {
       if (err) {
         return res.status(500).json({ message: 'Registration failed', error: err.message });
@@ -174,7 +186,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
     })(req, res, next);
   });
 
-  app.post('/api/auth/login', (req, res, next) => {
+  app.post('/api/auth/login', authRateLimiter, (req, res, next) => {
     passport.authenticate('local-login', (err: any, user: any, info: any) => {
       if (err) {
         return res.status(500).json({ message: 'Login failed', error: err.message });
@@ -244,6 +256,84 @@ export async function registerRoutes(app: Express): Promise<Express> {
       res.clearCookie('token'); // Clear JWT token
       res.json({ success: true });
     });
+  });
+
+  // Forgot password: send reset email if user exists and uses password auth (always 200 with generic message)
+  app.post('/api/auth/forgot-password', authRateLimiter, async (req: any, res) => {
+    try {
+      const email = typeof req.body?.email === 'string' ? req.body.email.trim() : '';
+      if (!email) {
+        return res.status(200).json({ message: 'If an account exists with this email, you will receive a password reset link.' });
+      }
+      const user = await storage.getUserByEmail(email);
+      if (!user || !user.password || !user.authProviders?.includes('local')) {
+        return res.status(200).json({ message: 'If an account exists with this email, you will receive a password reset link.' });
+      }
+      const token = crypto.randomBytes(32).toString('hex');
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+      await storage.setUserResetToken(user.id, token, expiresAt);
+      await sendPasswordResetEmail(user.email, token);
+      return res.status(200).json({ message: 'If an account exists with this email, you will receive a password reset link.' });
+    } catch (err) {
+      console.error('Forgot password error:', err);
+      return res.status(200).json({ message: 'If an account exists with this email, you will receive a password reset link.' });
+    }
+  });
+
+  // Reset password: validate token, set new password, clear token
+  app.post('/api/auth/reset-password', authRateLimiter, async (req: any, res) => {
+    try {
+      const token = typeof req.body?.token === 'string' ? req.body.token.trim() : '';
+      const newPassword = typeof req.body?.newPassword === 'string' ? req.body.newPassword : '';
+      if (!token || !newPassword) {
+        return res.status(400).json({ message: 'Token and new password are required.' });
+      }
+      const user = await storage.getUserByResetToken(token);
+      if (!user) {
+        return res.status(400).json({ message: 'Invalid or expired reset link. Request a new one.' });
+      }
+      const strength = validatePasswordStrength(newPassword);
+      if (!strength.isValid) {
+        return res.status(400).json({ message: strength.errors[0] || 'Invalid password.' });
+      }
+      const hashed = await hashPassword(newPassword);
+      await storage.updateUser(user.id, { password: hashed });
+      await storage.clearUserResetToken(user.id);
+      return res.status(200).json({ message: 'Password reset successfully. You can sign in now.' });
+    } catch (err) {
+      console.error('Reset password error:', err);
+      return res.status(500).json({ message: 'Failed to reset password.' });
+    }
+  });
+
+  // Change password (authenticated): verify current, set new
+  app.post('/api/auth/change-password', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const currentPassword = typeof req.body?.currentPassword === 'string' ? req.body.currentPassword : '';
+      const newPassword = typeof req.body?.newPassword === 'string' ? req.body.newPassword : '';
+      if (!currentPassword || !newPassword) {
+        return res.status(400).json({ message: 'Current password and new password are required.' });
+      }
+      const user = await storage.getUser(userId);
+      if (!user?.password) {
+        return res.status(400).json({ message: 'Account does not use password login.' });
+      }
+      const valid = await verifyPassword(currentPassword, user.password);
+      if (!valid) {
+        return res.status(400).json({ message: 'Current password is incorrect.' });
+      }
+      const strength = validatePasswordStrength(newPassword);
+      if (!strength.isValid) {
+        return res.status(400).json({ message: strength.errors[0] || 'Invalid new password.' });
+      }
+      const hashed = await hashPassword(newPassword);
+      await storage.updateUser(userId, { password: hashed });
+      return res.status(200).json({ message: 'Password changed successfully.' });
+    } catch (err) {
+      console.error('Change password error:', err);
+      return res.status(500).json({ message: 'Failed to change password.' });
+    }
   });
 
   // Models route - get available AI models

@@ -243,6 +243,87 @@ function BillingCard() {
   );
 }
 
+function ChangePasswordSection() {
+  const { toast } = useToast();
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPassword !== confirmPassword) {
+      toast({ title: "Error", description: "New passwords do not match", variant: "destructive" });
+      return;
+    }
+    if (newPassword.length < 8 || !/[A-Z]/.test(newPassword) || !/[a-z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
+      toast({ title: "Error", description: "New password must be 8+ characters with uppercase, lowercase, and number", variant: "destructive" });
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await apiRequest("POST", "/api/auth/change-password", {
+        currentPassword,
+        newPassword,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast({ title: "Error", description: data.message || "Failed to change password", variant: "destructive" });
+        return;
+      }
+      toast({ title: "Success", description: data.message || "Password changed." });
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch {
+      toast({ title: "Error", description: "Failed to change password", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <Label>Change password</Label>
+      <p className="text-sm text-muted-foreground mb-2">
+        Update your password. Use at least 8 characters with uppercase, lowercase, and number.
+      </p>
+      <form onSubmit={handleChangePassword} className="space-y-3">
+        <Input
+          type="password"
+          placeholder="Current password"
+          value={currentPassword}
+          onChange={(e) => setCurrentPassword(e.target.value)}
+          autoComplete="current-password"
+          required
+          className="max-w-xs"
+        />
+        <Input
+          type="password"
+          placeholder="New password"
+          value={newPassword}
+          onChange={(e) => setNewPassword(e.target.value)}
+          autoComplete="new-password"
+          required
+          className="max-w-xs"
+        />
+        <Input
+          type="password"
+          placeholder="Confirm new password"
+          value={confirmPassword}
+          onChange={(e) => setConfirmPassword(e.target.value)}
+          autoComplete="new-password"
+          required
+          className="max-w-xs"
+        />
+        <Button type="submit" size="sm" disabled={loading}>
+          {loading ? "Updating..." : "Change password"}
+        </Button>
+      </form>
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const { user, isLoading } = useAuth();
   const { toast } = useToast();
@@ -443,6 +524,13 @@ export default function SettingsPage() {
               </div>
 
               <Separator />
+
+              {user.authProviders?.includes('local') && (
+                <>
+                  <ChangePasswordSection />
+                  <Separator />
+                </>
+              )}
 
               <div className="space-y-2">
                 <Label>Email Verification</Label>

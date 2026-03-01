@@ -139,6 +139,66 @@ export class SupabaseStorage implements IStorage {
     } as User;
   }
 
+  async setUserResetToken(userId: string, token: string, expiresAt: Date): Promise<void> {
+    const { error } = await supabase
+      .from('users')
+      .update({
+        reset_token: token,
+        reset_token_expires_at: expiresAt.toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', userId);
+    if (error) {
+      console.error('Supabase setUserResetToken error:', error);
+      throw error;
+    }
+  }
+
+  async getUserByResetToken(token: string): Promise<User | undefined> {
+    const now = new Date().toISOString();
+    const { data, error } = await supabase
+      .from('users')
+      .select('id, email, password_hash, google_sub, first_name, last_name, profile_image_url, auth_providers, stripe_customer_id, has_used_trial, handle, created_at, updated_at')
+      .eq('reset_token', token)
+      .gt('reset_token_expires_at', now)
+      .single();
+    if (error || !data) {
+      if (error && error.code !== 'PGRST116') {
+        console.error('Supabase getUserByResetToken error:', error);
+      }
+      return undefined;
+    }
+    return {
+      id: data.id,
+      email: data.email,
+      password: data.password_hash,
+      googleSub: data.google_sub,
+      firstName: data.first_name || undefined,
+      lastName: data.last_name || undefined,
+      profileImageUrl: data.profile_image_url || undefined,
+      dodoCustomerId: data.stripe_customer_id,
+      authProviders: data.auth_providers || [],
+      hasUsedTrial: data.has_used_trial || false,
+      xUsername: data.handle ?? null,
+      createdAt: new Date(data.created_at),
+      updatedAt: new Date(data.updated_at)
+    } as User;
+  }
+
+  async clearUserResetToken(userId: string): Promise<void> {
+    const { error } = await supabase
+      .from('users')
+      .update({
+        reset_token: null,
+        reset_token_expires_at: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', userId);
+    if (error) {
+      console.error('Supabase clearUserResetToken error:', error);
+      throw error;
+    }
+  }
 
   async upsertUser(userData: UpsertUser): Promise<User> {
     console.log('=== SUPABASE: upsertUser called (line 132) ===');

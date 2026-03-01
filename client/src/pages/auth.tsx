@@ -42,6 +42,9 @@ export default function AuthPage() {
   const [rememberMe, setRememberMe] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotLoading, setForgotLoading] = useState(false);
 
   const loginForm = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
@@ -131,8 +134,30 @@ export default function AuthPage() {
     if (loginMutation.isPending || registerMutation.isPending) {
       return;
     }
+    setShowForgotPassword(false);
+    setForgotEmail("");
     setIsOpen(false);
     navigate('/');
+  };
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const email = forgotEmail.trim();
+    if (!email) {
+      toast({ title: "Error", description: "Enter your email", variant: "destructive" });
+      return;
+    }
+    setForgotLoading(true);
+    try {
+      await apiRequest("POST", "/api/auth/forgot-password", { email });
+      toast({ title: "Check your email", description: "If an account exists, you will receive a password reset link." });
+      setShowForgotPassword(false);
+      setForgotEmail("");
+    } catch {
+      toast({ title: "Error", description: "Request failed. Try again later.", variant: "destructive" });
+    } finally {
+      setForgotLoading(false);
+    }
   };
 
   // Don't render dialog if still loading auth state or if authenticated
@@ -154,6 +179,41 @@ export default function AuthPage() {
         </DialogHeader>
 
         {!isRegisterMode ? (
+          <>
+            {showForgotPassword ? (
+              <div className="space-y-4">
+                <div className="text-sm text-muted-foreground mb-2">
+                  Enter your email to receive a password reset link.
+                </div>
+                <form onSubmit={handleForgotPassword} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="forgot-email">Email</Label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
+                      <Input
+                        id="forgot-email"
+                        type="email"
+                        placeholder="Enter your email"
+                        className="pl-10"
+                        value={forgotEmail}
+                        onChange={(e) => setForgotEmail(e.target.value)}
+                        autoFocus
+                      />
+                    </div>
+                  </div>
+                  <Button type="submit" className="w-full" disabled={forgotLoading}>
+                    {forgotLoading ? "Sending..." : "Send reset link"}
+                  </Button>
+                </form>
+                <button
+                  type="button"
+                  onClick={() => { setShowForgotPassword(false); setForgotEmail(""); }}
+                  className="text-sm text-primary hover:underline"
+                >
+                  Back to login
+                </button>
+              </div>
+            ) : (
           <>
             <div className="text-sm text-muted-foreground mb-4">
               Don't have an account?{" "}
@@ -252,13 +312,7 @@ export default function AuthPage() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => {
-                      // Placeholder for forgot password functionality
-                      toast({
-                        title: "Forgot Password",
-                        description: "This feature is coming soon",
-                      });
-                    }}
+                    onClick={() => setShowForgotPassword(true)}
                     className="text-sm text-primary hover:underline"
                   >
                     Forgot password?
@@ -276,8 +330,10 @@ export default function AuthPage() {
                 </Button>
               </form>
             </div>
+            </>
+            )}
           </>
-        ) : (
+            ) : (
           <>
             <div className="text-sm text-muted-foreground mb-4">
               Already have an account?{" "}
