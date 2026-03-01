@@ -5,7 +5,7 @@ import { whitelistService } from "./whitelistService.js";
 import { getCreditCost } from "./credits.js";
 import type { User, UsageCounter } from "../../shared/types.js";
 import crypto from "crypto";
-import { PERIODS } from "../config/constants.js";
+import { PERIODS, WHITELIST } from "../config/constants.js";
 
 interface UsageWindow {
   planCode: string;
@@ -22,6 +22,8 @@ export interface UsageStatus {
   resetAt: Date;
   status: 'active' | 'trial' | 'no_access';
   isWhitelisted?: boolean;
+  /** When true, extension shows model dropdown (config + whitelist). */
+  showModelSelect?: boolean;
   upgradeRequired?: boolean;
   upgradeMessage?: string;
   modeBreakdown?: {
@@ -290,6 +292,7 @@ export class UsageService {
       resetAt: counter.resetAt,
       status: 'active',
       isWhitelisted,
+      showModelSelect: WHITELIST.SHOW_MODEL_SELECT_FOR_WHITELIST && isWhitelisted,
       upgradeRequired,
       upgradeMessage,
       modeBreakdown: counter.modeBreakdown || undefined, // Include mode breakdown in response

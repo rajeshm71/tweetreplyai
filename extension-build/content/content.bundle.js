@@ -423,12 +423,37 @@
       const article = element.closest("article");
       return article || null;
     }
+    getTweetIdFromArticle(tweetArticle) {
+      if (!tweetArticle) return null;
+      const id = tweetArticle.getAttribute("data-tweet-id");
+      if (id) return id;
+      const ariaLabel = tweetArticle.getAttribute("aria-labelledby");
+      if (ariaLabel) {
+        const match = ariaLabel.match(/(\d{15,})/);
+        if (match) return match[1];
+      }
+      const link = tweetArticle.querySelector('a[href*="/status/"]');
+      if (link && link.href) {
+        const linkMatch = link.href.match(/status\/(\d+)/);
+        if (linkMatch) return linkMatch[1];
+      }
+      return null;
+    }
     findLikeButton(tweetArticle) {
       if (!tweetArticle) return null;
+      const isAlreadyLikedOrUnlike = (btn) => {
+        if (!btn) return true;
+        if (btn.getAttribute("data-testid") === "unlike") return true;
+        const label = (btn.getAttribute("aria-label") || "").toLowerCase();
+        if (label.includes("unlike")) return true;
+        if (btn.getAttribute("aria-pressed") === "true") return true;
+        return false;
+      };
       let likeBtn = tweetArticle.querySelector('[data-testid="like"]');
       if (likeBtn) {
         const isLiked = !!tweetArticle.querySelector('[data-testid="unlike"]') || likeBtn.getAttribute("aria-pressed") === "true";
         if (isLiked) return null;
+        if (isAlreadyLikedOrUnlike(likeBtn)) return null;
         return likeBtn;
       }
       const buttons = tweetArticle.querySelectorAll('button[aria-label*="Like" i], [role="button"][aria-label*="Like" i]');
@@ -436,7 +461,7 @@
         const ariaLabel = btn.getAttribute("aria-label") || "";
         if (/like/i.test(ariaLabel) && !/unlike/i.test(ariaLabel)) {
           const isLiked = btn.getAttribute("aria-pressed") === "true" || btn.querySelector('[data-testid="unlike"]');
-          if (!isLiked) return btn;
+          if (!isLiked && !isAlreadyLikedOrUnlike(btn)) return btn;
         }
       }
       const heartButtons = tweetArticle.querySelectorAll('button, [role="button"]');
@@ -444,7 +469,7 @@
         const hasHeartIcon = btn.querySelector('svg path[d*="M12"]') || btn.querySelector('[class*="heart"]') || btn.innerHTML.includes("M20.884 13.19");
         if (hasHeartIcon) {
           const isLiked = btn.getAttribute("aria-pressed") === "true" || btn.querySelector('[data-testid="unlike"]') || btn.classList.contains("liked");
-          if (!isLiked) return btn;
+          if (!isLiked && !isAlreadyLikedOrUnlike(btn)) return btn;
         }
       }
       return null;
@@ -474,6 +499,7 @@
     }
     setupAutoLikeOnReply() {
       if (this.autoLikeClickHandler) return;
+      if (!this.autoLikedTweetIds) this.autoLikedTweetIds = /* @__PURE__ */ new Set();
       this.autoLikeClickHandler = async (e) => {
         try {
           const target = e.target;
@@ -497,9 +523,15 @@
           this.isAutoLikeEnabled().then((autoLikeEnabled) => {
             if (autoLikeEnabled) {
               setTimeout(() => {
+                const tweetId = this.getTweetIdFromArticle(tweetArticle);
+                if (tweetId !== null && this.autoLikedTweetIds.has(tweetId)) {
+                  return;
+                }
                 const likeButton = this.findLikeButton(tweetArticle);
                 if (likeButton) {
-                  this.performAutoLike(likeButton).catch((err) => {
+                  this.performAutoLike(likeButton).then(() => {
+                    if (tweetId !== null) this.autoLikedTweetIds.add(tweetId);
+                  }).catch((err) => {
                     console.warn("[TweetReply] Auto-like execution failed:", err);
                   });
                 }
@@ -651,8 +683,26 @@
     }
     injectSuggestButton(composer) {
       if (!composer || this.injectedButtons.has(composer)) return;
-      const composerContainer = composer.closest('[data-testid="tweetComposer"]') || composer.closest('[role="dialog"]') || composer.closest("div[data-testid]");
+      let composerContainer = composer.closest('[data-testid="tweetComposer"]') || composer.closest('[role="dialog"]') || composer.closest("div[data-testid]");
       if (!composerContainer) return;
+      const topTweetComposer = composerContainer.closest('[data-testid="tweetComposer"]');
+      if (topTweetComposer) composerContainer = topTweetComposer;
+      const inDialog = composerContainer.closest('[role="dialog"]');
+      if (inDialog) {
+        if (inDialog.querySelector(".tweetreply-button-container")) {
+          this.injectedButtons.add(composer);
+          return;
+        }
+      } else {
+        let ancestor = composerContainer.parentElement;
+        while (ancestor) {
+          if (ancestor.querySelector && ancestor.querySelector(".tweetreply-button-container")) {
+            this.injectedButtons.add(composer);
+            return;
+          }
+          ancestor = ancestor.parentElement;
+        }
+      }
       let containerId = composerContainer.dataset.tweetreplyContainerId;
       if (!containerId) {
         containerId = `tweetreply-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -666,6 +716,24 @@
       const ctx = this.getComposerContext(composerContainer);
       if (ctx.type === "post") {
         return;
+      }
+      if (this.isTweetDetailPage() && !composerContainer.closest('[role="dialog"]')) {
+        const replyBtn = this.findReplyButton(composerContainer);
+        if (replyBtn) {
+          const replyRow = replyBtn.parentElement;
+          if (replyRow) {
+            const controlsRow = this.createSuggestButton(composer, containerId);
+            controlsRow.hidden = ctx.type === "post";
+            replyRow.parentNode.insertBefore(controlsRow, replyRow);
+            const display = replyRow.style.display || getComputedStyle(replyRow).display;
+            if (display !== "flex" && display !== "inline-flex" && display !== "grid" && display !== "inline-grid") {
+              replyRow.style.display = "flex";
+              replyRow.style.alignItems = "center";
+            }
+            this.injectedButtons.add(composer);
+            return;
+          }
+        }
       }
       let toolbar = composerContainer.querySelector('[data-testid="toolBar"]') || composerContainer.querySelector(".toolbar") || composerContainer.querySelector('[role="toolbar"]');
       if (!toolbar) {
@@ -747,6 +815,11 @@
       }
       return { type: "unknown" };
     }
+    isTweetDetailPage() {
+      const currentPath = window.location.pathname;
+      const effectivePath = /\/compose\//.test(currentPath) ? this.lastNonComposePath : currentPath;
+      return /\/status\/\d+/.test(effectivePath);
+    }
     // Find the native Reply button inside toolbar
     findReplyButton(toolbarEl) {
       if (!toolbarEl) return null;
@@ -792,22 +865,24 @@
       setTimeout(tryPlace, TIMEOUTS.PLACEMENT_OBSERVER_MS);
     }
     // Ensure Suggest stays left of Reply across focus/typing/renders
-    ensureSuggestLeftOfReply(toolbarEl, controlsRow, containerEl) {
+    ensureSuggestLeftOfReply(toolbarEl, controlsRow, containerEl, opts = {}) {
       if (!this.placeSuggestButtonLeftOfReply(toolbarEl, controlsRow)) {
         this.observePlacement(toolbarEl, controlsRow);
       }
-      let last = 0;
-      const throttleMs = TIMEOUTS.BUTTON_THROTTLE_MS;
-      const maybePlace = () => {
-        const now = Date.now();
-        if (now - last < throttleMs) return;
-        last = now;
-        this.placeSuggestButtonLeftOfReply(toolbarEl, controlsRow);
-      };
-      const events = ["focusin", "input", "keyup"];
-      events.forEach((ev) => {
-        containerEl.addEventListener(ev, maybePlace, { passive: true });
-      });
+      if (!opts.skipReplacementListeners) {
+        let last = 0;
+        const throttleMs = TIMEOUTS.BUTTON_THROTTLE_MS;
+        const maybePlace = () => {
+          const now = Date.now();
+          if (now - last < throttleMs) return;
+          last = now;
+          this.placeSuggestButtonLeftOfReply(toolbarEl, controlsRow);
+        };
+        const events = ["focusin", "input", "keyup"];
+        events.forEach((ev) => {
+          containerEl.addEventListener(ev, maybePlace, { passive: true });
+        });
+      }
     }
     createSuggestButton(composer, containerId) {
       const container = document.createElement("div");
@@ -821,8 +896,11 @@
       position: relative;
       z-index: 1;
     `;
-      const modelSelect = this.createModelSelect();
-      container.appendChild(modelSelect);
+      let modelSelect = null;
+      if (this.usageData?.showModelSelect) {
+        modelSelect = this.createModelSelect();
+        container.appendChild(modelSelect);
+      }
       const replyModeSelect = this.createReplyModeSelect();
       container.appendChild(replyModeSelect);
       const promptSelect = this.createPromptSelect();
@@ -871,7 +949,7 @@
         console.log("[TweetReply] Button click - Composer container:", composer.getAttribute("data-testid"));
         console.log("[TweetReply] Button click - Actual composer:", actualComposer.contentEditable, actualComposer.className);
         this.handleSuggestReply(actualComposer, suggestButton, {
-          modelKey: modelSelect.value,
+          modelKey: modelSelect ? modelSelect.value : "auto",
           replyMode: replyModeSelect.value,
           promptVariation: promptSelect.value
         });
@@ -989,10 +1067,11 @@
       this.loadPrompts().then((prompts) => {
         if (prompts && Array.isArray(prompts)) {
           prompts.forEach((prompt) => {
-            if (prompt.key === "improve") return;
+            if (prompt.key === "improve" || prompt.key === "guardrail_violation") return;
             const option = document.createElement("option");
             option.value = prompt.key;
-            option.textContent = prompt.name;
+            const label = prompt.key === "conversational" ? "Chat" : prompt.name;
+            option.textContent = label;
             select.appendChild(option);
           });
         }
@@ -2167,10 +2246,7 @@
             threadLength: 0
           };
         }
-        const currentPath = window.location.pathname;
-        const effectivePath = /\/compose\//.test(currentPath) ? this.lastNonComposePath : currentPath;
-        const isDetailPage = /\/status\/\d+/.test(effectivePath);
-        console.log("[TweetReply] Page URL:", currentPath, "| effectivePath:", effectivePath, "| isDetailPage:", isDetailPage);
+        const isDetailPage = this.isTweetDetailPage();
         if (!isDetailPage) {
           console.log("[TweetReply] Not on detail page, using single-tweet context only");
           const authorInfo = this.extractAuthorInfo();

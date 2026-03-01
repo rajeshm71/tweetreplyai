@@ -205,8 +205,34 @@ class TwitterReplyInjector {
     return article || null;
   }
 
+  getTweetIdFromArticle(tweetArticle) {
+    if (!tweetArticle) return null;
+    const id = tweetArticle.getAttribute('data-tweet-id');
+    if (id) return id;
+    const ariaLabel = tweetArticle.getAttribute('aria-labelledby');
+    if (ariaLabel) {
+      const match = ariaLabel.match(/(\d{15,})/);
+      if (match) return match[1];
+    }
+    const link = tweetArticle.querySelector('a[href*="/status/"]');
+    if (link && link.href) {
+      const linkMatch = link.href.match(/status\/(\d+)/);
+      if (linkMatch) return linkMatch[1];
+    }
+    return null;
+  }
+
   findLikeButton(tweetArticle) {
     if (!tweetArticle) return null;
+
+    const isAlreadyLikedOrUnlike = (btn) => {
+      if (!btn) return true;
+      if (btn.getAttribute('data-testid') === 'unlike') return true;
+      const label = (btn.getAttribute('aria-label') || '').toLowerCase();
+      if (label.includes('unlike')) return true;
+      if (btn.getAttribute('aria-pressed') === 'true') return true;
+      return false;
+    };
 
     // Strategy 1: data-testid="like" (primary)
     let likeBtn = tweetArticle.querySelector('[data-testid="like"]');
@@ -215,6 +241,7 @@ class TwitterReplyInjector {
       const isLiked = !!tweetArticle.querySelector('[data-testid="unlike"]') ||
                      likeBtn.getAttribute('aria-pressed') === 'true';
       if (isLiked) return null; // Already liked, don't auto-like
+      if (isAlreadyLikedOrUnlike(likeBtn)) return null;
       return likeBtn;
     }
 
@@ -226,21 +253,21 @@ class TwitterReplyInjector {
         // Check if already liked
         const isLiked = btn.getAttribute('aria-pressed') === 'true' ||
                        btn.querySelector('[data-testid="unlike"]');
-        if (!isLiked) return btn;
+        if (!isLiked && !isAlreadyLikedOrUnlike(btn)) return btn;
       }
     }
 
     // Strategy 3: Look for heart icon button
     const heartButtons = tweetArticle.querySelectorAll('button, [role="button"]');
     for (const btn of heartButtons) {
-      const hasHeartIcon = btn.querySelector('svg path[d*="M12"]') || 
+      const hasHeartIcon = btn.querySelector('svg path[d*="M12"]') ||
                           btn.querySelector('[class*="heart"]') ||
                           btn.innerHTML.includes('M20.884 13.19');
       if (hasHeartIcon) {
         const isLiked = btn.getAttribute('aria-pressed') === 'true' ||
                        btn.querySelector('[data-testid="unlike"]') ||
                        btn.classList.contains('liked');
-        if (!isLiked) return btn;
+        if (!isLiked && !isAlreadyLikedOrUnlike(btn)) return btn;
       }
     }
 
@@ -281,7 +308,8 @@ class TwitterReplyInjector {
   setupAutoLikeOnReply() {
     // Don't add if already added (prevent accumulation on re-execution)
     if (this.autoLikeClickHandler) return;
-    
+    if (!this.autoLikedTweetIds) this.autoLikedTweetIds = new Set();
+
     // Use event delegation to catch all Reply button clicks
     this.autoLikeClickHandler = async (e) => {
       try {
@@ -333,10 +361,16 @@ class TwitterReplyInjector {
           if (autoLikeEnabled) {
             // Small delay to let Twitter process the reply click first
             setTimeout(() => {
+              const tweetId = this.getTweetIdFromArticle(tweetArticle);
+              if (tweetId !== null && this.autoLikedTweetIds.has(tweetId)) {
+                return; // Already auto-liked this tweet this session; do not click again
+              }
               const likeButton = this.findLikeButton(tweetArticle);
               if (likeButton) {
                 // Fire and forget - don't await
-                this.performAutoLike(likeButton).catch(err => {
+                this.performAutoLike(likeButton).then(() => {
+                  if (tweetId !== null) this.autoLikedTweetIds.add(tweetId);
+                }).catch(err => {
                   console.warn('[TweetReply] Auto-like execution failed:', err);
                 });
               }
@@ -550,11 +584,34 @@ class TwitterReplyInjector {
     if (!composer || this.injectedButtons.has(composer)) return;
 
     // Find the composer's unique container
-    const composerContainer = composer.closest('[data-testid="tweetComposer"]') || 
+    let composerContainer = composer.closest('[data-testid="tweetComposer"]') ||
                               composer.closest('[role="dialog"]') ||
                               composer.closest('div[data-testid]');
-    
+
     if (!composerContainer) return;
+
+    // Normalize to top-level tweetComposer when present so composers from added subtrees
+    // (e.g. after reply insertion) reuse the same container and avoid duplicate injection.
+    const topTweetComposer = composerContainer.closest('[data-testid="tweetComposer"]');
+    if (topTweetComposer) composerContainer = topTweetComposer;
+
+    // Skip if we already have our controls in this reply context; scope by dialog so the reply dialog gets its own controls.
+    const inDialog = composerContainer.closest('[role="dialog"]');
+    if (inDialog) {
+      if (inDialog.querySelector('.tweetreply-button-container')) {
+        this.injectedButtons.add(composer);
+        return;
+      }
+    } else {
+      let ancestor = composerContainer.parentElement;
+      while (ancestor) {
+        if (ancestor.querySelector && ancestor.querySelector('.tweetreply-button-container')) {
+          this.injectedButtons.add(composer);
+          return;
+        }
+        ancestor = ancestor.parentElement;
+      }
+    }
 
     // Create a unique ID for this container
     let containerId = composerContainer.dataset.tweetreplyContainerId;
@@ -581,6 +638,27 @@ class TwitterReplyInjector {
     // Strictly skip main Post/Tweet composer
     if (ctx.type === 'post') {
       return;
+    }
+
+    // Tweet details page: place Suggest in the same row as Reply for alignment
+    // Only apply to inline reply under the tweet, not dialog composers
+    if (this.isTweetDetailPage() && !composerContainer.closest('[role="dialog"]')) {
+      const replyBtn = this.findReplyButton(composerContainer);
+      if (replyBtn) {
+        const replyRow = replyBtn.parentElement;
+        if (replyRow) {
+          const controlsRow = this.createSuggestButton(composer, containerId);
+          controlsRow.hidden = (ctx.type === 'post');
+          replyRow.parentNode.insertBefore(controlsRow, replyRow);
+          const display = replyRow.style.display || getComputedStyle(replyRow).display;
+          if (display !== 'flex' && display !== 'inline-flex' && display !== 'grid' && display !== 'inline-grid') {
+            replyRow.style.display = 'flex';
+            replyRow.style.alignItems = 'center';
+          }
+          this.injectedButtons.add(composer);
+          return;
+        }
+      }
     }
 
     // Find the composer's toolbar area
@@ -697,6 +775,12 @@ class TwitterReplyInjector {
     return { type: 'unknown' };
   }
 
+  isTweetDetailPage() {
+    const currentPath = window.location.pathname;
+    const effectivePath = /\/compose\//.test(currentPath) ? this.lastNonComposePath : currentPath;
+    return /\/status\/\d+/.test(effectivePath);
+  }
+
   // Find the native Reply button inside toolbar
   findReplyButton(toolbarEl) {
     if (!toolbarEl) return null;
@@ -756,26 +840,28 @@ class TwitterReplyInjector {
   }
 
   // Ensure Suggest stays left of Reply across focus/typing/renders
-  ensureSuggestLeftOfReply(toolbarEl, controlsRow, containerEl) {
+  ensureSuggestLeftOfReply(toolbarEl, controlsRow, containerEl, opts = {}) {
     // Initial placement + observer
     if (!this.placeSuggestButtonLeftOfReply(toolbarEl, controlsRow)) {
       this.observePlacement(toolbarEl, controlsRow);
     }
 
-    // Throttled re-placement on user interaction
-    let last = 0;
-    const throttleMs = TIMEOUTS.BUTTON_THROTTLE_MS;
-    const maybePlace = () => {
-      const now = Date.now();
-      if (now - last < throttleMs) return;
-      last = now;
-      this.placeSuggestButtonLeftOfReply(toolbarEl, controlsRow);
-    };
+    // Throttled re-placement on user interaction (optional)
+    if (!opts.skipReplacementListeners) {
+      let last = 0;
+      const throttleMs = TIMEOUTS.BUTTON_THROTTLE_MS;
+      const maybePlace = () => {
+        const now = Date.now();
+        if (now - last < throttleMs) return;
+        last = now;
+        this.placeSuggestButtonLeftOfReply(toolbarEl, controlsRow);
+      };
 
-    const events = ['focusin', 'input', 'keyup'];
-    events.forEach(ev => {
-      containerEl.addEventListener(ev, maybePlace, { passive: true });
-    });
+      const events = ['focusin', 'input', 'keyup'];
+      events.forEach(ev => {
+        containerEl.addEventListener(ev, maybePlace, { passive: true });
+      });
+    }
   }
 
   createSuggestButton(composer, containerId) {
@@ -792,9 +878,12 @@ class TwitterReplyInjector {
       z-index: 1;
     `;
     
-    // Model dropdown
-    const modelSelect = this.createModelSelect();
-    container.appendChild(modelSelect);
+    // Model dropdown: only for whitelisted users when config allows (usageData.showModelSelect)
+    let modelSelect = null;
+    if (this.usageData?.showModelSelect) {
+      modelSelect = this.createModelSelect();
+      container.appendChild(modelSelect);
+    }
     
     // Reply mode dropdown (between model and prompt)
     const replyModeSelect = this.createReplyModeSelect();
@@ -871,7 +960,7 @@ class TwitterReplyInjector {
       console.log('[TweetReply] Button click - Actual composer:', actualComposer.contentEditable, actualComposer.className);
 
       this.handleSuggestReply(actualComposer, suggestButton, {
-        modelKey: modelSelect.value,
+        modelKey: modelSelect ? modelSelect.value : 'auto',
         replyMode: replyModeSelect.value,
         promptVariation: promptSelect.value
       });
@@ -1023,10 +1112,16 @@ class TwitterReplyInjector {
     this.loadPrompts().then(prompts => {
       if (prompts && Array.isArray(prompts)) {
         prompts.forEach(prompt => {
-          if (prompt.key === 'improve') return;
+          // Hide internal-only prompts from the UI
+          if (prompt.key === 'improve' || prompt.key === 'guardrail_violation') return;
+
           const option = document.createElement('option');
           option.value = prompt.key;
-          option.textContent = prompt.name;
+
+          // Use a shorter label for the conversational style
+          const label = prompt.key === 'conversational' ? 'Chat' : prompt.name;
+          option.textContent = label;
+
           select.appendChild(option);
         });
       }
@@ -2553,10 +2648,7 @@ class TwitterReplyInjector {
       }
 
       // Only extract full conversation context on tweet detail pages (URL containing /status/<digits>)
-      const currentPath = window.location.pathname;
-      const effectivePath = /\/compose\//.test(currentPath) ? this.lastNonComposePath : currentPath;
-      const isDetailPage = /\/status\/\d+/.test(effectivePath);
-      console.log('[TweetReply] Page URL:', currentPath, '| effectivePath:', effectivePath, '| isDetailPage:', isDetailPage);
+      const isDetailPage = this.isTweetDetailPage();
 
       if (!isDetailPage) {
         console.log('[TweetReply] Not on detail page, using single-tweet context only');
