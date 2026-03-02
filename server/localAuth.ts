@@ -14,11 +14,11 @@ export function setupLocalAuth() {
       try {
         const user = await storage.getUserByEmail(email);
         
-        if (!user || !user.passwordHash) {
+        if (!user || !user.password) {
           return done(null, false, { message: 'Invalid email or password' });
         }
 
-        const isValid = await verifyPassword(password, user.passwordHash);
+        const isValid = await verifyPassword(password, user.password);
         if (!isValid) {
           return done(null, false, { message: 'Invalid email or password' });
         }

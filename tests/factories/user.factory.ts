@@ -7,7 +7,7 @@ export const createMockUser = (overrides: Partial<UpsertUser> = {}): UpsertUser 
   lastName: 'User',
   authProviders: ['local'],
   emailVerified: true,
-  passwordHash: '$2b$10$test.hash',
+  password: '$2b$10$test.hash',
   ...overrides,
 });
 
