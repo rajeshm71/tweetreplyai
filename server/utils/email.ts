@@ -10,19 +10,21 @@ const fromEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
  */
 export async function sendPasswordResetEmail(toEmail: string, token: string): Promise<void> {
   if (!resendApiKey) {
-    console.warn('RESEND_API_KEY not set; skipping password reset email');
+    console.warn('[reset-email] RESEND_API_KEY not set; skipping password reset email to:', toEmail);
     return;
   }
   const resend = new Resend(resendApiKey);
   const resetUrl = `${appBaseUrl.replace(/\/$/, '')}/reset-password?token=${encodeURIComponent(token)}`;
-  const { error } = await resend.emails.send({
+  console.log('[reset-email] sending to:', toEmail, 'from:', fromEmail, 'baseUrl:', appBaseUrl);
+  const { data, error } = await resend.emails.send({
     from: fromEmail,
     to: toEmail,
     subject: 'Reset your password',
     html: `<!DOCTYPE html><html><body><p>You requested a password reset.</p><p><a href="${resetUrl}">Reset your password</a></p><p>This link expires in 1 hour. If you didn't request this, you can ignore this email.</p></body></html>`,
   });
   if (error) {
-    console.error('Resend sendPasswordResetEmail error:', error);
+    console.error('[reset-email] Resend API error:', error);
     throw error;
   }
+  console.log('[reset-email] sent successfully, id:', data?.id ?? 'n/a');
 }
