@@ -1634,8 +1634,8 @@ export default function Landing() {
                               aria-label={`Toggle FAQ: ${faq.question}`}
                             >
                               <div className="flex items-center gap-4 w-full text-left">
-                                {/* Modern Icon with primary gradient */}
-                                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg flex-shrink-0 group-hover:scale-105 transition-transform duration-200">
+                                {/* Modern Icon with solid primary background */}
+                                <div className="w-12 h-12 rounded-2xl bg-primary flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform duration-200">
                                   <IconComponent className="w-6 h-6 text-white" aria-hidden="true" />
                                 </div>
                                 
