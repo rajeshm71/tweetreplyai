@@ -1,4 +1,5 @@
 import { Resend } from 'resend';
+import { buildWelcomeEmail } from '../emailTemplates.js';
 
 const resendApiKey = process.env.RESEND_API_KEY;
 const appBaseUrl = process.env.APP_URL || process.env.DOMAIN || 'http://localhost:5000';
@@ -28,3 +29,29 @@ export async function sendPasswordResetEmail(toEmail: string, token: string): Pr
   }
   console.log('[reset-email] sent successfully, id:', data?.id ?? 'n/a');
 }
+
+export async function sendWelcomeEmail(toEmail: string, firstName?: string): Promise<void> {
+  if (!resendApiKey) {
+    console.warn('[welcome-email] RESEND_API_KEY not set; skipping welcome email to:', toEmail);
+    return;
+  }
+
+  const resend = new Resend(resendApiKey);
+  const baseUrl = appBaseUrl.replace(/\/$/, '');
+  const { subject, html } = buildWelcomeEmail({ firstName, appUrl: baseUrl });
+
+  const { data, error } = await resend.emails.send({
+    from: fromEmail,
+    to: toEmail,
+    subject,
+    html,
+  });
+
+  if (error) {
+    console.error('[welcome-email] Resend API error:', error);
+    return;
+  }
+
+  console.log('[welcome-email] sent successfully, id:', data?.id ?? 'n/a');
+}
+

@@ -18,7 +18,7 @@ import session from "express-session";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import { hashPassword, verifyPassword, validatePasswordStrength } from "./utils/password.js";
-import { sendPasswordResetEmail } from "./utils/email.js";
+import { sendPasswordResetEmail, sendWelcomeEmail } from "./utils/email.js";
 // Use crypto.randomUUID() instead of uuid package
 const generateId = () => {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -174,6 +174,10 @@ export async function registerRoutes(app: Express): Promise<Express> {
         if (err) {
           return res.status(500).json({ message: 'Login after registration failed' });
         }
+        // Fire-and-forget welcome email; errors are logged only
+        sendWelcomeEmail(user.email, user.firstName).catch((error) => {
+          console.error('[welcome-email] failed for userId:', user.id, 'error:', error);
+        });
         // Generate JWT token for serverless environments
         const token = jwt.sign(
           { id: user.id, email: user.email },
