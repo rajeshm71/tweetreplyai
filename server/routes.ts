@@ -258,27 +258,32 @@ export async function registerRoutes(app: Express): Promise<Express> {
     });
   });
 
-  // Forgot password: send reset email if user exists and uses password auth (always 200 with generic message)
+  // Forgot password: send reset email if user exists and uses password auth
   app.post('/api/auth/forgot-password', authRateLimiter, async (req: any, res) => {
     try {
       const email = typeof req.body?.email === 'string' ? req.body.email.trim() : '';
       console.log('[forgot-password] request email:', email || '(empty)');
       if (!email) {
-        console.log('[forgot-password] no email in body, returning generic 200');
-        return res.status(200).json({ message: 'If an account exists with this email, you will receive a password reset link.' });
+        console.log('[forgot-password] no email in body');
+        return res.status(400).json({ message: 'Email is required.' });
       }
       const user = await storage.getUserByEmail(email);
       if (!user) {
         console.log('[forgot-password] no user found for email:', email);
-        return res.status(200).json({ message: 'If an account exists with this email, you will receive a password reset link.' });
+        return res.status(404).json({ message: 'No account found with that email.' });
       }
       if (!user.password) {
         console.log('[forgot-password] user has no password (e.g. Google-only), userId:', user.id);
-        return res.status(200).json({ message: 'If an account exists with this email, you will receive a password reset link.' });
+        return res.status(400).json({ message: 'This account does not use password login. Use Continue with Google instead.' });
       }
-      if (!user.authProviders?.includes('local')) {
-        console.log('[forgot-password] user authProviders does not include local:', user.authProviders);
-        return res.status(200).json({ message: 'If an account exists with this email, you will receive a password reset link.' });
+      const usesPasswordLogin = !!user.password && (
+        !user.authProviders ||
+        user.authProviders.includes('password') ||
+        user.authProviders.includes('local')
+      );
+      if (!usesPasswordLogin) {
+        console.log('[forgot-password] user does not use password login, authProviders:', user.authProviders);
+        return res.status(400).json({ message: 'This account does not use password login. Use Continue with Google instead.' });
       }
       const token = crypto.randomBytes(32).toString('hex');
       const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
@@ -286,10 +291,10 @@ export async function registerRoutes(app: Express): Promise<Express> {
       console.log('[forgot-password] token set for userId:', user.id, ', sending reset email to:', user.email);
       await sendPasswordResetEmail(user.email, token);
       console.log('[forgot-password] reset email sent successfully to:', user.email);
-      return res.status(200).json({ message: 'If an account exists with this email, you will receive a password reset link.' });
+      return res.status(200).json({ message: 'Password reset email sent.' });
     } catch (err) {
       console.error('[forgot-password] error:', err);
-      return res.status(200).json({ message: 'If an account exists with this email, you will receive a password reset link.' });
+      return res.status(500).json({ message: 'Failed to start password reset. Try again later.' });
     }
   });
 

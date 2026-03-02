@@ -171,8 +171,22 @@ export default function AuthPage() {
     }
     setForgotLoading(true);
     try {
-      await apiRequest("POST", "/api/auth/forgot-password", { email });
-      toast({ title: "Check your email", description: "If an account exists, you will receive a password reset link." });
+      const res = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast({
+          title: "Error",
+          description: data.message || "Failed to start password reset.",
+          variant: "destructive",
+        });
+        return;
+      }
+      toast({ title: "Success", description: data.message || "Password reset email sent." });
       setShowForgotPassword(false);
       setForgotEmail("");
     } catch {
