@@ -1637,11 +1637,6 @@ export default function Landing() {
                   onValueChange={(value) => setOpenFAQ(value)}
                 >
                   {faqs.map((faq, index) => {
-                    const IconComponent = faq.icon === 'Zap' ? Zap : 
-                                       faq.icon === 'MessageCircle' ? MessageCircle :
-                                       faq.icon === 'Brain' ? Brain :
-                                       faq.icon === 'Sparkles' ? Sparkles :
-                                       Shield;
                     const isOpen = openFAQ === `item-${index}`;
                     return (
                       <AccordionItem 
@@ -1659,7 +1654,7 @@ export default function Landing() {
                               <div className="flex items-center gap-4 w-full text-left">
                                 {/* Modern Icon with solid primary background */}
                                 <div className="w-12 h-12 rounded-2xl bg-primary flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform duration-200">
-                                  <IconComponent className="w-6 h-6 text-white" aria-hidden="true" />
+                                  <Shield className="w-6 h-6 text-white" aria-hidden="true" />
                                 </div>
                                 
                                 {/* Question text */}
