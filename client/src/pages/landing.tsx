@@ -10,8 +10,6 @@ import {
   HelpCircle, Plus, Minus, Refresh, SmartphoneDevice,
 } from "iconoir-react";
 import { IconMessageCircle, IconChartBar, IconRocket, IconClock, IconTrendingUp } from "@tabler/icons-react";
-// LivelyIcons for high-impact CTAs only (plan §5: Add to Chrome, Get Started)
-import { Chrome as LivelyChrome, ArrowRight as LivelyArrowRight } from "livelyicons";
 import { Logo } from "@/components/logo";
 import useEmblaCarousel from 'embla-carousel-react';
 import Autoplay from 'embla-carousel-autoplay';
@@ -565,7 +563,7 @@ export default function Landing() {
               size="sm"
               aria-label="Add TweetReplyAI to Chrome"
             >
-              <LivelyChrome className="w-4 h-4 mr-2" lively="pulse" trigger="hover" aria-hidden="true" />
+              <Google className="w-4 h-4 mr-2" aria-hidden="true" />
               Add to Chrome
             </Button>
           </div>
@@ -683,7 +681,7 @@ export default function Landing() {
               size="sm"
             >
               Start Replying
-              <LivelyArrowRight className="w-4 h-4 ml-2" lively="translate" trigger="hover" aria-hidden="true" />
+              <ArrowRight className="w-4 h-4 ml-2" aria-hidden="true" />
             </Button>
             
             {/* Mobile menu button */}
@@ -716,7 +714,7 @@ export default function Landing() {
                 className="w-full justify-start bg-gradient-to-r from-blue-500 to-indigo-600 text-white hover:shadow-lg hover:shadow-blue-500/20 transition-all duration-300"
                 size="sm"
               >
-                <LivelyChrome className="w-4 h-4 mr-2" lively="pulse" trigger="hover" />
+                <Google className="w-4 h-4 mr-2" />
                 Add to Chrome
               </Button>
               <a 
