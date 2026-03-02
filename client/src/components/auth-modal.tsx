@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { MessageCircle, Mail } from "lucide-react";
+import { ChatCircle, Envelope } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -125,7 +125,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
       <DialogContent className="sm:max-w-md">
         <DialogHeader className="text-center">
           <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center mx-auto mb-4">
-            <MessageCircle className="w-6 h-6 text-primary-foreground" />
+            <ChatCircle className="w-6 h-6 text-primary-foreground" />
           </div>
           <DialogTitle className="text-2xl font-semibold">
             Welcome to TweetReply
@@ -190,7 +190,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
                     </>
                   ) : (
                     <>
-                      <Mail className="w-4 h-4 mr-2" />
+                      <Envelope className="w-4 h-4 mr-2" />
                       Send verification code
                     </>
                   )}

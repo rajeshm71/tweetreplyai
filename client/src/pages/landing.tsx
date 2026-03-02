@@ -4,7 +4,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { PricingCards } from "@/components/pricing-cards";
 import { useAuth } from "@/hooks/useAuth";
-import { Sparkles, Zap, ArrowRight, ArrowLeft, CheckCircle, Rocket, Brain, MessageCircle, Download, Crown, Star, Shield, ChevronRight, TrendingUp, Chrome, Heart, Users, Menu, X, Copy, Check, Building2, Award, Clock, LayoutGrid, DollarSign, HelpCircle, Plus, Minus, RefreshCw, Smartphone } from "lucide-react";
+import {
+  Sparks, Flash, ArrowRight, ArrowLeft, CheckCircle, Rocket, Brain, ChatBubble, Crown, Star, Shield,
+  Check, StatUp, Google, Heart, Group, Menu, Xmark, Copy, Building, Medal, Clock, ViewGrid, Dollar,
+  HelpCircle, Plus, Minus, Refresh, SmartphoneDevice,
+} from "iconoir-react";
+import { IconMessageCircle, IconChartBar, IconRocket, IconClock, IconTrendingUp } from "@tabler/icons-react";
+// LivelyIcons for high-impact CTAs only (plan §5: Add to Chrome, Get Started)
+import { Chrome as LivelyChrome, ArrowRight as LivelyArrowRight } from "livelyicons";
 import { Logo } from "@/components/logo";
 import useEmblaCarousel from 'embla-carousel-react';
 import Autoplay from 'embla-carousel-autoplay';
@@ -45,7 +52,7 @@ export default function Landing() {
       username: "@ProductHunt",
       tweet: "What's the best productivity tool you've discovered this year?",
       reply: "TweetReplyAI ironically! Saves me hours crafting authentic replies daily 🚀",
-      icon: TrendingUp,
+      icon: StatUp,
       iconGradient: "from-green-500 to-emerald-500",
       solidBg: "bg-green-500",
       usernameColor: "text-green-600",
@@ -57,7 +64,7 @@ export default function Landing() {
       username: "@TechCrunch",
       tweet: "AI is changing how we work. Thoughts?",
       reply: "Game changer for engagement! AI handles the replies, we focus on strategy ⚡",
-      icon: Zap,
+      icon: Flash,
       iconGradient: "from-blue-500 to-indigo-500",
       solidBg: "bg-blue-500",
       usernameColor: "text-blue-600",
@@ -161,7 +168,7 @@ export default function Landing() {
   // Features data - extracted to constant for maintainability
   const FEATURES = [
     {
-      icon: RefreshCw,
+      icon: Refresh,
       title: "Improvize Reply",
       description: "Not satisfied with a reply? Instantly regenerate and improve it with better context, tone, or style. Get the perfect response every time.",
       feature: "Perfect replies every time",
@@ -179,7 +186,7 @@ export default function Landing() {
       solidBg: "bg-blue-500"
     },
     {
-      icon: TrendingUp,
+      icon: StatUp,
       title: "Analytics Dashboard",
       description: "Track your reply performance with detailed analytics. See quality scores, engagement metrics, and feedback stats to improve over time.",
       feature: "Performance insights",
@@ -188,7 +195,7 @@ export default function Landing() {
       solidBg: "bg-green-500"
     },
     {
-      icon: Users,
+      icon: Group,
       title: "Reply Frequency Tracking",
       description: "Track how many times you've replied to a particular user in a day. Avoid over-replying and maintain balanced interactions.",
       feature: "Smart interaction balance",
@@ -206,7 +213,7 @@ export default function Landing() {
       solidBg: "bg-violet-500"
     },
     {
-      icon: Zap,
+      icon: Flash,
       title: "Smart Tone Detection",
       description: "AI understands the tweet context and automatically selects the appropriate response style, whether it's humorous, supportive, professional, or casual.",
       feature: "Perfect tone matching",
@@ -233,7 +240,7 @@ export default function Landing() {
       solidBg: "bg-cyan-500"
     },
     {
-      icon: MessageCircle,
+      icon: ChatBubble,
       title: "Context-Aware Replies",
       description: "Understands conversation threads, author context, and tweet metadata. Generates replies that fit naturally into ongoing discussions.",
       feature: "Natural conversation flow",
@@ -251,7 +258,7 @@ export default function Landing() {
       solidBg: "bg-amber-500"
     },
     {
-      icon: Chrome,
+      icon: Google,
       title: "One-Click Integration",
       description: "Seamless Chrome extension works directly on X. Click once, get instant replies without leaving your feed. No copy-paste needed.",
       feature: "Seamless workflow",
@@ -260,7 +267,7 @@ export default function Landing() {
       solidBg: "bg-blue-600"
     },
     {
-      icon: Smartphone,
+      icon: SmartphoneDevice,
       title: "Mobile-Friendly",
       description: "Works perfectly on desktop, tablet, and mobile. Generate replies on-the-go with our responsive web interface.",
       feature: "Works everywhere",
@@ -558,7 +565,7 @@ export default function Landing() {
               size="sm"
               aria-label="Add TweetReplyAI to Chrome"
             >
-              <Chrome className="w-4 h-4 mr-2" aria-hidden="true" />
+              <LivelyChrome className="w-4 h-4 mr-2" lively="pulse" trigger="hover" aria-hidden="true" />
               Add to Chrome
             </Button>
           </div>
@@ -579,7 +586,7 @@ export default function Landing() {
                 element?.scrollIntoView({ behavior: 'smooth', block: 'start' });
               }}
             >
-              <LayoutGrid className={`w-4 h-4 transition-all duration-300 ${
+              <ViewGrid className={`w-4 h-4 transition-all duration-300 ${
                 activeNavSection === 'features' 
                   ? 'text-green-600' 
                   : 'text-muted-foreground group-hover:text-transparent group-hover:bg-gradient-to-r group-hover:from-blue-400 group-hover:to-green-400 group-hover:bg-clip-text'
@@ -612,7 +619,7 @@ export default function Landing() {
                 element?.scrollIntoView({ behavior: 'smooth', block: 'start' });
               }}
             >
-              <DollarSign className={`w-4 h-4 transition-all duration-300 ${
+              <Dollar className={`w-4 h-4 transition-all duration-300 ${
                 activeNavSection === 'pricing' 
                   ? 'text-rose-600' 
                   : 'text-muted-foreground group-hover:text-transparent group-hover:bg-gradient-to-r group-hover:from-pink-400 group-hover:to-rose-400 group-hover:bg-clip-text'
@@ -676,7 +683,7 @@ export default function Landing() {
               size="sm"
             >
               Start Replying
-              <ArrowRight className="w-4 h-4 ml-2" aria-hidden="true" />
+              <LivelyArrowRight className="w-4 h-4 ml-2" lively="translate" trigger="hover" aria-hidden="true" />
             </Button>
             
             {/* Mobile menu button */}
@@ -689,7 +696,7 @@ export default function Landing() {
               aria-expanded={mobileMenuOpen}
             >
               {mobileMenuOpen ? (
-                <X className="w-5 h-5" aria-hidden="true" />
+                <Xmark className="w-5 h-5" aria-hidden="true" />
               ) : (
                 <Menu className="w-5 h-5" aria-hidden="true" />
               )}
@@ -709,7 +716,7 @@ export default function Landing() {
                 className="w-full justify-start bg-gradient-to-r from-blue-500 to-indigo-600 text-white hover:shadow-lg hover:shadow-blue-500/20 transition-all duration-300"
                 size="sm"
               >
-                <Chrome className="w-4 h-4 mr-2" />
+                <LivelyChrome className="w-4 h-4 mr-2" lively="pulse" trigger="hover" />
                 Add to Chrome
               </Button>
               <a 
@@ -759,7 +766,7 @@ export default function Landing() {
             size="lg"
             aria-label="Start replying with TweetReplyAI"
           >
-            <Sparkles className="w-5 h-5 mr-2" />
+            <Sparks className="w-5 h-5 mr-2" />
             Start Free Trial
             <ArrowRight className="w-5 h-5 ml-2" />
           </Button>
@@ -836,7 +843,7 @@ export default function Landing() {
                     className="h-14 px-8 text-lg bg-primary text-white border-0 font-semibold hover:scale-105 transition-all duration-300"
                     data-testid="button-start-trial"
                   >
-                    <Sparkles className="w-5 h-5 mr-3" />
+                    <Sparks className="w-5 h-5 mr-3" />
                     Start Free Trial
                     <ArrowRight className="w-5 h-5 ml-3" />
                   </Button>
@@ -890,7 +897,7 @@ export default function Landing() {
                                 {exampleReplies[currentExampleIndex].usernameEmoji}
                               </span>
                             </div>
-                            <MessageCircle className={`w-4 h-4 ${exampleReplies[currentExampleIndex].usernameColor} opacity-60`} />
+                            <ChatBubble className={`w-4 h-4 ${exampleReplies[currentExampleIndex].usernameColor} opacity-60`} />
                           </div>
                           <p className="text-base text-foreground leading-relaxed">
                             {exampleReplies[currentExampleIndex].tweet}
@@ -926,7 +933,7 @@ export default function Landing() {
                         <div className="relative z-10 flex items-start gap-3">
                           {/* Enhanced TweetReplyAI icon */}
                           <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center flex-shrink-0">
-                            <Sparkles className="w-6 h-6 text-white" />
+                            <Sparks className="w-6 h-6 text-white" />
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-2">
@@ -975,7 +982,7 @@ export default function Landing() {
                 { 
                   value: stats.repliesGenerated.formatted, 
                   label: "Replies Generated",
-                  icon: Zap,
+                  icon: IconMessageCircle,
                   emoji: "💬",
                   subtitle: stats.repliesGenerated.weeklyIncrease,
                   gradient: "from-blue-500 to-cyan-500",
@@ -989,7 +996,7 @@ export default function Landing() {
                 { 
                   value: stats.impressions.formatted, 
                   label: "Impressions",
-                  icon: TrendingUp,
+                  icon: IconChartBar,
                   emoji: "📈",
                   gradient: "from-indigo-500 to-purple-500",
                   solidBg: "bg-indigo-500",
@@ -1002,7 +1009,7 @@ export default function Landing() {
                 { 
                   value: stats.engagementsBoost.formatted,
                   label: "Engagements Boost",
-                  icon: Rocket,
+                  icon: IconRocket,
                   emoji: "🚀",
                   gradient: "from-emerald-500 to-green-500",
                   solidBg: "bg-emerald-500",
@@ -1015,7 +1022,7 @@ export default function Landing() {
                 { 
                   value: stats.hoursSaved.formatted,
                   label: "Hours Saved",
-                  icon: Clock,
+                  icon: IconClock,
                   emoji: "⏱️",
                   gradient: "from-orange-500 to-amber-500",
                   solidBg: "bg-orange-500",
@@ -1063,7 +1070,7 @@ export default function Landing() {
                         {/* Weekly Increase Badge - Bottom */}
                         {stat.subtitle && (
                           <div className={`rounded-full bg-gradient-to-r ${stat.bgGradient} border ${stat.borderColor} text-xs md:text-sm font-semibold stat-weekly-badge`} style={{ display: 'inline-flex', alignItems: 'center', padding: '0.375rem 0.75rem', gap: '0.375rem' }}>
-                            <TrendingUp className={`w-3 h-3 ${stat.badgeColor}`} />
+                            <IconTrendingUp className={`w-3 h-3 ${stat.badgeColor}`} />
                             <span className={stat.badgeColor}>{stat.subtitle}</span>
                           </div>
                         )}
@@ -1131,7 +1138,7 @@ export default function Landing() {
                   <div className="bg-primary/5 rounded-xl p-6 border border-primary/20 animate-in fade-in slide-in-from-bottom-4 duration-500" role="region" aria-live="polite" aria-label="Generated reply">
                     <div className="flex items-start gap-3">
                       <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center flex-shrink-0" aria-hidden="true">
-                        <Sparkles className="w-5 h-5 text-white" />
+                        <Sparks className="w-5 h-5 text-white" />
                       </div>
                       <div className="flex-1">
                         <div className="flex items-center justify-between mb-2">
@@ -1168,7 +1175,7 @@ export default function Landing() {
                 {!demoTweet && (
                   <div>
                     <div className="text-center text-sm text-muted-foreground mb-4">
-                      <Sparkles className="w-4 h-4 inline mr-2" aria-hidden="true" />
+                      <Sparks className="w-4 h-4 inline mr-2" aria-hidden="true" />
                       Start typing to see AI-generated replies appear instantly
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -1240,19 +1247,19 @@ export default function Landing() {
           <p className="text-center text-sm text-muted-foreground mb-8 font-medium">Trusted by teams at</p>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 max-w-4xl mx-auto items-center opacity-60">
             <div className="flex items-center justify-center gap-2">
-              <Building2 className="w-5 h-5" />
+              <Building className="w-5 h-5" />
               <span className="font-semibold text-lg">TechCorp</span>
             </div>
             <div className="flex items-center justify-center gap-2">
-              <Building2 className="w-5 h-5" />
+              <Building className="w-5 h-5" />
               <span className="font-semibold text-lg">StartupLabs</span>
             </div>
             <div className="flex items-center justify-center gap-2">
-              <Building2 className="w-5 h-5" />
+              <Building className="w-5 h-5" />
               <span className="font-semibold text-lg">GrowthHub</span>
             </div>
             <div className="flex items-center justify-center gap-2">
-              <Building2 className="w-5 h-5" />
+              <Building className="w-5 h-5" />
               <span className="font-semibold text-lg">MediaFlow</span>
             </div>
           </div>
@@ -1276,7 +1283,7 @@ export default function Landing() {
         <div className="container">
           <div className="text-center mb-12">
             <Badge variant="secondary" className="mb-4 glass-effect border border-primary/20">
-              <Award className="w-4 h-4 mr-2" />
+              <Medal className="w-4 h-4 mr-2" />
               Recognition
             </Badge>
             <h2 className="text-3xl md:text-4xl font-display font-bold">
@@ -1293,14 +1300,14 @@ export default function Landing() {
             </Card>
             <Card className="neomorphic border-0 p-6 text-center hover-lift card-modern">
               <div className="w-12 h-12 bg-green-500 rounded-xl flex items-center justify-center mx-auto mb-4">
-                <TrendingUp className="w-6 h-6 text-white" />
+                <StatUp className="w-6 h-6 text-white" />
               </div>
               <p className="font-semibold text-lg mb-1">TechCrunch</p>
               <p className="text-sm text-muted-foreground">Featured Startup</p>
             </Card>
             <Card className="neomorphic border-0 p-6 text-center hover-lift card-modern">
               <div className="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center mx-auto mb-4">
-                <Zap className="w-6 h-6 text-white" />
+                <Flash className="w-6 h-6 text-white" />
               </div>
               <p className="font-semibold text-lg mb-1">VentureBeat</p>
               <p className="text-sm text-muted-foreground">AI Innovation Award</p>
@@ -1378,7 +1385,7 @@ export default function Landing() {
         <div className="container">
           <div className="text-center mb-16">
             <Badge variant="secondary" className="mb-4 glass-effect border border-primary/20">
-              <TrendingUp className="w-4 h-4 mr-2" />
+              <StatUp className="w-4 h-4 mr-2" />
               Real Results
             </Badge>
             <h2 className="text-4xl md:text-5xl font-display font-bold mb-6">
@@ -1780,7 +1787,7 @@ export default function Landing() {
                   className="h-16 px-10 text-lg bg-primary text-white border-0 font-semibold hover:scale-105 transition-all duration-300"
                   data-testid="button-final-cta"
                 >
-                  <Sparkles className="w-6 h-6 mr-3" />
+                  <Sparks className="w-6 h-6 mr-3" />
                   Start Free Trial
                   <ArrowRight className="w-6 h-6 ml-3" />
                 </Button>
@@ -1796,7 +1803,7 @@ export default function Landing() {
                 {[
                   { icon: Shield, text: "Secure & Private" },
                   { icon: CheckCircle, text: "Cancel Anytime" },
-                  { icon: Sparkles, text: "AI Enhanced" }
+                  { icon: Sparks, text: "AI Enhanced" }
                 ].map((item, index) => {
                   const IconComponent = item.icon;
                   return (
@@ -1828,7 +1835,7 @@ export default function Landing() {
             <div className="md:col-span-2">
               <div className="flex items-center space-x-2 mb-4">
                 <div className="w-6 h-6 rounded-lg bg-primary flex items-center justify-center" aria-hidden="true">
-                  <Sparkles className="w-3 h-3 text-white" />
+                  <Sparks className="w-3 h-3 text-white" />
                 </div>
                 <span className="font-display font-bold text-lg">TweetReplyAI</span>
               </div>

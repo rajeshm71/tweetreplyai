@@ -5,7 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Check, Sparkles, Rocket, Crown, Gift, TrendingUp, Star } from "lucide-react";
+import { IconCheck, IconSparkles, IconRocket, IconCrown } from "@tabler/icons-react";
 import { apiRequest } from "@/lib/queryClient";
 import { PRICING_CONFIG, creditsPerCycleLabel, formatCreditsLimit } from "@/config/pricing";
 import { isUnauthorizedError } from "@/lib/authUtils";
@@ -81,7 +81,7 @@ export function PricingCards() {
   // Pricing tier color configurations
   const pricingTiers = {
     trial: {
-      icon: Sparkles,
+      icon: IconSparkles,
       iconGradient: "from-blue-500 to-cyan-500",
       solidBg: "bg-blue-500",
       emoji: "🎁",
@@ -94,7 +94,7 @@ export function PricingCards() {
       badgeColor: "bg-blue-500/10 text-blue-600 border-blue-500/20"
     },
     weekly: {
-      icon: Rocket,
+      icon: IconRocket,
       iconGradient: "from-green-500 to-emerald-500",
       solidBg: "bg-green-500",
       emoji: "🚀",
@@ -107,7 +107,7 @@ export function PricingCards() {
       badgeColor: "bg-gradient-to-r from-green-500/20 to-emerald-500/20 text-green-700 border-green-500/30"
     },
     monthly: {
-      icon: Crown,
+      icon: IconCrown,
       iconGradient: "from-purple-500 to-pink-500",
       solidBg: "bg-purple-500",
       emoji: "👑",
@@ -196,23 +196,23 @@ export function PricingCards() {
           
           <div className="space-y-4 mb-8">
             <div className="flex items-center space-x-3">
-              <Check className={`w-4 h-4 ${pricingTiers.trial.textColor} flex-shrink-0`} />
+              <IconCheck className={`w-4 h-4 ${pricingTiers.trial.textColor} flex-shrink-0`} />
               <span className="text-sm">Smart Tone Detection</span>
             </div>
             <div className="flex items-center space-x-3">
-              <Check className={`w-4 h-4 ${pricingTiers.trial.textColor} flex-shrink-0`} />
+              <IconCheck className={`w-4 h-4 ${pricingTiers.trial.textColor} flex-shrink-0`} />
               <span className="text-sm">Context-Aware Replies</span>
             </div>
             <div className="flex items-center space-x-3">
-              <Check className={`w-4 h-4 ${pricingTiers.trial.textColor} flex-shrink-0`} />
+              <IconCheck className={`w-4 h-4 ${pricingTiers.trial.textColor} flex-shrink-0`} />
               <span className="text-sm">Auto Like on Reply</span>
             </div>
             <div className="flex items-center space-x-3">
-              <Check className={`w-4 h-4 ${pricingTiers.trial.textColor} flex-shrink-0`} />
+              <IconCheck className={`w-4 h-4 ${pricingTiers.trial.textColor} flex-shrink-0`} />
               <span className="text-sm">Quality Scoring</span>
             </div>
             <div className="flex items-center space-x-3">
-              <Check className={`w-4 h-4 ${pricingTiers.trial.textColor} flex-shrink-0`} />
+              <IconCheck className={`w-4 h-4 ${pricingTiers.trial.textColor} flex-shrink-0`} />
               <span className="text-sm">History Tracking</span>
             </div>
             <div className="flex items-center space-x-3 pt-2">
@@ -301,23 +301,23 @@ export function PricingCards() {
           
           <div className="space-y-4 mb-8">
             <div className="flex items-center space-x-3">
-              <Check className={`w-4 h-4 ${pricingTiers.weekly.textColor} flex-shrink-0`} />
+              <IconCheck className={`w-4 h-4 ${pricingTiers.weekly.textColor} flex-shrink-0`} />
               <span className="text-sm">Smart Tone Detection</span>
             </div>
             <div className="flex items-center space-x-3">
-              <Check className={`w-4 h-4 ${pricingTiers.weekly.textColor} flex-shrink-0`} />
+              <IconCheck className={`w-4 h-4 ${pricingTiers.weekly.textColor} flex-shrink-0`} />
               <span className="text-sm">Context-Aware Replies</span>
             </div>
             <div className="flex items-center space-x-3">
-              <Check className={`w-4 h-4 ${pricingTiers.weekly.textColor} flex-shrink-0`} />
+              <IconCheck className={`w-4 h-4 ${pricingTiers.weekly.textColor} flex-shrink-0`} />
               <span className="text-sm">Auto Like on Reply</span>
             </div>
             <div className="flex items-center space-x-3">
-              <Check className={`w-4 h-4 ${pricingTiers.weekly.textColor} flex-shrink-0`} />
+              <IconCheck className={`w-4 h-4 ${pricingTiers.weekly.textColor} flex-shrink-0`} />
               <span className="text-sm">Quality Scoring</span>
             </div>
             <div className="flex items-center space-x-3">
-              <Check className={`w-4 h-4 ${pricingTiers.weekly.textColor} flex-shrink-0`} />
+              <IconCheck className={`w-4 h-4 ${pricingTiers.weekly.textColor} flex-shrink-0`} />
               <span className="text-sm">History Tracking</span>
             </div>
             <div className="flex items-center space-x-3 pt-2">
@@ -399,23 +399,23 @@ export function PricingCards() {
           
           <div className="space-y-4 mb-8">
             <div className="flex items-center space-x-3">
-              <Check className={`w-4 h-4 ${pricingTiers.monthly.textColor} flex-shrink-0`} />
+              <IconCheck className={`w-4 h-4 ${pricingTiers.monthly.textColor} flex-shrink-0`} />
               <span className="text-sm">Smart Tone Detection</span>
             </div>
             <div className="flex items-center space-x-3">
-              <Check className={`w-4 h-4 ${pricingTiers.monthly.textColor} flex-shrink-0`} />
+              <IconCheck className={`w-4 h-4 ${pricingTiers.monthly.textColor} flex-shrink-0`} />
               <span className="text-sm">Context-Aware Replies</span>
             </div>
             <div className="flex items-center space-x-3">
-              <Check className={`w-4 h-4 ${pricingTiers.monthly.textColor} flex-shrink-0`} />
+              <IconCheck className={`w-4 h-4 ${pricingTiers.monthly.textColor} flex-shrink-0`} />
               <span className="text-sm">Auto Like on Reply</span>
             </div>
             <div className="flex items-center space-x-3">
-              <Check className={`w-4 h-4 ${pricingTiers.monthly.textColor} flex-shrink-0`} />
+              <IconCheck className={`w-4 h-4 ${pricingTiers.monthly.textColor} flex-shrink-0`} />
               <span className="text-sm">Quality Scoring</span>
             </div>
             <div className="flex items-center space-x-3">
-              <Check className={`w-4 h-4 ${pricingTiers.monthly.textColor} flex-shrink-0`} />
+              <IconCheck className={`w-4 h-4 ${pricingTiers.monthly.textColor} flex-shrink-0`} />
               <span className="text-sm">History Tracking</span>
             </div>
             <div className="flex items-center space-x-3 pt-2">

@@ -1,7 +1,8 @@
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
-import { TrendingUp, Download, X, Chrome, Clock, Zap, ChevronDown, ChevronUp } from "lucide-react";
+import { GoogleChromeLogo, DownloadSimple, X, CaretDown, CaretUp } from "@phosphor-icons/react";
+import { IconBolt, IconClock, IconTrendingUp } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { AppHeader } from "@/components/app-header";
@@ -214,7 +215,7 @@ export default function Home() {
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4">
               <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0 w-full sm:w-auto">
                 <div className="w-8 h-8 sm:w-10 sm:h-10 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg">
-                  <Chrome className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
+                  <GoogleChromeLogo className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-xs sm:text-sm md:text-base truncate">
@@ -231,7 +232,7 @@ export default function Home() {
                   className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white hover:from-blue-600 hover:to-indigo-700 font-semibold h-8 sm:h-9 px-3 sm:px-4 text-xs sm:text-sm flex-1 sm:flex-initial rounded-lg shadow-md"
                   data-testid="button-chrome-extension-banner"
                 >
-                  <Download className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                  <DownloadSimple className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
                   Add to Chrome
                 </Button>
                 <Button 
@@ -279,7 +280,7 @@ export default function Home() {
                     {/* Header with Icon */}
                     <div className="flex items-center gap-3 mb-4">
                       <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center relative overflow-hidden">
-                        <Zap className="w-5 h-5 text-white relative z-10" />
+                        <IconBolt className="w-5 h-5 text-white relative z-10" />
                       </div>
                       <div className="flex-1">
                         <h3 className="font-semibold text-lg bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">
@@ -319,7 +320,7 @@ export default function Home() {
 
                     {/* Reset Time */}
                     <div className="flex items-center gap-2 p-3 bg-muted/30 rounded-lg border border-border/50">
-                      <Clock className="w-4 h-4 text-primary flex-shrink-0" />
+                      <IconClock className="w-4 h-4 text-primary flex-shrink-0" />
                       <span className="text-sm text-muted-foreground">
                         Resets {formatDistanceToNow(new Date(usageStatus.resetAt), { addSuffix: true })}
                       </span>
@@ -334,9 +335,9 @@ export default function Home() {
                         >
                           <span>Credit Breakdown</span>
                           {showBreakdown ? (
-                            <ChevronUp className="w-4 h-4" />
+                            <CaretUp className="w-4 h-4" />
                           ) : (
-                            <ChevronDown className="w-4 h-4" />
+                            <CaretDown className="w-4 h-4" />
                           )}
                         </button>
                         
@@ -381,7 +382,7 @@ export default function Home() {
                           onClick={() => setLocation('/pricing')}
                           className="w-full bg-primary hover:bg-primary/90 text-white font-semibold shadow-lg"
                         >
-                          <TrendingUp className="w-4 h-4 mr-2" />
+                          <IconTrendingUp className="w-4 h-4 mr-2" />
                           Upgrade to Pro
                         </Button>
                       </div>
@@ -398,7 +399,7 @@ export default function Home() {
                   <CardContent className="p-6">
                     <div className="flex items-center gap-2 mb-4">
                       <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-                        <TrendingUp className="w-4 h-4 text-white" />
+                        <IconTrendingUp className="w-4 h-4 text-white" />
                       </div>
                       <h3 className="font-semibold text-lg">Quick Stats</h3>
                     </div>

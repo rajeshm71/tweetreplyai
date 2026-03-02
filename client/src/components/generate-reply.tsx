@@ -10,7 +10,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Sparkles, Copy, Check, ThumbsUp, ThumbsDown, Clock, Zap, Send, User, Bot, Settings, Brain, Crown, X, TrendingUp, Feather, Wand2, PenTool, Type, FileText, MessageSquare } from "lucide-react";
+// Core app UI icons per plan: Phosphor for toolbar, reply bubbles, buttons. Tabler only for stats/quality in analytics.
+import { Sparkle, Copy, Check, Clock, Lightning, PaperPlaneTilt, User, Robot, Gear, Brain, Crown, X, ChatCircle } from "@phosphor-icons/react";
+import { IconTrendingUp, IconBrain, IconBolt } from "@tabler/icons-react";
 import { apiRequest } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
@@ -534,7 +536,7 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
             data-testid="button-show-improve"
             aria-label="Improve draft reply"
           >
-            <Sparkles className="w-4 h-4 mr-2" aria-hidden="true" />
+            <Sparkle className="w-4 h-4 mr-2" aria-hidden="true" />
             Improve Draft
           </Button>
           <Button
@@ -555,7 +557,7 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
         {messages.length === 0 ? (
           <div className="empty-state-modern" role="status" aria-label="Ready to generate replies">
             <div className="empty-state-icon" aria-hidden="true">
-              <MessageSquare className="w-10 h-10 text-white" />
+              <ChatCircle className="w-10 h-10 text-white" />
             </div>
             <h3 className="text-xl font-semibold mb-2 text-foreground">Ready to Generate Replies!</h3>
             <p className="text-muted-foreground max-w-md">Paste a tweet text below and I'll create an authentic reply for you.</p>
@@ -566,7 +568,7 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
               {/* AI Avatar */}
               {message.type === 'assistant' && (
                 <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                  <Bot className="w-4 h-4 text-primary" />
+                  <Robot className="w-4 h-4 text-primary" />
                 </div>
               )}
               
@@ -630,7 +632,7 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
         {generateMutation.isPending && (
           <div className="flex gap-3 justify-start" role="status" aria-live="polite" aria-label="Generating reply">
             <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0" aria-hidden="true">
-              <Bot className="w-4 h-4 text-primary" />
+              <Robot className="w-4 h-4 text-primary" />
             </div>
             <div className="bg-muted/50 text-foreground mr-12 rounded-2xl px-4 py-3">
               <div className="flex items-center space-x-2">
@@ -755,7 +757,7 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
           {showPromptStyle && (
             <div>
               <Label htmlFor="prompt-select" className="text-sm font-medium mb-2 flex items-center">
-                <Settings className="w-4 h-4 mr-2" />
+                <Gear className="w-4 h-4 mr-2" />
                 Prompt Style
               </Label>
             <Select value={selectedPrompt} onValueChange={setSelectedPrompt}>
@@ -814,7 +816,7 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
             {generateMutation.isPending ? (
               <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
             ) : (
-              <Send className="w-5 h-5" />
+              <PaperPlaneTilt className="w-5 h-5" />
             )}
           </Button>
         </div>
@@ -1225,13 +1227,13 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
                       {simpleAnalyticsData.insights.map((insight, i) => (
                         <div key={i} className="flex items-start gap-2">
                           {insight.type === 'success' && (
-                            <TrendingUp className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
+                            <IconTrendingUp className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
                           )}
                           {insight.type === 'info' && (
-                            <Brain className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                            <IconBrain className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
                           )}
                           {insight.type === 'streak' && (
-                            <Zap className="w-4 h-4 text-orange-600 mt-0.5 flex-shrink-0" />
+                            <IconBolt className="w-4 h-4 text-orange-600 mt-0.5 flex-shrink-0" />
                           )}
                           <p className="text-sm">{insight.text}</p>
                         </div>
@@ -1245,7 +1247,7 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
               {!simpleAnalyticsData && (
                 <Card>
                   <CardContent className="p-8 text-center">
-                    <Brain className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
+                    <IconBrain className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
                     <p className="text-sm text-muted-foreground">
                       Generate your first reply to see analytics
                     </p>

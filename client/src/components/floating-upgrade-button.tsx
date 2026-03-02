@@ -1,4 +1,4 @@
-import { Crown } from "lucide-react";
+import { Crown } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";

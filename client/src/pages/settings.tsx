@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
-import { Bell, Shield, Trash2, AlertTriangle, Settings, CreditCard } from "lucide-react";
+import { Bell, Shield, Trash, Warning, Gear, CreditCard } from "@phosphor-icons/react";
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -475,7 +475,7 @@ export default function SettingsPage() {
           <Card data-testid="card-reply-generation">
             <CardHeader>
               <div className="flex items-center gap-2">
-                <Settings className="w-5 h-5" />
+                <Gear className="w-5 h-5" />
                 <CardTitle>Reply Generation</CardTitle>
               </div>
               <CardDescription>
@@ -565,7 +565,7 @@ export default function SettingsPage() {
           <Card className="border-destructive/50" data-testid="card-danger-zone">
             <CardHeader>
               <div className="flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5 text-destructive" />
+                <Warning className="w-5 h-5 text-destructive" />
                 <CardTitle className="text-destructive">Danger Zone</CardTitle>
               </div>
               <CardDescription>
@@ -581,7 +581,7 @@ export default function SettingsPage() {
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
                     <Button variant="destructive" data-testid="button-delete-account">
-                      <Trash2 className="w-4 h-4 mr-2" />
+                      <Trash className="w-4 h-4 mr-2" />
                       Delete Account
                     </Button>
                   </AlertDialogTrigger>

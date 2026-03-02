@@ -1,6 +1,6 @@
 import { Link } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
-import { Sparkles, Check, Zap, ArrowRight, Crown, Rocket } from "lucide-react";
+import { IconSparkles, IconCheck, IconArrowRight, IconCrown, IconRocket } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -16,7 +16,7 @@ export default function Pricing() {
         <div className="container flex items-center justify-between h-16">
           <div className="flex items-center space-x-2">
             <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-              <Sparkles className="w-4 h-4 text-white" />
+              <IconSparkles className="w-4 h-4 text-white" />
             </div>
             <span className="font-display font-bold text-xl">TweetReply</span>
           </div>
@@ -32,7 +32,7 @@ export default function Pricing() {
                 className="bg-primary text-white hover-lift border-0 transition-all duration-300"
               >
                 Sign In
-                <ArrowRight className="w-4 h-4 ml-2" />
+                <IconArrowRight className="w-4 h-4 ml-2" />
               </Button>
             )}
           </div>
@@ -49,7 +49,7 @@ export default function Pricing() {
             
             <div className="text-center mb-20 relative z-10">
               <Badge variant="secondary" className="mb-6 px-4 py-2 text-sm font-medium glass-effect border border-primary/20">
-                <Crown className="w-4 h-4 mr-2" />
+                <IconCrown className="w-4 h-4 mr-2" />
                 Choose Your Plan
               </Badge>
               
@@ -82,7 +82,7 @@ export default function Pricing() {
             <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-purple-500/10" />
             <div className="relative z-10">
               <Badge variant="secondary" className="mb-4 glass-effect border border-primary/20">
-                <Rocket className="w-4 h-4 mr-2" />
+                <IconRocket className="w-4 h-4 mr-2" />
                 Ready to Start Replying?
               </Badge>
               <h2 className="text-4xl md:text-5xl font-display font-bold mb-6">
@@ -98,14 +98,14 @@ export default function Pricing() {
                   onClick={() => window.location.href = '/api/login'}
                   className="h-14 px-8 text-lg bg-primary text-white hover-lift border-0 font-semibold transition-all duration-300"
                 >
-                  <Sparkles className="w-5 h-5 mr-3" />
+                  <IconSparkles className="w-5 h-5 mr-3" />
                   Start Free Trial
-                  <ArrowRight className="w-5 h-5 ml-3" />
+                  <IconArrowRight className="w-5 h-5 ml-3" />
                 </Button>
                 <div className="flex items-center space-x-3 text-sm text-muted-foreground">
-                  <Check className="w-4 h-4 text-primary" />
+                  <IconCheck className="w-4 h-4 text-primary" />
                   <span>No credit card required</span>
-                  <Check className="w-4 h-4 text-primary" />
+                  <IconCheck className="w-4 h-4 text-primary" />
                   <span>7-day free trial</span>
                 </div>
               </div>
@@ -120,7 +120,7 @@ export default function Pricing() {
           <div className="text-center">
             <div className="flex items-center justify-center space-x-2 mb-4">
               <div className="w-6 h-6 rounded-lg bg-primary flex items-center justify-center">
-                <Sparkles className="w-3 h-3 text-white" />
+                <IconSparkles className="w-3 h-3 text-white" />
               </div>
               <span className="font-display font-bold text-lg">TweetReply</span>
             </div>

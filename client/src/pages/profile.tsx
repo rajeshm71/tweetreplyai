@@ -4,9 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Mail, Shield, Download, Check, Chrome } from "lucide-react";
+import { Envelope, Shield, Download, Check, GoogleChromeLogo, ChatCircle } from "@phosphor-icons/react";
 import { SiGoogle } from "react-icons/si";
-import { MessageCircle } from "lucide-react";
 
 export default function ProfilePage() {
   const { user, isLoading } = useAuth();
@@ -45,7 +44,7 @@ export default function ProfilePage() {
       case 'google':
         return <SiGoogle className="w-4 h-4" />;
       case 'local':
-        return <Mail className="w-4 h-4" />;
+        return <Envelope className="w-4 h-4" />;
       default:
         return <Shield className="w-4 h-4" />;
     }
@@ -94,7 +93,7 @@ export default function ProfilePage() {
                     {getUserDisplayName()}
                   </h3>
                   <p className="text-sm text-muted-foreground flex items-center gap-2" data-testid="text-profile-email">
-                    <Mail className="w-4 h-4" />
+                    <Envelope className="w-4 h-4" />
                     {user.email}
                     {user.emailVerified && (
                       <Badge variant="secondary" className="ml-2">
@@ -151,7 +150,7 @@ export default function ProfilePage() {
           <Card data-testid="card-chrome-extension">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Chrome className="w-5 h-5" />
+                <GoogleChromeLogo className="w-5 h-5" />
                 Chrome Extension
               </CardTitle>
               <CardDescription>
@@ -207,7 +206,7 @@ export default function ProfilePage() {
                 }}
                 data-testid="button-billing-portal"
               >
-                <Mail className="w-4 h-4 mr-2" />
+                <Envelope className="w-4 h-4 mr-2" />
                 Manage Billing
               </Button>
             </CardContent>

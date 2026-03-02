@@ -8,7 +8,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { Lock, Mail, User, ArrowRight } from "lucide-react";
+// Core app icons: Phosphor per plan (auth, header, settings, etc.)
+import { Lock, Envelope, User, CaretRight } from "@phosphor-icons/react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -225,7 +226,7 @@ export default function AuthPage() {
                   <div className="space-y-2">
                     <Label htmlFor="forgot-email">Email</Label>
                     <div className="relative">
-                      <Mail className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
+                      <Envelope className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
                       <Input
                         id="forgot-email"
                         type="email"
@@ -299,7 +300,7 @@ export default function AuthPage() {
                 <div className="space-y-2">
                   <Label htmlFor="login-email">Email Address</Label>
                   <div className="relative">
-                    <Mail className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
+                    <Envelope className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
                     <Input
                       id="login-email"
                       type="email"
@@ -362,7 +363,7 @@ export default function AuthPage() {
                   data-testid="button-login-submit"
                 >
                   {loginMutation.isPending ? "Signing in..." : "Sign In"}
-                  <ArrowRight className="w-4 h-4 ml-2" />
+                  <CaretRight className="w-4 h-4 ml-2" />
                 </Button>
               </form>
             </div>
@@ -424,7 +425,7 @@ export default function AuthPage() {
               <div className="space-y-2">
                 <Label htmlFor="register-email">Email Address</Label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
+                  <Envelope className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
                   <Input
                     id="register-email"
                     type="email"
@@ -469,7 +470,7 @@ export default function AuthPage() {
                 data-testid="button-register-submit"
               >
                 {registerMutation.isPending ? "Creating account..." : "Create Account"}
-                <ArrowRight className="w-4 h-4 ml-2" />
+                <CaretRight className="w-4 h-4 ml-2" />
               </Button>
             </form>
           </>

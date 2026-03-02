@@ -1,4 +1,4 @@
-import { User, Settings, LogOut, Home, Download, Crown } from "lucide-react";
+import { User, Gear, SignOut, House, Download, Crown } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -72,7 +72,7 @@ export function AppHeader() {
                 data-testid="button-nav-home"
                 aria-label="Navigate to home page"
               >
-                <Home className="w-4 h-4" aria-hidden="true" />
+                <House className="w-4 h-4" aria-hidden="true" />
                 <span>Home</span>
               </Button>
               
@@ -147,12 +147,12 @@ export function AppHeader() {
                   <span>Profile</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setLocation('/settings')} data-testid="menu-item-settings" role="menuitem" aria-label="View settings">
-                  <Settings className="mr-2 h-4 w-4" aria-hidden="true" />
+                  <Gear className="mr-2 h-4 w-4" aria-hidden="true" />
                   <span>Settings</span>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLogout} data-testid="menu-item-logout" role="menuitem" aria-label="Log out">
-                  <LogOut className="mr-2 h-4 w-4" aria-hidden="true" />
+                  <SignOut className="mr-2 h-4 w-4" aria-hidden="true" />
                   <span>Logout</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>

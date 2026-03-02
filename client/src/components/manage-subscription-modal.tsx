@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Check, ArrowRight } from "lucide-react";
+import { Check, CaretRight } from "@phosphor-icons/react";
 import { PRICING_CONFIG } from "@/config/pricing";
 import { SubscriptionCancelConfirmDialog } from "@/components/subscription-cancel-confirm-dialog";
 
@@ -164,7 +164,7 @@ export function ManageSubscriptionModal({
                   className="w-full"
                 >
                   Switch to {alternativePlan.name}
-                  <ArrowRight className="w-4 h-4 ml-2" />
+                  <CaretRight className="w-4 h-4 ml-2" />
                 </Button>
               )}
               

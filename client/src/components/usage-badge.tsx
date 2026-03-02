@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Clock, AlertCircle, Crown, ChevronDown, ChevronUp } from "lucide-react";
+import { Clock, Warning, Crown, CaretDown, CaretUp } from "@phosphor-icons/react";
 import { formatDistanceToNow } from "date-fns";
 import { useLocation } from "wouter";
 import { useState } from "react";
@@ -48,7 +48,7 @@ export function UsageBadge({ showDetails = false }: UsageBadgeProps) {
   if (error || !usage) {
     return (
       <div className="flex items-center space-x-2">
-        <AlertCircle className="w-4 h-4 text-destructive" />
+        <Warning className="w-4 h-4 text-destructive" />
         <span className="text-sm text-destructive">Error loading usage</span>
       </div>
     );
@@ -96,9 +96,9 @@ export function UsageBadge({ showDetails = false }: UsageBadgeProps) {
                 >
                   <span>Credit Breakdown</span>
                   {showBreakdown ? (
-                    <ChevronUp className="w-4 h-4" />
+                    <CaretUp className="w-4 h-4" />
                   ) : (
-                    <ChevronDown className="w-4 h-4" />
+                    <CaretDown className="w-4 h-4" />
                   )}
                 </button>
                 

@@ -9,7 +9,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle, X } from "lucide-react";
+import { Warning, X } from "@phosphor-icons/react";
 import { PRICING_CONFIG } from "@/config/pricing";
 
 interface SubscriptionCancelConfirmDialogProps {
@@ -81,7 +81,7 @@ export function SubscriptionCancelConfirmDialog({
         <AlertDialogHeader>
           <div className="flex items-center gap-3 mb-2">
             <div className="w-10 h-10 rounded-full bg-destructive/10 flex items-center justify-center">
-              <AlertTriangle className="w-5 h-5 text-destructive" />
+              <Warning className="w-5 h-5 text-destructive" />
             </div>
             <AlertDialogTitle>Cancel Subscription?</AlertDialogTitle>
           </div>
