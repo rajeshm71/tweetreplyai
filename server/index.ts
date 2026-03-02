@@ -6,6 +6,9 @@ import { serveStatic, log } from "./static.js";
 
 const app = express();
 
+// Trust first proxy (e.g. Vercel) so X-Forwarded-For is used and express-rate-limit can identify clients
+app.set('trust proxy', 1);
+
 // Apply raw body parser for webhook route BEFORE json parser
 // This is critical for webhook signature verification
 app.use('/api/dodo/webhook', express.raw({ type: 'application/json' }));
