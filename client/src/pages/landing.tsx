@@ -35,6 +35,7 @@ export default function Landing() {
       reply: "If it comes with a Dogecoin wallet, I'm in 😂",
       icon: Rocket,
       iconGradient: "from-orange-500 to-amber-500",
+      solidBg: "bg-orange-500",
       usernameColor: "text-orange-600",
       usernameEmoji: "🚀",
       cardGradient: "from-orange-500/5 to-amber-500/5",
@@ -46,6 +47,7 @@ export default function Landing() {
       reply: "TweetReplyAI ironically! Saves me hours crafting authentic replies daily 🚀",
       icon: TrendingUp,
       iconGradient: "from-green-500 to-emerald-500",
+      solidBg: "bg-green-500",
       usernameColor: "text-green-600",
       usernameEmoji: "🔥",
       cardGradient: "from-green-500/5 to-emerald-500/5",
@@ -57,6 +59,7 @@ export default function Landing() {
       reply: "Game changer for engagement! AI handles the replies, we focus on strategy ⚡",
       icon: Zap,
       iconGradient: "from-blue-500 to-indigo-500",
+      solidBg: "bg-blue-500",
       usernameColor: "text-blue-600",
       usernameEmoji: "⚡",
       cardGradient: "from-blue-500/5 to-indigo-500/5",
@@ -68,6 +71,7 @@ export default function Landing() {
       reply: "Congrats! Build in public, engage authentically, and ship fast. You've got this! 🎉",
       icon: Crown,
       iconGradient: "from-purple-500 to-pink-500",
+      solidBg: "bg-purple-500",
       usernameColor: "text-purple-600",
       usernameEmoji: "👑",
       cardGradient: "from-purple-500/5 to-pink-500/5",
@@ -119,6 +123,7 @@ export default function Landing() {
       verified: true,
       avatar: "AT",
       gradient: "from-blue-500 to-cyan-500",
+      solidBg: "bg-blue-500",
       colorTheme: "blue"
     },
     {
@@ -129,6 +134,7 @@ export default function Landing() {
       verified: true,
       avatar: "AP",
       gradient: "from-purple-500 to-pink-500",
+      solidBg: "bg-purple-500",
       colorTheme: "purple"
     },
     {
@@ -139,6 +145,7 @@ export default function Landing() {
       verified: true,
       avatar: "JM",
       gradient: "from-orange-500 to-amber-500",
+      solidBg: "bg-orange-500",
       colorTheme: "orange"
     }
   ];
@@ -159,7 +166,8 @@ export default function Landing() {
       description: "Not satisfied with a reply? Instantly regenerate and improve it with better context, tone, or style. Get the perfect response every time.",
       feature: "Perfect replies every time",
       gradient: "from-purple-500/10 via-transparent to-indigo-500/10",
-      iconGradient: "from-purple-500 to-indigo-500"
+      iconGradient: "from-purple-500 to-indigo-500",
+      solidBg: "bg-purple-500"
     },
     {
       icon: Clock,
@@ -167,7 +175,8 @@ export default function Landing() {
       description: "Access your complete reply history instantly. Browse, search, and reuse your best replies anytime. Never lose track of your conversations.",
       feature: "Complete conversation history",
       gradient: "from-blue-500/10 via-transparent to-cyan-500/10",
-      iconGradient: "from-blue-500 to-cyan-500"
+      iconGradient: "from-blue-500 to-cyan-500",
+      solidBg: "bg-blue-500"
     },
     {
       icon: TrendingUp,
@@ -175,7 +184,8 @@ export default function Landing() {
       description: "Track your reply performance with detailed analytics. See quality scores, engagement metrics, and feedback stats to improve over time.",
       feature: "Performance insights",
       gradient: "from-green-500/10 via-transparent to-emerald-500/10",
-      iconGradient: "from-green-500 to-emerald-500"
+      iconGradient: "from-green-500 to-emerald-500",
+      solidBg: "bg-green-500"
     },
     {
       icon: Users,
@@ -183,7 +193,8 @@ export default function Landing() {
       description: "Track how many times you've replied to a particular user in a day. Avoid over-replying and maintain balanced interactions.",
       feature: "Smart interaction balance",
       gradient: "from-orange-500/10 via-transparent to-amber-500/10",
-      iconGradient: "from-orange-500 to-amber-500"
+      iconGradient: "from-orange-500 to-amber-500",
+      solidBg: "bg-orange-500"
     },
     {
       icon: Brain,
@@ -191,7 +202,8 @@ export default function Landing() {
       description: "Add your reply style and the system will reply like you, learning from your writing patterns. Maintain your authentic voice in every reply.",
       feature: "Your authentic voice",
       gradient: "from-violet-500/10 via-transparent to-purple-500/10",
-      iconGradient: "from-violet-500 to-purple-500"
+      iconGradient: "from-violet-500 to-purple-500",
+      solidBg: "bg-violet-500"
     },
     {
       icon: Zap,
@@ -199,7 +211,8 @@ export default function Landing() {
       description: "AI understands the tweet context and automatically selects the appropriate response style, whether it's humorous, supportive, professional, or casual.",
       feature: "Perfect tone matching",
       gradient: "from-yellow-500/10 via-transparent to-orange-500/10",
-      iconGradient: "from-yellow-500 to-orange-500"
+      iconGradient: "from-yellow-500 to-orange-500",
+      solidBg: "bg-yellow-500"
     },
     {
       icon: Heart,
@@ -207,7 +220,8 @@ export default function Landing() {
       description: "Automatically like tweets when you reply, saving time and boosting engagement. Perfect for maintaining active presence without manual clicks.",
       feature: "Boost engagement automatically",
       gradient: "from-red-500/10 via-transparent to-pink-500/10",
-      iconGradient: "from-red-500 to-pink-500"
+      iconGradient: "from-red-500 to-pink-500",
+      solidBg: "bg-red-500"
     },
     {
       icon: Rocket,
@@ -215,7 +229,8 @@ export default function Landing() {
       description: "Get AI replies in seconds, not minutes. Our optimized models deliver contextual responses instantly, so you never miss a conversation.",
       feature: "Lightning fast replies",
       gradient: "from-cyan-500/10 via-transparent to-blue-500/10",
-      iconGradient: "from-cyan-500 to-blue-500"
+      iconGradient: "from-cyan-500 to-blue-500",
+      solidBg: "bg-cyan-500"
     },
     {
       icon: MessageCircle,
@@ -223,7 +238,8 @@ export default function Landing() {
       description: "Understands conversation threads, author context, and tweet metadata. Generates replies that fit naturally into ongoing discussions.",
       feature: "Natural conversation flow",
       gradient: "from-indigo-500/10 via-transparent to-purple-500/10",
-      iconGradient: "from-indigo-500 to-purple-500"
+      iconGradient: "from-indigo-500 to-purple-500",
+      solidBg: "bg-indigo-500"
     },
     {
       icon: Star,
@@ -231,7 +247,8 @@ export default function Landing() {
       description: "Every reply gets an AI quality score. See how well your responses match tone, context, and authenticity before posting.",
       feature: "Quality assurance",
       gradient: "from-amber-500/10 via-transparent to-yellow-500/10",
-      iconGradient: "from-amber-500 to-yellow-500"
+      iconGradient: "from-amber-500 to-yellow-500",
+      solidBg: "bg-amber-500"
     },
     {
       icon: Chrome,
@@ -239,7 +256,8 @@ export default function Landing() {
       description: "Seamless Chrome extension works directly on X. Click once, get instant replies without leaving your feed. No copy-paste needed.",
       feature: "Seamless workflow",
       gradient: "from-blue-600/10 via-transparent to-cyan-500/10",
-      iconGradient: "from-blue-600 to-cyan-500"
+      iconGradient: "from-blue-600 to-cyan-500",
+      solidBg: "bg-blue-600"
     },
     {
       icon: Smartphone,
@@ -247,7 +265,8 @@ export default function Landing() {
       description: "Works perfectly on desktop, tablet, and mobile. Generate replies on-the-go with our responsive web interface.",
       feature: "Works everywhere",
       gradient: "from-slate-500/10 via-transparent to-gray-500/10",
-      iconGradient: "from-slate-500 to-gray-500"
+      iconGradient: "from-slate-500 to-gray-500",
+      solidBg: "bg-slate-500"
     }
   ] as const;
 
@@ -855,7 +874,7 @@ export default function Landing() {
                       
                       <div className="relative z-10 flex items-start gap-3">
                         {/* User-specific icon with gradient */}
-                        <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${exampleReplies[currentExampleIndex].iconGradient} flex items-center justify-center flex-shrink-0 shadow-xl`}>
+                        <div className={`w-12 h-12 rounded-xl ${exampleReplies[currentExampleIndex].solidBg} flex items-center justify-center flex-shrink-0`}>
                           {(() => {
                             const UserIcon = exampleReplies[currentExampleIndex].icon;
                             return <UserIcon className="w-6 h-6 text-white" />;
@@ -906,7 +925,7 @@ export default function Landing() {
                         
                         <div className="relative z-10 flex items-start gap-3">
                           {/* Enhanced TweetReplyAI icon */}
-                          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center flex-shrink-0 shadow-xl">
+                          <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center flex-shrink-0">
                             <Sparkles className="w-6 h-6 text-white" />
                           </div>
                           <div className="flex-1 min-w-0">
@@ -960,6 +979,7 @@ export default function Landing() {
                   emoji: "💬",
                   subtitle: stats.repliesGenerated.weeklyIncrease,
                   gradient: "from-blue-500 to-cyan-500",
+                  solidBg: "bg-blue-500",
                   borderColor: "border-blue-500/20",
                   hoverBorder: "hover:border-blue-500/40",
                   textGradient: "bg-gradient-to-r from-blue-600 to-cyan-600",
@@ -972,6 +992,7 @@ export default function Landing() {
                   icon: TrendingUp,
                   emoji: "📈",
                   gradient: "from-indigo-500 to-purple-500",
+                  solidBg: "bg-indigo-500",
                   borderColor: "border-purple-500/20",
                   hoverBorder: "hover:border-purple-500/40",
                   textGradient: "bg-gradient-to-r from-indigo-600 to-purple-600",
@@ -984,6 +1005,7 @@ export default function Landing() {
                   icon: Rocket,
                   emoji: "🚀",
                   gradient: "from-emerald-500 to-green-500",
+                  solidBg: "bg-emerald-500",
                   borderColor: "border-green-500/20",
                   hoverBorder: "hover:border-green-500/40",
                   textGradient: "bg-gradient-to-r from-emerald-600 to-green-600",
@@ -996,6 +1018,7 @@ export default function Landing() {
                   icon: Clock,
                   emoji: "⏱️",
                   gradient: "from-orange-500 to-amber-500",
+                  solidBg: "bg-orange-500",
                   borderColor: "border-orange-500/20",
                   hoverBorder: "hover:border-orange-500/40",
                   textGradient: "bg-gradient-to-r from-orange-600 to-amber-600",
@@ -1021,7 +1044,7 @@ export default function Landing() {
                       
                       <div className="relative z-10" style={{ textAlign: 'center' }}>
                         {/* Icon - Top, Centered */}
-                        <div className={`stat-icon-container w-12 h-12 md:w-14 md:h-14 rounded-xl bg-gradient-to-br ${stat.gradient} shadow-lg`} style={{ margin: '0 auto 1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <div className={`stat-icon-container w-12 h-12 md:w-14 md:h-14 rounded-xl ${stat.solidBg} flex items-center justify-center`} style={{ margin: '0 auto 1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                           <IconComponent className="w-6 h-6 md:w-7 md:h-7 text-white" />
                         </div>
                         
@@ -1107,7 +1130,7 @@ export default function Landing() {
                 {demoReply && (
                   <div className="bg-primary/5 rounded-xl p-6 border border-primary/20 animate-in fade-in slide-in-from-bottom-4 duration-500" role="region" aria-live="polite" aria-label="Generated reply">
                     <div className="flex items-start gap-3">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center flex-shrink-0" aria-hidden="true">
+                      <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center flex-shrink-0" aria-hidden="true">
                         <Sparkles className="w-5 h-5 text-white" />
                       </div>
                       <div className="flex-1">
@@ -1178,7 +1201,7 @@ export default function Landing() {
                 variant="ghost"
                 onClick={() => window.location.href = '/login'}
                 size="lg"
-                className="bg-gradient-to-r from-primary to-primary/80 text-white border-0 font-semibold hover:scale-105 transition-all duration-300"
+                className="bg-primary hover:bg-primary/90 text-white border-0 font-semibold hover:scale-105 transition-all duration-300"
                 data-testid="button-demo-cta"
               >
                 Get Full Access Now
@@ -1262,21 +1285,21 @@ export default function Landing() {
           </div>
           <div className="grid md:grid-cols-3 gap-6 max-w-3xl mx-auto">
             <Card className="neomorphic border-0 p-6 text-center hover-lift card-modern">
-              <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center mx-auto mb-4">
+              <div className="w-12 h-12 bg-orange-500 rounded-xl flex items-center justify-center mx-auto mb-4">
                 <Star className="w-6 h-6 text-white" />
               </div>
               <p className="font-semibold text-lg mb-1">Product Hunt</p>
               <p className="text-sm text-muted-foreground">#1 Product of the Day</p>
             </Card>
             <Card className="neomorphic border-0 p-6 text-center hover-lift card-modern">
-              <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-green-600 rounded-xl flex items-center justify-center mx-auto mb-4">
+              <div className="w-12 h-12 bg-green-500 rounded-xl flex items-center justify-center mx-auto mb-4">
                 <TrendingUp className="w-6 h-6 text-white" />
               </div>
               <p className="font-semibold text-lg mb-1">TechCrunch</p>
               <p className="text-sm text-muted-foreground">Featured Startup</p>
             </Card>
             <Card className="neomorphic border-0 p-6 text-center hover-lift card-modern">
-              <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center mx-auto mb-4">
+              <div className="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center mx-auto mb-4">
                 <Zap className="w-6 h-6 text-white" />
               </div>
               <p className="font-semibold text-lg mb-1">VentureBeat</p>
@@ -1319,7 +1342,7 @@ export default function Landing() {
                     <div className={`absolute inset-0 bg-gradient-to-br ${feature.gradient} opacity-0 group-hover:opacity-100 smooth-transition`} />
                     <CardContent className="p-6 text-center relative z-10 flex flex-col h-full">
                       <motion.div 
-                        className={`w-12 h-12 bg-gradient-to-br ${feature.iconGradient} rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg group-hover:scale-110 group-hover:rotate-3 smooth-transition`}
+                        className={`w-12 h-12 ${feature.solidBg} rounded-xl flex items-center justify-center mx-auto mb-4 group-hover:scale-110 group-hover:rotate-3 smooth-transition`}
                         aria-hidden="true"
                         whileHover={{ scale: 1.1, rotate: 5 }}
                         transition={{ type: "spring", stiffness: 300 }}
@@ -1536,7 +1559,7 @@ export default function Landing() {
                           <div className="flex items-center justify-center gap-4">
                             {/* Avatar */}
                             <motion.div
-                              className={`w-16 h-16 md:w-20 md:h-20 rounded-full bg-gradient-to-br ${testimonial.gradient} flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300`}
+                              className={`w-16 h-16 md:w-20 md:h-20 rounded-full ${testimonial.solidBg} flex items-center justify-center group-hover:scale-110 transition-transform duration-300`}
                               whileHover={{ scale: 1.1, rotate: 5 }}
                               transition={{ type: "spring", stiffness: 300 }}
                             >
@@ -1809,7 +1832,7 @@ export default function Landing() {
           <div className="grid md:grid-cols-4 gap-8 mb-8">
             <div className="md:col-span-2">
               <div className="flex items-center space-x-2 mb-4">
-                <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center shadow-lg" aria-hidden="true">
+                <div className="w-6 h-6 rounded-lg bg-primary flex items-center justify-center" aria-hidden="true">
                   <Sparkles className="w-3 h-3 text-white" />
                 </div>
                 <span className="font-display font-bold text-lg">TweetReplyAI</span>

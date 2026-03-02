@@ -278,8 +278,7 @@ export default function Home() {
                   <CardContent className="p-6 relative z-10">
                     {/* Header with Icon */}
                     <div className="flex items-center gap-3 mb-4">
-                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary via-purple-600 to-primary flex items-center justify-center shadow-lg relative overflow-hidden">
-                        <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent" />
+                      <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center relative overflow-hidden">
                         <Zap className="w-5 h-5 text-white relative z-10" />
                       </div>
                       <div className="flex-1">
@@ -380,7 +379,7 @@ export default function Home() {
                       <div className="mt-4">
                         <Button
                           onClick={() => setLocation('/pricing')}
-                          className="w-full bg-gradient-to-r from-primary to-purple-600 hover:from-primary/90 hover:to-purple-600/90 text-white font-semibold shadow-lg"
+                          className="w-full bg-primary hover:bg-primary/90 text-white font-semibold shadow-lg"
                         >
                           <TrendingUp className="w-4 h-4 mr-2" />
                           Upgrade to Pro
@@ -398,7 +397,7 @@ export default function Home() {
                 <Card className="card-modern-enhanced border border-primary/20 bg-gradient-to-br from-card to-card/50">
                   <CardContent className="p-6">
                     <div className="flex items-center gap-2 mb-4">
-                      <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-purple-600 flex items-center justify-center shadow-md">
+                      <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
                         <TrendingUp className="w-4 h-4 text-white" />
                       </div>
                       <h3 className="font-semibold text-lg">Quick Stats</h3>

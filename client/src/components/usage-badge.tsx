@@ -140,7 +140,7 @@ export function UsageBadge({ showDetails = false }: UsageBadgeProps) {
               <Button
                 onClick={() => setLocation('/pricing')}
                 size="sm"
-                className="w-full bg-gradient-to-r from-primary to-purple-600 hover:from-primary/90 hover:to-purple-600/90"
+                className="w-full bg-primary hover:bg-primary/90"
               >
                 <Crown className="w-3 h-3 mr-2" />
                 Upgrade to Pro

@@ -83,6 +83,7 @@ export function PricingCards() {
     trial: {
       icon: Sparkles,
       iconGradient: "from-blue-500 to-cyan-500",
+      solidBg: "bg-blue-500",
       emoji: "🎁",
       cardGradient: "from-blue-500/5 to-cyan-500/5",
       borderColor: "border-blue-500/20",
@@ -95,6 +96,7 @@ export function PricingCards() {
     weekly: {
       icon: Rocket,
       iconGradient: "from-green-500 to-emerald-500",
+      solidBg: "bg-green-500",
       emoji: "🚀",
       cardGradient: "from-green-500/5 to-emerald-500/5",
       borderColor: "border-green-500/20",
@@ -107,6 +109,7 @@ export function PricingCards() {
     monthly: {
       icon: Crown,
       iconGradient: "from-purple-500 to-pink-500",
+      solidBg: "bg-purple-500",
       emoji: "👑",
       cardGradient: "from-purple-500/5 to-pink-500/5",
       borderColor: "border-purple-500/20",
@@ -170,7 +173,7 @@ export function PricingCards() {
           <div className="text-center mb-6">
             {/* Icon */}
             <div className="flex justify-center mb-4">
-              <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${pricingTiers.trial.iconGradient} flex items-center justify-center shadow-xl`}>
+              <div className={`w-12 h-12 rounded-xl ${pricingTiers.trial.solidBg} flex items-center justify-center`}>
                 {(() => {
                   const IconComponent = pricingTiers.trial.icon;
                   return <IconComponent className="w-6 h-6 text-white" />;
@@ -257,7 +260,7 @@ export function PricingCards() {
           <div className="text-center mb-6">
             {/* Icon */}
             <div className="flex justify-center mb-4">
-              <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${pricingTiers.weekly.iconGradient} flex items-center justify-center shadow-xl`}>
+              <div className={`w-12 h-12 rounded-xl ${pricingTiers.weekly.solidBg} flex items-center justify-center`}>
                 {(() => {
                   const IconComponent = pricingTiers.weekly.icon;
                   return <IconComponent className="w-6 h-6 text-white" />;
@@ -355,7 +358,7 @@ export function PricingCards() {
           <div className="text-center mb-6">
             {/* Icon */}
             <div className="flex justify-center mb-4">
-              <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${pricingTiers.monthly.iconGradient} flex items-center justify-center shadow-xl`}>
+              <div className={`w-12 h-12 rounded-xl ${pricingTiers.monthly.solidBg} flex items-center justify-center`}>
                 {(() => {
                   const IconComponent = pricingTiers.monthly.icon;
                   return <IconComponent className="w-6 h-6 text-white" />;

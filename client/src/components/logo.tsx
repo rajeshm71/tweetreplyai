@@ -30,7 +30,7 @@ export function Logo({
       tabIndex={0}
       aria-label="Go to home page"
     >
-      <div className={`${iconSize} rounded-lg bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center shadow-lg shadow-primary/20 transition-all duration-300 hover:shadow-xl hover:shadow-primary/30`} aria-hidden="true">
+      <div className={`${iconSize} rounded-lg bg-primary flex items-center justify-center transition-all duration-300`} aria-hidden="true">
         <Sparkles className="w-4 h-4 text-white" />
       </div>
       {showText && (

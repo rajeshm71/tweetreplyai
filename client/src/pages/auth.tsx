@@ -357,7 +357,7 @@ export default function AuthPage() {
 
                 <Button
                   type="submit"
-                  className="w-full h-11 bg-gradient-to-r from-primary to-primary/80"
+                  className="w-full h-11 bg-primary"
                   disabled={loginMutation.isPending}
                   data-testid="button-login-submit"
                 >
@@ -464,7 +464,7 @@ export default function AuthPage() {
 
               <Button
                 type="submit"
-                className="w-full h-11 bg-gradient-to-r from-primary to-primary/80"
+                className="w-full h-11 bg-primary"
                 disabled={registerMutation.isPending}
                 data-testid="button-register-submit"
               >

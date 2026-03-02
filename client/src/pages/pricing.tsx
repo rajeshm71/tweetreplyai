@@ -15,7 +15,7 @@ export default function Pricing() {
       <nav className="sticky top-0 z-50 glass-effect border-b border-border/50">
         <div className="container flex items-center justify-between h-16">
           <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
               <Sparkles className="w-4 h-4 text-white" />
             </div>
             <span className="font-display font-bold text-xl">TweetReply</span>
@@ -119,7 +119,7 @@ export default function Pricing() {
         <div className="container py-12">
           <div className="text-center">
             <div className="flex items-center justify-center space-x-2 mb-4">
-              <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center">
+              <div className="w-6 h-6 rounded-lg bg-primary flex items-center justify-center">
                 <Sparkles className="w-3 h-3 text-white" />
               </div>
               <span className="font-display font-bold text-lg">TweetReply</span>

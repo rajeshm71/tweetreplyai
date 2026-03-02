@@ -661,7 +661,7 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
                 <Button
                   onClick={() => setLocation('/pricing')}
                   size="sm"
-                  className="mt-2 bg-gradient-to-r from-primary to-purple-600 hover:from-primary/90 hover:to-purple-600/90 text-white font-semibold"
+                  className="mt-2 bg-primary hover:bg-primary/90 text-white font-semibold"
                 >
                   <Crown className="w-3 h-3 mr-2" />
                   Upgrade to Pro
@@ -806,7 +806,7 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
             onClick={handleGenerate}
             disabled={generateMutation.isPending || !tweetText.trim()}
             size="icon"
-            className="self-end h-[60px] w-[60px] rounded-xl bg-gradient-to-r from-primary to-purple-600 hover:from-primary/90 hover:to-purple-600/90 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 active:scale-95 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="self-end h-[60px] w-[60px] rounded-xl bg-primary hover:bg-primary/90 transition-all duration-300 hover:scale-105 active:scale-95 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             data-testid="button-generate-reply"
             aria-label={generateMutation.isPending ? "Generating reply..." : "Generate reply"}
             aria-disabled={generateMutation.isPending || !tweetText.trim()}
