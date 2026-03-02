@@ -37,7 +37,11 @@ type RegisterForm = z.infer<typeof registerSchema>;
 
 /** Parse API error message from thrown error (e.g. "400: {\"message\":\"...\"}") and return friendly text. */
 function getRegisterErrorMessage(errorMessage: string): string {
-  const jsonMatch = errorMessage.match(/\{[\s\S]*\}/);
+  const raw = (errorMessage || "").trim();
+  if (raw === "Email already registered") {
+    return "This email is already registered. Sign in or use a different email.";
+  }
+  const jsonMatch = raw.match(/\{[\s\S]*\}/);
   if (jsonMatch) {
     try {
       const data = JSON.parse(jsonMatch[0]) as { message?: string };

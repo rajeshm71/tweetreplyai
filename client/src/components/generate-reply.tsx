@@ -352,7 +352,7 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
       }
 
       // Handle quota errors
-      if (error.message.includes("402")) {
+      if ((error as Error & { status?: number }).status === 402) {
         toast({
           title: "Quota exceeded",
           description: "You've reached your credit limit. Upgrade your plan to continue.",
@@ -826,7 +826,7 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
       </div>
 
       {/* Error States */}
-      {generateMutation.error && generateMutation.error.message.includes("402") && (
+      {generateMutation.error && (generateMutation.error as Error & { status?: number }).status === 402 && (
         <div className="p-4 border-t border-border">
           <Alert variant="destructive">
             <AlertDescription>
