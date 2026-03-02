@@ -63,6 +63,8 @@ function Router() {
             <Route path="/app" component={RedirectToCompleteProfile} />
             <Route path="/profile" component={RedirectToCompleteProfile} />
             <Route path="/settings" component={RedirectToCompleteProfile} />
+            <Route path="/login" component={AuthPage} />
+            <Route path="/reset-password" component={ResetPasswordPage} />
           </>
         ) : (
           <>
