@@ -6,7 +6,7 @@ import { PricingCards } from "@/components/pricing-cards";
 import { useAuth } from "@/hooks/useAuth";
 import {
   Sparks, Flash, ArrowRight, ArrowLeft, CheckCircle, Rocket, Brain, ChatBubble, Crown, Star, Shield,
-  Check, StatUp, Google, Heart, Group, Menu, Xmark, Copy, Building, Medal, Clock, ViewGrid, Dollar,
+  Check, StatUp, Chrome, Google, Heart, Group, Menu, Xmark, Copy, Building, Medal, Clock, ViewGrid, Dollar,
   HelpCircle, Plus, Minus, Refresh, SmartphoneDevice,
 } from "iconoir-react";
 import { IconMessageCircle, IconChartBar, IconRocket, IconClock, IconTrendingUp } from "@tabler/icons-react";
@@ -563,7 +563,7 @@ export default function Landing() {
               size="sm"
               aria-label="Add TweetReplyAI to Chrome"
             >
-              <Google className="w-4 h-4 mr-2" aria-hidden="true" />
+              <Chrome className="w-4 h-4 mr-2" aria-hidden="true" />
               Add to Chrome
             </Button>
           </div>
@@ -714,7 +714,7 @@ export default function Landing() {
                 className="w-full justify-start bg-gradient-to-r from-blue-500 to-indigo-600 text-white hover:shadow-lg hover:shadow-blue-500/20 transition-all duration-300"
                 size="sm"
               >
-                <Google className="w-4 h-4 mr-2" />
+                <Chrome className="w-4 h-4 mr-2" />
                 Add to Chrome
               </Button>
               <a 

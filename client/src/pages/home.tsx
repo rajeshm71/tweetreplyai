@@ -1,7 +1,7 @@
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
-import { GoogleChromeLogo, DownloadSimple, X, CaretDown, CaretUp } from "@phosphor-icons/react";
+import { GoogleChromeLogo, X, CaretDown, CaretUp } from "@phosphor-icons/react";
 import { IconBolt, IconClock, IconTrendingUp } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -232,7 +232,7 @@ export default function Home() {
                   className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white hover:from-blue-600 hover:to-indigo-700 font-semibold h-8 sm:h-9 px-3 sm:px-4 text-xs sm:text-sm flex-1 sm:flex-initial rounded-lg shadow-md"
                   data-testid="button-chrome-extension-banner"
                 >
-                  <DownloadSimple className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                  <GoogleChromeLogo className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
                   Add to Chrome
                 </Button>
                 <Button 
