@@ -29,7 +29,7 @@ export default function Pricing() {
             ) : (
               <Button 
                 onClick={() => window.location.href = '/api/login'}
-                className="bg-primary text-white hover-lift border-0 transition-all duration-300"
+                className="bg-primary text-white border-0 transition-colors duration-150"
               >
                 Sign In
                 <IconArrowRight className="w-4 h-4 ml-2" />
@@ -44,8 +44,8 @@ export default function Pricing() {
         <div className="hero-gradient grid-pattern">
           <div className="container section-padding relative">
             {/* Floating Elements */}
-            <div className="absolute top-20 left-10 w-20 h-20 bg-gradient-to-br from-primary/20 to-purple-500/20 rounded-full blur-xl floating-animation" />
-            <div className="absolute top-40 right-20 w-32 h-32 bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-full blur-2xl floating-animation" style={{ animationDelay: '-2s' }} />
+            <div className="absolute top-20 left-10 w-20 h-20 bg-gradient-to-br from-primary/20 to-purple-500/20 rounded-full blur-xl" aria-hidden="true" />
+            <div className="absolute top-40 right-20 w-32 h-32 bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-full blur-2xl" aria-hidden="true" />
             
             <div className="text-center mb-20 relative z-10">
               <Badge variant="secondary" className="mb-6 px-4 py-2 text-sm font-medium glass-effect border border-primary/20">
@@ -96,7 +96,7 @@ export default function Pricing() {
                 <Button 
                   size="lg"
                   onClick={() => window.location.href = '/api/login'}
-                  className="h-14 px-8 text-lg bg-primary text-white hover-lift border-0 font-semibold transition-all duration-300"
+                  className="h-14 px-8 text-lg bg-primary text-white border-0 font-semibold transition-colors duration-150"
                 >
                   <IconSparkles className="w-5 h-5 mr-3" />
                   Start Free Trial

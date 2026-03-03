@@ -15,7 +15,6 @@ import { Logo } from "@/components/logo";
 import useEmblaCarousel from 'embla-carousel-react';
 import Autoplay from 'embla-carousel-autoplay';
 import { useCallback, useEffect, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
 import { generateStats, initializeStats, type Stats } from '@/utils/stats-generator';
 import { APP_URLS, POLLING, UI } from "@/config/constants";
@@ -559,7 +558,7 @@ export default function Landing() {
               onClick={() => {
                 window.open(APP_URLS.CHROME_STORE, '_blank');
               }}
-              className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl border-0 font-medium shadow-md hover:shadow-xl hover:shadow-blue-500/20 hover:scale-105 transition-all duration-300 hidden sm:flex"
+              className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl border-0 font-medium shadow-md hover:shadow-xl hover:shadow-blue-500/20 hidden sm:flex"
               data-testid="button-add-to-chrome"
               size="sm"
               aria-label="Add TweetReplyAI to Chrome"
@@ -573,10 +572,10 @@ export default function Landing() {
           <div className="absolute left-1/2 transform -translate-x-1/2 flex items-center space-x-2 md:space-x-3">
             <a 
               href="#features" 
-              className={`group relative flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-all duration-300 hidden md:flex focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 ${
+              className={`group relative flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold hidden md:flex focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 ${
                 activeNavSection === 'features'
                   ? 'bg-gradient-to-r from-green-500/10 to-emerald-500/10 text-green-700 shadow-md border border-green-500/20'
-                  : 'text-muted-foreground hover:bg-muted/30 hover:scale-105'
+                  : 'text-muted-foreground hover:bg-muted/30'
               }`}
               aria-label="Navigate to Features section"
               onClick={(e) => {
@@ -585,31 +584,29 @@ export default function Landing() {
                 element?.scrollIntoView({ behavior: 'smooth', block: 'start' });
               }}
             >
-              <ViewGrid className={`w-4 h-4 transition-all duration-300 ${
+              <ViewGrid className={`w-4 h-4 ${
                 activeNavSection === 'features' 
                   ? 'text-green-600' 
                   : 'text-muted-foreground group-hover:text-primary'
               }`} />
-              <span className={`transition-all duration-300 ${
+              <span className={`${
                 activeNavSection === 'features'
                   ? ''
                   : 'group-hover:text-primary'
               }`}>Features</span>
               {activeNavSection === 'features' && (
-                <motion.div
-                  layoutId="activeNavIndicator-features"
+                <div
                   className="absolute inset-0 bg-gradient-to-r from-green-500/10 to-emerald-500/10 rounded-full -z-10"
-                  initial={false}
-                  transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                  aria-hidden="true"
                 />
               )}
             </a>
             <a 
               href="#pricing" 
-              className={`group relative flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-all duration-300 hidden md:flex focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 ${
+              className={`group relative flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold hidden md:flex focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 ${
                 activeNavSection === 'pricing'
                   ? 'bg-gradient-to-r from-pink-500/10 via-rose-500/10 to-red-500/10 text-rose-700 shadow-md border border-pink-500/20'
-                  : 'text-muted-foreground hover:bg-muted/30 hover:scale-105'
+                  : 'text-muted-foreground hover:bg-muted/30'
               }`}
               aria-label="Navigate to Pricing section"
               onClick={(e) => {
@@ -618,31 +615,29 @@ export default function Landing() {
                 element?.scrollIntoView({ behavior: 'smooth', block: 'start' });
               }}
             >
-              <Dollar className={`w-4 h-4 transition-all duration-300 ${
+              <Dollar className={`w-4 h-4 transition-colors duration-150 ${
                 activeNavSection === 'pricing' 
                   ? 'text-rose-600' 
                   : 'text-muted-foreground group-hover:text-primary'
               }`} />
-              <span className={`transition-all duration-300 ${
+              <span className={`${
                 activeNavSection === 'pricing'
                   ? ''
                   : 'group-hover:text-primary'
               }`}>Pricing</span>
               {activeNavSection === 'pricing' && (
-                <motion.div
-                  layoutId="activeNavIndicator-pricing"
+                <div
                   className="absolute inset-0 bg-gradient-to-r from-pink-500/10 via-rose-500/10 to-red-500/10 rounded-full -z-10"
-                  initial={false}
-                  transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                  aria-hidden="true"
                 />
               )}
             </a>
             <a 
               href="#faq" 
-              className={`group relative flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-all duration-300 hidden md:flex focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 ${
+              className={`group relative flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold hidden md:flex focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 ${
                 activeNavSection === 'faq'
                   ? 'bg-gradient-to-r from-blue-500/10 via-indigo-500/10 to-purple-500/10 text-indigo-700 shadow-md border border-blue-500/20'
-                  : 'text-muted-foreground hover:bg-muted/30 hover:scale-105'
+                  : 'text-muted-foreground hover:bg-muted/30'
               }`}
               aria-label="Navigate to FAQ section"
               onClick={(e) => {
@@ -651,22 +646,20 @@ export default function Landing() {
                 element?.scrollIntoView({ behavior: 'smooth', block: 'start' });
               }}
             >
-              <HelpCircle className={`w-4 h-4 transition-all duration-300 ${
+              <HelpCircle className={`w-4 h-4 transition-colors duration-150 ${
                 activeNavSection === 'faq' 
                   ? 'text-indigo-600' 
                   : 'text-muted-foreground group-hover:text-primary'
               }`} />
-              <span className={`transition-all duration-300 ${
+              <span className={`${
                 activeNavSection === 'faq'
                   ? ''
                   : 'group-hover:text-primary'
               }`}>FAQs</span>
               {activeNavSection === 'faq' && (
-                <motion.div
-                  layoutId="activeNavIndicator-faq"
+                <div
                   className="absolute inset-0 bg-gradient-to-r from-blue-500/10 via-indigo-500/10 to-purple-500/10 rounded-full -z-10"
-                  initial={false}
-                  transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                  aria-hidden="true"
                 />
               )}
             </a>
@@ -676,7 +669,7 @@ export default function Landing() {
           <div className="flex items-center space-x-2">
             <Button 
               onClick={() => window.location.href = '/login'}
-              className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl border-0 font-medium shadow-md hover:shadow-xl hover:shadow-blue-500/20 hover:scale-105 transition-all duration-300 hidden sm:flex"
+              className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl border-0 font-medium shadow-md hover:shadow-xl hover:shadow-blue-500/20 hidden sm:flex"
               data-testid="button-signin"
               aria-label="Start replying with TweetReplyAI"
               size="sm"
@@ -712,7 +705,7 @@ export default function Landing() {
                   window.open(APP_URLS.CHROME_STORE, '_blank');
                   setMobileMenuOpen(false);
                 }}
-                className="w-full justify-start bg-gradient-to-r from-blue-500 to-indigo-600 text-white hover:shadow-lg hover:shadow-blue-500/20 transition-all duration-300"
+                className="w-full justify-start bg-gradient-to-r from-blue-500 to-indigo-600 text-white hover:shadow-lg hover:shadow-blue-500/20 transition-colors duration-150"
                 size="sm"
               >
                 <GoogleChromeLogo className="w-4 h-4 mr-2" />
@@ -721,21 +714,21 @@ export default function Landing() {
               <a 
                 href="#features" 
                 onClick={() => setMobileMenuOpen(false)}
-                className="block px-4 py-2 rounded-md text-sm text-muted-foreground hover:text-transparent hover:bg-gradient-to-r hover:from-blue-400 hover:to-green-400 hover:bg-clip-text hover:bg-muted/20 transition-all duration-300"
+                className="block px-4 py-2 rounded-md text-sm text-muted-foreground hover:text-transparent hover:bg-gradient-to-r hover:from-blue-400 hover:to-green-400 hover:bg-clip-text hover:bg-muted/20 transition-colors duration-150"
               >
                 Features
               </a>
               <a 
                 href="#pricing" 
                 onClick={() => setMobileMenuOpen(false)}
-                className="block px-4 py-2 rounded-md text-sm text-muted-foreground hover:text-transparent hover:bg-gradient-to-r hover:from-pink-400 hover:to-rose-400 hover:bg-clip-text hover:bg-muted/20 transition-all duration-300"
+                className="block px-4 py-2 rounded-md text-sm text-muted-foreground hover:text-transparent hover:bg-gradient-to-r hover:from-pink-400 hover:to-rose-400 hover:bg-clip-text hover:bg-muted/20 transition-colors duration-150"
               >
                 Pricing
               </a>
               <a 
                 href="#faq" 
                 onClick={() => setMobileMenuOpen(false)}
-                className="block px-4 py-2 rounded-md text-sm text-muted-foreground hover:text-transparent hover:bg-gradient-to-r hover:from-blue-400 hover:to-purple-400 hover:bg-clip-text hover:bg-muted/20 transition-all duration-300"
+                className="block px-4 py-2 rounded-md text-sm text-muted-foreground hover:text-transparent hover:bg-gradient-to-r hover:from-blue-400 hover:to-purple-400 hover:bg-clip-text hover:bg-muted/20 transition-colors duration-150"
               >
                 FAQs
               </a>
@@ -744,7 +737,7 @@ export default function Landing() {
                   window.location.href = '/login';
                   setMobileMenuOpen(false);
                 }}
-                className="w-full justify-start bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl border-0 font-medium shadow-md hover:shadow-xl hover:shadow-blue-500/20 hover:scale-105 transition-all duration-300"
+                className="w-full justify-start bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl border-0 font-medium shadow-md hover:shadow-xl hover:shadow-blue-500/20 transition-colors duration-150"
                 size="sm"
               >
                 Start Replying
@@ -757,11 +750,11 @@ export default function Landing() {
 
       {/* Sticky CTA for mobile */}
       {showStickyCTA && (
-        <div className="fixed bottom-0 left-0 right-0 z-40 md:hidden bg-background/95 backdrop-blur-xl border-t border-border/50 p-4 shadow-lg animate-in slide-in-from-bottom">
+        <div className="fixed bottom-0 left-0 right-0 z-40 md:hidden bg-background/95 backdrop-blur-xl border-t border-border/50 p-4 shadow-lg">
           <Button
             variant="ghost"
             onClick={() => window.location.href = '/login'}
-            className="w-full bg-primary text-white border-0 font-semibold hover:scale-105 transition-all duration-300"
+            className="w-full bg-primary text-white border-0 font-semibold transition-colors duration-150"
             size="lg"
             aria-label="Start replying with TweetReplyAI"
           >
@@ -779,67 +772,49 @@ export default function Landing() {
         <div className="hero-gradient grid-pattern">
           <div className="container section-padding relative">
             {/* Floating Elements */}
-            <div className="absolute top-10 right-10 w-24 h-24 bg-gradient-to-br from-primary/20 to-purple-500/20 rounded-full blur-2xl floating-animation" aria-hidden="true" />
-            <div className="absolute bottom-10 left-10 w-32 h-32 bg-gradient-to-br from-cyan-500/20 to-blue-500/20 rounded-full blur-3xl floating-animation" style={{ animationDelay: '-3s' }} aria-hidden="true" />
-            <div className="absolute top-1/2 right-1/4 w-20 h-20 bg-gradient-to-br from-pink-500/20 to-purple-500/20 rounded-full blur-2xl floating-animation" style={{ animationDelay: '-5s' }} aria-hidden="true" />
+            <div className="absolute top-10 right-10 w-24 h-24 bg-gradient-to-br from-primary/20 to-purple-500/20 rounded-full blur-2xl" aria-hidden="true" />
+            <div className="absolute bottom-10 left-10 w-32 h-32 bg-gradient-to-br from-cyan-500/20 to-blue-500/20 rounded-full blur-3xl" aria-hidden="true" />
+            <div className="absolute top-1/2 right-1/4 w-20 h-20 bg-gradient-to-br from-pink-500/20 to-purple-500/20 rounded-full blur-2xl" aria-hidden="true" />
             
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center relative z-10">
               {/* Left Column: Title, Subtitle, CTAs, Stats */}
               <div className="text-center lg:text-left">
-                <motion.h1 
+                <h1 
                   id="hero-heading" 
                   className="text-4xl md:text-6xl lg:text-7xl font-calibri font-bold mb-8 leading-tight tracking-tight"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
                 >
-                  <motion.span 
+                  <span 
                     className="block mb-3 text-primary"
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 1, ease: [0.16, 1, 0.3, 1], delay: 0.2 }}
                   >
                     Never Waste Time
-                  </motion.span>
-                  <motion.span 
+                  </span>
+                  <span 
                     className="block mb-3 text-primary text-5xl md:text-7xl lg:text-8xl"
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 1, ease: [0.16, 1, 0.3, 1], delay: 0.4 }}
                   >
                     On X Replies
-                  </motion.span>
-                  <motion.span 
+                  </span>
+                  <span 
                     className="block text-primary text-4xl md:text-6xl lg:text-7xl"
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 1, ease: [0.16, 1, 0.3, 1], delay: 0.6 }}
                   >
                     Again
-                  </motion.span>
-                </motion.h1>
+                  </span>
+                </h1>
                 
-                <motion.p 
+                <p 
                   className="text-xl md:text-2xl text-muted-foreground mb-8 max-w-3xl lg:max-w-none leading-relaxed"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.8, delay: 0.8 }}
                 >
                   Transform your X engagement with AI that creates authentic, 
                   contextual replies in seconds. <span className="text-foreground font-semibold">No more writer's block.</span>
-                </motion.p>
+                </p>
 
-                <motion.div 
+                <div 
                   className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start items-center mb-8"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.8, delay: 1.2 }}
                 >
                   <Button 
                     variant="ghost"
                     size="lg"
                     onClick={() => window.location.href = '/login'}
-                    className="h-14 px-8 text-lg bg-primary text-white border-0 font-semibold hover:scale-105 transition-all duration-300"
+                    className="h-14 px-8 text-lg bg-primary text-white border-0 font-semibold transition-colors duration-150"
                     data-testid="button-start-trial"
                   >
                     <Sparks className="w-5 h-5 mr-3" />
@@ -853,27 +828,18 @@ export default function Landing() {
                     <CheckCircle className="w-4 h-4 text-primary" />
                     <span>7-day trial</span>
                   </div>
-                </motion.div>
+                </div>
 
               </div>
 
               {/* Right Column: Tweet/Reply Demo */}
-              <motion.div
-                className="relative"
-                initial={{ opacity: 0, x: 50 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.8, delay: 0.6 }}
-              >
+              <div className="relative">
                 <Card className="modern-glass border border-border/50 p-6 rounded-2xl shadow-xl card-modern overflow-hidden relative">
-                  <AnimatePresence mode="wait">
+                  <>
                     {/* Original Tweet Card */}
-                    <motion.div
+                    <div
                       key={`tweet-${currentExampleIndex}`}
                       className={`mb-4 pb-4 border-b-2 rounded-xl p-4 relative overflow-hidden ${exampleReplies[currentExampleIndex].borderColor}`}
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: 10 }}
-                      transition={{ duration: 0.4 }}
                     >
                       {/* User-specific gradient background */}
                       <div className={`absolute inset-0 bg-gradient-to-br ${exampleReplies[currentExampleIndex].cardGradient} opacity-50`} />
@@ -903,26 +869,19 @@ export default function Landing() {
                           </p>
                         </div>
                       </div>
-                    </motion.div>
-                  </AnimatePresence>
+                    </div>
+                  </>
 
                   {/* Connection Line - Enhanced with user-specific gradient */}
                   <div className="flex items-center justify-center mb-4">
-                    <div className={`relative w-px h-10 bg-gradient-to-b ${exampleReplies[currentExampleIndex].iconGradient} opacity-50 animate-pulse`} />
+                    <div className={`relative w-px h-10 bg-gradient-to-b ${exampleReplies[currentExampleIndex].iconGradient} opacity-50`} />
                   </div>
 
                   {/* AI Reply Card */}
-                  <AnimatePresence mode="wait">
-                    <motion.div
-                      key={`reply-${currentExampleIndex}`}
-                      className="relative"
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -10 }}
-                      transition={{ duration: 0.4, delay: 0.1 }}
-                    >
+                  <>
+                    <div key={`reply-${currentExampleIndex}`} className="relative">
                       {/* Enhanced glow effect */}
-                      <div className="absolute -inset-1 bg-gradient-to-r from-primary/30 to-primary/15 rounded-xl blur-sm opacity-60 pulse-glow-primary" />
+                      <div className="absolute -inset-1 bg-gradient-to-r from-primary/30 to-primary/15 rounded-xl blur-sm opacity-60" />
                       
                       {/* AI Reply Card with enhanced styling */}
                       <div className="relative bg-gradient-to-br from-primary/10 via-primary/5 to-primary/10 rounded-xl p-4 border-2 border-primary/30 shadow-lg">
@@ -950,10 +909,10 @@ export default function Landing() {
                           </div>
                         </div>
                       </div>
-                    </motion.div>
-                  </AnimatePresence>
+                    </div>
+                  </>
                 </Card>
-              </motion.div>
+              </div>
             </div>
           </div>
         </div>
@@ -971,12 +930,7 @@ export default function Landing() {
             </div>
 
             {/* Stats Grid */}
-            <motion.div 
-              className="max-w-4xl stats-grid mx-auto"
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 1.4 }}
-            >
+            <div className="max-w-4xl stats-grid mx-auto">
               {[
                 { 
                   value: stats.repliesGenerated.formatted, 
@@ -1034,19 +988,14 @@ export default function Landing() {
               ].map((stat, index) => {
                 const IconComponent = stat.icon;
                 return (
-                  <motion.div
-                    key={index}
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ duration: 0.5, delay: 1.6 + index * 0.1 }}
-                  >
+                  <div key={index}>
                     <Card 
-                      className={`glass-depth border-2 ${stat.borderColor} ${stat.hoverBorder} micro-lift card-modern relative overflow-hidden group transition-all duration-300`}
+                      className={`glass-depth border-2 ${stat.borderColor} ${stat.hoverBorder} micro-lift card-modern relative overflow-hidden group transition-colors duration-150`}
                       style={{ padding: '1.5rem' }}
                       aria-label={`${stat.label}: ${stat.value}${stat.subtitle ? `, ${stat.subtitle}` : ''}`}
                     >
                       {/* Subtle gradient background */}
-                      <div className={`absolute inset-0 bg-gradient-to-br ${stat.bgGradient} opacity-50 group-hover:opacity-70 transition-opacity duration-300`} />
+                      <div className={`absolute inset-0 bg-gradient-to-br ${stat.bgGradient} opacity-50 group-hover:opacity-70 transition-opacity duration-150`} />
                       
                       <div className="relative z-10" style={{ textAlign: 'center' }}>
                         {/* Icon - Top, Centered */}
@@ -1075,10 +1024,10 @@ export default function Landing() {
                         )}
                       </div>
                     </Card>
-                  </motion.div>
+                  </div>
                 );
               })}
-            </motion.div>
+            </div>
           </div>
         </section>
       )}
@@ -1093,7 +1042,7 @@ export default function Landing() {
         ============================================
       */}
       {/* 
-      <motion.section 
+      <section 
         initial={{ opacity: 0, scale: 0.95 }}
         whileInView={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.7 }}
@@ -1134,7 +1083,7 @@ export default function Landing() {
                 </div>
 
                 {demoReply && (
-                  <div className="bg-primary/5 rounded-xl p-6 border border-primary/20 animate-in fade-in slide-in-from-bottom-4 duration-500" role="region" aria-live="polite" aria-label="Generated reply">
+                  <div className="bg-primary/5 rounded-xl p-6 border border-primary/20" role="region" aria-live="polite" aria-label="Generated reply">
                     <div className="flex items-start gap-3">
                       <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center flex-shrink-0" aria-hidden="true">
                         <Sparks className="w-5 h-5 text-white" />
@@ -1179,7 +1128,7 @@ export default function Landing() {
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       {exampleTweets.map((tweet, idx) => (
-                        <motion.button
+                        <button
                           key={idx}
                           onClick={() => handleExampleTweetClick(tweet)}
                           className="text-left p-3 rounded-lg border border-border/50 hover:border-primary/50 hover:bg-primary/5 smooth-transition text-sm text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 micro-lift"
@@ -1188,7 +1137,7 @@ export default function Landing() {
                           whileTap={{ scale: 0.98 }}
                         >
                           "{tweet.substring(0, 50)}..."
-                        </motion.button>
+                        </button>
                       ))}
                     </div>
                   </div>
@@ -1196,7 +1145,7 @@ export default function Landing() {
               </div>
             </Card>
 
-            <motion.div 
+            <div 
               className="text-center mt-8"
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -1207,16 +1156,16 @@ export default function Landing() {
                 variant="ghost"
                 onClick={() => window.location.href = '/login'}
                 size="lg"
-                className="bg-primary hover:bg-primary/90 text-white border-0 font-semibold hover:scale-105 transition-all duration-300"
+                className="bg-primary hover:bg-primary/90 text-white border-0 font-semibold transition-colors duration-150"
                 data-testid="button-demo-cta"
               >
                 Get Full Access Now
                 <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
-            </motion.div>
+            </div>
           </div>
         </div>
-      </motion.section>
+      </section>
       */}
 
       {/* 
@@ -1235,7 +1184,7 @@ export default function Landing() {
         TODO: Add real company logos or replace with generic "Trusted by users"
       */}
       {/* 
-      <motion.section 
+      <section 
         initial={{ opacity: 0, y: 20 }}
         whileInView={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6 }}
@@ -1263,7 +1212,7 @@ export default function Landing() {
             </div>
           </div>
         </div>
-      </motion.section>
+      </section>
       */}
 
       {/* 
@@ -1272,7 +1221,7 @@ export default function Landing() {
         TODO: Add real press logos or remove if no press coverage exists
       */}
       {/* 
-      <motion.section 
+      <section 
         initial={{ opacity: 0, y: 20 }}
         whileInView={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6, delay: 0.2 }}
@@ -1313,7 +1262,7 @@ export default function Landing() {
             </Card>
           </div>
         </div>
-      </motion.section>
+      </section>
       */}
 
       {/* Features Section */}
@@ -1337,24 +1286,16 @@ export default function Landing() {
             {FEATURES.map((feature, index) => {
               const IconComponent = feature.icon;
               return (
-                <motion.div 
-                  key={index}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.4, delay: index * 0.05 }}
-                  viewport={{ once: true, margin: "-50px" }}
-                >
+                <div key={index}>
                   <Card className="neomorphic border-0 card-3d group overflow-hidden relative h-full">
                     <div className={`absolute inset-0 bg-gradient-to-br ${feature.gradient} opacity-0 group-hover:opacity-100 smooth-transition`} />
                     <CardContent className="p-6 text-center relative z-10 flex flex-col h-full">
-                      <motion.div 
-                        className={`w-12 h-12 ${feature.solidBg} rounded-xl flex items-center justify-center mx-auto mb-4 group-hover:scale-110 group-hover:rotate-3 smooth-transition`}
+                      <div
+                        className={`w-12 h-12 ${feature.solidBg} rounded-xl flex items-center justify-center mx-auto mb-4 smooth-transition`}
                         aria-hidden="true"
-                        whileHover={{ scale: 1.1, rotate: 5 }}
-                        transition={{ type: "spring", stiffness: 300 }}
                       >
                         <IconComponent className="w-6 h-6 text-white" />
-                      </motion.div>
+                      </div>
                       <h3 className="text-xl font-display font-semibold mb-2 text-foreground">{feature.title}</h3>
                       <p className="text-muted-foreground mb-4 leading-relaxed text-sm line-clamp-2 flex-grow">
                         {feature.description}
@@ -1365,7 +1306,7 @@ export default function Landing() {
                       </div>
                     </CardContent>
                   </Card>
-                </motion.div>
+                </div>
               );
             })}
           </div>
@@ -1374,13 +1315,7 @@ export default function Landing() {
 
 
       {/* Before/After Engagement Metrics */}
-      <motion.section 
-        initial={{ opacity: 0, y: 30 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.8 }}
-        viewport={{ once: true }}
-        className="section-padding bg-gradient-to-b from-muted/10 to-background"
-      >
+      <section className="section-padding bg-gradient-to-b from-muted/10 to-background">
         <div className="container">
           <div className="text-center mb-16">
             <Badge variant="secondary" className="mb-4 glass-effect border border-primary/20">
@@ -1397,12 +1332,7 @@ export default function Landing() {
 
           <div className="grid md:grid-cols-2 gap-12 max-w-5xl mx-auto">
             {/* Before */}
-            <motion.div
-              initial={{ opacity: 0, x: -30 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.6 }}
-              viewport={{ once: true }}
-            >
+            <div>
               <Card className="neomorphic border-0 p-8 relative overflow-hidden card-modern">
                 <div className="absolute top-4 right-4">
                   <Badge variant="secondary" className="bg-red-500/10 text-red-600 border-red-500/20">Before</Badge>
@@ -1413,29 +1343,17 @@ export default function Landing() {
                     { label: "Time Spent", value: "8 hrs" },
                     { label: "Engagement Rate", value: "2.3%" }
                   ].map((metric, index) => (
-                    <motion.div
-                      key={index}
-                      initial={{ opacity: 0, y: 10 }}
-                      whileInView={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.4, delay: 0.3 + index * 0.1 }}
-                      viewport={{ once: true }}
-                      className="text-center"
-                    >
+                    <div key={index} className="text-center">
                       <div className="text-sm text-muted-foreground mb-2">{metric.label}</div>
                   <div className="text-4xl font-bold text-foreground">{metric.value}</div>
-                    </motion.div>
+                    </div>
                   ))}
                 </div>
               </Card>
-            </motion.div>
+            </div>
 
             {/* After */}
-            <motion.div
-              initial={{ opacity: 0, x: 30 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.6 }}
-              viewport={{ once: true }}
-            >
+            <div>
               <Card className="neomorphic border-0 p-8 relative overflow-hidden border-2 border-primary/30 card-modern hover-glow-primary">
                 <div className="absolute top-4 right-4">
                   <Badge className="bg-green-500/10 text-green-600 border-green-500/20">After</Badge>
@@ -1446,14 +1364,7 @@ export default function Landing() {
                     { label: "Time Spent", value: "2 hrs", change: "-75%" },
                     { label: "Engagement Rate", value: "7.9%", change: "+243%" }
                   ].map((metric, index) => (
-                    <motion.div
-                      key={index}
-                      initial={{ opacity: 0, y: 10 }}
-                      whileInView={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.4, delay: 0.5 + index * 0.1 }}
-                      viewport={{ once: true }}
-                      className="text-center"
-                    >
+                    <div key={index} className="text-center">
                       <div className="text-sm text-muted-foreground mb-2">{metric.label}</div>
                       <div className="flex items-baseline gap-2 justify-center">
                         <div className="text-4xl font-bold text-primary">{metric.value}</div>
@@ -1461,14 +1372,14 @@ export default function Landing() {
                           {metric.change}
                         </Badge>
                       </div>
-                    </motion.div>
+                    </div>
                   ))}
                 </div>
               </Card>
-            </motion.div>
+            </div>
           </div>
         </div>
-      </motion.section>
+      </section>
 
       {/* Pricing Section */}
       <section id="pricing" className="section-padding bg-gradient-to-b from-background to-muted/10">
@@ -1498,13 +1409,7 @@ export default function Landing() {
       </section>
 
       {/* Testimonials Carousel */}
-      <motion.section 
-        className="section-padding bg-gradient-to-b from-background via-background to-muted/5"
-        initial={{ opacity: 0, y: 30 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.8 }}
-        viewport={{ once: true }}
-      >
+      <section className="section-padding bg-gradient-to-b from-background via-background to-muted/5">
         <div className="container">
           <div className="text-center mb-16">
             <Badge variant="secondary" className="mb-4 glass-effect border border-primary/20 shadow-lg">
@@ -1521,20 +1426,16 @@ export default function Landing() {
               <div className="flex">
                 {testimonials.map((testimonial, index) => (
                   <div key={index} className="flex-[0_0_100%] min-w-0 px-4">
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.95 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ duration: 0.5, delay: index * 0.1 }}
-                    >
-                      <Card className="modern-glass border border-border/50 p-8 md:p-10 relative overflow-hidden card-modern hover-lift group transition-all duration-300">
+                    <div>
+                      <Card className="modern-glass border border-border/50 p-8 md:p-10 relative overflow-hidden card-modern group transition-colors duration-150">
                         {/* Gradient Background Overlay */}
-                        <div className={`absolute inset-0 bg-gradient-to-br ${testimonial.gradient} opacity-5 group-hover:opacity-10 transition-opacity duration-300`} />
+                        <div className={`absolute inset-0 bg-gradient-to-br ${testimonial.gradient} opacity-5 group-hover:opacity-10 transition-opacity duration-150`} />
                         
                         {/* Subtle Mesh Texture */}
                         <div className="absolute inset-0 opacity-[0.03] bg-[radial-gradient(circle_at_50%_50%,rgba(0,0,0,0.5),transparent_50%)]" />
                         
                         {/* Enhanced Shadow Layer */}
-                        <div className="absolute inset-0 shadow-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" 
+                        <div className="absolute inset-0 shadow-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-150" 
                           style={{ boxShadow: `0 20px 60px -15px rgba(var(--primary-rgb), 0.3)` }} />
                         
                         <div className="relative z-10">
@@ -1542,14 +1443,9 @@ export default function Landing() {
                           <div className="flex items-center justify-center mb-6">
                             <div className="flex space-x-1">
                               {[...Array(5)].map((_, i) => (
-                                <motion.div
-                                  key={i}
-                                  initial={{ opacity: 0, scale: 0 }}
-                                  animate={{ opacity: 1, scale: 1 }}
-                                  transition={{ duration: 0.3, delay: 0.2 + i * 0.1 }}
-                                >
+                                <div key={i}>
                                   <Star className="w-7 h-7 md:w-8 md:h-8 text-yellow-400 fill-yellow-400 drop-shadow-sm" />
-                                </motion.div>
+                                </div>
                               ))}
                             </div>
                           </div>
@@ -1564,13 +1460,11 @@ export default function Landing() {
                           {/* Author Info */}
                           <div className="flex items-center justify-center gap-4">
                             {/* Avatar */}
-                            <motion.div
-                              className={`w-16 h-16 md:w-20 md:h-20 rounded-full ${testimonial.solidBg} flex items-center justify-center group-hover:scale-110 transition-transform duration-300`}
-                              whileHover={{ scale: 1.1, rotate: 5 }}
-                              transition={{ type: "spring", stiffness: 300 }}
+                            <div
+                              className={`w-16 h-16 md:w-20 md:h-20 rounded-full ${testimonial.solidBg} flex items-center justify-center`}
                             >
                               <span className="text-white text-xl md:text-2xl font-bold">{testimonial.avatar}</span>
-                            </motion.div>
+                            </div>
 
                             {/* Author Details */}
                             <div className="flex-1 text-center md:text-left">
@@ -1592,7 +1486,7 @@ export default function Landing() {
                           </div>
                         </div>
                       </Card>
-                    </motion.div>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1601,23 +1495,21 @@ export default function Landing() {
             {/* Enhanced Pagination */}
             <div className="flex justify-center items-center gap-3 mt-8">
               {testimonials.map((_, index) => (
-                <motion.button
+                <button
                   key={index}
-                  className={`rounded-full transition-all duration-300 ${
+                  className={`rounded-full transition-colors duration-150 ${
                     index === testimonialIndex 
                       ? `bg-gradient-to-r ${testimonials[index].gradient} w-10 h-3` 
                       : 'bg-muted-foreground/30 w-3 h-3 hover:bg-muted-foreground/50'
                   }`}
                   onClick={() => testimonialEmblaApi?.scrollTo(index)}
                   aria-label={`Go to testimonial ${index + 1}`}
-                  whileHover={{ scale: 1.2 }}
-                  whileTap={{ scale: 0.9 }}
                 />
               ))}
             </div>
           </div>
         </div>
-      </motion.section>
+      </section>
 
       {/* FAQ Section */}
       <section id="faq" className="section-padding bg-gradient-to-b from-background to-muted/10">
@@ -1650,7 +1542,7 @@ export default function Landing() {
                         value={`item-${index}`}
                         className="border-0"
                       >
-                        <Card className="relative overflow-hidden border border-border/50 bg-gradient-to-br from-primary/5 via-primary/3 to-primary/5 hover:from-primary/8 hover:via-primary/5 hover:to-primary/8 backdrop-blur-sm shadow-md hover:shadow-lg transition-all duration-300 group hover:border-primary/40 rounded-xl">
+                        <Card className="relative overflow-hidden border border-border/50 bg-gradient-to-br from-primary/5 via-primary/3 to-primary/5 hover:from-primary/8 hover:via-primary/5 hover:to-primary/8 backdrop-blur-sm shadow-md hover:shadow-lg transition-colors duration-150 group hover:border-primary/40 rounded-xl">
                           <div className="relative z-10">
                             <AccordionTrigger 
                               className="px-6 py-5 hover:no-underline hover:bg-transparent transition-all duration-200 group/trigger [&>svg]:hidden"
@@ -1659,7 +1551,7 @@ export default function Landing() {
                             >
                               <div className="flex items-center gap-4 w-full text-left">
                                 {/* Modern Icon with solid primary background */}
-                                <div className="w-12 h-12 rounded-2xl bg-primary flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform duration-200">
+                                <div className="w-12 h-12 rounded-2xl bg-primary flex items-center justify-center flex-shrink-0">
                                   <Shield className="w-6 h-6 text-white" aria-hidden="true" />
                                 </div>
                                 
@@ -1703,102 +1595,44 @@ export default function Landing() {
       </section>
 
       {/* Final CTA */}
-      <motion.section 
-        className="section-padding"
-        initial={{ opacity: 0 }}
-        whileInView={{ opacity: 1 }}
-        transition={{ duration: 0.8 }}
-        viewport={{ once: true }}
-      >
+      <section className="section-padding">
         <div className="container">
           <Card className="neomorphic border-0 p-12 md:p-16 text-center relative overflow-hidden max-w-5xl mx-auto card-modern hover-glow-primary">
-            <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-purple-500/10 mesh-overlay" />
-            <motion.div 
-              className="absolute top-10 right-10 w-32 h-32 bg-gradient-to-br from-primary/20 to-purple-500/20 rounded-full blur-3xl floating-animation-enhanced"
-              animate={{ 
-                scale: [1, 1.2, 1],
-                opacity: [0.3, 0.5, 0.3]
-              }}
-              transition={{ 
-                duration: 4,
-                repeat: Infinity,
-                ease: "easeInOut"
-              }}
-            />
-            <motion.div 
-              className="absolute bottom-10 left-10 w-40 h-40 bg-gradient-to-br from-cyan-500/20 to-blue-500/20 rounded-full blur-3xl floating-animation-enhanced"
-              animate={{ 
-                scale: [1, 1.3, 1],
-                opacity: [0.3, 0.5, 0.3]
-              }}
-              transition={{ 
-                duration: 5,
-                repeat: Infinity,
-                ease: "easeInOut",
-                delay: 1
-              }}
-            />
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-purple-500/10 mesh-overlay" aria-hidden="true" />
+            <div className="absolute top-10 right-10 w-32 h-32 bg-gradient-to-br from-primary/20 to-purple-500/20 rounded-full blur-3xl" aria-hidden="true" />
+            <div className="absolute bottom-10 left-10 w-40 h-40 bg-gradient-to-br from-cyan-500/20 to-blue-500/20 rounded-full blur-3xl" aria-hidden="true" />
             
             <div className="relative z-10">
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6 }}
-                viewport={{ once: true }}
-              >
-                <Badge variant="secondary" className="mb-6 glass-depth border border-primary/20 shadow-lg pulse-glow-primary">
+              <div>
+                <Badge variant="secondary" className="mb-6 glass-depth border border-primary/20 shadow-lg">
                   <Heart className="w-4 h-4 mr-2 text-primary" />
                   Join Creators
                 </Badge>
-              </motion.div>
+              </div>
               
-              <motion.h2 
-                className="text-4xl md:text-6xl font-display font-bold mb-6"
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.8, delay: 0.2 }}
-                viewport={{ once: true }}
-              >
+              <h2 className="text-4xl md:text-6xl font-display font-bold mb-6">
                 Let Every X Tweet Spark <span className="text-primary">a Conversation</span> ✨
-              </motion.h2>
+              </h2>
               
-              <motion.p 
-                className="text-xl text-muted-foreground mb-10 max-w-2xl mx-auto leading-relaxed"
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.8, delay: 0.4 }}
-                viewport={{ once: true }}
-              >
+              <p className="text-xl text-muted-foreground mb-10 max-w-2xl mx-auto leading-relaxed">
                 Creators trust TweetReplyAI to generate perfect X replies, helping them stay authentic while scaling their engagement. Your voice, amplified with AI.
-              </motion.p>
+              </p>
               
-              <motion.div 
-                className="flex flex-col sm:flex-row gap-6 justify-center items-center mb-8"
-                initial={{ opacity: 0, scale: 0.9 }}
-                whileInView={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.6, delay: 0.6 }}
-                viewport={{ once: true }}
-              >
+              <div className="flex flex-col sm:flex-row gap-6 justify-center items-center mb-8">
                 <Button 
                   variant="ghost"
                   size="lg"
                   onClick={() => window.location.href = '/login'}
-                  className="h-16 px-10 text-lg bg-primary text-white border-0 font-semibold hover:scale-105 transition-all duration-300"
+                  className="h-16 px-10 text-lg bg-primary text-white border-0 font-semibold transition-colors duration-150"
                   data-testid="button-final-cta"
                 >
                   <Sparks className="w-6 h-6 mr-3" />
                   Start Free Trial
                   <ArrowRight className="w-6 h-6 ml-3" />
                 </Button>
-              </motion.div>
+              </div>
 
-              <motion.div 
-                className="grid md:grid-cols-3 gap-6 max-w-3xl mx-auto"
-                initial={{ opacity: 0 }}
-                whileInView={{ opacity: 1 }}
-                transition={{ duration: 0.6, delay: 0.8 }}
-                viewport={{ once: true }}
-              >
+              <div className="grid md:grid-cols-3 gap-6 max-w-3xl mx-auto">
                 {[
                   { icon: Shield, text: "Secure & Private" },
                   { icon: CheckCircle, text: "Cancel Anytime" },
@@ -1806,24 +1640,20 @@ export default function Landing() {
                 ].map((item, index) => {
                   const IconComponent = item.icon;
                   return (
-                    <motion.div
+                    <div
                       key={index}
                       className="flex items-center justify-center space-x-2 text-sm text-muted-foreground"
-                      initial={{ opacity: 0, y: 10 }}
-                      whileInView={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.4, delay: 0.9 + index * 0.1 }}
-                      viewport={{ once: true }}
                     >
                       <IconComponent className="w-4 h-4 text-primary" />
                       <span>{item.text}</span>
-                    </motion.div>
+                    </div>
                   );
                 })}
-              </motion.div>
+              </div>
             </div>
           </Card>
         </div>
-      </motion.section>
+      </section>
 
       </main>
 

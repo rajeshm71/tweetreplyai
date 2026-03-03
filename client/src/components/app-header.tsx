@@ -68,7 +68,7 @@ export function AppHeader() {
                 variant="ghost"
                 size="sm"
                 onClick={() => setLocation('/')}
-                className="flex items-center gap-2 rounded-lg transition-all duration-300 hover:bg-primary/10 hover:text-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                className="flex items-center gap-2 rounded-lg transition-colors duration-150 hover:bg-primary/10 hover:text-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 data-testid="button-nav-home"
                 aria-label="Navigate to home page"
               >
@@ -80,7 +80,7 @@ export function AppHeader() {
                 variant="ghost"
                 size="sm"
                 onClick={() => window.open(APP_URLS.CHROME_STORE, '_blank')}
-                className="flex items-center gap-2 rounded-lg transition-all duration-300 hover:bg-primary/10 hover:text-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                className="flex items-center gap-2 rounded-lg transition-colors duration-150 hover:bg-primary/10 hover:text-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 data-testid="button-nav-extension"
                 aria-label="Download Chrome extension (opens in new tab)"
               >
@@ -92,7 +92,7 @@ export function AppHeader() {
                 variant="ghost"
                 size="sm"
                 onClick={() => setLocation('/pricing')}
-                className="flex items-center gap-2 rounded-lg transition-all duration-300 hover:bg-primary/10 hover:text-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                className="flex items-center gap-2 rounded-lg transition-colors duration-150 hover:bg-primary/10 hover:text-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 data-testid="button-nav-pricing"
                 aria-label="View pricing plans"
               >

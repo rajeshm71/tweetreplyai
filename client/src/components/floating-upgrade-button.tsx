@@ -45,7 +45,7 @@ export function FloatingUpgradeButton() {
       <Button
         onClick={handleUpgrade}
         size="lg"
-        className="rounded-full shadow-2xl bg-primary hover:bg-primary/90 text-white font-semibold px-6 py-6 h-auto transition-all duration-300 hover:scale-110 active:scale-95 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        className="rounded-full shadow-2xl bg-primary hover:bg-primary/90 text-white font-semibold px-6 py-6 h-auto transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         aria-label="Upgrade to Pro"
       >
         <Crown className="w-5 h-5 mr-2" />

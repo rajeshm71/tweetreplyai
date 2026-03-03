@@ -262,38 +262,41 @@
 }
 
 .smooth-transition {
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: color 0.15s ease, opacity 0.15s ease;
 }
 
 .spring-transition {
-  transition: all 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: color 0.15s ease, opacity 0.15s ease;
 }
 
+/* Animation removed - reduced motion */
 .floating-animation {
-  animation: float 6s ease-in-out infinite;
+  /* was: animation: float 6s ease-in-out infinite; */
 }
 
+/* Animation removed - reduced motion */
 .pulse-glow {
-  animation: pulseGlow 3s ease-in-out infinite;
+  /* was: animation: pulseGlow 3s ease-in-out infinite; */
 }
 
+/* Animation removed - reduced motion */
 .rotate-slow {
-  animation: rotateSlow 20s linear infinite;
+  /* was: animation: rotateSlow 20s linear infinite; */
 }
 
 @keyframes float {
-  0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-12px); }
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(0); }
 }
 
 @keyframes pulseGlow {
   0%, 100% { box-shadow: 0 0 20px hsla(142.1, 76.2%, 36.3%, 0.4); }
-  50% { box-shadow: 0 0 40px hsla(142.1, 76.2%, 36.3%, 0.8), 0 0 60px hsla(142.1, 76.2%, 36.3%, 0.4); }
+  50% { box-shadow: 0 0 20px hsla(142.1, 76.2%, 36.3%, 0.4); }
 }
 
 @keyframes rotateSlow {
   from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  to { transform: rotate(0deg); }
 }
 
 @keyframes shimmer {
@@ -316,11 +319,11 @@
   background: linear-gradient(
     90deg,
     transparent,
-    hsla(221, 83%, 53%, 0.3),
+    hsla(221, 83%, 53%, 0.08),
     transparent
   );
   background-size: 1000px 100%;
-  animation: shimmer 3s infinite;
+  /* animation removed - reduced motion */
   pointer-events: none;
 }
 
@@ -347,7 +350,8 @@
   bottom: 0;
   background: var(--gradient-mesh);
   background-size: 200% 200%;
-  animation: mesh-animation 20s ease infinite;
+  background-position: 50% 50%;
+  /* animation removed - reduced motion */
   opacity: 0.3;
   pointer-events: none;
 }
@@ -400,23 +404,23 @@
   text-shadow: 0 4px 8px hsla(0, 0%, 0%, 0.3);
 }
 
-/* Interactive Elements */
+/* Interactive Elements - reduced motion: no hover transform */
 .hover-lift {
   transform: translateY(0);
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: none;
 }
 
 .hover-lift:hover {
-  transform: translateY(-8px);
+  transform: translateY(0);
 }
 
 .hover-scale {
   transform: scale(1);
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: none;
 }
 
 .hover-scale:hover {
-  transform: scale(1.05);
+  transform: scale(1);
 }
 
 .hover-glow:hover {
@@ -558,9 +562,9 @@
     animation: none !important;
   }
   
-  /* Disable 3D transforms for reduced motion */
+  /* Disable 3D transforms for reduced motion (fix: was incorrectly applying transform) */
   .card-3d:hover {
-    transform: translateY(-4px) scale(1.01) !important;
+    transform: none !important;
   }
   
   /* Disable hover transforms */
@@ -571,18 +575,18 @@
   }
 }
 
-/* Modern micro-interactions */
+/* Modern micro-interactions - reduced motion: no hover transform */
 .micro-lift {
-  transition: transform 0.2s var(--ease-out-expo), box-shadow 0.2s var(--ease-out-expo);
+  transition: none;
 }
 
 .micro-lift:hover {
-  transform: translateY(-2px);
+  transform: none;
   box-shadow: 0 4px 12px hsla(0, 0%, 0%, 0.15);
 }
 
 .micro-lift:active {
-  transform: translateY(0);
+  transform: none;
 }
 
 /* Enhanced button states */
@@ -627,15 +631,14 @@ a:focus-visible {
   will-change: auto;
 }
 
-/* Modern card hover effects */
-/* Fixed: Optimized will-change usage - only applies during hover for better performance */
+/* Modern card hover effects - reduced motion: no lift/scale */
 .card-modern {
-  transition: all 0.3s var(--ease-out-expo);
+  transition: none;
 }
 
 .card-modern:hover {
-  will-change: transform;
-  transform: translateY(-4px) scale(1.01);
+  will-change: auto;
+  transform: none;
   box-shadow: 0 20px 40px hsla(0, 0%, 0%, 0.1);
 }
 
@@ -713,14 +716,14 @@ a:focus-visible {
   position: relative;
 }
 
-/* Magnetic button effect */
+/* Magnetic button - reduced motion: no hover transform */
 .magnetic-button {
   position: relative;
-  transition: transform 0.2s var(--ease-out-expo);
+  transition: none;
 }
 
 .magnetic-button:hover {
-  transform: translateY(-2px) scale(1.02);
+  transform: none;
 }
 
 /* Ripple effect */
@@ -747,14 +750,14 @@ a:focus-visible {
   height: 300px;
 }
 
-/* 3D card transform */
+/* 3D card - reduced motion: no hover transform */
 .card-3d {
   transform-style: preserve-3d;
-  transition: transform 0.3s var(--ease-out-expo);
+  transition: none;
 }
 
 .card-3d:hover {
-  transform: perspective(1000px) rotateY(5deg) rotateX(-5deg) translateY(-8px);
+  transform: none;
 }
 
 /* Animated particles background */
@@ -775,7 +778,7 @@ a:focus-visible {
   background: var(--primary);
   border-radius: 50%;
   opacity: 0.3;
-  animation: particle-float 20s infinite ease-in-out;
+  /* animation removed - reduced motion */
 }
 
 @keyframes particle-float {
@@ -791,9 +794,9 @@ a:focus-visible {
 
 /* Scroll progress indicator removed */
 
-/* Enhanced pulse glow */
+/* Enhanced pulse glow - reduced motion: static glow only */
 .pulse-glow-primary {
-  animation: pulseGlowPrimary 3s ease-in-out infinite;
+  box-shadow: 0 0 20px hsla(221, 83%, 53%, 0.4), 0 0 40px hsla(221, 83%, 53%, 0.2);
 }
 
 @keyframes pulseGlowPrimary {
@@ -805,16 +808,16 @@ a:focus-visible {
   }
 }
 
-/* Stagger animation utility */
+/* Stagger - reduced motion: show immediately */
 .stagger-item {
-  opacity: 0;
-  transform: translateY(20px);
-  transition: opacity 0.6s var(--ease-out-expo), transform 0.6s var(--ease-out-expo);
+  opacity: 1;
+  transform: none;
+  transition: none;
 }
 
 .stagger-item.animate {
   opacity: 1;
-  transform: translateY(0);
+  transform: none;
 }
 
 /* Number rolling animation */
@@ -823,9 +826,9 @@ a:focus-visible {
   transition: all 0.3s ease;
 }
 
-/* Enhanced hover glow */
+/* Enhanced hover glow - reduced motion: no transition */
 .hover-glow-primary {
-  transition: box-shadow 0.3s var(--ease-out-expo);
+  /* static; optional subtle glow on hover without animation */
 }
 
 .hover-glow-primary:hover {
@@ -847,33 +850,21 @@ a:focus-visible {
   will-change: transform;
 }
 
-/* Smooth fade-in */
+/* Smooth fade-in - reduced motion: instant */
 .fade-in {
-  opacity: 0;
-  animation: fadeIn 0.8s var(--ease-out-expo) forwards;
+  opacity: 1;
 }
 
 @keyframes fadeIn {
   to { opacity: 1; }
 }
 
-/* Slide-in animations */
-.slide-in-left {
-  opacity: 0;
-  transform: translateX(-30px);
-  animation: slideInLeft 0.8s var(--ease-out-expo) forwards;
-}
-
-.slide-in-right {
-  opacity: 0;
-  transform: translateX(30px);
-  animation: slideInRight 0.8s var(--ease-out-expo) forwards;
-}
-
+/* Slide-in - reduced motion: instant */
+.slide-in-left,
+.slide-in-right,
 .slide-in-up {
-  opacity: 0;
-  transform: translateY(30px);
-  animation: slideInUp 0.8s var(--ease-out-expo) forwards;
+  opacity: 1;
+  transform: none;
 }
 
 @keyframes slideInLeft {
@@ -897,9 +888,9 @@ a:focus-visible {
   }
 }
 
-/* Enhanced floating animation */
+/* Enhanced floating - reduced motion: no animation */
 .floating-animation-enhanced {
-  animation: floatEnhanced 8s ease-in-out infinite;
+  /* was: animation: floatEnhanced 8s ease-in-out infinite; */
 }
 
 @keyframes floatEnhanced {
@@ -917,12 +908,11 @@ a:focus-visible {
   }
 }
 
-/* Typewriter effect */
+/* Typewriter - reduced motion: no animation */
 .typewriter {
   overflow: hidden;
   border-right: 2px solid var(--primary);
   white-space: nowrap;
-  animation: typewriter 3s steps(40) infinite, blink 0.75s step-end infinite;
 }
 
 @keyframes typewriter {
@@ -957,7 +947,7 @@ a:focus-visible {
   inset: 0;
   background: var(--gradient-mesh);
   background-size: 200% 200%;
-  animation: mesh-animation 15s ease infinite;
+  background-position: 50% 50%;
   opacity: 0.4;
   pointer-events: none;
   z-index: 0;
@@ -982,29 +972,25 @@ a:focus-visible {
   text-align: center;
 }
 
-/* Fixed: Enhanced icon container with proper hover effects */
+/* Stat icon - reduced motion: no hover transform */
 .stat-icon-container {
-  transition: transform 0.3s var(--ease-out-expo), box-shadow 0.3s var(--ease-out-expo);
+  transition: none;
 }
 
-.stat-icon-container:hover {
-  transform: scale(1.1) rotate(3deg);
-  box-shadow: 0 8px 16px hsla(0, 0%, 0%, 0.2);
-}
-
-/* Group hover for icon container (when card is hovered) */
+.stat-icon-container:hover,
 .group:hover .stat-icon-container {
-  transform: scale(1.1) rotate(3deg);
+  transform: none;
+  box-shadow: 0 8px 16px hsla(0, 0%, 0%, 0.2);
 }
 
 .stat-weekly-badge {
   backdrop-filter: blur(8px);
   border: 1px solid;
-  transition: all 0.3s var(--ease-out-expo);
+  transition: none;
 }
 
 .stat-weekly-badge:hover {
-  transform: translateY(-2px);
+  transform: none;
   box-shadow: 0 4px 8px hsla(0, 0%, 0%, 0.1);
 }
 
@@ -1030,34 +1016,34 @@ a:focus-visible {
   }
 }
 
-/* Sprint 0: Modern card styles with enhanced shadows and rounded corners */
+/* Sprint 0: Modern card styles - reduced motion: no hover lift */
 .card-modern-enhanced {
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-md);
-  transition: all 0.3s var(--ease-out-expo);
+  transition: none;
   border: 1px solid var(--border);
 }
 
 .card-modern-enhanced:hover {
   box-shadow: var(--shadow-lg);
-  transform: translateY(-2px);
+  transform: none;
 }
 
-/* Sprint 0: Modern button styles with gradients */
+/* Sprint 0: Modern button styles - reduced motion: no hover/active transform */
 .btn-primary-gradient {
   background: var(--gradient-primary);
   border: none;
   border-radius: var(--radius-md);
-  transition: all 0.3s var(--ease-out-expo);
+  transition: none;
 }
 
 .btn-primary-gradient:hover {
-  transform: translateY(-1px);
+  transform: none;
   box-shadow: 0 8px 16px hsla(221, 83%, 53%, 0.3);
 }
 
 .btn-primary-gradient:active {
-  transform: translateY(0);
+  transform: none;
 }
 
 /* Sprint 0: Modern input/textarea styles */
@@ -1107,4 +1093,12 @@ a:focus-visible {
   align-items: center;
   justify-content: center;
   margin-bottom: var(--space-md);
+}
+
+/* Reduce UI overlay/modal animations - minimal motion */
+[data-state="open"].animate-in,
+[data-state="closed"].animate-out,
+.animate-in,
+.animate-out {
+  animation-duration: 0.001ms !important;
 }

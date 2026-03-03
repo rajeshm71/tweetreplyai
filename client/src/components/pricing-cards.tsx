@@ -165,9 +165,9 @@ export function PricingCards() {
   return (
     <div className="grid md:grid-cols-3 gap-8 max-w-4xl mx-auto">
       {/* Free Trial */}
-      <Card className={`relative overflow-hidden border-2 ${pricingTiers.trial.borderColor} ${pricingTiers.trial.hoverBorder} transition-all duration-300 group`}>
+      <Card className={`relative overflow-hidden border-2 ${pricingTiers.trial.borderColor} ${pricingTiers.trial.hoverBorder} transition-colors duration-150 group`}>
         {/* Gradient background */}
-        <div className={`absolute inset-0 bg-gradient-to-br ${pricingTiers.trial.cardGradient} opacity-50 group-hover:opacity-70 transition-opacity duration-300`} />
+        <div className={`absolute inset-0 bg-gradient-to-br ${pricingTiers.trial.cardGradient} opacity-50 group-hover:opacity-70 transition-opacity duration-150`} />
         
         <CardContent className="p-8 relative z-10">
           <div className="text-center mb-6">
@@ -221,7 +221,7 @@ export function PricingCards() {
           </div>
           
           <Button 
-            className={`w-full font-medium bg-gradient-to-r ${pricingTiers.trial.buttonGradient} text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300`}
+            className={`w-full font-medium bg-gradient-to-r ${pricingTiers.trial.buttonGradient} text-white border-0 shadow-lg hover:shadow-xl transition-colors duration-150`}
             onClick={() => {
               if (!isAuthenticated) {
                 window.location.href = '/login';
@@ -238,10 +238,10 @@ export function PricingCards() {
       </Card>
 
       {/* Weekly Plan */}
-      <Card className={`relative overflow-visible border-2 ${pricingTiers.weekly.borderColor} ${pricingTiers.weekly.hoverBorder} transition-all duration-300 group shadow-[0_0_30px_rgba(34,197,94,0.2)] hover:shadow-[0_0_40px_rgba(34,197,94,0.3)]`}>
+      <Card className={`relative overflow-visible border-2 ${pricingTiers.weekly.borderColor} ${pricingTiers.weekly.hoverBorder} transition-colors duration-150 group shadow-[0_0_30px_rgba(34,197,94,0.2)] hover:shadow-[0_0_40px_rgba(34,197,94,0.3)]`}>
         {/* Enhanced Most Popular badge - Redesigned for better visibility */}
         <div className="absolute -top-4 left-1/2 transform -translate-x-1/2 z-50">
-          <Badge className="bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-500 text-white border-2 border-amber-600 shadow-2xl font-bold px-4 py-1.5 text-sm whitespace-nowrap animate-pulse">
+          <Badge className="bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-500 text-white border-2 border-amber-600 shadow-2xl font-bold px-4 py-1.5 text-sm whitespace-nowrap">
             ⭐ Most Popular
           </Badge>
         </div>
@@ -253,7 +253,7 @@ export function PricingCards() {
         )}
         
         {/* Gradient background with glow */}
-        <div className={`absolute inset-0 bg-gradient-to-br ${pricingTiers.weekly.cardGradient} opacity-50 group-hover:opacity-70 transition-opacity duration-300`} />
+        <div className={`absolute inset-0 bg-gradient-to-br ${pricingTiers.weekly.cardGradient} opacity-50 group-hover:opacity-70 transition-opacity duration-150`} />
         <div className="absolute inset-0 bg-gradient-to-r from-green-500/10 to-emerald-500/10 opacity-30 blur-xl" />
         
         <CardContent className="p-8 relative z-10 pt-10">
@@ -326,7 +326,7 @@ export function PricingCards() {
           </div>
           
           <Button 
-            className={`w-full font-medium ${currentSubscription?.planCode === 'weekly' ? 'bg-transparent border-2 border-green-500 text-green-600 hover:bg-green-50' : `bg-gradient-to-r ${pricingTiers.weekly.buttonGradient} text-white border-0`} shadow-lg hover:shadow-xl transition-all duration-300`}
+            className={`w-full font-medium ${currentSubscription?.planCode === 'weekly' ? 'bg-transparent border-2 border-green-500 text-green-600 hover:bg-green-50' : `bg-gradient-to-r ${pricingTiers.weekly.buttonGradient} text-white border-0`} shadow-lg hover:shadow-xl transition-colors duration-150`}
             onClick={getButtonState('weekly').action}
             disabled={loadingPlan === 'weekly'}
             data-testid="button-subscribe-weekly"
@@ -344,7 +344,7 @@ export function PricingCards() {
       </Card>
 
       {/* Monthly Plan */}
-      <Card className={`relative overflow-hidden border-2 ${pricingTiers.monthly.borderColor} ${pricingTiers.monthly.hoverBorder} transition-all duration-300 group`}>
+      <Card className={`relative overflow-hidden border-2 ${pricingTiers.monthly.borderColor} ${pricingTiers.monthly.hoverBorder} transition-colors duration-150 group`}>
         {/* Current Plan badge - only show for active subscriptions */}
         {currentSubscription?.planCode === 'monthly' && currentSubscription.status === 'active' && (
           <div className="absolute top-4 right-4 z-50">
@@ -352,7 +352,7 @@ export function PricingCards() {
           </div>
         )}
         {/* Gradient background */}
-        <div className={`absolute inset-0 bg-gradient-to-br ${pricingTiers.monthly.cardGradient} opacity-50 group-hover:opacity-70 transition-opacity duration-300`} />
+        <div className={`absolute inset-0 bg-gradient-to-br ${pricingTiers.monthly.cardGradient} opacity-50 group-hover:opacity-70 transition-opacity duration-150`} />
         
         <CardContent className="p-8 relative z-10">
           <div className="text-center mb-6">
@@ -424,7 +424,7 @@ export function PricingCards() {
           </div>
           
           <Button 
-            className={`w-full font-medium ${currentSubscription?.planCode === 'monthly' ? 'bg-transparent border-2 border-purple-500 text-purple-600 hover:bg-purple-50' : `bg-gradient-to-r ${pricingTiers.monthly.buttonGradient} text-white border-0`} shadow-lg hover:shadow-xl transition-all duration-300`}
+            className={`w-full font-medium ${currentSubscription?.planCode === 'monthly' ? 'bg-transparent border-2 border-purple-500 text-purple-600 hover:bg-purple-50' : `bg-gradient-to-r ${pricingTiers.monthly.buttonGradient} text-white border-0`} shadow-lg hover:shadow-xl transition-colors duration-150`}
             onClick={getButtonState('monthly').action}
             disabled={loadingPlan === 'monthly'}
             data-testid="button-subscribe-monthly"

@@ -39,7 +39,7 @@ export function UsageBadge({ showDetails = false }: UsageBadgeProps) {
   if (isLoading) {
     return (
       <div className="flex items-center space-x-2">
-        <div className="w-2 h-2 bg-muted rounded-full animate-pulse" />
+        <div className="w-2 h-2 bg-muted rounded-full" />
         <span className="text-sm text-muted-foreground">Loading...</span>
       </div>
     );

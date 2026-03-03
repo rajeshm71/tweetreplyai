@@ -650,7 +650,7 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
 
       {/* Upgrade Banner Above Input */}
       {usage && usage.upgradeRequired && !usage.isWhitelisted && !dismissedUpgradeBanner && (
-        <div className="border-t border-border px-4 pt-3 pb-2 animate-in slide-in-from-top-2 duration-300">
+        <div className="border-t border-border px-4 pt-3 pb-2">
           <Alert className="bg-gradient-to-r from-primary/10 via-purple-600/10 to-primary/10 border-primary/20">
             <div className="flex items-start justify-between gap-3">
               <div className="flex-1">
@@ -808,7 +808,7 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
             onClick={handleGenerate}
             disabled={generateMutation.isPending || !tweetText.trim()}
             size="icon"
-            className="self-end h-[60px] w-[60px] rounded-xl bg-primary hover:bg-primary/90 transition-all duration-300 hover:scale-105 active:scale-95 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="self-end h-[60px] w-[60px] rounded-xl bg-primary hover:bg-primary/90 transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             data-testid="button-generate-reply"
             aria-label={generateMutation.isPending ? "Generating reply..." : "Generate reply"}
             aria-disabled={generateMutation.isPending || !tweetText.trim()}

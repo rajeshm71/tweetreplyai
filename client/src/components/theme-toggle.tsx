@@ -1,7 +1,6 @@
 import { Moon, Sun } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "@/hooks/use-theme";
-import { motion } from "framer-motion";
 
 export function ThemeToggle() {
   const { theme, resolvedTheme, setTheme } = useTheme();
@@ -35,17 +34,13 @@ export function ThemeToggle() {
       variant="ghost"
       size="icon"
       onClick={toggleTheme}
-      className="rounded-lg transition-all duration-300 hover:bg-primary/10 hover:text-primary"
+      className="rounded-lg transition-colors duration-150 hover:bg-primary/10 hover:text-primary"
       aria-label={`Switch to ${theme === 'light' ? 'dark' : theme === 'dark' ? 'system' : 'light'} theme`}
       title={`Current theme: ${getLabel()}`}
     >
-      <motion.div
-        initial={false}
-        animate={{ rotate: theme === 'dark' ? 180 : 0 }}
-        transition={{ duration: 0.3, ease: 'easeInOut' }}
-      >
+      <div>
         {getIcon()}
-      </motion.div>
+      </div>
     </Button>
   );
 }
