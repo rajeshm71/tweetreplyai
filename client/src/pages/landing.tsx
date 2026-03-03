@@ -6,10 +6,11 @@ import { PricingCards } from "@/components/pricing-cards";
 import { useAuth } from "@/hooks/useAuth";
 import {
   Sparks, Flash, ArrowRight, ArrowLeft, CheckCircle, Rocket, Brain, ChatBubble, Crown, Star, Shield,
-  Check, StatUp, Chrome, Google, Heart, Group, Menu, Xmark, Copy, Building, Medal, Clock, ViewGrid, Dollar,
+  Check, StatUp, Heart, Group, Menu, Xmark, Copy, Building, Medal, Clock, ViewGrid, Dollar,
   HelpCircle, Plus, Minus, Refresh, SmartphoneDevice,
 } from "iconoir-react";
 import { IconMessageCircle, IconChartBar, IconRocket, IconClock, IconTrendingUp } from "@tabler/icons-react";
+import { GoogleChromeLogo } from "@phosphor-icons/react";
 import { Logo } from "@/components/logo";
 import useEmblaCarousel from 'embla-carousel-react';
 import Autoplay from 'embla-carousel-autoplay';
@@ -256,7 +257,7 @@ export default function Landing() {
       solidBg: "bg-amber-500"
     },
     {
-      icon: Google,
+      icon: GoogleChromeLogo,
       title: "One-Click Integration",
       description: "Seamless Chrome extension works directly on X. Click once, get instant replies without leaving your feed. No copy-paste needed.",
       feature: "Seamless workflow",
@@ -563,7 +564,7 @@ export default function Landing() {
               size="sm"
               aria-label="Add TweetReplyAI to Chrome"
             >
-              <Chrome className="w-4 h-4 mr-2" aria-hidden="true" />
+              <GoogleChromeLogo className="w-4 h-4 mr-2" aria-hidden="true" />
               Add to Chrome
             </Button>
           </div>
@@ -714,7 +715,7 @@ export default function Landing() {
                 className="w-full justify-start bg-gradient-to-r from-blue-500 to-indigo-600 text-white hover:shadow-lg hover:shadow-blue-500/20 transition-all duration-300"
                 size="sm"
               >
-                <Chrome className="w-4 h-4 mr-2" />
+                <GoogleChromeLogo className="w-4 h-4 mr-2" />
                 Add to Chrome
               </Button>
               <a 
