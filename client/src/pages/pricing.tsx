@@ -54,7 +54,7 @@ export default function Pricing() {
               </Badge>
               
               <h1 className="text-5xl md:text-7xl font-display font-bold mb-8 leading-none">
-                <span className="gradient-text">Pricing That</span>
+                <span className="text-primary">Pricing That</span>
                 <br />
                 <span className="text-foreground">Scales With You</span>
               </h1>
@@ -86,7 +86,7 @@ export default function Pricing() {
                 Ready to Start Replying?
               </Badge>
               <h2 className="text-4xl md:text-5xl font-display font-bold mb-6">
-                Start Your <span className="gradient-text">Free Trial</span> Today
+                Start Your <span className="text-primary">Free Trial</span> Today
               </h2>
               <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
                 Join thousands of professionals who are already transforming their social media engagement with TweetReply.

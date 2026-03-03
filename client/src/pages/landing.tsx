@@ -588,12 +588,12 @@ export default function Landing() {
               <ViewGrid className={`w-4 h-4 transition-all duration-300 ${
                 activeNavSection === 'features' 
                   ? 'text-green-600' 
-                  : 'text-muted-foreground group-hover:text-transparent group-hover:bg-gradient-to-r group-hover:from-blue-400 group-hover:to-green-400 group-hover:bg-clip-text'
+                  : 'text-muted-foreground group-hover:text-primary'
               }`} />
               <span className={`transition-all duration-300 ${
                 activeNavSection === 'features'
                   ? ''
-                  : 'group-hover:text-transparent group-hover:bg-gradient-to-r group-hover:from-blue-400 group-hover:to-green-400 group-hover:bg-clip-text'
+                  : 'group-hover:text-primary'
               }`}>Features</span>
               {activeNavSection === 'features' && (
                 <motion.div
@@ -621,12 +621,12 @@ export default function Landing() {
               <Dollar className={`w-4 h-4 transition-all duration-300 ${
                 activeNavSection === 'pricing' 
                   ? 'text-rose-600' 
-                  : 'text-muted-foreground group-hover:text-transparent group-hover:bg-gradient-to-r group-hover:from-pink-400 group-hover:to-rose-400 group-hover:bg-clip-text'
+                  : 'text-muted-foreground group-hover:text-primary'
               }`} />
               <span className={`transition-all duration-300 ${
                 activeNavSection === 'pricing'
                   ? ''
-                  : 'group-hover:text-transparent group-hover:bg-gradient-to-r group-hover:from-pink-400 group-hover:to-rose-400 group-hover:bg-clip-text'
+                  : 'group-hover:text-primary'
               }`}>Pricing</span>
               {activeNavSection === 'pricing' && (
                 <motion.div
@@ -654,12 +654,12 @@ export default function Landing() {
               <HelpCircle className={`w-4 h-4 transition-all duration-300 ${
                 activeNavSection === 'faq' 
                   ? 'text-indigo-600' 
-                  : 'text-muted-foreground group-hover:text-transparent group-hover:bg-gradient-to-r group-hover:from-blue-400 group-hover:to-purple-400 group-hover:bg-clip-text'
+                  : 'text-muted-foreground group-hover:text-primary'
               }`} />
               <span className={`transition-all duration-300 ${
                 activeNavSection === 'faq'
                   ? ''
-                  : 'group-hover:text-transparent group-hover:bg-gradient-to-r group-hover:from-blue-400 group-hover:to-purple-400 group-hover:bg-clip-text'
+                  : 'group-hover:text-primary'
               }`}>FAQs</span>
               {activeNavSection === 'faq' && (
                 <motion.div
@@ -794,7 +794,7 @@ export default function Landing() {
                   transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
                 >
                   <motion.span 
-                    className="gradient-text-shimmer block mb-3"
+                    className="block mb-3 text-primary"
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 1, ease: [0.16, 1, 0.3, 1], delay: 0.2 }}
@@ -802,7 +802,7 @@ export default function Landing() {
                     Never Waste Time
                   </motion.span>
                   <motion.span 
-                    className="gradient-text-shimmer block mb-3 text-5xl md:text-7xl lg:text-8xl"
+                    className="block mb-3 text-primary text-5xl md:text-7xl lg:text-8xl"
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 1, ease: [0.16, 1, 0.3, 1], delay: 0.4 }}
@@ -810,7 +810,7 @@ export default function Landing() {
                     On X Replies
                   </motion.span>
                   <motion.span 
-                    className="gradient-text-shimmer block text-4xl md:text-6xl lg:text-7xl"
+                    className="block text-primary text-4xl md:text-6xl lg:text-7xl"
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 1, ease: [0.16, 1, 0.3, 1], delay: 0.6 }}
@@ -966,7 +966,7 @@ export default function Landing() {
             {/* Title Section */}
             <div className="text-center mb-12">
               <h2 className="text-4xl md:text-5xl font-display font-bold mb-6">
-                Numbers That Tell <span className="gradient-text">Our Story</span>
+                Numbers That Tell <span className="text-primary">Our Story</span>
               </h2>
             </div>
 
@@ -988,7 +988,7 @@ export default function Landing() {
                   solidBg: "bg-blue-500",
                   borderColor: "border-blue-500/20",
                   hoverBorder: "hover:border-blue-500/40",
-                  textGradient: "bg-gradient-to-r from-blue-600 to-cyan-600",
+                  textColor: "text-blue-600",
                   bgGradient: "from-blue-500/5 to-cyan-500/5",
                   badgeColor: "text-blue-600"
                 },
@@ -1001,7 +1001,7 @@ export default function Landing() {
                   solidBg: "bg-indigo-500",
                   borderColor: "border-purple-500/20",
                   hoverBorder: "hover:border-purple-500/40",
-                  textGradient: "bg-gradient-to-r from-indigo-600 to-purple-600",
+                  textColor: "text-indigo-600",
                   bgGradient: "from-indigo-500/5 to-purple-500/5",
                   badgeColor: "text-purple-600"
                 },
@@ -1014,7 +1014,7 @@ export default function Landing() {
                   solidBg: "bg-emerald-500",
                   borderColor: "border-green-500/20",
                   hoverBorder: "hover:border-green-500/40",
-                  textGradient: "bg-gradient-to-r from-emerald-600 to-green-600",
+                  textColor: "text-emerald-600",
                   bgGradient: "from-emerald-500/5 to-green-500/5",
                   badgeColor: "text-green-600"
                 },
@@ -1027,7 +1027,7 @@ export default function Landing() {
                   solidBg: "bg-orange-500",
                   borderColor: "border-orange-500/20",
                   hoverBorder: "hover:border-orange-500/40",
-                  textGradient: "bg-gradient-to-r from-orange-600 to-amber-600",
+                  textColor: "text-orange-600",
                   bgGradient: "from-orange-500/5 to-amber-500/5",
                   badgeColor: "text-orange-600"
                 }
@@ -1056,7 +1056,7 @@ export default function Landing() {
                         
                         {/* Value - Large, Bold, Centered */}
                         {/* Fixed: Removed redundant fontWeight and lineHeight (already in CSS class) */}
-                        <div className={`stat-value-text text-4xl md:text-5xl ${stat.textGradient} bg-clip-text text-transparent pr-1`} style={{ marginBottom: '0.5rem' }}>
+                        <div className={`stat-value-text text-4xl md:text-5xl ${stat.textColor} pr-1`} style={{ marginBottom: '0.5rem' }}>
                           {stat.value}
                         </div>
                         
@@ -1107,7 +1107,7 @@ export default function Landing() {
               Try It Live
             </Badge>
             <h2 className="text-4xl md:text-5xl font-display font-bold mb-6">
-              See <span className="gradient-text">AI Magic</span> for X Replies
+              See <span className="text-primary">AI Magic</span> for X Replies
             </h2>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
               Type any X tweet below and watch TweetReplyAI generate a perfect response instantly. Generate authentic X replies automatically.
@@ -1286,7 +1286,7 @@ export default function Landing() {
               Recognition
             </Badge>
             <h2 className="text-3xl md:text-4xl font-display font-bold">
-              Featured <span className="gradient-text">In The Press</span>
+              Featured <span className="text-primary">In The Press</span>
             </h2>
           </div>
           <div className="grid md:grid-cols-3 gap-6 max-w-3xl mx-auto">
@@ -1319,14 +1319,14 @@ export default function Landing() {
       {/* Features Section */}
       <section id="features" className="section-padding bg-gradient-to-b from-muted/5 to-muted/10">
         <div className="container">
-          <div className="text-center mb-8">
-            <Badge variant="secondary" className="mb-4 glass-effect border border-primary/20">
-              <Rocket className="w-4 h-4 mr-2" />
-              Powerful Features
-            </Badge>
-            <h2 className="text-4xl md:text-5xl font-display font-bold mb-6">
-              Everything You Need to <span className="gradient-text">Excel on X</span>
-            </h2>
+        <div className="text-center mb-8">
+          <Badge variant="secondary" className="mb-4 glass-effect border border-primary/20">
+            <Rocket className="w-4 h-4 mr-2" />
+            Powerful Features
+          </Badge>
+          <h2 className="text-4xl md:text-5xl font-display font-bold mb-6">
+            Everything You Need to <span className="text-primary">Excel on X</span>
+          </h2>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-6">
               Discover powerful features that make replying effortless, intelligent, and engaging. From automatic likes to smart tone detection, we've got you covered.
             </p>
@@ -1388,7 +1388,7 @@ export default function Landing() {
               Real Results
             </Badge>
             <h2 className="text-4xl md:text-5xl font-display font-bold mb-6">
-              See The <span className="gradient-text">Engagement Boost</span>
+              See The <span className="text-primary">Engagement Boost</span>
             </h2>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
               Average metrics from our active users
@@ -1407,7 +1407,7 @@ export default function Landing() {
                 <div className="absolute top-4 right-4">
                   <Badge variant="secondary" className="bg-red-500/10 text-red-600 border-red-500/20">Before</Badge>
                 </div>
-                <div className="space-y-6 mt-8">
+            <div className="space-y-6 mt-8">
                   {[
                     { label: "Weekly Replies", value: "45" },
                     { label: "Time Spent", value: "8 hrs" },
@@ -1422,7 +1422,7 @@ export default function Landing() {
                       className="text-center"
                     >
                       <div className="text-sm text-muted-foreground mb-2">{metric.label}</div>
-                      <div className="text-4xl font-bold text-foreground gradient-text">{metric.value}</div>
+                  <div className="text-4xl font-bold text-foreground">{metric.value}</div>
                     </motion.div>
                   ))}
                 </div>
@@ -1456,7 +1456,7 @@ export default function Landing() {
                     >
                       <div className="text-sm text-muted-foreground mb-2">{metric.label}</div>
                       <div className="flex items-baseline gap-2 justify-center">
-                        <div className="text-4xl font-bold text-primary gradient-text">{metric.value}</div>
+                        <div className="text-4xl font-bold text-primary">{metric.value}</div>
                         <Badge variant="secondary" className="bg-green-500/10 text-green-600 border-green-500/20">
                           {metric.change}
                         </Badge>
@@ -1482,7 +1482,7 @@ export default function Landing() {
                 </Badge>
                 
                 <h2 className="text-5xl md:text-6xl font-display font-bold mb-8 leading-none">
-                  <span className="gradient-text">Choose Your Plan</span>
+                  <span className="text-primary">Choose Your Plan</span>
                 </h2>
                 
                 <p className="text-xl md:text-2xl text-muted-foreground mb-4 max-w-3xl mx-auto leading-relaxed">
@@ -1574,10 +1574,10 @@ export default function Landing() {
 
                             {/* Author Details */}
                             <div className="flex-1 text-center md:text-left">
-                              <div className="flex items-center justify-center md:justify-start gap-2 mb-1">
-                                <span className={`text-lg md:text-xl font-bold bg-gradient-to-r ${testimonial.gradient} bg-clip-text text-transparent`}>
-                                  {testimonial.author}
-                                </span>
+                            <div className="flex items-center justify-center md:justify-start gap-2 mb-1">
+                              <span className="text-lg md:text-xl font-bold text-foreground">
+                                {testimonial.author}
+                              </span>
                                 {testimonial.verified && (
                                   <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20 text-xs">
                                     <Shield className="w-3 h-3 mr-1" />
@@ -1628,7 +1628,7 @@ export default function Landing() {
               Frequently Asked Questions
             </Badge>
             <h2 className="text-4xl md:text-5xl font-display font-bold mb-6">
-              Everything You <span className="gradient-text">Need to Know</span> About X Reply Generation
+              Everything You <span className="text-primary">Need to Know</span> About X Reply Generation
             </h2>
           </div>
           
@@ -1759,7 +1759,7 @@ export default function Landing() {
                 transition={{ duration: 0.8, delay: 0.2 }}
                 viewport={{ once: true }}
               >
-                Let Every X Tweet Spark <span className="gradient-text-shimmer">a Conversation</span> ✨
+                Let Every X Tweet Spark <span className="text-primary">a Conversation</span> ✨
               </motion.h2>
               
               <motion.p 

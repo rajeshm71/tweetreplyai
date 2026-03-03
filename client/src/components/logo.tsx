@@ -34,7 +34,7 @@ export function Logo({
         <Sparkles className="w-4 h-4 text-white" />
       </div>
       {showText && (
-        <span className={`${textSize} font-display font-bold bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent`}>
+        <span className={`${textSize} font-display font-bold text-primary`}>
           TweetReplyAI
         </span>
       )}

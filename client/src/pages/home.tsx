@@ -278,24 +278,24 @@ export default function Home() {
                   
                   <CardContent className="p-6 relative z-10">
                     {/* Header with Icon */}
-                    <div className="flex items-center gap-3 mb-4">
-                      <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center relative overflow-hidden">
-                        <IconBolt className="w-5 h-5 text-white relative z-10" />
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center relative overflow-hidden">
+                          <IconBolt className="w-5 h-5 text-white relative z-10" />
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-lg text-primary">
+                            Usage Limit
+                          </h3>
+                          <p className="text-xs text-muted-foreground">
+                            {usageStatus.planCode === 'trial' ? 'Free Trial' : `${usageStatus.planCode.charAt(0).toUpperCase() + usageStatus.planCode.slice(1)} Plan`}
+                          </p>
+                        </div>
                       </div>
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-lg bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">
-                          Usage Limit
-                        </h3>
-                        <p className="text-xs text-muted-foreground">
-                          {usageStatus.planCode === 'trial' ? 'Free Trial' : `${usageStatus.planCode.charAt(0).toUpperCase() + usageStatus.planCode.slice(1)} Plan`}
-                        </p>
-                      </div>
-                    </div>
 
                     {/* Usage Numbers */}
                     <div className="mb-4">
                       <div className="flex items-baseline justify-between mb-2">
-                        <span className="text-3xl font-bold bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">
+                        <span className="text-3xl font-bold text-primary">
                           {usageStatus.used}
                         </span>
                         <span className="text-lg font-semibold text-muted-foreground">

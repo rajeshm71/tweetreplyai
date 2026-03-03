@@ -515,7 +515,7 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
     <Card className="card-modern-enhanced border border-primary/20 bg-gradient-to-br from-card to-card/50 min-h-[600px] max-h-[calc(100vh-12rem)] max-w-4xl mx-auto flex flex-col overflow-hidden">
       {/* Action Buttons Header - Sprint 1: Modernized, Sprint 3: Added accessibility */}
       <div className="border-b border-border/50 p-4 flex items-center justify-between bg-gradient-to-r from-background/50 to-background" role="toolbar" aria-label="Reply generation actions">
-        <h2 className="text-lg font-semibold bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">Generate Reply</h2>
+        <h2 className="text-lg font-semibold text-primary">Generate Reply</h2>
         <div className="flex gap-2" role="group" aria-label="Action buttons">
           <Button
             variant="outline"

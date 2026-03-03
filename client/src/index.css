@@ -215,18 +215,12 @@
 
 /* Premium Design Elements */
 .gradient-text {
-  background: var(--gradient-primary);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--primary);
   font-weight: 700;
 }
 
 .gradient-text-accent {
-  background: var(--gradient-accent);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--primary);
 }
 
 .glass-effect {
@@ -709,44 +703,14 @@ a:focus-visible {
 
 /* Enhanced gradient text */
 .gradient-text-modern {
-  background: linear-gradient(135deg, var(--primary) 0%, hsl(262, 83%, 58%) 50%, hsl(291, 84%, 61%) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  background-size: 200% 200%;
-  animation: gradient-shift 3s ease infinite;
-}
-
-@keyframes gradient-shift {
-  0%, 100% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
+  color: var(--primary);
 }
 
 /* Soothing gradient text - matches Add to Chrome button colors (blue-500 to indigo-600) */
 /* Removed shimmer and fast animations for a more calming, professional look */
 .gradient-text-shimmer {
-  background: linear-gradient(135deg, hsl(217, 91%, 53%) 0%, hsl(239, 84%, 67%) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  /* Gentle, slow gradient shift for subtle movement */
-  background-size: 200% 200%;
-  animation: gentle-gradient-shift 8s ease-in-out infinite;
+  color: var(--primary);
   position: relative;
-}
-
-/* Gentle, slow gradient animation - very subtle and soothing */
-@keyframes gentle-gradient-shift {
-  0%, 100% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
 }
 
 /* Magnetic button effect */

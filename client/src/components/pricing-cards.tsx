@@ -89,7 +89,7 @@ export function PricingCards() {
       borderColor: "border-blue-500/20",
       hoverBorder: "hover:border-blue-500/40",
       textColor: "text-blue-600",
-      priceGradient: "bg-gradient-to-r from-blue-600 to-cyan-600",
+      priceColor: "text-blue-600",
       buttonGradient: "from-blue-500 to-cyan-500",
       badgeColor: "bg-blue-500/10 text-blue-600 border-blue-500/20"
     },
@@ -102,7 +102,7 @@ export function PricingCards() {
       borderColor: "border-green-500/20",
       hoverBorder: "hover:border-green-500/40",
       textColor: "text-green-600",
-      priceGradient: "bg-gradient-to-r from-green-600 to-emerald-600",
+      priceColor: "text-green-600",
       buttonGradient: "from-green-500 to-emerald-500",
       badgeColor: "bg-gradient-to-r from-green-500/20 to-emerald-500/20 text-green-700 border-green-500/30"
     },
@@ -115,7 +115,7 @@ export function PricingCards() {
       borderColor: "border-purple-500/20",
       hoverBorder: "hover:border-purple-500/40",
       textColor: "text-purple-600",
-      priceGradient: "bg-gradient-to-r from-purple-600 to-pink-600",
+      priceColor: "text-purple-600",
       buttonGradient: "from-purple-500 to-pink-500",
       badgeColor: "bg-purple-500/10 text-purple-600 border-purple-500/20"
     }
@@ -187,8 +187,8 @@ export function PricingCards() {
               <span className="text-base opacity-80" aria-hidden="true">{pricingTiers.trial.emoji}</span>
             </h3>
             
-            {/* Price with gradient */}
-            <div className={`text-3xl font-bold mb-2 ${pricingTiers.trial.priceGradient} bg-clip-text text-transparent`}>
+            {/* Price with solid color */}
+            <div className={`text-3xl font-bold mb-2 ${pricingTiers.trial.priceColor}`}>
               {formatCreditsLimit(PRICING_CONFIG.trial.creditsLimit)}
             </div>
             <div className="text-muted-foreground">{creditsPerCycleLabel(PRICING_CONFIG.trial)}</div>
@@ -274,7 +274,7 @@ export function PricingCards() {
               <span className="text-base opacity-80" aria-hidden="true">{pricingTiers.weekly.emoji}</span>
             </h3>
             
-            {/* Price with gradient */}
+            {/* Price with solid color */}
             <div className="mb-2">
               {PRICING_CONFIG.weekly.originalPrice && PRICING_CONFIG.weekly.offer?.active ? (
                 <div className="flex flex-col items-center gap-1">
@@ -282,7 +282,7 @@ export function PricingCards() {
                     <span className="text-xl text-muted-foreground line-through">
                       ${PRICING_CONFIG.weekly.originalPrice.toFixed(2)}
                     </span>
-                    <div className={`text-3xl font-bold ${pricingTiers.weekly.priceGradient} bg-clip-text text-transparent`}>
+                    <div className={`text-3xl font-bold ${pricingTiers.weekly.priceColor}`}>
                       ${PRICING_CONFIG.weekly.price.toFixed(2)}
                     </div>
                   </div>
@@ -291,7 +291,7 @@ export function PricingCards() {
                   </Badge>
                 </div>
               ) : (
-                <div className={`text-3xl font-bold ${pricingTiers.weekly.priceGradient} bg-clip-text text-transparent`}>
+                <div className={`text-3xl font-bold ${pricingTiers.weekly.priceColor}`}>
                   ${PRICING_CONFIG.weekly.price.toFixed(2)}
                 </div>
               )}
@@ -372,7 +372,7 @@ export function PricingCards() {
               <span className="text-base opacity-80" aria-hidden="true">{pricingTiers.monthly.emoji}</span>
             </h3>
             
-            {/* Price with gradient */}
+            {/* Price with solid color */}
             <div className="mb-2">
               {PRICING_CONFIG.monthly.originalPrice && PRICING_CONFIG.monthly.offer?.active ? (
                 <div className="flex flex-col items-center gap-1">
@@ -380,7 +380,7 @@ export function PricingCards() {
                     <span className="text-xl text-muted-foreground line-through">
                       ${PRICING_CONFIG.monthly.originalPrice.toFixed(2)}
                     </span>
-                    <div className={`text-3xl font-bold ${pricingTiers.monthly.priceGradient} bg-clip-text text-transparent`}>
+                    <div className={`text-3xl font-bold ${pricingTiers.monthly.priceColor}`}>
                       ${PRICING_CONFIG.monthly.price.toFixed(2)}
                     </div>
                   </div>
@@ -389,7 +389,7 @@ export function PricingCards() {
                   </Badge>
                 </div>
               ) : (
-                <div className={`text-3xl font-bold ${pricingTiers.monthly.priceGradient} bg-clip-text text-transparent`}>
+                <div className={`text-3xl font-bold ${pricingTiers.monthly.priceColor}`}>
                   ${PRICING_CONFIG.monthly.price.toFixed(2)}
                 </div>
               )}
