@@ -557,7 +557,7 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
         {messages.length === 0 ? (
           <div className="empty-state-modern" role="status" aria-label="Ready to generate replies">
             <div className="empty-state-icon" aria-hidden="true">
-              <ChatCircle className="w-10 h-10 text-white" />
+              <ChatCircle className="w-10 h-10 text-[hsl(160,60%,45%)]" />
             </div>
             <h3 className="text-xl font-semibold mb-2 text-foreground">Ready to Generate Replies!</h3>
             <p className="text-muted-foreground max-w-md">Paste a tweet text below and I'll create an authentic reply for you.</p>

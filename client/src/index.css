@@ -1100,11 +1100,11 @@ a:focus-visible {
 .empty-state-icon {
   width: 80px;
   height: 80px;
-  background: var(--gradient-primary);
+  background: transparent;
+  border: 3px solid hsl(160, 60%, 45%);
   border-radius: var(--radius-xl);
   display: flex;
   align-items: center;
   justify-content: center;
   margin-bottom: var(--space-md);
-  box-shadow: var(--shadow-lg);
 }
