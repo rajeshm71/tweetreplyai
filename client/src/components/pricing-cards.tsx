@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -20,7 +20,16 @@ interface SubscriptionStatus {
   currentPeriodEnd: string | null;
 }
 
-export function PricingCards() {
+const ALLOWED_AUTO_PLANS = ["weekly", "monthly"] as const;
+
+export function PricingCards({
+  initialPlanCode,
+  autoCheckout = false,
+}: {
+  initialPlanCode?: (typeof ALLOWED_AUTO_PLANS)[number];
+  autoCheckout?: boolean;
+} = {}) {
+  const autoCheckoutTriggeredRef = useRef(false);
   const { isAuthenticated } = useAuth();
   const { toast } = useToast();
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
@@ -161,6 +170,16 @@ export function PricingCards() {
     
     checkoutMutation.mutate(planCode);
   };
+
+  // Auto-open checkout when landing Subscribe sends plan + autoCheckout=1 (runs once after subscription loaded)
+  useEffect(() => {
+    if (!autoCheckout || !initialPlanCode || autoCheckoutTriggeredRef.current) return;
+    if (subscriptionLoading) return;
+    if (!ALLOWED_AUTO_PLANS.includes(initialPlanCode)) return;
+    if (currentSubscription?.planCode === initialPlanCode && currentSubscription?.status === "active") return;
+    autoCheckoutTriggeredRef.current = true;
+    handleSubscribe(initialPlanCode);
+  }, [autoCheckout, initialPlanCode, subscriptionLoading, currentSubscription?.planCode, currentSubscription?.status]);
 
   return (
     <div className="grid md:grid-cols-3 gap-8 max-w-4xl mx-auto">

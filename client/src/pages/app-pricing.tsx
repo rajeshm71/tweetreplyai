@@ -60,6 +60,8 @@ export default function AppPricingPage() {
 
   const planParam = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("plan") : null;
   const highlightPlan = planParam && ALLOWED_PLANS.includes(planParam as (typeof ALLOWED_PLANS)[number]) ? planParam : null;
+  const autoCheckoutFlag =
+    typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("autoCheckout") === "1" : false;
 
   const { data: subscriptionData, isLoading: subscriptionLoading } = useQuery<SubscriptionData>({
     queryKey: ["/api/subscription"],
@@ -247,7 +249,7 @@ export default function AppPricingPage() {
           <h2 className="text-2xl font-semibold mb-6">
             {hasActiveSubscription ? "Plans" : "Choose your plan"}
           </h2>
-          <PricingCards />
+          <PricingCards initialPlanCode={highlightPlan ?? undefined} autoCheckout={autoCheckoutFlag} />
         </div>
       </div>
 

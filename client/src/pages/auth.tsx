@@ -21,10 +21,16 @@ const ALLOWED_RETURN_PATHS = ["/", "/app", "/app/pricing", "/profile", "/setting
 
 function getReturnUrl(): string | null {
   if (typeof window === "undefined") return null;
-  const url = new URLSearchParams(window.location.search).get("returnUrl");
-  if (!url) return null;
-  const path = url.startsWith("/") ? url : new URL(url, window.location.origin).pathname;
-  return ALLOWED_RETURN_PATHS.includes(path) ? path : null;
+  const raw = new URLSearchParams(window.location.search).get("returnUrl");
+  if (!raw) return null;
+  try {
+    const pathWithQuery = raw.startsWith("http") ? new URL(raw).pathname + new URL(raw).search : (raw.startsWith("/") ? raw : new URL(raw, window.location.origin).pathname + new URL(raw, window.location.origin).search);
+    const pathOnly = pathWithQuery.split("?")[0];
+    if (!ALLOWED_RETURN_PATHS.includes(pathOnly)) return null;
+    return pathWithQuery;
+  } catch {
+    return null;
+  }
 }
 
 const loginSchema = z.object({
