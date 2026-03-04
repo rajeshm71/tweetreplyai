@@ -214,29 +214,42 @@ export async function registerRoutes(app: Express): Promise<Express> {
     })(req, res, next);
   });
 
-  // Google OAuth routes
+  // Google OAuth routes - returnUrl passed as query, forwarded as state so callback can redirect (review: Step 2a)
+  const ALLOWED_RETURN_PATHS = ['/', '/app', '/app/pricing', '/profile', '/settings'];
+
+  function validateReturnUrl(raw: string | undefined): string {
+    if (!raw || typeof raw !== 'string') return '/';
+    try {
+      const pathWithQuery = raw.startsWith('http') ? new URL(raw).pathname + new URL(raw).search : (raw.startsWith('/') ? raw : new URL(raw, 'http://localhost').pathname + new URL(raw, 'http://localhost').search);
+      const pathOnly = pathWithQuery.split('?')[0];
+      if (!ALLOWED_RETURN_PATHS.includes(pathOnly)) return '/';
+      return pathWithQuery;
+    } catch {
+      return '/';
+    }
+  }
+
   app.get('/api/auth/google', (req, res, next) => {
     console.log('Request URL:', req.url);
     console.log('Request headers:', req.headers);
     console.log('Current callback URL from env:', process.env.GOOGLE_CALLBACK_URL);
-    
+    const returnUrl = validateReturnUrl(req.query?.returnUrl as string | undefined);
     passport.authenticate('google', {
-    scope: ['profile', 'email']
+      scope: ['profile', 'email'],
+      state: returnUrl,
     })(req, res, next);
   });
 
   app.get('/api/auth/google/callback',
     (req, res, next) => {
       console.log('Callback URL received:', req.url);
-      
-      passport.authenticate('google', { 
+      passport.authenticate('google', {
         failureRedirect: '/login',
-        failureMessage: true 
+        failureMessage: true,
       })(req, res, next);
     },
     (req, res) => {
       console.log('Google auth successful, user:', req.user);
-      // Generate JWT token for serverless environments
       const user = req.user as any;
       const token = jwt.sign(
         { id: user.id, email: user.email },
@@ -244,7 +257,9 @@ export async function registerRoutes(app: Express): Promise<Express> {
         { expiresIn: '7d' }
       );
       res.cookie('token', token, { httpOnly: true, secure: true, sameSite: 'strict' });
-      res.redirect('/');
+      // Review fix: redirect to returnUrl from state (validated) instead of always '/'
+      const stateReturnUrl = validateReturnUrl(req.query?.state as string | undefined);
+      res.redirect(stateReturnUrl || '/');
     }
   );
 
@@ -454,9 +469,9 @@ export async function registerRoutes(app: Express): Promise<Express> {
       const plan = PLANS[subscription.planCode];
       return res.json({
         hasSubscription: true,
-        planCode: subscription.planCode,
+        planCode: (subscription.planCode || '').toLowerCase(),
         planName: plan?.name || subscription.planCode,
-        status: subscription.status,
+        status: (subscription.status || '').toLowerCase(),
         currentPeriodStart: subscription.currentPeriodStart.toISOString(),
         currentPeriodEnd: subscription.currentPeriodEnd.toISOString(),
         dodoSubscriptionId: subscription.dodoSubscriptionId,

@@ -249,7 +249,7 @@ export default function AppPricingPage() {
           <h2 className="text-2xl font-semibold mb-6">
             {hasActiveSubscription ? "Plans" : "Choose your plan"}
           </h2>
-          <PricingCards initialPlanCode={highlightPlan ?? undefined} autoCheckout={autoCheckoutFlag} />
+          <PricingCards initialPlanCode={highlightPlan ?? undefined} autoCheckout={autoCheckoutFlag} usagePlanCode={usageStatus?.planCode ?? undefined} />
         </div>
       </div>
 

@@ -22,12 +22,18 @@ interface SubscriptionStatus {
 
 const ALLOWED_AUTO_PLANS = ["weekly", "monthly"] as const;
 
+/**
+ * Pricing cards for trial, weekly, and monthly plans.
+ * @param usagePlanCode - Current usage plan from parent (e.g. /api/subscription usageStatus.planCode). Used when authenticated to show "Current plan" vs "Trial already used" on the trial card. Omit on landing.
+ */
 export function PricingCards({
   initialPlanCode,
   autoCheckout = false,
+  usagePlanCode,
 }: {
   initialPlanCode?: (typeof ALLOWED_AUTO_PLANS)[number];
   autoCheckout?: boolean;
+  usagePlanCode?: string | null;
 } = {}) {
   const autoCheckoutTriggeredRef = useRef(false);
   const { isAuthenticated } = useAuth();
@@ -71,13 +77,15 @@ export function PricingCards({
       return { text: 'Subscribe', action: () => handleSubscribe(planCode) };
     }
     
-    // Only show "Manage Subscription" for active subscriptions
-    if (currentSubscription.planCode === planCode && currentSubscription.status === 'active') {
+    const plan = (currentSubscription.planCode || '').toLowerCase();
+    const status = (currentSubscription.status || '').toLowerCase();
+    // Only show "Manage Subscription" for active subscriptions (normalize casing)
+    if (plan === planCode && status === 'active') {
       return { text: 'Manage Subscription', action: () => setShowManageModal(true) };
     }
     
     const planOrder = { trial: 0, weekly: 1, monthly: 2 };
-    const currentOrder = planOrder[currentSubscription.planCode as keyof typeof planOrder] || 0;
+    const currentOrder = planOrder[plan as keyof typeof planOrder] || 0;
     const targetOrder = planOrder[planCode as keyof typeof planOrder] || 0;
     
     if (targetOrder > currentOrder) {
@@ -176,17 +184,37 @@ export function PricingCards({
     if (!autoCheckout || !initialPlanCode || autoCheckoutTriggeredRef.current) return;
     if (subscriptionLoading) return;
     if (!ALLOWED_AUTO_PLANS.includes(initialPlanCode)) return;
-    if (currentSubscription?.planCode === initialPlanCode && currentSubscription?.status === "active") return;
+    const plan = (currentSubscription?.planCode || '').toLowerCase();
+    const status = (currentSubscription?.status || '').toLowerCase();
+    if (plan === initialPlanCode && status === 'active') return;
     autoCheckoutTriggeredRef.current = true;
     handleSubscribe(initialPlanCode);
   }, [autoCheckout, initialPlanCode, subscriptionLoading, currentSubscription?.planCode, currentSubscription?.status]);
 
+  // Review fix: compute once per card to avoid duplicate getButtonState calls and consistent label/styling
+  const weeklyState = getButtonState('weekly');
+  const monthlyState = getButtonState('monthly');
+
+  // Trial button label when authenticated: show neutral state while usagePlanCode is loading to avoid flashing "Trial already used"
+  const trialButtonLabel = !isAuthenticated
+    ? 'Start Replying'
+    : usagePlanCode === undefined
+      ? '—'
+      : usagePlanCode === 'trial'
+        ? 'Current plan'
+        : 'Trial already used';
+
   return (
     <div className="grid md:grid-cols-3 gap-8 max-w-4xl mx-auto">
       {/* Free Trial */}
-      <Card className={`relative overflow-hidden border-2 ${pricingTiers.trial.borderColor} ${pricingTiers.trial.hoverBorder} group`}>
+      <Card className={`relative overflow-hidden border-2 ${pricingTiers.trial.borderColor} ${pricingTiers.trial.hoverBorder} group ${isAuthenticated ? 'opacity-75' : ''}`}>
         {/* Gradient background - static opacity, no hover animation */}
         <div className={`absolute inset-0 bg-gradient-to-br ${pricingTiers.trial.cardGradient} opacity-50`} />
+        {isAuthenticated && usagePlanCode === 'trial' && (
+          <div className="absolute top-4 right-4 z-50">
+            <Badge className="bg-blue-500 text-white">Current plan</Badge>
+          </div>
+        )}
         
         <CardContent className="p-8 relative z-10">
           <div className="text-center mb-6">
@@ -239,20 +267,23 @@ export function PricingCards({
             </div>
           </div>
           
-          <Button 
-            className={`w-full font-medium bg-gradient-to-r ${pricingTiers.trial.buttonGradient} text-white border-0 shadow-lg`}
-            onClick={() => {
-              if (!isAuthenticated) {
-                window.location.href = '/login';
-              } else {
-                // If already authenticated, redirect to app or home
-                window.location.href = '/app';
-              }
-            }}
-            data-testid="button-trial-signup"
-          >
-            Start Replying
-          </Button>
+          {isAuthenticated ? (
+            <Button
+              className="w-full font-medium bg-muted text-muted-foreground border border-input cursor-not-allowed"
+              disabled
+              data-testid="button-trial-signup"
+            >
+              {trialButtonLabel}
+            </Button>
+          ) : (
+            <Button 
+              className={`w-full font-medium bg-gradient-to-r ${pricingTiers.trial.buttonGradient} text-white border-0 shadow-lg`}
+              onClick={() => window.location.href = '/login'}
+              data-testid="button-trial-signup"
+            >
+              Start Replying
+            </Button>
+          )}
         </CardContent>
       </Card>
 
@@ -264,8 +295,8 @@ export function PricingCards({
             ⭐ Most Popular
           </Badge>
         </div>
-        {/* Current Plan badge - only show for active subscriptions */}
-        {currentSubscription?.planCode === 'weekly' && currentSubscription.status === 'active' && (
+        {/* Current Plan badge - only show for active subscriptions (normalized) */}
+        {(currentSubscription?.planCode || '').toLowerCase() === 'weekly' && (currentSubscription?.status || '').toLowerCase() === 'active' && (
           <div className="absolute top-4 right-4 z-50">
             <Badge className="bg-green-500 text-white">Current Plan</Badge>
           </div>
@@ -345,8 +376,8 @@ export function PricingCards({
           </div>
           
           <Button 
-            className={`w-full font-medium ${currentSubscription?.planCode === 'weekly' ? 'bg-transparent border-2 border-green-500 text-green-600 hover:bg-green-50' : `bg-gradient-to-r ${pricingTiers.weekly.buttonGradient} text-white border-0`} shadow-lg`}
-            onClick={getButtonState('weekly').action}
+            className={`w-full font-medium ${(currentSubscription?.planCode || '').toLowerCase() === 'weekly' ? 'bg-transparent border-2 border-green-500 text-green-600 hover:bg-green-50' : `bg-gradient-to-r ${pricingTiers.weekly.buttonGradient} text-white border-0`} shadow-lg`}
+            onClick={weeklyState.action}
             disabled={loadingPlan === 'weekly'}
             data-testid="button-subscribe-weekly"
           >
@@ -356,7 +387,7 @@ export function PricingCards({
                 Loading...
               </>
             ) : (
-              getButtonState('weekly').text
+              weeklyState.text
             )}
           </Button>
         </CardContent>
@@ -364,8 +395,8 @@ export function PricingCards({
 
       {/* Monthly Plan */}
       <Card className={`relative overflow-hidden border-2 ${pricingTiers.monthly.borderColor} ${pricingTiers.monthly.hoverBorder} group`}>
-        {/* Current Plan badge - only show for active subscriptions */}
-        {currentSubscription?.planCode === 'monthly' && currentSubscription.status === 'active' && (
+        {/* Current Plan badge - only show for active subscriptions (normalized) */}
+        {(currentSubscription?.planCode || '').toLowerCase() === 'monthly' && (currentSubscription?.status || '').toLowerCase() === 'active' && (
           <div className="absolute top-4 right-4 z-50">
             <Badge className="bg-green-500 text-white">Current Plan</Badge>
           </div>
@@ -443,8 +474,8 @@ export function PricingCards({
           </div>
           
           <Button 
-            className={`w-full font-medium ${currentSubscription?.planCode === 'monthly' ? 'bg-transparent border-2 border-purple-500 text-purple-600 hover:bg-purple-50' : `bg-gradient-to-r ${pricingTiers.monthly.buttonGradient} text-white border-0`} shadow-lg`}
-            onClick={getButtonState('monthly').action}
+            className={`w-full font-medium ${(currentSubscription?.planCode || '').toLowerCase() === 'monthly' ? 'bg-transparent border-2 border-purple-500 text-purple-600 hover:bg-purple-50' : `bg-gradient-to-r ${pricingTiers.monthly.buttonGradient} text-white border-0`} shadow-lg`}
+            onClick={monthlyState.action}
             disabled={loadingPlan === 'monthly'}
             data-testid="button-subscribe-monthly"
           >
@@ -454,7 +485,7 @@ export function PricingCards({
                 Loading...
               </>
             ) : (
-              getButtonState('monthly').text
+              monthlyState.text
             )}
           </Button>
         </CardContent>

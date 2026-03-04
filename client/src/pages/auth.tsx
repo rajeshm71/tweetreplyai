@@ -281,9 +281,10 @@ export default function AuthPage() {
             <div className="space-y-4">
               <Button
                 onClick={() => {
-                  // Fix: Add loading state for Google OAuth
+                  // Fix (review): Pass returnUrl so Google OAuth callback redirects to pricing/checkout per plan
                   setIsGoogleLoading(true);
-                  window.location.href = '/api/auth/google';
+                  const returnUrl = getReturnUrl() || '/app/pricing';
+                  window.location.href = '/api/auth/google' + (returnUrl ? '?returnUrl=' + encodeURIComponent(returnUrl) : '');
                 }}
                 variant="outline"
                 className="w-full h-12 text-base"

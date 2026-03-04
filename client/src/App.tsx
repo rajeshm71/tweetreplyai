@@ -61,10 +61,20 @@ function PricingRedirect() {
   );
 }
 
+// Allowed pathnames for returnUrl (must match complete-profile validation to avoid sending invalid redirect)
+const ALLOWED_RETURN_PATHNAMES = ["/", "/app", "/app/pricing", "/profile", "/settings"];
+
 function RedirectToCompleteProfileWithReturn() {
   const [location, navigate] = useLocation();
   useEffect(() => {
-    const returnUrl = encodeURIComponent(location === "/app/pricing" ? "/app/pricing" : (location || "/"));
+    const fullPath =
+      typeof window !== "undefined"
+        ? window.location.pathname + (window.location.search || "")
+        : location || "/";
+    const pathOnly = fullPath.split("?")[0];
+    // Review fix: only pass fullPath if pathname is allowed; otherwise fallback to "/" to avoid open redirect
+    const returnPath = ALLOWED_RETURN_PATHNAMES.includes(pathOnly) ? fullPath : "/";
+    const returnUrl = encodeURIComponent(returnPath);
     navigate("/complete-profile?returnUrl=" + returnUrl);
   }, [navigate, location]);
   return null;
