@@ -558,7 +558,7 @@ export default function Landing() {
               onClick={() => {
                 window.open(APP_URLS.CHROME_STORE, '_blank');
               }}
-              className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl border-0 font-medium shadow-md hover:shadow-xl hover:shadow-blue-500/20 hidden sm:flex"
+              className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl border-0 font-medium shadow-md hidden sm:flex"
               data-testid="button-add-to-chrome"
               size="sm"
               aria-label="Add TweetReplyAI to Chrome"
@@ -669,7 +669,7 @@ export default function Landing() {
           <div className="flex items-center space-x-2">
             <Button 
               onClick={() => window.location.href = '/login'}
-              className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl border-0 font-medium shadow-md hover:shadow-xl hover:shadow-blue-500/20 hidden sm:flex"
+              className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl border-0 font-medium shadow-md hidden sm:flex"
               data-testid="button-signin"
               aria-label="Start replying with TweetReplyAI"
               size="sm"
@@ -705,7 +705,7 @@ export default function Landing() {
                   window.open(APP_URLS.CHROME_STORE, '_blank');
                   setMobileMenuOpen(false);
                 }}
-                className="w-full justify-start bg-gradient-to-r from-blue-500 to-indigo-600 text-white hover:shadow-lg hover:shadow-blue-500/20 transition-colors duration-150"
+                className="w-full justify-start bg-gradient-to-r from-blue-500 to-indigo-600 text-white"
                 size="sm"
               >
                 <GoogleChromeLogo className="w-4 h-4 mr-2" />
@@ -737,7 +737,7 @@ export default function Landing() {
                   window.location.href = '/login';
                   setMobileMenuOpen(false);
                 }}
-                className="w-full justify-start bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl border-0 font-medium shadow-md hover:shadow-xl hover:shadow-blue-500/20 transition-colors duration-150"
+                className="w-full justify-start bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl border-0 font-medium shadow-md"
                 size="sm"
               >
                 Start Replying
@@ -995,7 +995,7 @@ export default function Landing() {
                       aria-label={`${stat.label}: ${stat.value}${stat.subtitle ? `, ${stat.subtitle}` : ''}`}
                     >
                       {/* Subtle gradient background */}
-                      <div className={`absolute inset-0 bg-gradient-to-br ${stat.bgGradient} opacity-50 group-hover:opacity-70 transition-opacity duration-150`} />
+                      <div className={`absolute inset-0 bg-gradient-to-br ${stat.bgGradient} opacity-50`} />
                       
                       <div className="relative z-10" style={{ textAlign: 'center' }}>
                         {/* Icon - Top, Centered */}
@@ -1288,10 +1288,10 @@ export default function Landing() {
               return (
                 <div key={index}>
                   <Card className="neomorphic border-0 card-3d group overflow-hidden relative h-full">
-                    <div className={`absolute inset-0 bg-gradient-to-br ${feature.gradient} opacity-0 group-hover:opacity-100 smooth-transition`} />
+                    <div className={`absolute inset-0 bg-gradient-to-br ${feature.gradient} opacity-0`} />
                     <CardContent className="p-6 text-center relative z-10 flex flex-col h-full">
                       <div
-                        className={`w-12 h-12 ${feature.solidBg} rounded-xl flex items-center justify-center mx-auto mb-4 smooth-transition`}
+                        className={`w-12 h-12 ${feature.solidBg} rounded-xl flex items-center justify-center mx-auto mb-4`}
                         aria-hidden="true"
                       >
                         <IconComponent className="w-6 h-6 text-white" />
@@ -1429,13 +1429,13 @@ export default function Landing() {
                     <div>
                       <Card className="modern-glass border border-border/50 p-8 md:p-10 relative overflow-hidden card-modern group transition-colors duration-150">
                         {/* Gradient Background Overlay */}
-                        <div className={`absolute inset-0 bg-gradient-to-br ${testimonial.gradient} opacity-5 group-hover:opacity-10 transition-opacity duration-150`} />
+                        <div className={`absolute inset-0 bg-gradient-to-br ${testimonial.gradient} opacity-5`} />
                         
                         {/* Subtle Mesh Texture */}
                         <div className="absolute inset-0 opacity-[0.03] bg-[radial-gradient(circle_at_50%_50%,rgba(0,0,0,0.5),transparent_50%)]" />
                         
                         {/* Enhanced Shadow Layer */}
-                        <div className="absolute inset-0 shadow-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-150" 
+                        <div className="absolute inset-0 shadow-2xl opacity-0" 
                           style={{ boxShadow: `0 20px 60px -15px rgba(var(--primary-rgb), 0.3)` }} />
                         
                         <div className="relative z-10">
@@ -1542,7 +1542,7 @@ export default function Landing() {
                         value={`item-${index}`}
                         className="border-0"
                       >
-                        <Card className="relative overflow-hidden border border-border/50 bg-gradient-to-br from-primary/5 via-primary/3 to-primary/5 hover:from-primary/8 hover:via-primary/5 hover:to-primary/8 backdrop-blur-sm shadow-md hover:shadow-lg transition-colors duration-150 group hover:border-primary/40 rounded-xl">
+                        <Card className="relative overflow-hidden border border-border/50 bg-gradient-to-br from-primary/5 via-primary/3 to-primary/5 backdrop-blur-sm shadow-md group rounded-xl">
                           <div className="relative z-10">
                             <AccordionTrigger 
                               className="px-6 py-5 hover:no-underline hover:bg-transparent transition-all duration-200 group/trigger [&>svg]:hidden"

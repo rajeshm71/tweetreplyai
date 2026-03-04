@@ -521,7 +521,7 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
             variant="outline"
             size="sm"
             onClick={() => setShowHistory(true)}
-            className="rounded-lg transition-all duration-300 hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="rounded-lg focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             data-testid="button-show-history"
             aria-label="View reply history"
           >
@@ -532,7 +532,7 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
             variant="outline"
             size="sm"
             onClick={() => setShowImprove(true)}
-            className="rounded-lg transition-all duration-300 hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="rounded-lg focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             data-testid="button-show-improve"
             aria-label="Improve draft reply"
           >
@@ -543,7 +543,7 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
             variant="outline"
             size="sm"
             onClick={() => setShowAnalytics(true)}
-            className="rounded-lg transition-all duration-300 hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="rounded-lg focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             data-testid="button-show-analytics"
             aria-label="View analytics and insights"
           >

@@ -631,7 +631,7 @@ a:focus-visible {
   will-change: auto;
 }
 
-/* Modern card hover effects - reduced motion: no lift/scale */
+/* Modern card hover effects - reduced motion: no lift/scale/shadow */
 .card-modern {
   transition: none;
 }
@@ -639,7 +639,6 @@ a:focus-visible {
 .card-modern:hover {
   will-change: auto;
   transform: none;
-  box-shadow: 0 20px 40px hsla(0, 0%, 0%, 0.1);
 }
 
 .card-modern:not(:hover) {
@@ -831,8 +830,9 @@ a:focus-visible {
   /* static; optional subtle glow on hover without animation */
 }
 
+/* Enhanced hover glow - reduced motion: no glow change on hover */
 .hover-glow-primary:hover {
-  box-shadow: 0 0 30px hsla(221, 83%, 53%, 0.5), 0 0 60px hsla(221, 83%, 53%, 0.3);
+  box-shadow: 0 0 0 transparent;
 }
 
 /* Parallax effect */
@@ -1016,7 +1016,7 @@ a:focus-visible {
   }
 }
 
-/* Sprint 0: Modern card styles - reduced motion: no hover lift */
+/* Sprint 0: Modern card styles - reduced motion: no hover lift/shadow */
 .card-modern-enhanced {
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-md);
@@ -1025,7 +1025,7 @@ a:focus-visible {
 }
 
 .card-modern-enhanced:hover {
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-md);
   transform: none;
 }
 
