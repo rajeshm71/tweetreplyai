@@ -138,7 +138,7 @@ export function UsageBadge({ showDetails = false }: UsageBadgeProps) {
 
             {showUpgrade && (
               <Button
-                onClick={() => setLocation('/pricing')}
+                onClick={() => setLocation('/app/pricing')}
                 size="sm"
                 className="w-full bg-primary hover:bg-primary/90"
               >

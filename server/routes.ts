@@ -1491,7 +1491,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
       const requestHost = req.headers.host;
       const domain = process.env.DOMAIN || requestHost || process.env.VERCEL_URL || 'localhost:5000';
       const protocol = domain.includes('localhost') ? 'http' : 'https';
-      const returnUrl = `${protocol}://${domain}/app`;
+      const returnUrl = `${protocol}://${domain}/app/pricing`;
 
       const session = await dodoPaymentsService.createCustomerPortalSession(
         user.dodoCustomerId,

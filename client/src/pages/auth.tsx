@@ -17,6 +17,16 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 
+const ALLOWED_RETURN_PATHS = ["/", "/app", "/app/pricing", "/profile", "/settings"];
+
+function getReturnUrl(): string | null {
+  if (typeof window === "undefined") return null;
+  const url = new URLSearchParams(window.location.search).get("returnUrl");
+  if (!url) return null;
+  const path = url.startsWith("/") ? url : new URL(url, window.location.origin).pathname;
+  return ALLOWED_RETURN_PATHS.includes(path) ? path : null;
+}
+
 const loginSchema = z.object({
   email: z.string().email("Invalid email address"),
   password: z.string().min(1, "Password is required"),
@@ -59,9 +69,9 @@ function getRegisterErrorMessage(errorMessage: string): string {
 }
 
 export default function AuthPage() {
-  const [, navigate] = useLocation();
+  const [location, navigate] = useLocation();
   const { toast } = useToast();
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
@@ -85,11 +95,10 @@ export default function AuthPage() {
   useEffect(() => {
     if (!authLoading) {
       if (isAuthenticated) {
-        // If authenticated, redirect to home and close dialog
-        navigate('/');
+        const returnUrl = getReturnUrl();
+        navigate(returnUrl || "/");
         setIsOpen(false);
       } else {
-        // If not authenticated, show dialog
         setIsOpen(true);
       }
     }
@@ -102,9 +111,9 @@ export default function AuthPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
       toast({ title: "Success", description: "Logged in successfully" });
-      // Fix: Reset form after successful login
       loginForm.reset();
-      navigate('/');
+      const returnUrl = getReturnUrl();
+      navigate(returnUrl || "/");
     },
     onError: (error: any) => {
       toast({
@@ -122,9 +131,9 @@ export default function AuthPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
       toast({ title: "Success", description: "Account created successfully" });
-      // Fix: Reset form after successful registration
       registerForm.reset();
-      navigate('/');
+      const returnUrl = getReturnUrl();
+      navigate(returnUrl || "/");
     },
     onError: (error: any) => {
       setRegisterError(getRegisterErrorMessage(error?.message ?? ""));

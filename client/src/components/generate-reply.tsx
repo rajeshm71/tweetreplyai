@@ -661,7 +661,7 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
                   </AlertDescription>
                 </div>
                 <Button
-                  onClick={() => setLocation('/pricing')}
+                  onClick={() => setLocation('/app/pricing')}
                   size="sm"
                   className="mt-2 bg-primary hover:bg-primary/90 text-white font-semibold"
                 >
@@ -836,7 +836,7 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
               <Button
                 size="sm"
                 className="mt-2 ml-2"
-                onClick={() => window.location.href = '/pricing'}
+                onClick={() => window.location.href = '/app/pricing'}
               >
                 Upgrade plan
               </Button>

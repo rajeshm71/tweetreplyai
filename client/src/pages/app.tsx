@@ -42,7 +42,7 @@ export default function AppPage() {
       })
         .then((response) => {
           // Remove query parameters from URL immediately
-          window.history.replaceState({}, '', '/app');
+          window.history.replaceState({}, '', '/app/pricing');
           
           if (response.ok) {
             toast({
@@ -60,7 +60,7 @@ export default function AppPage() {
         })
         .catch((error) => {
           console.error('Checkout success error:', error);
-          window.history.replaceState({}, '', '/app');
+          window.history.replaceState({}, '', '/app/pricing');
           toast({
             title: "Error",
             description: "Failed to process subscription. Please contact support.",
@@ -70,7 +70,7 @@ export default function AppPage() {
     } else if (success === 'subscription_activated') {
       processedRef.current = true;
       // Handle direct success parameter
-      window.history.replaceState({}, '', '/app');
+      window.history.replaceState({}, '', '/app/pricing');
       toast({
         title: "Subscription Activated",
         description: "Your subscription has been successfully activated!",
@@ -79,7 +79,7 @@ export default function AppPage() {
     } else if (error) {
       processedRef.current = true;
       // Handle error parameter
-      window.history.replaceState({}, '', '/app');
+      window.history.replaceState({}, '', '/app/pricing');
       const errorMessages: Record<string, string> = {
         missing_session_id: "Missing subscription information. Please try again.",
         no_subscription: "No subscription found. Please contact support.",

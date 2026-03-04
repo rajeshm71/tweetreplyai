@@ -7,6 +7,16 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 
+const ALLOWED_RETURN_PATHS = ["/", "/app", "/app/pricing", "/profile", "/settings"];
+
+function getReturnUrlFromQuery(): string | null {
+  if (typeof window === "undefined") return null;
+  const url = new URLSearchParams(window.location.search).get("returnUrl");
+  if (!url) return null;
+  const path = url.startsWith("/") ? url : new URL(url, window.location.origin).pathname;
+  return ALLOWED_RETURN_PATHS.includes(path) ? path : null;
+}
+
 export default function CompleteProfile() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
@@ -22,7 +32,8 @@ export default function CompleteProfile() {
     onSuccess: (data: { xUsername: string }) => {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
       toast({ title: "Success", description: "X username saved." });
-      navigate("/");
+      const returnUrl = getReturnUrlFromQuery();
+      navigate(returnUrl || "/");
     },
     onError: (err: Error) => {
       toast({

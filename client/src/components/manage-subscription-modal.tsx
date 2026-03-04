@@ -91,7 +91,7 @@ export function ManageSubscriptionModal({
       externalSwitchPlan(newPlanCode);
     } else {
       // Fallback: redirect to pricing page
-      window.location.href = `/pricing?plan=${newPlanCode}`;
+      window.location.href = `/app/pricing?plan=${newPlanCode}`;
     }
   };
 

@@ -91,7 +91,7 @@ export function AppHeader() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setLocation('/pricing')}
+                onClick={() => setLocation('/app/pricing')}
                 className="flex items-center gap-2 rounded-lg transition-colors duration-150 hover:bg-primary/10 hover:text-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 data-testid="button-nav-pricing"
                 aria-label="View pricing plans"

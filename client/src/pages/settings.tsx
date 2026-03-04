@@ -86,7 +86,7 @@ function BillingCard() {
 
   // Handle upgrade
   const handleUpgrade = () => {
-    window.location.href = '/pricing';
+    window.location.href = '/app/pricing';
   };
 
   if (subscriptionLoading) {

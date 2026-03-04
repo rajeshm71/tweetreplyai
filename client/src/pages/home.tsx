@@ -91,7 +91,7 @@ export default function Home() {
       })
         .then((response) => {
           // Remove query parameters from URL immediately
-          window.history.replaceState({}, '', '/');
+          window.history.replaceState({}, '', '/app/pricing');
           
           if (response.ok) {
             toast({
@@ -109,7 +109,7 @@ export default function Home() {
         })
         .catch((error) => {
           console.error('Checkout success error:', error);
-          window.history.replaceState({}, '', '/');
+          window.history.replaceState({}, '', '/app/pricing');
           toast({
             title: "Error",
             description: "Failed to process subscription. Please contact support.",
@@ -119,7 +119,7 @@ export default function Home() {
     } else if (success === 'subscription_activated') {
       processedRef.current = true;
       // Handle direct success parameter
-      window.history.replaceState({}, '', '/');
+      window.history.replaceState({}, '', '/app/pricing');
       toast({
         title: "Subscription Activated",
         description: "Your subscription has been successfully activated!",
@@ -128,7 +128,7 @@ export default function Home() {
     } else if (error) {
       processedRef.current = true;
       // Handle error parameter
-      window.history.replaceState({}, '', '/');
+      window.history.replaceState({}, '', '/app/pricing');
       const errorMessages: Record<string, string> = {
         missing_session_id: "Missing subscription information. Please try again.",
         no_subscription: "No subscription found. Please contact support.",
@@ -379,7 +379,7 @@ export default function Home() {
                     {usageStatus.upgradeRequired && !usageStatus.isWhitelisted && (
                       <div className="mt-4">
                         <Button
-                          onClick={() => setLocation('/pricing')}
+                          onClick={() => setLocation('/app/pricing')}
                           className="w-full bg-primary hover:bg-primary/90 text-white font-semibold shadow-lg"
                         >
                           <IconTrendingUp className="w-4 h-4 mr-2" />

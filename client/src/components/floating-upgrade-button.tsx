@@ -32,12 +32,12 @@ export function FloatingUpgradeButton() {
   });
 
   // Don't show if user is not authenticated, whitelisted, or already on pricing page
-  if (!isAuthenticated || !user || usage?.isWhitelisted || window.location.pathname === '/pricing') {
+  if (!isAuthenticated || !user || usage?.isWhitelisted || window.location.pathname === '/pricing' || window.location.pathname === '/app/pricing') {
     return null;
   }
 
   const handleUpgrade = () => {
-    setLocation('/pricing');
+    setLocation('/app/pricing');
   };
 
   return (
