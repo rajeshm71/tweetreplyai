@@ -28,6 +28,14 @@ export default function Landing() {
   const [activeNavSection, setActiveNavSection] = useState<string | null>(null);
   const [openFAQ, setOpenFAQ] = useState<string | null>(null);
   
+  const handleStartClick = () => {
+    if (isAuthenticated) {
+      window.location.href = "/app";
+    } else {
+      window.location.href = "/login?returnUrl=" + encodeURIComponent("/app");
+    }
+  };
+
   // TODO: Interactive Live Demo - Commented out for future use
   // const [demoTweet, setDemoTweet] = useState("");
   // const [demoReply, setDemoReply] = useState("");
@@ -668,7 +676,7 @@ export default function Landing() {
           {/* Right: Start Replying Button and Mobile Menu */}
           <div className="flex items-center space-x-2">
             <Button 
-              onClick={() => window.location.href = '/login?returnUrl=' + encodeURIComponent('/app/pricing?plan=monthly&autoCheckout=1')}
+              onClick={handleStartClick}
               className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl border-0 font-medium shadow-md hidden sm:flex"
               data-testid="button-signin"
               aria-label="Start replying with TweetReplyAI"
@@ -734,7 +742,7 @@ export default function Landing() {
               </a>
               <Button
                 onClick={() => {
-                  window.location.href = '/login?returnUrl=' + encodeURIComponent('/app/pricing?plan=monthly&autoCheckout=1');
+                  handleStartClick();
                   setMobileMenuOpen(false);
                 }}
                 className="w-full justify-start bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl border-0 font-medium shadow-md"
@@ -753,7 +761,7 @@ export default function Landing() {
         <div className="fixed bottom-0 left-0 right-0 z-40 md:hidden bg-background/95 backdrop-blur-xl border-t border-border/50 p-4 shadow-lg">
           <Button
             variant="ghost"
-            onClick={() => window.location.href = '/login?returnUrl=' + encodeURIComponent('/app/pricing?plan=monthly&autoCheckout=1')}
+            onClick={handleStartClick}
             className="w-full bg-primary text-white border-0 font-semibold transition-colors duration-150"
             size="lg"
             aria-label="Start replying with TweetReplyAI"
@@ -813,7 +821,7 @@ export default function Landing() {
                   <Button 
                     variant="ghost"
                     size="lg"
-                    onClick={() => window.location.href = '/login?returnUrl=' + encodeURIComponent('/app/pricing?plan=monthly&autoCheckout=1')}
+                    onClick={handleStartClick}
                     className="h-14 px-8 text-lg bg-primary text-white border-0 font-semibold transition-colors duration-150"
                     data-testid="button-start-trial"
                   >
@@ -1622,7 +1630,7 @@ export default function Landing() {
                 <Button 
                   variant="ghost"
                   size="lg"
-                  onClick={() => window.location.href = '/login?returnUrl=' + encodeURIComponent('/app/pricing?plan=monthly&autoCheckout=1')}
+                  onClick={handleStartClick}
                   className="h-16 px-10 text-lg bg-primary text-white border-0 font-semibold transition-colors duration-150"
                   data-testid="button-final-cta"
                 >
@@ -1687,7 +1695,7 @@ export default function Landing() {
                   </a>
                 </li>
                 <li>
-                  <a href={"/login?returnUrl=" + encodeURIComponent("/app/pricing?plan=monthly&autoCheckout=1")} className="text-muted-foreground hover:text-foreground smooth-transition focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2">
+                  <a href={"/login?returnUrl=" + encodeURIComponent("/app")} className="text-muted-foreground hover:text-foreground smooth-transition focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2">
                     Start Replying
                   </a>
                 </li>

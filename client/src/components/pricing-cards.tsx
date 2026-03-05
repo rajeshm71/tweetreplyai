@@ -171,8 +171,18 @@ export function PricingCards({
   });
 
   const handleSubscribe = (planCode: string) => {
+    const path = typeof window !== "undefined" ? window.location.pathname : "";
+
+    // Landing page + not authenticated: go through login, then back to app pricing with plan + autoCheckout
+    if (!isAuthenticated && path === "/") {
+      const planPath = `/app/pricing?plan=${planCode}&autoCheckout=1`;
+      window.location.href = "/login?returnUrl=" + encodeURIComponent(planPath);
+      return;
+    }
+
+    // Other contexts: if still not authenticated, send to bare login as a fallback
     if (!isAuthenticated) {
-      window.location.href = '/login';
+      window.location.href = "/login";
       return;
     }
     
