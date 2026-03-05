@@ -9,7 +9,6 @@ import { useAuth } from "@/hooks/useAuth";
 // Sprint 4: Lazy load routes for code-splitting (Passport/session auth)
 const Landing = lazy(() => import("@/pages/landing"));
 const Home = lazy(() => import("@/pages/home"));
-const AppPage = lazy(() => import("@/pages/app"));
 const AppPricingPage = lazy(() => import("@/pages/app-pricing"));
 const AuthPage = lazy(() => import("@/pages/auth"));
 const ProfilePage = lazy(() => import("@/pages/profile"));
@@ -111,7 +110,7 @@ function Router() {
         ) : (
           <>
             <Route path="/" component={Home} />
-            <Route path="/app" component={AppPage} />
+            <Route path="/app" component={Home} />
             <Route path="/app/pricing" component={AppPricingPage} />
             <Route path="/profile" component={ProfilePage} />
             <Route path="/settings" component={SettingsPage} />
