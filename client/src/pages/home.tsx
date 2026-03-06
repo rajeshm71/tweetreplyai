@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { AppHeader } from "@/components/app-header";
 import { FloatingUpgradeButton } from "@/components/floating-upgrade-button";
 import { ExtensionOnboarding } from "@/components/extension-onboarding";
+import { useExtensionGuide } from "@/contexts/extension-guide-context";
 import { useToast } from "@/hooks/use-toast";
 import { useEffect, useState, useRef } from "react";
 // Sprint 4: Lazy load heavy component
@@ -47,11 +48,13 @@ export default function Home() {
   const generateReplyRef = useRef<GenerateReplyRef>(null);
   const [showBreakdown, setShowBreakdown] = useState(false);
   const [showWebApp, setShowWebApp] = useState(false);
+  const { showExtensionGuide, closeExtensionGuide } = useExtensionGuide();
 
+  // Show guide on first visit this session (sessionStorage) or when user opens "Extension instructions"
   const [showOnboarding, setShowOnboarding] = useState(() => {
     if (typeof window !== 'undefined') {
       try {
-        return localStorage.getItem('onboarding-seen') !== 'true';
+        return sessionStorage.getItem('onboarding-seen') !== 'true';
       } catch {
         return true;
       }
@@ -178,14 +181,17 @@ export default function Home() {
 
   const handleOnboardingComplete = () => {
     setShowOnboarding(false);
+    closeExtensionGuide();
     if (typeof window !== 'undefined') {
       try {
-        localStorage.setItem('onboarding-seen', 'true');
+        sessionStorage.setItem('onboarding-seen', 'true');
       } catch {
         // Still hide onboarding even if localStorage fails
       }
     }
   };
+
+  const showGuide = showOnboarding || showExtensionGuide;
 
   if (isLoading) {
     return (
@@ -212,7 +218,7 @@ export default function Home() {
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_350px] gap-8">
           {/* Left Column */}
           <div className="min-w-0" data-generate-reply>
-            {showOnboarding ? (
+            {showGuide ? (
               <>
                 {/* Extension Onboarding Guide */}
                 <ExtensionOnboarding onComplete={handleOnboardingComplete} />

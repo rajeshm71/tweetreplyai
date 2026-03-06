@@ -1,4 +1,4 @@
-import { User, Gear, SignOut, House, Download, Crown } from "@phosphor-icons/react";
+import { User, Gear, SignOut, House, Download, Crown, ListChecks } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -15,6 +15,7 @@ import { Logo } from "@/components/logo";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
+import { useExtensionGuide } from "@/contexts/extension-guide-context";
 import { apiRequest } from "@/lib/queryClient";
 import { APP_URLS } from "@/config/constants";
 
@@ -22,6 +23,12 @@ export function AppHeader() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
+  const { openExtensionGuide } = useExtensionGuide();
+
+  const handleShowExtensionInstructions = () => {
+    openExtensionGuide();
+    setLocation("/app");
+  };
 
   const handleLogout = async () => {
     try {
@@ -86,6 +93,17 @@ export function AppHeader() {
               >
                 <Download className="w-4 h-4" aria-hidden="true" />
                 <span>Extension</span>
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleShowExtensionInstructions}
+                className="flex items-center gap-2 rounded-lg transition-colors duration-150 hover:bg-primary/10 hover:text-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                data-testid="button-nav-extension-instructions"
+                aria-label="View extension instructions"
+              >
+                <ListChecks className="w-4 h-4" aria-hidden="true" />
+                <span>Extension instructions</span>
               </Button>
               
               <Button

@@ -4,6 +4,7 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { ExtensionGuideProvider } from "@/contexts/extension-guide-context";
 import { useAuth } from "@/hooks/useAuth";
 
 // Sprint 4: Lazy load routes for code-splitting (Passport/session auth)
@@ -130,8 +131,10 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <Toaster />
-        <Router />
+        <ExtensionGuideProvider>
+          <Toaster />
+          <Router />
+        </ExtensionGuideProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );
