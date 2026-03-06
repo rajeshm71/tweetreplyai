@@ -20,8 +20,7 @@ const steps = [
       <>
         Hit{" "}
         <span className="font-semibold text-foreground">'Add to Chrome'</span>{" "}
-        below. It's completely free and installs in seconds — no sign-up, no
-        credit card.
+        below. It's free and installs in seconds. Just click to add.
       </>
     ),
     cta: (
@@ -31,7 +30,7 @@ const steps = [
         onClick={() => window.open(APP_URLS.CHROME_STORE, "_blank")}
       >
         <GoogleChromeLogo className="w-4 h-4" weight="fill" />
-        Add to Chrome — It's Free
+        Add to Chrome. It's Free
       </Button>
     ),
   },
@@ -44,7 +43,7 @@ const steps = [
     description: (
       <>
         Click the{" "}
-        <span className="font-semibold text-foreground">puzzle-piece icon</span>{" "}
+        <span className="font-semibold text-foreground">puzzle piece icon</span>{" "}
         in Chrome's toolbar → find{" "}
         <span className="font-semibold text-foreground">TweetReplyAI</span> →
         click{" "}
@@ -84,19 +83,16 @@ const steps = [
   {
     id: 4,
     icon: <Rocket className="w-5 h-5 text-white" weight="fill" />,
-    iconBg: "bg-gradient-to-br from-primary to-purple-600",
+    iconBg: "bg-primary",
     title: "Watch AI craft your reply",
     badge: "You're done!",
     badgeVariant: "default" as const,
     description: (
       <>
         Click{" "}
-        <span className="font-semibold text-foreground">Reply</span> on any post
-        — TweetReplyAI pops up with smart, on-brand replies ready to send in one
-        click.{" "}
-        <span className="text-primary font-semibold">
-          No copy-paste. No switching tabs.
-        </span>
+        <span className="font-semibold text-foreground">Reply</span> on any post.
+        TweetReplyAI pops up with smart, on brand replies ready to send in one
+        click.
       </>
     ),
     cta: null,
@@ -118,9 +114,9 @@ export function ExtensionOnboarding({ onComplete }: ExtensionOnboardingProps) {
       className={`transition-all duration-300 ${completing ? "opacity-0 scale-95" : "opacity-100 scale-100"}`}
     >
       {/* Hero Header */}
-      <div className="mb-6 p-6 rounded-2xl bg-gradient-to-br from-primary/10 via-purple-600/10 to-blue-500/10 border border-primary/20">
+      <div className="mb-6 p-6 rounded-2xl bg-primary/10 border border-primary/20">
         <div className="flex items-start gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary to-purple-600 flex items-center justify-center flex-shrink-0 shadow-lg">
+          <div className="w-12 h-12 rounded-2xl bg-primary flex items-center justify-center flex-shrink-0 shadow-lg">
             <Lightning className="w-6 h-6 text-white" weight="fill" />
           </div>
           <div className="flex-1 min-w-0">
@@ -128,9 +124,8 @@ export function ExtensionOnboarding({ onComplete }: ExtensionOnboardingProps) {
               You're one step away from 10x faster replies!
             </h2>
             <p className="mt-1 text-sm text-muted-foreground leading-relaxed">
-              The Chrome extension puts AI-powered replies right where you need
-              them — <span className="font-medium text-foreground">inside X.com</span>,
-              not a separate tab.
+              The Chrome extension puts AI powered replies right where you need
+              them, inside X.com. Reply from the same tab. Skip copy paste and tab switching.
             </p>
           </div>
         </div>
@@ -184,10 +179,10 @@ export function ExtensionOnboarding({ onComplete }: ExtensionOnboardingProps) {
         <Button
           onClick={handleComplete}
           size="lg"
-          className="w-full max-w-sm bg-gradient-to-r from-primary to-purple-600 hover:from-primary/90 hover:to-purple-700 text-white font-bold shadow-lg gap-2 text-base"
+          className="w-full max-w-sm bg-primary hover:bg-primary/90 text-white font-bold shadow-lg gap-2 text-base"
         >
           <Rocket className="w-5 h-5" weight="fill" />
-          I'm ready — Let's go!
+          I'm ready. Let's go!
           <ArrowRight className="w-5 h-5" />
         </Button>
         <button
