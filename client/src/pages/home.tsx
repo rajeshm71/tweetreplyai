@@ -1,12 +1,13 @@
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
-import { GoogleChromeLogo, X, CaretDown, CaretUp } from "@phosphor-icons/react";
+import { CaretDown, CaretUp } from "@phosphor-icons/react";
 import { IconBolt, IconClock, IconTrendingUp } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { AppHeader } from "@/components/app-header";
 import { FloatingUpgradeButton } from "@/components/floating-upgrade-button";
+import { ExtensionOnboarding } from "@/components/extension-onboarding";
 import { useToast } from "@/hooks/use-toast";
 import { useEffect, useState, useRef } from "react";
 // Sprint 4: Lazy load heavy component
@@ -15,7 +16,7 @@ import type { GenerateReplyRef } from "@/components/generate-reply";
 const GenerateReply = lazy(() => import("@/components/generate-reply").then(module => ({ default: module.GenerateReply })));
 // Removed framer-motion imports - animations removed except for Upgrade to Pro button
 import { formatDistanceToNow } from "date-fns";
-import { APP_URLS, POLLING, UI } from "@/config/constants";
+import { POLLING, UI } from "@/config/constants";
 
 type Usage = {
   today: number;
@@ -45,18 +46,17 @@ export default function Home() {
   const [, setLocation] = useLocation();
   const generateReplyRef = useRef<GenerateReplyRef>(null);
   const [showBreakdown, setShowBreakdown] = useState(false);
-  
-  // Fix: Add localStorage error handling for SSR safety
-  const [isBannerDismissed, setIsBannerDismissed] = useState(() => {
+  const [showWebApp, setShowWebApp] = useState(false);
+
+  const [showOnboarding, setShowOnboarding] = useState(() => {
     if (typeof window !== 'undefined') {
       try {
-        return localStorage.getItem('chrome-extension-banner-dismissed') === 'true';
-      } catch (error) {
-        console.warn('Failed to read localStorage:', error);
-        return false;
+        return localStorage.getItem('onboarding-seen') !== 'true';
+      } catch {
+        return true;
       }
     }
-    return false;
+    return true;
   });
 
   // Handle checkout success callback from root URL
@@ -176,15 +176,13 @@ export default function Home() {
     }
   }, [user, isLoading, toast]);
 
-  // Fix: Add localStorage error handling
-  const handleDismissBanner = () => {
-    setIsBannerDismissed(true);
+  const handleOnboardingComplete = () => {
+    setShowOnboarding(false);
     if (typeof window !== 'undefined') {
       try {
-        localStorage.setItem('chrome-extension-banner-dismissed', 'true');
-      } catch (error) {
-        console.warn('Failed to save to localStorage:', error);
-        // Still dismiss the banner even if localStorage fails
+        localStorage.setItem('onboarding-seen', 'true');
+      } catch {
+        // Still hide onboarding even if localStorage fails
       }
     }
   };
@@ -208,63 +206,61 @@ export default function Home() {
       </a>
       <AppHeader />
 
-      {/* Chrome Extension Download Banner - Sprint 1: Modernized with better integration */}
-      {!isBannerDismissed && (
-        <div className="bg-gradient-to-r from-blue-500 via-purple-500 to-blue-600 text-white border-b border-blue-400/30 shadow-lg">
-          <div className="container mx-auto px-4 py-3 sm:py-4">
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4">
-              <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0 w-full sm:w-auto">
-                <div className="w-8 h-8 sm:w-10 sm:h-10 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg">
-                  <GoogleChromeLogo className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-xs sm:text-sm md:text-base truncate">
-                    Generate replies directly on X/Twitter
-                  </p>
-                  <p className="text-[10px] sm:text-xs md:text-sm text-white/90 opacity-90 truncate">
-                    Install our Chrome extension for seamless integration
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0 w-full sm:w-auto justify-end">
-                <Button 
-                  onClick={() => window.open(APP_URLS.CHROME_STORE, '_blank')}
-                  className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white hover:from-blue-600 hover:to-indigo-700 font-semibold h-8 sm:h-9 px-3 sm:px-4 text-xs sm:text-sm flex-1 sm:flex-initial rounded-lg shadow-md"
-                  data-testid="button-chrome-extension-banner"
-                >
-                  <GoogleChromeLogo className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
-                  Add to Chrome
-                </Button>
-                <Button 
-                  variant="ghost"
-                  size="icon"
-                  onClick={handleDismissBanner}
-                  className="text-white hover:bg-white/20 h-8 w-8 sm:h-9 sm:w-9 rounded-lg"
-                  aria-label="Dismiss banner"
-                >
-                  <X className="w-3 h-3 sm:w-4 sm:h-4" />
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Main Dashboard Content - Sprint 3: Added main landmark for accessibility */}
       <main id="main-content" className="container mx-auto px-4 py-8 max-w-7xl" role="main">
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_350px] gap-8">
-          {/* Left Column: GenerateReply Component (70% on desktop) - Fix: Use ref to trigger sheets */}
+          {/* Left Column */}
           <div className="min-w-0" data-generate-reply>
-            <Suspense fallback={
-              <div className="min-h-[600px] flex items-center justify-center" role="status" aria-label="Loading reply generator">
-                <div className="flex flex-col items-center gap-4">
-                  <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" aria-hidden="true" />
-                  <p className="text-sm text-muted-foreground">Loading reply generator...</p>
+            {showOnboarding ? (
+              <>
+                {/* Extension Onboarding Guide */}
+                <ExtensionOnboarding onComplete={handleOnboardingComplete} />
+
+                {/* Collapsible web app fallback */}
+                <div className="mt-6 border-t border-border/50 pt-4">
+                  <button
+                    type="button"
+                    aria-expanded={showWebApp}
+                    onClick={() => setShowWebApp((v) => !v)}
+                    className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors w-full"
+                  >
+                    {showWebApp ? (
+                      <CaretUp className="w-4 h-4 flex-shrink-0" />
+                    ) : (
+                      <CaretDown className="w-4 h-4 flex-shrink-0" />
+                    )}
+                    <span>Or try the web app instead</span>
+                  </button>
+
+                  {showWebApp && (
+                    <div className="mt-4">
+                      <Suspense fallback={
+                        <div className="min-h-[300px] flex items-center justify-center" role="status">
+                          <div className="flex flex-col items-center gap-4">
+                            <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" />
+                            <p className="text-sm text-muted-foreground">Loading reply generator...</p>
+                          </div>
+                        </div>
+                      }>
+                        <GenerateReply ref={generateReplyRef} />
+                      </Suspense>
+                    </div>
+                  )}
                 </div>
-              </div>
-            }>
-              <GenerateReply ref={generateReplyRef} />
-            </Suspense>
+              </>
+            ) : (
+              <Suspense fallback={
+                <div className="min-h-[600px] flex items-center justify-center" role="status" aria-label="Loading reply generator">
+                  <div className="flex flex-col items-center gap-4">
+                    <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" aria-hidden="true" />
+                    <p className="text-sm text-muted-foreground">Loading reply generator...</p>
+                  </div>
+                </div>
+              }>
+                <GenerateReply ref={generateReplyRef} />
+              </Suspense>
+            )}
           </div>
 
           {/* Right Column: Quick Stats + Quick Access (30% on desktop) */}
