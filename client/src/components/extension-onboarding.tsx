@@ -124,7 +124,7 @@ export function ExtensionOnboarding({ onComplete }: ExtensionOnboardingProps) {
               You're one step away from 10x faster replies!
             </h2>
             <p className="mt-1 text-sm text-muted-foreground leading-relaxed">
-              The Chrome extension puts AI powered replies right where you need
+              The Chrome extension puts AI suggested replies right where you need
               them, inside X.com. Reply from the same tab. Skip copy paste and tab switching.
             </p>
           </div>

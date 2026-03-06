@@ -283,6 +283,36 @@ export default function Landing() {
     }
   ] as const;
 
+  const HOW_IT_WORKS_STEPS = [
+    {
+      id: "install",
+      stepLabel: "Step 1",
+      title: "Add TweetReplyAI to Chrome",
+      description:
+        "Click Add to Chrome and connect once. AI suggested replies appear right inside X.",
+      icon: GoogleChromeLogo,
+      iconBg: "bg-blue-500",
+    },
+    {
+      id: "pin",
+      stepLabel: "Step 2",
+      title: "Pin it in your toolbar",
+      description:
+        "Click the puzzle icon → find TweetReplyAI → tap Pin so it stays ready while you scroll X.",
+      icon: Flash,
+      iconBg: "bg-purple-500",
+    },
+    {
+      id: "reply",
+      stepLabel: "Step 3",
+      title: "Reply from the same tab",
+      description:
+        "On any X post, hit Reply and choose an AI suggested reply that matches your voice.",
+      icon: Sparks,
+      iconBg: "bg-primary",
+    },
+  ] as const;
+
 
   useEffect(() => {
     if (!testimonialEmblaApi) return;
@@ -923,6 +953,69 @@ export default function Landing() {
               </div>
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* How It Works Section */}
+      <section id="how-it-works" className="section-padding bg-gradient-to-b from-background via-background to-muted/10">
+        <div className="container">
+          <div className="text-center mb-10">
+            <Badge variant="secondary" className="mb-4 glass-effect border border-primary/20">
+              <GoogleChromeLogo className="w-4 h-4 mr-2" />
+              How it works
+            </Badge>
+            <h2 className="text-3xl md:text-4xl font-display font-bold mb-4">
+              See TweetReplyAI in action in 3 quick steps
+            </h2>
+            <p className="text-base md:text-lg text-muted-foreground max-w-2xl mx-auto">
+              Install once and let AI suggested replies keep your X conversations flowing, right inside your feed.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
+            {HOW_IT_WORKS_STEPS.map((step) => {
+              const Icon = step.icon;
+              return (
+                <Card key={step.id} className="neomorphic border-0 card-modern h-full">
+                  <CardContent className="p-6 flex flex-col h-full">
+                    <div className="flex items-start gap-3 mb-4">
+                      <div className={`w-10 h-10 rounded-xl ${step.iconBg} flex items-center justify-center flex-shrink-0`}>
+                        <Icon className="w-5 h-5 text-white" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          {step.stepLabel}
+                        </p>
+                        <h3 className="text-lg font-semibold text-foreground">
+                          {step.title}
+                        </h3>
+                      </div>
+                    </div>
+                    <p className="text-sm text-muted-foreground leading-relaxed flex-1">
+                      {step.description}
+                    </p>
+
+                    {step.id === "install" && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="mt-4 w-full bg-primary text-white hover:bg-primary/90 font-semibold"
+                        onClick={() => window.open(APP_URLS.CHROME_STORE, "_blank")}
+                        data-testid="button-how-it-works-add-to-chrome"
+                      >
+                        <GoogleChromeLogo className="w-4 h-4 mr-2" />
+                        Add to Chrome
+                      </Button>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+
+          <p className="mt-8 text-center text-sm md:text-base text-muted-foreground max-w-2xl mx-auto">
+            Set up once, then let AI suggested replies handle the heavy lifting while you stay focused on real conversations.
+          </p>
         </div>
       </section>
 
