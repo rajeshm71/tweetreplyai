@@ -244,6 +244,88 @@
     inset 0 1px 0 hsla(0, 0%, 100%, 1);
 }
 
+/* Option A: How it works - 3D-style floating glass panels (no tilt, equal height, no hover transform) */
+.how-it-works-option-a {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 2rem;
+  padding: 4rem 2.5rem;
+  min-height: 420px;
+  border-radius: 32px;
+  overflow: hidden;
+  background: linear-gradient(
+    135deg,
+    #fef3e2 0%, #fde8d0 12%, #fbd5c4 24%, #f5c6d0 36%,
+    #e8c4e8 48%, #d4c4f2 58%, #c2cef8 68%, #b8d8fb 78%,
+    #c5e4fd 88%, #dbeafe 100%
+  );
+}
+.how-it-works-option-a::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 600px 400px at 15% 80%, rgba(251,191,146,0.25), transparent),
+    radial-gradient(ellipse 500px 350px at 85% 20%, rgba(147,197,253,0.3), transparent);
+  z-index: 0;
+  pointer-events: none;
+}
+.how-it-works-panel {
+  position: relative;
+  z-index: 1;
+  width: 320px;
+  min-height: 320px;
+  padding: 2.25rem 1.75rem;
+  border-radius: 24px;
+  backdrop-filter: blur(24px) saturate(200%);
+  background: rgba(255,255,255,0.82);
+  border: 1.5px solid rgba(255,255,255,0.7);
+  box-shadow: 0 20px 48px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.03);
+  display: flex;
+  flex-direction: column;
+}
+.how-it-works-step-num {
+  position: absolute;
+  top: 1rem;
+  right: 1.25rem;
+  font-size: 3.5rem;
+  font-weight: 900;
+  line-height: 1;
+  opacity: 0.06;
+}
+.how-it-works-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1rem;
+}
+.how-it-works-icon--install {
+  background: linear-gradient(135deg, #f97316, #fb923c);
+  box-shadow: 0 8px 24px rgba(249,115,22,0.3);
+}
+.how-it-works-icon--pin {
+  background: linear-gradient(135deg, #a855f7, #c084fc);
+  box-shadow: 0 8px 24px rgba(168,85,247,0.3);
+}
+.how-it-works-icon--reply {
+  background: linear-gradient(135deg, #3b82f6, #60a5fa);
+  box-shadow: 0 8px 24px rgba(59,130,246,0.3);
+}
+@media (max-width: 960px) {
+  .how-it-works-option-a {
+    flex-direction: column;
+  }
+  .how-it-works-panel {
+    width: 100%;
+    max-width: 400px;
+  }
+}
+
 .gradient-border {
   position: relative;
   background: var(--background);

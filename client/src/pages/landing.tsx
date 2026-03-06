@@ -10,7 +10,7 @@ import {
   HelpCircle, Plus, Minus, Refresh, SmartphoneDevice,
 } from "iconoir-react";
 import { IconMessageCircle, IconChartBar, IconRocket, IconClock, IconTrendingUp } from "@tabler/icons-react";
-import { GoogleChromeLogo, PushPin, PuzzlePiece } from "@phosphor-icons/react";
+import { GoogleChromeLogo, PushPin, PuzzlePiece, Sparkle } from "@phosphor-icons/react";
 import { Logo } from "@/components/logo";
 import useEmblaCarousel from 'embla-carousel-react';
 import Autoplay from 'embla-carousel-autoplay';
@@ -307,8 +307,8 @@ export default function Landing() {
       stepLabel: "Step 3",
       title: "Reply from the same tab",
       description:
-        "On any X post, hit Reply. Click a suggested reply to use it. Same tab, skip copy paste and tab switching.",
-      icon: Sparks,
+        "On any X post, hit Reply. Click on \"Suggest reply\" button to get suggested replies in the same tab, skip copy paste and tab switching.",
+      icon: Sparkle,
       iconBg: "bg-primary",
     },
   ] as const;
@@ -972,60 +972,52 @@ export default function Landing() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
-            {HOW_IT_WORKS_STEPS.map((step) => {
-              const Icon = step.icon;
-              return (
-                <Card key={step.id} className="neomorphic border-0 card-modern h-full">
-                  <CardContent className="p-6 flex flex-col h-full">
-                    <div className="flex items-start gap-3 mb-4">
-                      <div className={`w-10 h-10 rounded-xl ${step.iconBg} flex items-center justify-center flex-shrink-0`}>
-                        {step.id === "reply" ? (
-                          <Icon className="w-5 h-5 text-white" />
-                        ) : (
-                          <Icon className="w-5 h-5 text-white" weight="fill" />
-                        )}
-                      </div>
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                          {step.stepLabel}
-                        </p>
-                        <h3 className="text-lg font-semibold text-foreground">
-                          {step.title}
-                        </h3>
-                      </div>
+          <div className="max-w-5xl mx-auto">
+            {/* Option A: gradient + glass panels per design spec (how-it-works-preview.html) */}
+            <div className="how-it-works-option-a">
+              {HOW_IT_WORKS_STEPS.map((step, index) => {
+                const Icon = step.icon;
+                const stepNum = String(index + 1).padStart(2, "0");
+                const iconMod = step.id === "install" ? "how-it-works-icon--install" : step.id === "pin" ? "how-it-works-icon--pin" : "how-it-works-icon--reply";
+                const labelColor = step.id === "install" ? "text-[#ea580c]" : step.id === "pin" ? "text-[#9333ea]" : "text-[#2563eb]";
+                return (
+                  <div key={step.id} className="how-it-works-panel">
+                    <span className="how-it-works-step-num" aria-hidden="true">{stepNum}</span>
+                    <div className={`how-it-works-icon ${iconMod}`}>
+                      <Icon className="text-white text-[1.4rem]" weight="fill" aria-hidden />
                     </div>
+                    <p className={`text-[0.65rem] font-bold uppercase tracking-[0.1em] mb-1 ${labelColor}`}>
+                      {step.stepLabel}
+                    </p>
+                    <h3 className="text-lg font-bold text-slate-900 mb-2">
+                      {step.title}
+                    </h3>
                     {step.id === "pin" ? (
-                      <p className="text-sm text-muted-foreground leading-relaxed flex-1">
-                        Click the <PuzzlePiece className="w-4 h-4 align-middle inline-block mr-0.5 text-purple-500 shrink-0" weight="fill" aria-hidden /> puzzle icon in Chrome's toolbar → find TweetReplyAI → tap <PushPin className="w-4 h-4 align-middle inline-block mr-0.5 text-purple-500 shrink-0" weight="fill" aria-hidden /> Pin so it stays ready while you scroll X.
+                      <p className="text-[0.82rem] text-slate-500 leading-[1.6] flex-1 min-h-0">
+                        Click the <PuzzlePiece className="w-4 h-4 align-middle inline-block mr-0.5 text-[#9333ea] shrink-0" weight="fill" aria-hidden /> puzzle icon in Chrome's toolbar → find TweetReplyAI → tap <PushPin className="w-4 h-4 align-middle inline-block mr-0.5 text-[#9333ea] shrink-0" weight="fill" aria-hidden /> Pin so it stays ready while you scroll X.
                       </p>
                     ) : (
-                      <p className="text-sm text-muted-foreground leading-relaxed flex-1">
+                      <p className="text-[0.82rem] text-slate-500 leading-[1.6] flex-1 min-h-0">
                         {step.description}
                       </p>
                     )}
-
                     {step.id === "install" && (
                       <Button
                         type="button"
                         size="sm"
-                        className="mt-4 w-full bg-primary text-white hover:bg-primary/90 font-semibold"
+                        className="mt-auto mt-4 w-full bg-gradient-to-r from-blue-500 to-indigo-600 text-white hover:opacity-95 font-semibold rounded-xl shadow-md flex items-center justify-center gap-2 py-2.5 px-4"
                         onClick={() => window.open(APP_URLS.CHROME_STORE, "_blank")}
                         data-testid="button-how-it-works-add-to-chrome"
                       >
-                        <GoogleChromeLogo className="w-4 h-4 mr-2" />
+                        <GoogleChromeLogo className="w-4 h-4 shrink-0" weight="fill" aria-hidden />
                         Add to Chrome
                       </Button>
                     )}
-                  </CardContent>
-                </Card>
-              );
-            })}
+                  </div>
+                );
+              })}
+            </div>
           </div>
-
-          <p className="mt-8 text-center text-sm md:text-base text-muted-foreground max-w-2xl mx-auto">
-            Set up once, then let AI suggested replies handle the heavy lifting while you stay focused on real conversations.
-          </p>
         </div>
       </section>
 

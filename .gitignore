@@ -8,4 +8,5 @@ vite.config.ts.*
 .env
 .env.local
 docs/
+how-it-works-preview.html
 .vercel
