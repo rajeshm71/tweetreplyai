@@ -298,9 +298,8 @@ export default function Landing() {
       stepLabel: "Step 2",
       title: "Pin it in your toolbar",
       description:
-        "Click the puzzle icon → find TweetReplyAI → tap Pin so it stays ready while you scroll X.",
-      icon: PuzzlePiece,
-      iconSecondary: PushPin,
+        "Click the puzzle icon in Chrome's toolbar → find TweetReplyAI → tap Pin so it stays ready while you scroll X.",
+      icon: PushPin,
       iconBg: "bg-purple-500",
     },
     {
@@ -976,18 +975,16 @@ export default function Landing() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
             {HOW_IT_WORKS_STEPS.map((step) => {
               const Icon = step.icon;
-              const IconSecondary = "iconSecondary" in step ? step.iconSecondary : undefined;
               return (
                 <Card key={step.id} className="neomorphic border-0 card-modern h-full">
                   <CardContent className="p-6 flex flex-col h-full">
                     <div className="flex items-start gap-3 mb-4">
-                      <div className={`rounded-xl ${step.iconBg} flex items-center justify-center flex-shrink-0 gap-0.5 h-10 ${IconSecondary ? "w-12 min-w-[3rem]" : "w-10"}`}>
+                      <div className={`w-10 h-10 rounded-xl ${step.iconBg} flex items-center justify-center flex-shrink-0`}>
                         {step.id === "reply" ? (
                           <Icon className="w-5 h-5 text-white" />
                         ) : (
                           <Icon className="w-5 h-5 text-white" weight="fill" />
                         )}
-                        {IconSecondary && <IconSecondary className="w-4 h-4 text-white" weight="fill" />}
                       </div>
                       <div>
                         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -998,9 +995,15 @@ export default function Landing() {
                         </h3>
                       </div>
                     </div>
-                    <p className="text-sm text-muted-foreground leading-relaxed flex-1">
-                      {step.description}
-                    </p>
+                    {step.id === "pin" ? (
+                      <p className="text-sm text-muted-foreground leading-relaxed flex-1">
+                        Click the <PuzzlePiece className="w-4 h-4 align-middle inline-block mr-0.5 text-purple-500 shrink-0" weight="fill" aria-hidden /> puzzle icon in Chrome's toolbar → find TweetReplyAI → tap <PushPin className="w-4 h-4 align-middle inline-block mr-0.5 text-purple-500 shrink-0" weight="fill" aria-hidden /> Pin so it stays ready while you scroll X.
+                      </p>
+                    ) : (
+                      <p className="text-sm text-muted-foreground leading-relaxed flex-1">
+                        {step.description}
+                      </p>
+                    )}
 
                     {step.id === "install" && (
                       <Button
