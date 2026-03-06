@@ -10,7 +10,7 @@ import {
   HelpCircle, Plus, Minus, Refresh, SmartphoneDevice,
 } from "iconoir-react";
 import { IconMessageCircle, IconChartBar, IconRocket, IconClock, IconTrendingUp } from "@tabler/icons-react";
-import { GoogleChromeLogo } from "@phosphor-icons/react";
+import { GoogleChromeLogo, PushPin, PuzzlePiece } from "@phosphor-icons/react";
 import { Logo } from "@/components/logo";
 import useEmblaCarousel from 'embla-carousel-react';
 import Autoplay from 'embla-carousel-autoplay';
@@ -299,7 +299,8 @@ export default function Landing() {
       title: "Pin it in your toolbar",
       description:
         "Click the puzzle icon → find TweetReplyAI → tap Pin so it stays ready while you scroll X.",
-      icon: Flash,
+      icon: PuzzlePiece,
+      iconSecondary: PushPin,
       iconBg: "bg-purple-500",
     },
     {
@@ -307,7 +308,7 @@ export default function Landing() {
       stepLabel: "Step 3",
       title: "Reply from the same tab",
       description:
-        "On any X post, hit Reply and choose an AI suggested reply that matches your voice.",
+        "On any X post, hit Reply. Click a suggested reply to use it. Same tab, skip copy paste and tab switching.",
       icon: Sparks,
       iconBg: "bg-primary",
     },
@@ -975,12 +976,18 @@ export default function Landing() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
             {HOW_IT_WORKS_STEPS.map((step) => {
               const Icon = step.icon;
+              const IconSecondary = "iconSecondary" in step ? step.iconSecondary : undefined;
               return (
                 <Card key={step.id} className="neomorphic border-0 card-modern h-full">
                   <CardContent className="p-6 flex flex-col h-full">
                     <div className="flex items-start gap-3 mb-4">
-                      <div className={`w-10 h-10 rounded-xl ${step.iconBg} flex items-center justify-center flex-shrink-0`}>
-                        <Icon className="w-5 h-5 text-white" />
+                      <div className={`rounded-xl ${step.iconBg} flex items-center justify-center flex-shrink-0 gap-0.5 h-10 ${IconSecondary ? "w-12 min-w-[3rem]" : "w-10"}`}>
+                        {step.id === "reply" ? (
+                          <Icon className="w-5 h-5 text-white" />
+                        ) : (
+                          <Icon className="w-5 h-5 text-white" weight="fill" />
+                        )}
+                        {IconSecondary && <IconSecondary className="w-4 h-4 text-white" weight="fill" />}
                       </div>
                       <div>
                         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
