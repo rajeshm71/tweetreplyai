@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { GoogleChromeLogo, PushPin, ArrowRight, Rocket, Lightning } from "@phosphor-icons/react";
+import { GoogleChromeLogo, PushPin, ArrowRight, Rocket, Lightning, CaretDown } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { APP_URLS, X_PLATFORM_LABEL } from "@/config/constants";
 
@@ -70,7 +70,7 @@ const steps = [
       <Button
         size="sm"
         variant="outline"
-        className="mt-3 font-semibold gap-2"
+        className="mt-3 font-semibold gap-2 border border-border bg-background text-foreground hover:bg-muted"
         onClick={() => window.open(APP_URLS.X_COM, "_blank")}
       >
         <span className="font-bold">𝕏</span>
@@ -112,13 +112,24 @@ export function ExtensionOnboarding({ onComplete }: ExtensionOnboardingProps) {
     <div
       className={`transition-all duration-300 ${completing ? "opacity-0 scale-95" : "opacity-100 scale-100"}`}
     >
-      {/* Hero Header */}
+      {/* Skip this guide - top right */}
+      <div className="flex justify-end mb-4">
+        <button
+          type="button"
+          onClick={handleComplete}
+          className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+        >
+          Skip this guide
+        </button>
+      </div>
+
+      {/* Hero Header - solid colors only, no gradient */}
       <div className="mb-6 p-6 rounded-2xl bg-primary/10 border border-primary/20">
         <div className="flex items-start gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-primary flex items-center justify-center flex-shrink-0 shadow-lg">
+          <div className="w-12 h-12 rounded-2xl bg-primary flex items-center justify-center flex-shrink-0 shadow-md">
             <Lightning className="w-6 h-6 text-white" weight="fill" />
           </div>
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0 text-left">
             <h2 className="text-xl font-bold text-foreground leading-tight">
               You're one step away from 10x faster replies!
             </h2>
@@ -130,7 +141,7 @@ export function ExtensionOnboarding({ onComplete }: ExtensionOnboardingProps) {
         </div>
       </div>
 
-      {/* Vertical Stepper */}
+      {/* Vertical Stepper - solid connector, no gradient */}
       <div className="relative">
         {steps.map((step, idx) => {
           const isLast = idx === steps.length - 1;
@@ -143,16 +154,16 @@ export function ExtensionOnboarding({ onComplete }: ExtensionOnboardingProps) {
                   {step.icon}
                 </div>
                 {!isLast && (
-                  <div className="w-0.5 flex-1 my-1 bg-gradient-to-b from-border to-border/30 min-h-[24px]" />
+                  <div className="w-0.5 flex-1 my-1 bg-border min-h-[24px]" />
                 )}
               </div>
-              <div className="flex-1 min-w-0 pb-6">
+              <div className="flex-1 min-w-0 pb-6 text-left">
                 {step.badge && (
-                  <span className="text-xs font-medium text-muted-foreground">
+                  <span className="block text-xs font-medium text-muted-foreground mb-0.5">
                     {step.badge}
                   </span>
                 )}
-                <h3 className="text-base font-semibold text-foreground mt-0.5">
+                <h3 className="text-base font-semibold text-foreground leading-tight">
                   {step.title}
                 </h3>
                 <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
@@ -167,10 +178,20 @@ export function ExtensionOnboarding({ onComplete }: ExtensionOnboardingProps) {
 
       <Button
         onClick={handleComplete}
-        className="w-full mt-4 font-semibold"
+        className="w-full mt-4 font-semibold bg-primary hover:bg-primary/90 text-primary-foreground"
       >
         Got it, let's go
       </Button>
+
+      {/* Try web app instead */}
+      <button
+        type="button"
+        onClick={handleComplete}
+        className="flex items-center justify-center gap-2 w-full mt-3 text-sm text-muted-foreground hover:text-foreground transition-colors"
+      >
+        <CaretDown className="w-4 h-4 flex-shrink-0" />
+        Try web app instead
+      </button>
     </div>
   );
 }
