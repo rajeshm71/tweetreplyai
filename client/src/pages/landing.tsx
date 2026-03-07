@@ -1441,7 +1441,7 @@ export default function Landing() {
       </section>
 
 
-      {/* Before/After Engagement Metrics */}
+      {/* Before/After Engagement Metrics – same card design as How it works */}
       <section className="section-padding bg-gradient-to-b from-muted/10 to-background">
         <div className="container">
           <div className="text-center mb-16">
@@ -1457,14 +1457,14 @@ export default function Landing() {
             </p>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-12 max-w-5xl mx-auto">
-            {/* Before */}
-            <div>
-              <Card className="neomorphic border-0 p-8 relative overflow-hidden card-modern">
-                <div className="absolute top-4 right-4">
-                  <Badge variant="secondary" className="bg-red-500/10 text-red-600 border-red-500/20">Before</Badge>
-                </div>
-            <div className="space-y-6 mt-8">
+          <div className="max-w-5xl mx-auto">
+            <div className="engagement-metrics-tray">
+              {/* Before */}
+              <div className="how-it-works-panel">
+                <span className="absolute top-4 right-4 rounded-full bg-red-500 text-white text-xs font-semibold px-3 py-1">
+                  Before
+                </span>
+                <div className="space-y-6 mt-8 flex-1">
                   {[
                     { label: "Weekly Replies", value: "45" },
                     { label: "Time Spent", value: "8 hrs" },
@@ -1472,20 +1472,18 @@ export default function Landing() {
                   ].map((metric, index) => (
                     <div key={index} className="text-center">
                       <div className="text-sm text-muted-foreground mb-2">{metric.label}</div>
-                  <div className="text-4xl font-bold text-foreground">{metric.value}</div>
+                      <div className="text-4xl font-bold text-slate-900">{metric.value}</div>
                     </div>
                   ))}
                 </div>
-              </Card>
-            </div>
+              </div>
 
-            {/* After */}
-            <div>
-              <Card className="neomorphic border-0 p-8 relative overflow-hidden border-2 border-primary/30 card-modern hover-glow-primary">
-                <div className="absolute top-4 right-4">
-                  <Badge className="bg-green-500/10 text-green-600 border-green-500/20">After</Badge>
-                </div>
-                <div className="space-y-6 mt-8">
+              {/* After */}
+              <div className="how-it-works-panel">
+                <span className="absolute top-4 right-4 rounded-full bg-emerald-500 text-white text-xs font-semibold px-3 py-1">
+                  After
+                </span>
+                <div className="space-y-6 mt-8 flex-1">
                   {[
                     { label: "Weekly Replies", value: "320", change: "+611%" },
                     { label: "Time Spent", value: "2 hrs", change: "-75%" },
@@ -1493,16 +1491,16 @@ export default function Landing() {
                   ].map((metric, index) => (
                     <div key={index} className="text-center">
                       <div className="text-sm text-muted-foreground mb-2">{metric.label}</div>
-                      <div className="flex items-baseline gap-2 justify-center">
-                        <div className="text-4xl font-bold text-primary">{metric.value}</div>
-                        <Badge variant="secondary" className="bg-green-500/10 text-green-600 border-green-500/20">
+                      <div className="flex items-baseline gap-2 justify-center flex-wrap">
+                        <span className="text-4xl font-bold text-primary">{metric.value}</span>
+                        <span className="rounded-full bg-emerald-500 text-white text-xs font-semibold px-2.5 py-0.5">
                           {metric.change}
-                        </Badge>
+                        </span>
                       </div>
                     </div>
                   ))}
                 </div>
-              </Card>
+              </div>
             </div>
           </div>
         </div>

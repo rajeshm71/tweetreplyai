@@ -9,4 +9,5 @@ vite.config.ts.*
 .env.local
 docs/
 how-it-works-preview.html
+before-after-preview.html
 .vercel

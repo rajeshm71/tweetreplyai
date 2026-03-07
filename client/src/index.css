@@ -326,6 +326,42 @@
   }
 }
 
+/* Before/After section – Option 3: light linear gradient (coral to blue, 10% steps) */
+.engagement-metrics-tray {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 2rem;
+  padding: 4rem 2.5rem;
+  min-height: 420px;
+  border-radius: 32px;
+  overflow: hidden;
+  background: linear-gradient(
+    135deg,
+    #fff5f5 0%,
+    #fff0f1 10%,
+    #ffe4e6 20%,
+    #fdd9dc 30%,
+    #fbcdd2 40%,
+    #e8e0f4 50%,
+    #dbeafe 60%,
+    #c7e0fe 70%,
+    #bfdbfe 80%,
+    #b3d5fd 90%,
+    #93c5fd 100%
+  );
+}
+@media (max-width: 960px) {
+  .engagement-metrics-tray {
+    flex-direction: column;
+  }
+  .engagement-metrics-tray .how-it-works-panel {
+    width: 100%;
+    max-width: 400px;
+  }
+}
+
 .gradient-border {
   position: relative;
   background: var(--background);
