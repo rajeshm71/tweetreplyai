@@ -270,11 +270,13 @@ export default function Home() {
                       </div>
                     </div>
 
-                    {/* Reset Time */}
+                    {/* Reset Time (trial: no "Resets in X days", show upgrade message) */}
                     <div className="flex items-center gap-2 p-3 bg-muted/30 rounded-lg border border-border/50">
                       <IconClock className="w-4 h-4 text-primary flex-shrink-0" />
                       <span className="text-sm text-muted-foreground">
-                        Resets {formatDistanceToNow(new Date(usageStatus.resetAt), { addSuffix: true })}
+                        {usageStatus.planCode === 'trial'
+                          ? "You've used all your trial credits — upgrade to keep replying."
+                          : `Resets ${formatDistanceToNow(new Date(usageStatus.resetAt), { addSuffix: true })}`}
                       </span>
                     </div>
 

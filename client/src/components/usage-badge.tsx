@@ -57,6 +57,9 @@ export function UsageBadge({ showDetails = false }: UsageBadgeProps) {
   const isQuotaExceeded = usage.used >= usage.limit;
   const isTrialUser = usage.planCode === 'trial';
   const resetDistance = formatDistanceToNow(new Date(usage.resetAt), { addSuffix: true });
+  const resetLine = isTrialUser
+    ? "You've used all your trial credits — upgrade to keep replying."
+    : `Resets ${resetDistance}`;
   const showUpgrade = usage.upgradeRequired && !usage.isWhitelisted;
 
   if (showDetails) {
@@ -84,7 +87,7 @@ export function UsageBadge({ showDetails = false }: UsageBadgeProps) {
             
             <div className="flex items-center space-x-2 text-xs text-muted-foreground">
               <Clock className="w-3 h-3" />
-              <span>Resets {resetDistance}</span>
+              <span>{resetLine}</span>
             </div>
 
             {/* Credit Breakdown Section */}
@@ -158,7 +161,7 @@ export function UsageBadge({ showDetails = false }: UsageBadgeProps) {
         isQuotaExceeded ? 'bg-destructive' : 'bg-primary'
       }`} />
       <span className="text-muted-foreground">
-        {usage.used} / {usage.limit} • resets {resetDistance}
+        {usage.used} / {usage.limit} • {isTrialUser ? "upgrade to keep replying" : `resets ${resetDistance}`}
       </span>
     </div>
   );
