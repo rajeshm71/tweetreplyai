@@ -1229,20 +1229,44 @@
         return;
       }
       if (this.usageData.used >= this.usageData.limit) {
-        button.disabled = true;
+        const container2 = button.closest(".tweetreply-button-container");
+        const improveBtn2 = container2?.querySelector(".tweetreply-improve-btn");
+        if (button.classList.contains("tweetreply-improve-btn")) {
+          button.style.display = "none";
+          return;
+        }
+        button.disabled = false;
         button.innerHTML = `
         <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" style="margin-right: 4px;">
-          <path d="M12 2L13.09 8.26L19 7.27L14.18 12.09L20 17.91L13.09 15.74L12 22L10.91 15.74L4 17.91L8.82 12.09L3 7.27L8.91 8.26L12 2Z" opacity="0.6"/>
+          <path d="M7 2v11h3v9l7-12h-4l4-8z"/>
         </svg>
-        <span>\u26A0\uFE0F Quota exceeded</span>
+        <span>Upgrade to unlock replies</span>
       `;
-        button.title = `Quota exceeded. Resets ${this.formatTimeDistance(new Date(this.usageData.resetAt))}`;
-        button.style.opacity = "0.6";
+        button.title = `You've used all ${this.usageData.limit} credits \u2014 upgrade now to keep replying!`;
+        button.style.opacity = "1";
+        button.style.background = "#3b82f6";
+        button.style.color = "#ffffff";
+        button.onclick = (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const domain = API.DEFAULT_DOMAIN;
+          const protocol = domain.includes("localhost") ? "http" : "https";
+          chrome.runtime.sendMessage({ action: "openLoginPage", url: `${protocol}://${domain}/pricing` });
+        };
+        if (improveBtn2) improveBtn2.style.display = "none";
         return;
       }
       const isImproveButton = button.classList.contains("tweetreply-improve-btn");
       button.disabled = false;
       delete button.dataset.requiresAuth;
+      const container = button.closest(".tweetreply-button-container");
+      const improveBtn = container?.querySelector(".tweetreply-improve-btn");
+      if (improveBtn) improveBtn.style.removeProperty("display");
+      if (!isImproveButton) {
+        button.onclick = null;
+        button.style.removeProperty("background");
+        button.style.removeProperty("color");
+      }
       if (isImproveButton) {
         button.innerHTML = `
         <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" style="margin-right: 4px;">
@@ -1310,7 +1334,7 @@
         return;
       }
       if (!this.usageData || this.usageData.used >= this.usageData.limit) {
-        this.showMessage(composer, "Quota exceeded. Upgrade your plan to continue.", "error");
+        this.showMessage(composer, "You've used all your credits! Upgrade to keep the replies flowing.", "info");
         return;
       }
       const tweetText = this.extractTweetText();
@@ -1416,7 +1440,7 @@
           this.isAuthenticated = false;
           errorMessage = "You have been logged out. Please sign in again.";
         } else if (error.message.includes("402")) {
-          errorMessage = "Quota exceeded - upgrade your plan";
+          errorMessage = "Credits used up \u2014 upgrade to continue!";
         } else if (error.message.includes("Network error")) {
           errorMessage = "Network error - check your connection";
         } else if (error.message) {
@@ -1447,7 +1471,7 @@
         return;
       }
       if (!this.usageData || this.usageData.used >= this.usageData.limit) {
-        this.showMessage(composer, "Quota exceeded. Upgrade your plan to continue.", "error");
+        this.showMessage(composer, "You've used all your credits! Upgrade to keep the replies flowing.", "info");
         return;
       }
       let draftText = "";
@@ -1546,7 +1570,7 @@
           this.isAuthenticated = false;
           errorMessage = "You have been logged out. Please sign in again.";
         } else if (error.message.includes("402")) {
-          errorMessage = "Quota exceeded - upgrade your plan";
+          errorMessage = "Credits used up \u2014 upgrade to continue!";
         } else if (error.message.includes("Network error")) {
           errorMessage = "Network error - check your connection";
         } else if (error.message) {

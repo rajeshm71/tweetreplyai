@@ -1229,12 +1229,6 @@
         return;
       }
       if (this.usageData.used >= this.usageData.limit) {
-        const container2 = button.closest(".tweetreply-button-container");
-        const improveBtn2 = container2?.querySelector(".tweetreply-improve-btn");
-        if (button.classList.contains("tweetreply-improve-btn")) {
-          button.style.display = "none";
-          return;
-        }
         button.disabled = false;
         button.innerHTML = `
         <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" style="margin-right: 4px;">
@@ -1253,20 +1247,11 @@
           const protocol = domain.includes("localhost") ? "http" : "https";
           chrome.runtime.sendMessage({ action: "openLoginPage", url: `${protocol}://${domain}/pricing` });
         };
-        if (improveBtn2) improveBtn2.style.display = "none";
         return;
       }
       const isImproveButton = button.classList.contains("tweetreply-improve-btn");
       button.disabled = false;
       delete button.dataset.requiresAuth;
-      const container = button.closest(".tweetreply-button-container");
-      const improveBtn = container?.querySelector(".tweetreply-improve-btn");
-      if (improveBtn) improveBtn.style.removeProperty("display");
-      if (!isImproveButton) {
-        button.onclick = null;
-        button.style.removeProperty("background");
-        button.style.removeProperty("color");
-      }
       if (isImproveButton) {
         button.innerHTML = `
         <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" style="margin-right: 4px;">

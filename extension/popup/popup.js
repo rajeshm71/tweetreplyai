@@ -229,6 +229,12 @@ class PopupManager {
     this.quotaResetText = document.getElementById('quota-reset-text');
     this.statusMessage = document.getElementById('status-message');
     
+    // Quota banner
+    this.quotaBanner = document.getElementById('quota-banner');
+    this.quotaBannerUsed = document.getElementById('quota-banner-used');
+    this.quotaBannerLimit = document.getElementById('quota-banner-limit');
+    this.quotaBannerBtn = document.getElementById('quota-banner-btn');
+
     // New UI elements
     this.userName = document.getElementById('user-name');
     this.planBadge = document.getElementById('plan-badge');
@@ -265,6 +271,7 @@ class PopupManager {
     this.billingBtn?.addEventListener('click', () => this.handleManageBilling());
     this.upgradeBtn?.addEventListener('click', () => this.handleUpgrade());
     this.upgradeCta?.addEventListener('click', () => this.handleUpgrade());
+    this.quotaBannerBtn?.addEventListener('click', () => this.handleUpgrade());
     this.logoutBtn?.addEventListener('click', () => this.handleSignOut());
     this.settingsBtn?.addEventListener('click', () => this.showSettings());
     this.signoutBtn?.addEventListener('click', () => this.handleSignOut());
@@ -368,8 +375,7 @@ class PopupManager {
         } else if (this.usageData.status === 'trial' || this.usageData.status === 'active') {
           // User has trial or active subscription access
           if (this.usageData.used >= this.usageData.limit) {
-            // User has access but quota is exceeded (within trial/subscription period)
-            this.setState('quota-exceeded');
+            this.setState('authenticated');
           } else {
             // User has access and quota available
             this.setState('authenticated');
@@ -532,7 +538,7 @@ class PopupManager {
   updateUsageDisplay() {
     if (!this.usageData) return;
 
-    const { used, limit, resetAt, status } = this.usageData;
+    const { used, limit, resetAt, status, planCode } = this.usageData;
     const percentage = Math.min((used / limit) * 100, 100);
     const isExceeded = used >= limit;
 
@@ -565,22 +571,38 @@ class PopupManager {
       this.statusText.textContent = isExceeded ? 'Limit reached' : 'Active';
     }
     
-    // Update reset time
+    // Update reset time (trial: no "Resets in X days", show upgrade message instead)
     const resetDistance = this.formatTimeDistance(new Date(resetAt));
+    const isTrial = planCode === 'trial' || status === 'trial';
+    const resetLine = isTrial
+      ? "You've used all your trial credits — upgrade to keep replying."
+      : `Resets ${resetDistance}`;
     if (this.resetText) {
-      this.resetText.textContent = `Resets ${resetDistance}`;
+      this.resetText.textContent = resetLine;
     }
     if (this.quotaResetText) {
-      this.quotaResetText.textContent = `Resets ${resetDistance}`;
+      this.quotaResetText.textContent = resetLine;
     }
-    
-    
+
     // Update status message
     if (this.statusMessage) {
       if (isExceeded) {
-        this.statusMessage.textContent = `Daily limit reached. Resets ${resetDistance}`;
+        this.statusMessage.textContent = isTrial
+          ? "You've used all your trial credits — upgrade to keep replying."
+          : `You've used all your credits. Resets ${resetDistance}`;
       } else {
         this.statusMessage.textContent = 'Click "Reply" on any X post to generate suggestions';
+      }
+    }
+
+    // Show/hide quota banner
+    if (this.quotaBanner) {
+      if (isExceeded) {
+        if (this.quotaBannerUsed) this.quotaBannerUsed.textContent = used;
+        if (this.quotaBannerLimit) this.quotaBannerLimit.textContent = limit;
+        this.quotaBanner.classList.remove('hidden');
+      } else {
+        this.quotaBanner.classList.add('hidden');
       }
     }
 
