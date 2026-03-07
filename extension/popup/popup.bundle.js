@@ -1274,14 +1274,9 @@
           "bypass": "Pro Plan"
         };
         this.planBadge.textContent = planLabels[planCode] || "Free Plan";
-        this.planBadge.className = "plan-badge";
-        if (planCode === "weekly" || planCode === "monthly") {
-          this.planBadge.style.background = "linear-gradient(135deg, #10B981, #059669)";
-        } else if (planCode === "bypass") {
-          this.planBadge.style.background = "linear-gradient(135deg, #8B5CF6, #7C3AED)";
-        } else {
-          this.planBadge.style.background = "";
-        }
+        this.planBadge.className = "plan-badge" + (planCode === "bypass" ? " plan-badge--pro" : planCode === "weekly" || planCode === "monthly" ? " plan-badge--paid" : "");
+        this.planBadge.style.background = "";
+        this.planBadge.style.color = "";
         if (this.upgradeCta) {
           this.upgradeCta.style.display = planCode === "bypass" || planCode === "weekly" || planCode === "monthly" ? "none" : "";
         }

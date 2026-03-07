@@ -1344,16 +1344,10 @@ class PopupManager {
       };
       this.planBadge.textContent = planLabels[planCode] || 'Free Plan';
       
-      // Update styling based on plan
-      this.planBadge.className = 'plan-badge';
-      if (planCode === 'weekly' || planCode === 'monthly') {
-        this.planBadge.style.background = 'linear-gradient(135deg, #10B981, #059669)';
-      } else if (planCode === 'bypass') {
-        this.planBadge.style.background = 'linear-gradient(135deg, #8B5CF6, #7C3AED)';
-      } else {
-        // Ensure free plan uses CSS default (remove any inline styles)
-        this.planBadge.style.background = '';
-      }
+      // Update styling based on plan (classes + CSS for visibility; no green-on-purple)
+      this.planBadge.className = 'plan-badge' + (planCode === 'bypass' ? ' plan-badge--pro' : planCode === 'weekly' || planCode === 'monthly' ? ' plan-badge--paid' : '');
+      this.planBadge.style.background = '';
+      this.planBadge.style.color = '';
 
       // Hide "Upgrade to Pro" when user is on a Pro plan
       if (this.upgradeCta) {
