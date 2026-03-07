@@ -173,14 +173,16 @@ export function ExtensionOnboarding({ onComplete }: ExtensionOnboardingProps) {
         })}
       </div>
 
-      <Button
-        onClick={handleComplete}
-        className="w-full mt-6 py-2 text-sm font-semibold rounded-full bg-primary hover:bg-primary/90 text-primary-foreground flex items-center justify-center gap-2"
-      >
-        <Lightning className="w-3.5 h-3.5" weight="fill" />
-        I'm Ready — Let's go!
-        <ArrowRight className="w-3.5 h-3.5" />
-      </Button>
+      <div className="flex justify-center mt-6">
+        <Button
+          onClick={handleComplete}
+          className="py-2 px-6 text-sm font-semibold rounded-full bg-primary hover:bg-primary/90 text-primary-foreground flex items-center justify-center gap-2"
+        >
+          <Lightning className="w-3.5 h-3.5" weight="fill" />
+          I'm Ready — Let's go!
+          <ArrowRight className="w-3.5 h-3.5" />
+        </Button>
+      </div>
 
       {/* Skip this guide · Try web app instead — same line */}
       <div className="flex items-center justify-center gap-3 mt-3 text-sm text-muted-foreground">
