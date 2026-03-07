@@ -1,6 +1,7 @@
 /**
  * Shared constants used by both server and client.
  * Plan limits (credits, replies) are the single source of truth for enforcement and display.
+ * trial.credits is the trial limit for both server enforcement and client display.
  */
 export const PLAN_LIMITS = {
   trial: { credits: 50, replies: 10 },

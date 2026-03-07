@@ -138,8 +138,7 @@ export class UsageService {
       return null;
     }
 
-    // For regular users who haven't used trial, give trial limit
-    // Note: getTrialLimit() reads dynamically from TRIAL_LIMIT env var - can be updated without code changes
+    // For regular users who haven't used trial, give trial limit from shared config (same as client display)
     const trialLimit = whitelistService.getTrialLimit();
     // Fix 2 & 3: Use 7-day period for trial instead of daily reset
     // periodStart will be determined by getUsageStatus() which checks for existing counters

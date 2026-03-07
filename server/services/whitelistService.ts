@@ -1,13 +1,13 @@
 /**
  * WhitelistService manages email whitelist for bypassing subscription requirements.
  * Reads whitelisted emails from BYPASS_EMAILS environment variable.
- * 
- * IMPORTANT: All configuration values are read dynamically from environment variables.
- * You can update BYPASS_EMAILS, BYPASS_USER_LIMIT, and TRIAL_LIMIT without code changes.
+ *
+ * You can update BYPASS_EMAILS and BYPASS_USER_LIMIT without code changes (env vars).
+ * Trial limit is read from shared config (PLAN_LIMITS.trial.credits), same as client display.
  * For whitelist email changes, restart the server to reload the email list.
- * For limit changes, the new values are read on each request (no restart needed).
  */
 import { WHITELIST } from "../config/constants.js";
+import { PLAN_LIMITS } from "../../shared/constants.js";
 
 class WhitelistService {
   private whitelistedEmails: Set<string>;
@@ -83,25 +83,11 @@ class WhitelistService {
   }
 
   /**
-   * Gets the trial limit for regular users.
-   * Reads dynamically from TRIAL_LIMIT environment variable.
-   * Can be updated without code changes (no restart needed).
-   * @returns Number of credits allowed per period for trial users (TRIAL_LIMIT now represents credits, not replies)
+   * Gets the trial limit for regular users from shared config (single source with client display).
+   * @returns Number of credits allowed per period for trial users (PLAN_LIMITS.trial.credits)
    */
   getTrialLimit(): number {
-    // TRIAL_LIMIT now represents credits, not replies
-    const limit = parseInt(process.env.TRIAL_LIMIT || '50', 10);
-    // Validate limit is positive and not zero
-    if (isNaN(limit) || limit < 0) {
-      console.warn('[WhitelistService] Invalid TRIAL_LIMIT, using default 50');
-      return 50;
-    }
-    // Explicitly prevent returning 0 (even if env var is explicitly set to "0")
-    if (limit === 0) {
-      console.warn('[WhitelistService] TRIAL_LIMIT is 0, using default 50');
-      return 50;
-    }
-    return limit;
+    return PLAN_LIMITS.trial.credits;
   }
   
   /**
