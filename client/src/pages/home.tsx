@@ -49,17 +49,7 @@ export default function Home() {
   const [showBreakdown, setShowBreakdown] = useState(false);
   const { showExtensionGuide, closeExtensionGuide } = useExtensionGuide();
 
-  // Show guide on first visit this session (sessionStorage) or when user opens "Extension instructions"
-  const [showOnboarding, setShowOnboarding] = useState(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        return sessionStorage.getItem('onboarding-seen') !== 'true';
-      } catch {
-        return true;
-      }
-    }
-    return true;
-  });
+  const [showOnboarding, setShowOnboarding] = useState(true);
 
   // Handle checkout success callback from root URL
   // Use ref to track if we've already processed the callback to prevent duplicate calls
@@ -181,13 +171,6 @@ export default function Home() {
   const handleOnboardingComplete = () => {
     setShowOnboarding(false);
     closeExtensionGuide();
-    if (typeof window !== 'undefined') {
-      try {
-        sessionStorage.setItem('onboarding-seen', 'true');
-      } catch {
-        // Still hide onboarding even if localStorage fails
-      }
-    }
   };
 
   const showGuide = showOnboarding || showExtensionGuide;
