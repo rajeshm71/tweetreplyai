@@ -47,7 +47,6 @@ export default function Home() {
   const [, setLocation] = useLocation();
   const generateReplyRef = useRef<GenerateReplyRef>(null);
   const [showBreakdown, setShowBreakdown] = useState(false);
-  const [showWebApp, setShowWebApp] = useState(false);
   const { showExtensionGuide, closeExtensionGuide } = useExtensionGuide();
 
   // Show guide on first visit this session (sessionStorage) or when user opens "Extension instructions"
@@ -222,38 +221,6 @@ export default function Home() {
               <>
                 {/* Extension Onboarding Guide */}
                 <ExtensionOnboarding onComplete={handleOnboardingComplete} />
-
-                {/* Collapsible web app fallback */}
-                <div className="mt-6 border-t border-border/50 pt-4">
-                  <button
-                    type="button"
-                    aria-expanded={showWebApp}
-                    onClick={() => setShowWebApp((v) => !v)}
-                    className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors w-full"
-                  >
-                    {showWebApp ? (
-                      <CaretUp className="w-4 h-4 flex-shrink-0" />
-                    ) : (
-                      <CaretDown className="w-4 h-4 flex-shrink-0" />
-                    )}
-                    <span>Or try the web app instead</span>
-                  </button>
-
-                  {showWebApp && (
-                    <div className="mt-4">
-                      <Suspense fallback={
-                        <div className="min-h-[300px] flex items-center justify-center" role="status">
-                          <div className="flex flex-col items-center gap-4">
-                            <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" />
-                            <p className="text-sm text-muted-foreground">Loading reply generator...</p>
-                          </div>
-                        </div>
-                      }>
-                        <GenerateReply ref={generateReplyRef} />
-                      </Suspense>
-                    </div>
-                  )}
-                </div>
               </>
             ) : (
               <Suspense fallback={

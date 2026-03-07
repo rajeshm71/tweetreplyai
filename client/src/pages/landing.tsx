@@ -307,7 +307,7 @@ export default function Landing() {
       stepLabel: "Step 3",
       title: "Reply from the same tab",
       description:
-        "On any X post, hit Reply. Click on \"Suggest reply\" button to get suggested replies in the same tab, skip copy paste and tab switching.",
+        "On any X post, hit Reply. Click on \"Suggest reply\" button to get suggested replies in the same tab, no need to copy paste or switch tabs.",
       icon: Sparkle,
       iconBg: "bg-primary",
     },

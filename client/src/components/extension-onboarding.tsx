@@ -124,7 +124,7 @@ export function ExtensionOnboarding({ onComplete }: ExtensionOnboardingProps) {
             </h2>
             <p className="mt-1 text-sm text-muted-foreground leading-relaxed">
               The Chrome extension puts AI suggested replies right where you need
-              them, inside {X_PLATFORM_LABEL}. Reply from the same tab. Skip copy paste and tab switching.
+              them, inside {X_PLATFORM_LABEL}. Reply from the same tab. No need to copy paste or switch tabs.
             </p>
           </div>
         </div>
@@ -175,31 +175,32 @@ export function ExtensionOnboarding({ onComplete }: ExtensionOnboardingProps) {
 
       <Button
         onClick={handleComplete}
-        className="w-full mt-6 py-4 text-base font-semibold rounded-full bg-primary hover:bg-primary/90 text-primary-foreground flex items-center justify-center gap-2"
+        className="w-full mt-6 py-2.5 text-sm font-semibold rounded-full bg-primary hover:bg-primary/90 text-primary-foreground flex items-center justify-center gap-2"
       >
-        <Lightning className="w-5 h-5" weight="fill" />
+        <Lightning className="w-4 h-4" weight="fill" />
         I'm Ready — Let's go!
-        <ArrowRight className="w-5 h-5" />
+        <ArrowRight className="w-4 h-4" />
       </Button>
 
-      {/* Skip this guide */}
-      <button
-        type="button"
-        onClick={handleComplete}
-        className="w-full mt-3 text-sm text-muted-foreground hover:text-foreground underline text-center transition-colors"
-      >
-        Skip this guide
-      </button>
-
-      {/* Try web app instead */}
-      <button
-        type="button"
-        onClick={handleComplete}
-        className="flex items-center justify-center gap-1 w-full mt-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-      >
-        <CaretDown className="w-4 h-4 flex-shrink-0" />
-        Try web app instead
-      </button>
+      {/* Skip this guide · Try web app instead — same line */}
+      <div className="flex items-center justify-center gap-3 mt-3 text-sm text-muted-foreground">
+        <button
+          type="button"
+          onClick={handleComplete}
+          className="hover:text-foreground underline transition-colors"
+        >
+          Skip this guide
+        </button>
+        <span aria-hidden="true">·</span>
+        <button
+          type="button"
+          onClick={handleComplete}
+          className="flex items-center gap-1 hover:text-foreground transition-colors"
+        >
+          <CaretDown className="w-3.5 h-3.5 flex-shrink-0" />
+          Try web app instead
+        </button>
+      </div>
     </div>
   );
 }
