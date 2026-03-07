@@ -283,6 +283,21 @@ export default function Landing() {
     }
   ] as const;
 
+  const FEATURE_TINT_MAP: Record<string, string> = {
+    'bg-purple-500': 'purple',
+    'bg-blue-500': 'blue',
+    'bg-green-500': 'green',
+    'bg-orange-500': 'orange',
+    'bg-violet-500': 'violet',
+    'bg-yellow-500': 'yellow',
+    'bg-red-500': 'red',
+    'bg-cyan-500': 'cyan',
+    'bg-indigo-500': 'indigo',
+    'bg-amber-500': 'amber',
+    'bg-blue-600': 'blue600',
+    'bg-slate-500': 'slate',
+  };
+
   const HOW_IT_WORKS_STEPS = [
     {
       id: "install",
@@ -1392,50 +1407,49 @@ export default function Landing() {
       </section>
       */}
 
-      {/* Features Section */}
-      <section id="features" className="section-padding bg-gradient-to-b from-muted/5 to-muted/10">
+      {/* Features Section – Option D: per-card tinted bases */}
+      <section id="features" className="section-padding">
         <div className="container">
-        <div className="text-center mb-8">
-          <Badge variant="secondary" className="mb-4 glass-effect border border-primary/20">
-            <Rocket className="w-4 h-4 mr-2" />
-            Powerful Features
-          </Badge>
-          <h2 className="text-4xl md:text-5xl font-display font-bold mb-6">
-            Everything You Need to <span className="text-primary">Excel on X</span>
-          </h2>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-6">
-              Discover powerful features that make replying effortless, intelligent, and engaging. From automatic likes to smart tone detection, we've got you covered.
-            </p>
-          </div>
+          <div className="features-option-d max-w-7xl mx-auto">
+            <div className="text-center mb-8">
+              <Badge variant="secondary" className="mb-4 glass-effect border border-primary/20">
+                <Rocket className="w-4 h-4 mr-2" />
+                Powerful Features
+              </Badge>
+              <h2 className="text-4xl md:text-5xl font-display font-bold mb-6 text-foreground">
+                Everything You Need to <span className="text-primary">Excel on X</span>
+              </h2>
+              <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-6">
+                Discover powerful features that make replying effortless, intelligent, and engaging. From automatic likes to smart tone detection, we've got you covered.
+              </p>
+            </div>
 
-          {/* Features Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-7xl mx-auto">
-            {FEATURES.map((feature, index) => {
-              const IconComponent = feature.icon;
-              return (
-                <div key={index}>
-                  <Card className="neomorphic border-0 card-3d group overflow-hidden relative h-full">
-                    <div className={`absolute inset-0 bg-gradient-to-br ${feature.gradient} opacity-0`} />
-                    <CardContent className="p-6 text-center relative z-10 flex flex-col h-full">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 relative z-10">
+              {FEATURES.map((feature, index) => {
+                const IconComponent = feature.icon;
+                const tintMod = FEATURE_TINT_MAP[feature.solidBg] ?? 'slate';
+                return (
+                  <div key={index} className={`features-tint-cell features-tint-cell--${tintMod}`}>
+                    <div className="features-glass-card">
                       <div
-                        className={`w-12 h-12 ${feature.solidBg} rounded-xl flex items-center justify-center mx-auto mb-4`}
+                        className={`w-12 h-12 ${feature.solidBg} rounded-xl flex items-center justify-center mb-4`}
                         aria-hidden="true"
                       >
                         <IconComponent className="w-6 h-6 text-white" />
                       </div>
                       <h3 className="text-xl font-display font-semibold mb-2 text-foreground">{feature.title}</h3>
-                      <p className="text-muted-foreground mb-4 leading-relaxed text-sm line-clamp-2 flex-grow">
+                      <p className="text-muted-foreground mb-4 leading-relaxed text-sm features-glass-card-desc">
                         {feature.description}
                       </p>
-                      <div className="flex items-center justify-center text-xs text-muted-foreground">
-                        <CheckCircle className="w-3 h-3 mr-2 text-primary" aria-hidden="true" />
+                      <div className="flex items-center text-xs text-muted-foreground mt-auto">
+                        <CheckCircle className="w-3 h-3 mr-2 text-primary shrink-0" aria-hidden="true" />
                         <span>{feature.feature}</span>
                       </div>
-                    </CardContent>
-                  </Card>
-                </div>
-              );
-            })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       </section>

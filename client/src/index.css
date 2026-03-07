@@ -362,6 +362,54 @@
   }
 }
 
+/* Features section – Option D: per-card tinted bases */
+.features-option-d {
+  background: #e2e8f0;
+  border-radius: 28px;
+  padding: 2.5rem 2rem 3rem;
+  position: relative;
+  overflow: hidden;
+}
+.features-tint-cell {
+  border-radius: 20px;
+  padding: 6px;
+  min-height: 220px;
+}
+.features-tint-cell .features-glass-card {
+  height: 100%;
+  min-height: calc(220px - 12px);
+}
+.features-tint-cell--purple { background: rgba(168, 85, 247, 0.1); }
+.features-tint-cell--blue { background: rgba(59, 130, 246, 0.1); }
+.features-tint-cell--green { background: rgba(34, 197, 94, 0.1); }
+.features-tint-cell--orange { background: rgba(249, 115, 22, 0.1); }
+.features-tint-cell--violet { background: rgba(139, 92, 246, 0.1); }
+.features-tint-cell--yellow { background: rgba(234, 179, 8, 0.12); }
+.features-tint-cell--red { background: rgba(239, 68, 68, 0.1); }
+.features-tint-cell--cyan { background: rgba(6, 182, 212, 0.1); }
+.features-tint-cell--indigo { background: rgba(99, 102, 241, 0.1); }
+.features-tint-cell--amber { background: rgba(245, 158, 11, 0.1); }
+.features-tint-cell--blue600 { background: rgba(37, 99, 235, 0.1); }
+.features-tint-cell--slate { background: rgba(100, 116, 139, 0.1); }
+.features-glass-card {
+  position: relative;
+  padding: 1.5rem;
+  border-radius: 20px;
+  display: flex;
+  flex-direction: column;
+  backdrop-filter: blur(24px) saturate(180%);
+  background: rgba(255, 255, 255, 0.8);
+  border: 1.5px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.06), 0 4px 12px rgba(0, 0, 0, 0.03);
+}
+.features-glass-card .features-glass-card-desc {
+  flex: 1;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
 .gradient-border {
   position: relative;
   background: var(--background);
