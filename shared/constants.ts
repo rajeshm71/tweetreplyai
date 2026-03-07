@@ -4,7 +4,7 @@
  * trial.credits is the trial limit for both server enforcement and client display.
  */
 export const PLAN_LIMITS = {
-  trial: { credits: 50, replies: 10 },
+  trial: { credits: 10, replies: 10 },
   weekly: { credits: 2000, replies: 700 },
   monthly: { credits: 10000, replies: 3000 },
 } as const;

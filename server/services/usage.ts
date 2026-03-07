@@ -112,22 +112,13 @@ export class UsageService {
     // This allows users to continue their existing trial even if flag is set
     const activeTrialCounter = await storage.getActiveTrialCounter(user.id);
     if (activeTrialCounter && activeTrialCounter.periodEnd > now) {
-      // FIX: Validate activeTrialCounter.limit to prevent corrupted data from propagating
-      // If counter has invalid limit, fallback to current config value
-      const validatedLimit = activeTrialCounter.limit > 0 
-        ? activeTrialCounter.limit 
-        : whitelistService.getTrialLimit();
-      
-      if (activeTrialCounter.limit <= 0) {
-        console.warn('[Usage] Active trial counter has invalid limit, using fallback:', validatedLimit);
-      }
-      
+      // Always use current config limit for trial (single source of truth); ignore stale counter.limit from DB
       const result = {
         planCode: 'trial',
-        periodStart: activeTrialCounter.periodStart, // Use counter's actual periodStart
-        periodEnd: activeTrialCounter.periodEnd, // Use counter's actual periodEnd
-        limit: validatedLimit, // FIX: Use validated limit instead of raw counter limit
-        resetAt: activeTrialCounter.resetAt, // Use counter's actual resetAt
+        periodStart: activeTrialCounter.periodStart,
+        periodEnd: activeTrialCounter.periodEnd,
+        limit: whitelistService.getTrialLimit(),
+        resetAt: activeTrialCounter.resetAt,
       };
       return result;
     }
@@ -238,11 +229,11 @@ export class UsageService {
     const currentCredits = counter.creditsUsed ?? (counter.repliesUsed * 2);
     
     // Set hasUsedTrial flag when trial period ends OR limit is reached
-    // This prevents premature flag setting that blocks trial access
     if (counter.planCode === 'trial' && !user.hasUsedTrial) {
       const now = new Date();
       const trialExpired = counter.periodEnd <= now;
-      const limitReached = (counter.creditsUsed ?? (counter.repliesUsed * 2)) >= counter.limit;
+      const trialLimit = whitelistService.getTrialLimit();
+      const limitReached = (counter.creditsUsed ?? (counter.repliesUsed * 2)) >= trialLimit;
       
       // Mark trial as "used" when period expires OR limit is reached
       if (trialExpired || limitReached) {
@@ -255,13 +246,10 @@ export class UsageService {
       }
     }
     
-    // Determine the limit to use: counter.limit is source of truth after creation/update,
-    // but fallback to window.limit if counter.limit is invalid (shouldn't happen, but defensive).
-    // If both are invalid, treat as misconfiguration and surface as no_access instead of
-    // silently defaulting to a magic number.
-    const finalLimit = counter.limit > 0
-      ? counter.limit
-      : window.limit;
+    // For trial, always use config limit (single source of truth). Otherwise use counter/window limit.
+    const finalLimit = window.planCode === 'trial'
+      ? whitelistService.getTrialLimit()
+      : (counter.limit > 0 ? counter.limit : window.limit);
 
     if (finalLimit <= 0) {
       console.error('[Usage] Both counter and window limits are invalid, treating as no_access', {
