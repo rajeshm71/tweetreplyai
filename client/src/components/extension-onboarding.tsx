@@ -112,17 +112,6 @@ export function ExtensionOnboarding({ onComplete }: ExtensionOnboardingProps) {
     <div
       className={`transition-all duration-300 ${completing ? "opacity-0 scale-95" : "opacity-100 scale-100"}`}
     >
-      {/* Skip this guide - top right */}
-      <div className="flex justify-end mb-4">
-        <button
-          type="button"
-          onClick={handleComplete}
-          className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-        >
-          Skip this guide
-        </button>
-      </div>
-
       {/* Hero Header - solid colors only, no gradient */}
       <div className="mb-6 p-6 rounded-2xl bg-primary/10 border border-primary/20">
         <div className="flex items-start gap-4">
@@ -158,14 +147,22 @@ export function ExtensionOnboarding({ onComplete }: ExtensionOnboardingProps) {
                 )}
               </div>
               <div className="flex-1 min-w-0 pb-6 text-left">
-                {step.badge && (
-                  <span className="block text-xs font-medium text-muted-foreground mb-0.5">
-                    {step.badge}
-                  </span>
-                )}
-                <h3 className="text-base font-semibold text-foreground leading-tight">
-                  {step.title}
-                </h3>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-base font-semibold text-foreground leading-tight">
+                    {step.title}
+                  </h3>
+                  {step.badge && (
+                    step.badgeVariant === "default" ? (
+                      <span className="text-xs font-semibold bg-primary text-primary-foreground rounded-full px-2 py-0.5 leading-none">
+                        {step.badge}
+                      </span>
+                    ) : (
+                      <span className="text-xs font-medium text-muted-foreground">
+                        {step.badge}
+                      </span>
+                    )
+                  )}
+                </div>
                 <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
                   {step.description}
                 </p>
@@ -178,16 +175,27 @@ export function ExtensionOnboarding({ onComplete }: ExtensionOnboardingProps) {
 
       <Button
         onClick={handleComplete}
-        className="w-full mt-4 font-semibold bg-primary hover:bg-primary/90 text-primary-foreground"
+        className="w-full mt-6 py-4 text-base font-semibold rounded-full bg-primary hover:bg-primary/90 text-primary-foreground flex items-center justify-center gap-2"
       >
-        Got it, let's go
+        <Lightning className="w-5 h-5" weight="fill" />
+        I'm Ready — Let's go!
+        <ArrowRight className="w-5 h-5" />
       </Button>
+
+      {/* Skip this guide */}
+      <button
+        type="button"
+        onClick={handleComplete}
+        className="w-full mt-3 text-sm text-muted-foreground hover:text-foreground underline text-center transition-colors"
+      >
+        Skip this guide
+      </button>
 
       {/* Try web app instead */}
       <button
         type="button"
         onClick={handleComplete}
-        className="flex items-center justify-center gap-2 w-full mt-3 text-sm text-muted-foreground hover:text-foreground transition-colors"
+        className="flex items-center justify-center gap-1 w-full mt-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
       >
         <CaretDown className="w-4 h-4 flex-shrink-0" />
         Try web app instead
