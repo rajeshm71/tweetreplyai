@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TweetReply</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Header -->
+    <div class="header">
+      <div class="logo">
+        <div class="logo-icon">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zM7.5 18c-.83 0-1.5-.67-1.5-1.5S6.67 15 7.5 15s1.5.67 1.5 1.5S8.33 18 7.5 18zM12 18c-.83 0-1.5-.67-1.5-1.5S11.17 15 12 15s1.5.67 1.5 1.5S12.83 18 12 18zM16.5 18c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/>
+          </svg>
+        </div>
+        <span class="logo-text">TweetReply</span>
+      </div>
+      <div class="header-actions">
+        <button id="logout-btn" class="logout-btn hidden" title="Logout" aria-label="Logout from TweetReply">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" aria-hidden="true">
+            <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.59L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/>
+          </svg>
+        </button>
+        <button id="settings-btn" class="settings-btn" title="Settings" aria-label="Open settings" aria-expanded="false">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" aria-hidden="true">
+            <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
+          </svg>
+          <span class="settings-btn-label">Settings</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Not Authenticated State -->
+    <div id="not-authenticated" class="state hidden" role="region" aria-label="Authentication required">
+      <div class="auth-content">
+        <h2>Welcome to TweetReply</h2>
+        <p>Sign in to start generating authentic replies to X posts</p>
+        <button id="signin-btn" class="primary-btn" aria-label="Sign in to TweetReply">Sign In</button>
+      </div>
+    </div>
+
+    <!-- Loading State -->
+    <div id="loading" class="state" role="status" aria-live="polite" aria-label="Loading">
+      <div class="loading-content">
+        <div class="spinner" aria-hidden="true"></div>
+        <p>Loading...</p>
+      </div>
+    </div>
+
+    <!-- Authenticated State -->
+    <div id="authenticated" class="state hidden" role="main" aria-label="TweetReply dashboard">
+      <!-- Welcome Header -->
+      <div class="welcome-section">
+        <div class="user-greeting">
+          <span class="greeting-text">Hi, <span id="user-name" aria-label="User name">there</span>!</span>
+          <span class="plan-badge" id="plan-badge" aria-label="Current plan">Free Plan</span>
+        </div>
+      </div>
+
+      <!-- Usage Dashboard Card -->
+      <div class="usage-card" role="region" aria-label="Daily usage statistics">
+        <div class="usage-header">
+          <span class="usage-title">Daily Usage</span>
+          <span id="usage-percentage" class="usage-percentage" aria-live="polite">0%</span>
+        </div>
+        <div class="usage-progress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" aria-label="Daily usage progress">
+          <div id="progress-fill" class="progress-fill"></div>
+        </div>
+        <div class="usage-details">
+          <span id="usage-text" class="usage-numbers">-- / -- credits</span>
+          <span id="reset-text" class="reset-time">Resets in --</span>
+        </div>
+        <!-- Credit Breakdown Toggle -->
+        <div id="breakdown-toggle" class="breakdown-toggle" style="display: none;">
+          <button id="breakdown-btn" class="breakdown-btn" aria-expanded="false" aria-controls="breakdown-content">
+            <span>Credit Breakdown</span>
+            <svg id="breakdown-chevron" class="chevron-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M6 9l6 6 6-6"/>
+            </svg>
+          </button>
+          <div id="breakdown-content" class="breakdown-content" style="display: none;">
+            <!-- Populated by JavaScript -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Modern 2x2 Grid -->
+      <div class="modern-grid" role="grid" aria-label="Dashboard metrics and actions">
+        <!-- Today Card -->
+        <div class="modern-card" data-theme="today" role="gridcell" tabindex="0">
+          <div class="card-icon-wrapper">
+            <svg class="card-icon" viewBox="0 0 24 24" fill="currentColor" width="24" height="24" aria-hidden="true">
+              <path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/>
+            </svg>
+          </div>
+          <div class="card-content">
+            <div class="card-value" id="today-replies">0</div>
+            <div class="card-label">Today</div>
+          </div>
+          <div class="card-gradient-overlay"></div>
+        </div>
+
+        <!-- Quality Card -->
+        <div class="modern-card" data-theme="quality" role="gridcell" tabindex="0">
+          <div class="card-icon-wrapper">
+            <svg class="card-icon" viewBox="0 0 24 24" fill="currentColor" width="24" height="24" aria-hidden="true">
+              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+            </svg>
+          </div>
+          <div class="card-content">
+            <div class="card-value" id="success-rate">--</div>
+            <div class="card-label">Quality</div>
+          </div>
+          <div class="card-gradient-overlay"></div>
+        </div>
+
+        <!-- History Card (Clickable) -->
+        <button class="modern-card modern-card-action" data-theme="history" id="history-btn" aria-label="View reply history" tabindex="0">
+          <div class="card-icon-wrapper">
+            <svg class="card-icon" viewBox="0 0 24 24" fill="currentColor" width="24" height="24" aria-hidden="true">
+              <path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/>
+            </svg>
+          </div>
+          <div class="card-content">
+            <div class="card-label">History</div>
+            <div class="card-description">View past replies</div>
+          </div>
+          <div class="card-gradient-overlay"></div>
+        </button>
+
+        <!-- Analytics Card (Clickable) -->
+        <button class="modern-card modern-card-action" data-theme="analytics" id="analytics-btn" aria-label="View analytics" tabindex="0">
+          <div class="card-icon-wrapper">
+            <svg class="card-icon" viewBox="0 0 24 24" fill="currentColor" width="24" height="24" aria-hidden="true">
+              <path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/>
+            </svg>
+          </div>
+          <div class="card-content">
+            <div class="card-label">Analytics</div>
+            <div class="card-description">View insights</div>
+          </div>
+          <div class="card-gradient-overlay"></div>
+        </button>
+      </div>
+
+      <!-- Footer Actions -->
+      <div class="footer-actions">
+        <button id="upgrade-cta" class="upgrade-link" aria-label="Upgrade to Pro plan">
+          ⚡ Upgrade to Pro
+        </button>
+      </div>
+    </div>
+
+    <!-- Quota Exceeded State -->
+    <div id="quota-exceeded" class="state error-state hidden" role="alert" aria-live="polite" aria-label="Daily limit reached">
+      <div class="error-content">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24" class="error-icon" aria-hidden="true">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zM13 17h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+        </svg>
+        <h3>Daily limit reached</h3>
+        <p id="quota-reset-text">Resets in --</p>
+        <button id="upgrade-btn" class="primary-btn" aria-label="Upgrade to Pro plan">Upgrade plan</button>
+      </div>
+    </div>
+
+    <!-- Settings Panel -->
+    <div id="settings-panel" class="settings-panel hidden" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+      <div class="settings-header">
+        <h3 id="settings-title">Settings</h3>
+        <button id="close-settings" class="close-btn" aria-label="Close settings">×</button>
+      </div>
+      <div class="settings-content">
+        <div class="user-info">
+          <div class="user-email" id="user-email">user@example.com</div>
+        </div>
+        <div class="settings-actions">
+          <button id="signout-btn" class="secondary-btn" aria-label="Sign out from TweetReply">Sign Out</button>
+        </div>
+
+        <div class="settings-section">
+          <a id="settings-web-link" href="https://tweetreplyai.vercel.app/settings" target="_blank" rel="noopener noreferrer" class="settings-web-link" aria-label="Open settings on web">Settings on web</a>
+        </div>
+        
+        <!-- Reply Tracking Settings -->
+        <div class="settings-section">
+          <h4>Reply Tracking</h4>
+          <div>
+            <label for="trackingPeriodDays">
+              <span>Tracking Period (days):</span>
+              <input type="number" id="trackingPeriodDays" min="1" max="30" value="7" aria-label="Tracking period in days">
+            </label>
+            <small>
+              Show reply count for tweets within this time period
+            </small>
+          </div>
+          <button id="saveTrackingSettings" class="primary-btn">Save Settings</button>
+          <div id="tracking-settings-saved" role="status" aria-live="polite">Settings saved!</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Reply History Panel -->
+    <div id="history-panel" class="panel hidden" role="dialog" aria-modal="true" aria-labelledby="history-title">
+      <div class="panel-header">
+        <h3 id="history-title">Reply History</h3>
+        <button id="close-history" class="close-btn" aria-label="Close history panel">×</button>
+      </div>
+      <div class="panel-content">
+        <div id="history-list" class="history-list">
+          <!-- Dynamic content -->
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Analytics Panel (Redesigned) -->
+  <div id="analytics-panel" class="panel hidden">
+    <div class="panel-header">
+      <button id="analytics-back-btn" class="back-btn" aria-label="Back to dashboard">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
+          <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
+        </svg>
+        Back
+      </button>
+      <h2>Your Analytics</h2>
+    </div>
+    
+    <div class="analytics-content">
+      <!-- Loading State -->
+      <div id="analytics-loading" class="analytics-loading">
+        <div class="loading-spinner"></div>
+        <p>Loading your analytics...</p>
+      </div>
+
+      <!-- Error State -->
+      <div id="analytics-error" class="analytics-error hidden">
+        <p>Failed to load analytics</p>
+        <button id="analytics-retry-btn" class="retry-btn">Retry</button>
+      </div>
+
+      <!-- Analytics Sections -->
+      <div id="analytics-data" class="hidden">
+        <div id="analytics-summary" class="analytics-section"></div>
+        <div id="activity-trend" class="analytics-section"></div>
+        <div id="insights-panel" class="analytics-section"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="popup.bundle.js"></script>
+</body>
+</html>
