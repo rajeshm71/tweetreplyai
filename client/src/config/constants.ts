@@ -6,7 +6,10 @@ export const APP_URLS = {
   CHROME_STORE:
     "https://chromewebstore.google.com/detail/tweetreply-ai-powered-twi/nhpilcnghmcdhcbhndmemiggfekmdgem",
   BASE_URL: "https://tweetreplyai.com",
+  X_COM: "https://x.com",
 } as const;
+
+export const X_PLATFORM_LABEL = "X.com" as const;
 
 export const POLLING = {
   USAGE_REFETCH_INTERVAL_MS: 30_000,

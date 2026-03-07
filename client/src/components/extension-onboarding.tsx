@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { GoogleChromeLogo, PushPin, ArrowRight, Rocket, Lightning } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { APP_URLS } from "@/config/constants";
+import { APP_URLS, X_PLATFORM_LABEL } from "@/config/constants";
 
 interface ExtensionOnboardingProps {
   onComplete: () => void;
@@ -57,13 +56,13 @@ const steps = [
     id: 3,
     icon: <span className="text-base font-bold text-white leading-none">𝕏</span>,
     iconBg: "bg-zinc-900 dark:bg-zinc-700",
-    title: "Head over to X.com",
+    title: `Head over to ${X_PLATFORM_LABEL}`,
     badge: "The magic starts here",
     badgeVariant: "outline" as const,
     description: (
       <>
         Open a new tab and go to{" "}
-        <span className="font-semibold text-foreground">x.com</span>. Scroll to
+        <span className="font-semibold text-foreground">{X_PLATFORM_LABEL.toLowerCase()}</span>. Scroll to
         any post you want to reply to. The magic is about to happen.
       </>
     ),
@@ -72,10 +71,10 @@ const steps = [
         size="sm"
         variant="outline"
         className="mt-3 font-semibold gap-2"
-        onClick={() => window.open("https://x.com", "_blank")}
+        onClick={() => window.open(APP_URLS.X_COM, "_blank")}
       >
         <span className="font-bold">𝕏</span>
-        Open X.com
+        Open {X_PLATFORM_LABEL}
         <ArrowRight className="w-4 h-4" />
       </Button>
     ),
@@ -125,7 +124,7 @@ export function ExtensionOnboarding({ onComplete }: ExtensionOnboardingProps) {
             </h2>
             <p className="mt-1 text-sm text-muted-foreground leading-relaxed">
               The Chrome extension puts AI suggested replies right where you need
-              them, inside X.com. Reply from the same tab. Skip copy paste and tab switching.
+              them, inside {X_PLATFORM_LABEL}. Reply from the same tab. Skip copy paste and tab switching.
             </p>
           </div>
         </div>
@@ -137,7 +136,6 @@ export function ExtensionOnboarding({ onComplete }: ExtensionOnboardingProps) {
           const isLast = idx === steps.length - 1;
           return (
             <div key={step.id} className="flex gap-4">
-              {/* Step indicator + connecting line */}
               <div className="flex flex-col items-center flex-shrink-0">
                 <div
                   className={`w-10 h-10 rounded-full flex items-center justify-center shadow-md flex-shrink-0 ${step.iconBg}`}
@@ -148,23 +146,16 @@ export function ExtensionOnboarding({ onComplete }: ExtensionOnboardingProps) {
                   <div className="w-0.5 flex-1 my-1 bg-gradient-to-b from-border to-border/30 min-h-[24px]" />
                 )}
               </div>
-
-              {/* Step content */}
-              <div className={`flex-1 min-w-0 ${isLast ? "pb-2" : "pb-6"}`}>
-                <div className="flex flex-wrap items-center gap-2 mb-1">
-                  <span className="font-semibold text-foreground text-sm">
-                    {step.title}
+              <div className="flex-1 min-w-0 pb-6">
+                {step.badge && (
+                  <span className="text-xs font-medium text-muted-foreground">
+                    {step.badge}
                   </span>
-                  {step.badge && (
-                    <Badge
-                      variant={step.badgeVariant}
-                      className="text-[10px] px-1.5 py-0 h-4"
-                    >
-                      {step.badge}
-                    </Badge>
-                  )}
-                </div>
-                <p className="text-sm text-muted-foreground leading-relaxed">
+                )}
+                <h3 className="text-base font-semibold text-foreground mt-0.5">
+                  {step.title}
+                </h3>
+                <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
                   {step.description}
                 </p>
                 {step.cta}
@@ -174,25 +165,12 @@ export function ExtensionOnboarding({ onComplete }: ExtensionOnboardingProps) {
         })}
       </div>
 
-      {/* Bottom CTAs */}
-      <div className="mt-8 flex flex-col items-center gap-3 pt-6 border-t border-border/50">
-        <Button
-          onClick={handleComplete}
-          size="lg"
-          className="w-full max-w-sm bg-primary hover:bg-primary/90 text-white font-bold shadow-lg gap-2 text-base"
-        >
-          <Rocket className="w-5 h-5" weight="fill" />
-          I'm ready. Let's go!
-          <ArrowRight className="w-5 h-5" />
-        </Button>
-        <button
-          type="button"
-          onClick={handleComplete}
-          className="text-xs text-muted-foreground hover:text-foreground transition-colors underline underline-offset-2"
-        >
-          Already have it? Skip this guide
-        </button>
-      </div>
+      <Button
+        onClick={handleComplete}
+        className="w-full mt-4 font-semibold"
+      >
+        Got it, let's go
+      </Button>
     </div>
   );
 }

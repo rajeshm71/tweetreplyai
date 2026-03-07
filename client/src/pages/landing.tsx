@@ -17,7 +17,7 @@ import Autoplay from 'embla-carousel-autoplay';
 import { useCallback, useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { generateStats, initializeStats, type Stats } from '@/utils/stats-generator';
-import { APP_URLS, POLLING, UI } from "@/config/constants";
+import { APP_URLS, POLLING, UI, X_PLATFORM_LABEL } from "@/config/constants";
 import { getQuotaSummaryText } from "@/config/pricing";
 
 export default function Landing() {
@@ -1011,6 +1011,30 @@ export default function Landing() {
                       >
                         <GoogleChromeLogo className="w-4 h-4 shrink-0" weight="fill" aria-hidden />
                         Add to Chrome
+                      </Button>
+                    )}
+                    {step.id === "pin" && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="mt-auto mt-4 w-full font-semibold rounded-xl border-2 border-[#9333ea] text-[#9333ea] hover:bg-[#9333ea]/10 flex items-center justify-center gap-2 py-2.5 px-4"
+                        onClick={() => { window.location.href = "/login?returnUrl=" + encodeURIComponent("/app"); }}
+                        data-testid="button-how-it-works-sign-in"
+                      >
+                        Sign in to TweetReplyAI
+                      </Button>
+                    )}
+                    {step.id === "reply" && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="mt-auto mt-4 w-full font-semibold rounded-xl border-2 border-[#2563eb] text-[#2563eb] hover:bg-[#2563eb]/10 flex items-center justify-center gap-2 py-2.5 px-4"
+                        onClick={() => window.open(APP_URLS.X_COM, "_blank")}
+                        data-testid="button-how-it-works-go-to-x"
+                      >
+                        Go to {X_PLATFORM_LABEL}
                       </Button>
                     )}
                   </div>
