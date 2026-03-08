@@ -29,7 +29,7 @@ interface FeedbackStats {
   };
 }
 
-// Removed unused FeedbackQualityMetrics interface (per review — not referenced)
+// Removed unused FeedbackQualityMetrics interface (per review; not referenced)
 
 class FeedbackAnalytics {
   async getFeedbackStats(userId?: string, days: number = PERIODS.DEFAULT_ANALYTICS_DAYS): Promise<FeedbackStats> {

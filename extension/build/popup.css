@@ -2140,7 +2140,7 @@ body {
   box-shadow: var(--glass-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 
-/* Design 9: Dark mode — body tray and glass panels use dark theme vars; no existing vars removed. */
+/* Design 9: Dark mode: body tray and glass panels use dark theme vars; no existing vars removed. */
 @media (prefers-color-scheme: dark) {
   body {
     background: var(--color-background);

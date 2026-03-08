@@ -673,7 +673,7 @@
       }
       const resetDistance = this.formatTimeDistance(new Date(resetAt));
       const isTrial = planCode === "trial" || status === "trial";
-      const resetLine = isTrial ? "You've used all your trial credits \u2014 upgrade to keep replying." : `Resets ${resetDistance}`;
+      const resetLine = isTrial ? "You've used all your trial credits: upgrade to keep replying." : `Resets ${resetDistance}`;
       if (this.resetText) {
         this.resetText.textContent = resetLine;
       }
@@ -682,7 +682,7 @@
       }
       if (this.statusMessage) {
         if (isExceeded) {
-          this.statusMessage.textContent = isTrial ? "You've used all your trial credits \u2014 upgrade to keep replying." : `You've used all your credits. Resets ${resetDistance}`;
+          this.statusMessage.textContent = isTrial ? "You've used all your trial credits: upgrade to keep replying." : `You've used all your credits. Resets ${resetDistance}`;
         } else {
           this.statusMessage.textContent = 'Click "Reply" on any X post to generate suggestions';
         }

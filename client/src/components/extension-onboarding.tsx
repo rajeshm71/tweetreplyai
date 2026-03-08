@@ -184,7 +184,7 @@ export function ExtensionOnboarding({ onComplete }: ExtensionOnboardingProps) {
         </Button>
       </div>
 
-      {/* Skip this guide · Try web app instead — same line */}
+      {/* Skip this guide · Try web app instead; same line */}
       <div className="flex items-center justify-center gap-3 mt-3 text-sm text-muted-foreground">
         <button
           type="button"

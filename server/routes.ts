@@ -957,7 +957,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
       const handlePattern = /^[a-z0-9_]+$/;
       const originalAuthor = handlePattern.test(rawOriginalAuthor) ? rawOriginalAuthor : '';
       const viewerIsOriginalAuthor = !!userHandle && !!originalAuthor && userHandle === originalAuthor;
-      console.log('[API] Authors — original:', originalAuthor || 'unknown', '| reply (viewer):', userHandle || 'unknown', '| same:', viewerIsOriginalAuthor);
+      console.log('[API] Authors: original:', originalAuthor || 'unknown', '| reply (viewer):', userHandle || 'unknown', '| same:', viewerIsOriginalAuthor);
 
       // Handles used only for internal role disambiguation in prompts
       const replyAuthorHandle = (user?.xUsername ?? '').trim().replace(/^@+/, '') || undefined;

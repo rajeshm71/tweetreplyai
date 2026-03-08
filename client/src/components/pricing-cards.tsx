@@ -209,7 +209,7 @@ export function PricingCards({
   const trialButtonLabel = !isAuthenticated
     ? 'Start Replying'
     : usagePlanCode === undefined
-      ? '—'
+      ? '-'
       : usagePlanCode === 'trial'
         ? 'Current plan'
         : 'Trial already used';

@@ -58,7 +58,7 @@ export function UsageBadge({ showDetails = false }: UsageBadgeProps) {
   const isTrialUser = usage.planCode === 'trial';
   const resetDistance = formatDistanceToNow(new Date(usage.resetAt), { addSuffix: true });
   const resetLine = isTrialUser
-    ? "You've used all your trial credits — upgrade to keep replying."
+    ? "You've used all your trial credits: upgrade to keep replying."
     : `Resets ${resetDistance}`;
   const showUpgrade = usage.upgradeRequired && !usage.isWhitelisted;
 

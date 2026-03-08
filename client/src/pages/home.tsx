@@ -275,7 +275,7 @@ export default function Home() {
                       <IconClock className="w-4 h-4 text-primary flex-shrink-0" />
                       <span className="text-sm text-muted-foreground">
                         {usageStatus.planCode === 'trial'
-                          ? "You've used all your trial credits — upgrade to keep replying."
+                          ? "You've used all your trial credits: upgrade to keep replying."
                           : `Resets ${formatDistanceToNow(new Date(usageStatus.resetAt), { addSuffix: true })}`}
                       </span>
                     </div>

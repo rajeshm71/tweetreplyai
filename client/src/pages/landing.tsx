@@ -1407,7 +1407,7 @@ export default function Landing() {
       </section>
       */}
 
-      {/* Features Section – Option D: per-card tinted bases */}
+      {/* Features Section: Option D: per-card tinted bases (en dash replaced per plan) */}
       <section id="features" className="section-padding">
         <div className="container">
           <div className="features-option-d max-w-7xl mx-auto">
@@ -1455,7 +1455,7 @@ export default function Landing() {
       </section>
 
 
-      {/* Before/After Engagement Metrics – same card design as How it works */}
+      {/* Before/After Engagement Metrics: same card design as How it works (en dash replaced per plan) */}
       <section className="section-padding bg-gradient-to-b from-muted/10 to-background">
         <div className="container">
           <div className="text-center mb-16">

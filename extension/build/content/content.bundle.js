@@ -1242,7 +1242,7 @@
         </svg>
         <span>Upgrade to unlock replies</span>
       `;
-        button.title = `You've used all ${this.usageData.limit} credits \u2014 upgrade now to keep replying!`;
+        button.title = `You've used all ${this.usageData.limit} credits: upgrade now to keep replying!`;
         button.style.opacity = "1";
         button.style.background = "#3b82f6";
         button.style.color = "#ffffff";
@@ -1440,7 +1440,7 @@
           this.isAuthenticated = false;
           errorMessage = "You have been logged out. Please sign in again.";
         } else if (error.message.includes("402")) {
-          errorMessage = "Credits used up \u2014 upgrade to continue!";
+          errorMessage = "Credits used up: upgrade to continue!";
         } else if (error.message.includes("Network error")) {
           errorMessage = "Network error - check your connection";
         } else if (error.message) {
@@ -1570,7 +1570,7 @@
           this.isAuthenticated = false;
           errorMessage = "You have been logged out. Please sign in again.";
         } else if (error.message.includes("402")) {
-          errorMessage = "Credits used up \u2014 upgrade to continue!";
+          errorMessage = "Credits used up: upgrade to continue!";
         } else if (error.message.includes("Network error")) {
           errorMessage = "Network error - check your connection";
         } else if (error.message) {

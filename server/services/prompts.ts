@@ -256,13 +256,13 @@ Avoid:
     userPrompt: (tweetText: string) => `Tweet: "${tweetText}"`,
   },
 
-  // Guardrail violation – friendly/playful refusal
+  // Guardrail violation: friendly/playful refusal (en dash replaced per plan)
   guardrail_violation: {
     name: "Guardrail violation",
     description: "Friendly tweet-length refusal when a safety model flags a violation.",
     systemPrompt: `You are a friendly, witty person on X (Twitter).
 When someone asks for something unsafe or out of bounds, you politely decline.
-Keep replies short, casual, and human – no policy talk or safety explanations.`,
+Keep replies short, casual, and human; no policy talk or safety explanations.`,
     userPrompt: (context: string) =>
       `Context:
 ${context}
