@@ -329,8 +329,8 @@ export default function Home() {
                       </div>
                     )}
 
-                    {/* Upgrade CTA (if needed) */}
-                    {usageStatus.upgradeRequired && !usageStatus.isWhitelisted && (
+                    {/* Upgrade CTA (only for non-paid users who hit limit) */}
+                    {usageStatus.upgradeRequired && !usageStatus.isWhitelisted && usageStatus.planCode !== 'monthly' && usageStatus.planCode !== 'weekly' && usageStatus.planCode !== 'bypass' && (
                       <div className="mt-4">
                         <Button
                           onClick={() => setLocation('/app/pricing')}

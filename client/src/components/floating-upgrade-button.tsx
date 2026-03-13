@@ -31,8 +31,9 @@ export function FloatingUpgradeButton() {
     enabled: isAuthenticated,
   });
 
-  // Don't show if user is not authenticated, whitelisted, or already on pricing page
-  if (!isAuthenticated || !user || usage?.isWhitelisted || window.location.pathname === '/pricing' || window.location.pathname === '/app/pricing') {
+  // Don't show if user is not authenticated, whitelisted, on a paid plan, or already on pricing page
+  const isPaidPlan = usage?.planCode === 'monthly' || usage?.planCode === 'weekly' || usage?.planCode === 'bypass';
+  if (!isAuthenticated || !user || usage?.isWhitelisted || isPaidPlan || window.location.pathname === '/pricing' || window.location.pathname === '/app/pricing') {
     return null;
   }
 
