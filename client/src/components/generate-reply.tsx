@@ -1111,36 +1111,32 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
       <Sheet open={showAnalytics} onOpenChange={setShowAnalytics}>
         <SheetContent side="right" className="w-[400px] sm:w-[540px]">
           <SheetHeader>
-            <SheetTitle>Analytics & Insights</SheetTitle>
+            <SheetTitle>Your Analytics</SheetTitle>
             <SheetDescription>
               Your reply generation statistics
             </SheetDescription>
           </SheetHeader>
           <ScrollArea className="h-[calc(100vh-8rem)] mt-4">
             <div className="space-y-6">
-              {/* Summary Card */}
+              {/* Summary Card (3 cards: Avg Quality, Total Replies, Time Saved - match extension) */}
               {simpleAnalyticsData && simpleAnalyticsData.summary && (
                 <Card>
                   <CardContent className="p-4">
                     <h3 className="font-semibold mb-3">Summary</h3>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-3 gap-4">
                       <div>
                         <p className="text-xs text-muted-foreground">Avg Quality</p>
-                        <div className="flex items-baseline gap-2">
-                          <p className="text-2xl font-bold">
-                            {simpleAnalyticsData.summary.avgQuality}
+                        <p className="text-2xl font-bold">
+                          {simpleAnalyticsData.summary.avgQuality}
+                        </p>
+                        {simpleAnalyticsData.summary.qualityTrend !== 0 && (
+                          <p className={`text-xs font-medium mt-0.5 ${
+                            simpleAnalyticsData.summary.qualityTrend > 0 ? 'text-green-600' : 'text-red-600'
+                          }`}>
+                            {simpleAnalyticsData.summary.qualityTrend > 0 ? '+' : ''}
+                            {simpleAnalyticsData.summary.qualityTrend} from last period
                           </p>
-                          {simpleAnalyticsData.summary.qualityTrend !== 0 && (
-                            <span className={`text-xs font-medium ${
-                              simpleAnalyticsData.summary.qualityTrend > 0 
-                                ? 'text-green-600' 
-                                : 'text-red-600'
-                            }`}>
-                              {simpleAnalyticsData.summary.qualityTrend > 0 ? '+' : ''}
-                              {simpleAnalyticsData.summary.qualityTrend}
-                            </span>
-                          )}
-                        </div>
+                        )}
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground">Total Replies</p>
@@ -1151,13 +1147,9 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
                       <div>
                         <p className="text-xs text-muted-foreground">Time Saved</p>
                         <p className="text-2xl font-bold text-blue-600">
-                          {formatTimeDisplay(simpleAnalyticsData.summary.timeSavedHours)}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">High Quality ({QUALITY_THRESHOLDS.HIGH}+)</p>
-                        <p className="text-2xl font-bold text-green-600">
-                          {simpleAnalyticsData.summary.highQualityCount}
+                          {simpleAnalyticsData.summary.timeSavedHours >= 1
+                            ? `${simpleAnalyticsData.summary.timeSavedHours}h`
+                            : `${Math.round(simpleAnalyticsData.summary.timeSavedHours * 60)}m`}
                         </p>
                       </div>
                     </div>
@@ -1165,80 +1157,188 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
                 </Card>
               )}
               
-              {/* Quality Parameters Card */}
-              {simpleAnalyticsData && simpleAnalyticsData.parameterBreakdown && simpleAnalyticsData.parameterBreakdown.length > 0 && (
+              {/* Activity Trend Card (match extension: SVG chart or empty state) */}
+              {simpleAnalyticsData && (
                 <Card>
                   <CardContent className="p-4">
-                    <h3 className="font-semibold mb-3">Quality Parameters</h3>
-                    <div className="space-y-2">
-                      {simpleAnalyticsData.parameterBreakdown.map((param, i) => (
-                        <div key={i} className="flex items-center justify-between">
-                          <span className="text-sm">{param.name}</span>
-                          <div className="flex items-center gap-2">
-                            <div className="w-24 h-2 bg-muted rounded-full overflow-hidden">
-                              <div 
-                                className="h-full bg-primary rounded-full" 
-                                style={{ width: `${(param.avgScore / 10) * 100}%` }}
-                              />
-                            </div>
-                            <Badge variant="secondary" className="min-w-[3rem] justify-center">
-                              {param.avgScore.toFixed(1)}
-                            </Badge>
-                          </div>
+                    <h3 className="font-semibold mb-3">Activity Trend (Last 7 Days)</h3>
+                    {!simpleAnalyticsData.activityTrend || simpleAnalyticsData.activityTrend.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No activity data available yet</p>
+                    ) : (() => {
+                      const trend = simpleAnalyticsData.activityTrend;
+                      const maxCount = Math.max(...trend.map((d) => d.count), 1);
+                      const width = 320;
+                      const height = 180;
+                      const leftPad = 28;
+                      const rightPad = 12;
+                      const topPad = 22;
+                      const bottomPad = 26;
+                      const chartWidth = width - leftPad - rightPad;
+                      const chartHeight = height - topPad - bottomPad;
+                      const chartBottom = height - bottomPad;
+                      const chartTop = topPad;
+                      const getX = (i: number) =>
+                        leftPad + (trend.length <= 1 ? 0 : (i / (trend.length - 1)) * chartWidth);
+                      const getY = (count: number) => chartBottom - (count / maxCount) * chartHeight;
+                      const yTicks = (() => {
+                        const ticks = [0];
+                        if (maxCount <= 0) return ticks;
+                        const step =
+                          maxCount <= 5 ? 1 : maxCount <= 20 ? Math.ceil(maxCount / 4) : Math.ceil(maxCount / 4 / 10) * 10;
+                        for (let v = step; v < maxCount; v += step) ticks.push(v);
+                        if (maxCount > 0 && ticks[ticks.length - 1] !== maxCount) ticks.push(maxCount);
+                        return ticks;
+                      })();
+                      const points = trend.map((d, i) => `${getX(i)},${getY(d.count)}`).join(" ");
+                      return (
+                        <div className="overflow-x-auto">
+                          <svg viewBox={`0 0 ${width} ${height}`} className="w-full min-w-[320px]" xmlns="http://www.w3.org/2000/svg">
+                            <defs>
+                              <linearGradient id="activityGradientWeb" x1="0%" y1="0%" x2="0%" y2="100%">
+                                <stop offset="0%" stopColor="#3B82F6" stopOpacity={0.5} />
+                                <stop offset="100%" stopColor="#3B82F6" stopOpacity={0} />
+                              </linearGradient>
+                            </defs>
+                            {yTicks.map((val) => {
+                              const y = chartBottom - (val / maxCount) * chartHeight;
+                              return (
+                                <line
+                                  key={`ygrid-${val}`}
+                                  x1={leftPad}
+                                  y1={y}
+                                  x2={width - rightPad}
+                                  y2={y}
+                                  stroke="#e5e7eb"
+                                  strokeWidth={1}
+                                  strokeDasharray="2,2"
+                                />
+                              );
+                            })}
+                            {trend.map((_, i) => {
+                              const x = getX(i);
+                              return (
+                                <line
+                                  key={`xgrid-${i}`}
+                                  x1={x}
+                                  y1={chartTop}
+                                  x2={x}
+                                  y2={chartBottom}
+                                  stroke="#e5e7eb"
+                                  strokeWidth={1}
+                                  strokeDasharray="2,2"
+                                />
+                              );
+                            })}
+                            <line x1={leftPad} y1={chartTop} x2={leftPad} y2={chartBottom} stroke="#94a3b8" strokeWidth={1} />
+                            <line
+                              x1={leftPad}
+                              y1={chartBottom}
+                              x2={width - rightPad}
+                              y2={chartBottom}
+                              stroke="#94a3b8"
+                              strokeWidth={1}
+                            />
+                            {yTicks.map((val) => {
+                              const y = chartBottom - (val / maxCount) * chartHeight;
+                              return (
+                                <text
+                                  key={`ylab-${val}`}
+                                  x={leftPad - 4}
+                                  y={y + 4}
+                                  textAnchor="end"
+                                  fontSize={10}
+                                  fill="currentColor"
+                                  className="text-muted-foreground"
+                                >
+                                  {val}
+                                </text>
+                              );
+                            })}
+                            {trend.map((d, i) => {
+                              const x = getX(i);
+                              const dayLabel = new Date(d.date + "T12:00:00").toLocaleDateString("en-US", {
+                                weekday: "short",
+                              });
+                              return (
+                                <text
+                                  key={`xlab-${i}`}
+                                  x={x}
+                                  y={chartBottom + 14}
+                                  textAnchor="middle"
+                                  fontSize={10}
+                                  fill="currentColor"
+                                  className="text-muted-foreground"
+                                >
+                                  {dayLabel}
+                                </text>
+                              );
+                            })}
+                            <polygon
+                              points={`${leftPad},${chartBottom} ${points} ${width - rightPad},${chartBottom}`}
+                              fill="url(#activityGradientWeb)"
+                              opacity={0.3}
+                            />
+                            <polyline
+                              points={points}
+                              fill="none"
+                              stroke="#3B82F6"
+                              strokeWidth={2}
+                            />
+                            {trend.map((d, i) => {
+                              const x = getX(i);
+                              const y = getY(d.count);
+                              return (
+                                <text
+                                  key={`count-${i}`}
+                                  x={x}
+                                  y={y - 6}
+                                  textAnchor="middle"
+                                  fontSize={11}
+                                  fontWeight={600}
+                                  fill="currentColor"
+                                >
+                                  {d.count}
+                                </text>
+                              );
+                            })}
+                            {trend.map((d, i) => {
+                              const x = getX(i);
+                              const y = getY(d.count);
+                              return <circle key={`pt-${i}`} cx={x} cy={y} r={3} fill="#3B82F6" />;
+                            })}
+                          </svg>
                         </div>
-                      ))}
-                    </div>
+                      );
+                    })()}
                   </CardContent>
                 </Card>
               )}
               
-              {/* Activity Trend Card */}
-              {simpleAnalyticsData && simpleAnalyticsData.activityTrend && simpleAnalyticsData.activityTrend.length > 0 && (
-                <Card>
-                  <CardContent className="p-4">
-                    <h3 className="font-semibold mb-3">Recent Activity (Last 7 Days)</h3>
-                    <div className="space-y-2">
-                      {simpleAnalyticsData.activityTrend.slice(-7).map((day, i) => (
-                        <div key={i} className="flex items-center justify-between text-sm">
-                          <span className="text-muted-foreground">
-                            {new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                          </span>
-                          <div className="flex items-center gap-3">
-                            <span>{day.count} replies</span>
-                            {day.avgQuality > 0 && (
-                              <Badge variant="outline" className="min-w-[3rem] justify-center">
-                                {day.avgQuality} avg
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-              
-              {/* Insights Card */}
-              {simpleAnalyticsData && simpleAnalyticsData.insights && simpleAnalyticsData.insights.length > 0 && (
+              {/* Insights Card (match extension: always show when data loaded; empty state copy) */}
+              {simpleAnalyticsData && (
                 <Card>
                   <CardContent className="p-4">
                     <h3 className="font-semibold mb-3">Insights</h3>
-                    <div className="space-y-3">
-                      {simpleAnalyticsData.insights.map((insight, i) => (
-                        <div key={i} className="flex items-start gap-2">
-                          {insight.type === 'success' && (
-                            <IconTrendingUp className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
-                          )}
-                          {insight.type === 'info' && (
-                            <IconBrain className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-                          )}
-                          {insight.type === 'streak' && (
-                            <IconBolt className="w-4 h-4 text-orange-600 mt-0.5 flex-shrink-0" />
-                          )}
-                          <p className="text-sm">{insight.text}</p>
-                        </div>
-                      ))}
-                    </div>
+                    {!simpleAnalyticsData.insights || simpleAnalyticsData.insights.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">Generate more replies to unlock insights!</p>
+                    ) : (
+                      <div className="space-y-3">
+                        {simpleAnalyticsData.insights.map((insight, i) => (
+                          <div key={i} className="flex items-start gap-2">
+                            {insight.type === "success" && (
+                              <IconTrendingUp className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
+                            )}
+                            {insight.type === "info" && (
+                              <IconBrain className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                            )}
+                            {insight.type === "streak" && (
+                              <IconBolt className="w-4 h-4 text-orange-600 mt-0.5 flex-shrink-0" />
+                            )}
+                            <p className="text-sm">{insight.text}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               )}
