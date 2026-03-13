@@ -5,7 +5,7 @@
 import { REPLY_LIMITS } from "../config/constants.js";
 
 // Configuration for removable start phrases - easily extensible
-const START_PHRASES = ["Couldn't agree more", "Preach", "Spot on"];
+const START_PHRASES = ["Couldn't agree more", "Preach", "Spot on", "Sounds like", "Feels like", "Looks like", "Seems like", "makes sense"];
 
 // Configuration for filtered sentence starts - easily extensible
 const FILTERED_SENTENCE_STARTS = ["Love", "That's", "Appreciate"];
@@ -16,7 +16,9 @@ const DISQUALIFYING_WORDS = ["simplification", "Can't wait to see"];
 // Configuration for word replacements with random alternatives
 const WORD_REPLACEMENTS: Record<string, string[]> = {
   "Congrats": ["Congrats", "Congratulation", "Congo", "Nice", "Great", "Awesome"],
-  "key": ["key", "important", "essential", "crucial", "vital", "critical"]
+  "key": ["key", "important", "essential", "crucial", "vital", "critical"],
+  "game changer": ["huge", "impactful", "significant"],
+  "game-changer": ["huge", "impactful", "significant"]
 };
 
 // Configuration for banned patterns (from previous postprocessing) - easily extensible
