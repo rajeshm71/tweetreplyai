@@ -1282,7 +1282,7 @@
     }
     updatePlanBadge() {
       if (this.planBadge && this.usageData) {
-        const planCode = this.usageData.planCode || "trial";
+        const planCode = (this.usageData.planCode || "trial").toString().toLowerCase();
         const planLabels = {
           "trial": "Free Trial",
           "weekly": "Weekly Plan",
@@ -1293,8 +1293,13 @@
         this.planBadge.className = "plan-badge" + (planCode === "bypass" ? " plan-badge--pro" : planCode === "weekly" || planCode === "monthly" ? " plan-badge--paid" : "");
         this.planBadge.style.background = "";
         this.planBadge.style.color = "";
+        const isPaidPlan = planCode === "bypass" || planCode === "weekly" || planCode === "monthly";
         if (this.upgradeCta) {
-          this.upgradeCta.style.display = planCode === "bypass" || planCode === "weekly" || planCode === "monthly" ? "none" : "";
+          this.upgradeCta.style.display = isPaidPlan ? "none" : "";
+        }
+        const footerActions = this.upgradeCta?.closest(".footer-actions");
+        if (footerActions) {
+          footerActions.style.display = isPaidPlan ? "none" : "";
         }
       }
     }

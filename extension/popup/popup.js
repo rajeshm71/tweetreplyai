@@ -1356,8 +1356,8 @@ class PopupManager {
 
   updatePlanBadge() {
     if (this.planBadge && this.usageData) {
-      // Use planCode from usage data (source of truth)
-      const planCode = this.usageData.planCode || 'trial';
+      // Use planCode from usage data (source of truth); normalize to lowercase for comparisons
+      const planCode = (this.usageData.planCode || 'trial').toString().toLowerCase();
       const planLabels = {
         'trial': 'Free Trial',
         'weekly': 'Weekly Plan',
@@ -1371,9 +1371,14 @@ class PopupManager {
       this.planBadge.style.background = '';
       this.planBadge.style.color = '';
 
-      // Hide "Upgrade to Pro" when user is on a Pro plan
+      // Hide "Upgrade to Pro" (and entire footer) when user is on a paid plan
+      const isPaidPlan = planCode === 'bypass' || planCode === 'weekly' || planCode === 'monthly';
       if (this.upgradeCta) {
-        this.upgradeCta.style.display = (planCode === 'bypass' || planCode === 'weekly' || planCode === 'monthly') ? 'none' : '';
+        this.upgradeCta.style.display = isPaidPlan ? 'none' : '';
+      }
+      const footerActions = this.upgradeCta?.closest('.footer-actions');
+      if (footerActions) {
+        footerActions.style.display = isPaidPlan ? 'none' : '';
       }
     }
   }

@@ -777,7 +777,7 @@ body {
 
 .card-label {
   font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-bold); /* Make TODAY / QUALITY / HISTORY / ANALYTICS text bolder */
   color: var(--color-text-primary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -804,14 +804,14 @@ body {
   z-index: 0;
 }
 
-/* Today Card - Vibrant Blue */
+/* Today Card - Vibrant Blue (slightly darker for better contrast per brightening plan) */
 .modern-card[data-theme="today"] {
-  --card-gradient-start: #3B82F6;
-  --card-gradient-end: #2563EB;
+  --card-gradient-start: #2563EB; /* was #3B82F6 */
+  --card-gradient-end: #1E3A8A;   /* deeper blue for stronger text gradient */
   --card-accent: #3B82F6;
   --card-bg: rgba(59, 130, 246, 0.12);
   --card-icon-color: #3B82F6;
-  --card-text-color: #1E40AF;
+  --card-text-color: #1E3A8A;     /* was #1E40AF */
   border: 1px solid rgba(59, 130, 246, 0.25);
 }
 
@@ -833,14 +833,14 @@ body {
   background-clip: text;
 }
 
-/* Quality Card - Success Green */
+/* Quality Card - Success Green (darkened slightly for stronger text) */
 .modern-card[data-theme="quality"] {
-  --card-gradient-start: #10B981;
-  --card-gradient-end: #059669;
+  --card-gradient-start: #059669; /* was #10B981 */
+  --card-gradient-end: #047857;
   --card-accent: #10B981;
   --card-bg: rgba(16, 185, 129, 0.12);
   --card-icon-color: #10B981;
-  --card-text-color: #047857;
+  --card-text-color: #065F46;     /* was #047857 */
   border: 1px solid rgba(16, 185, 129, 0.25);
 }
 
@@ -862,14 +862,14 @@ body {
   background-clip: text;
 }
 
-/* History Card - Warm Orange */
+/* History Card - Warm Orange (deeper orange for clearer labels) */
 .modern-card[data-theme="history"] {
-  --card-gradient-start: #F97316;
-  --card-gradient-end: #EA580C;
+  --card-gradient-start: #EA580C; /* was #F97316 */
+  --card-gradient-end: #C2410C;
   --card-accent: #F97316;
   --card-bg: rgba(249, 115, 22, 0.12);
   --card-icon-color: #F97316;
-  --card-text-color: #C2410C;
+  --card-text-color: #9A3412;     /* was #C2410C */
   border: 1px solid rgba(249, 115, 22, 0.25);
 }
 
@@ -891,14 +891,14 @@ body {
   background-clip: text;
 }
 
-/* Analytics Card - Vibrant Purple */
+/* Analytics Card - Vibrant Purple (richer purple tones for better readability) */
 .modern-card[data-theme="analytics"] {
-  --card-gradient-start: #8B5CF6;
-  --card-gradient-end: #7C3AED;
+  --card-gradient-start: #7C3AED; /* was #8B5CF6 */
+  --card-gradient-end: #5B21B6;
   --card-accent: #8B5CF6;
   --card-bg: rgba(139, 92, 246, 0.12);
   --card-icon-color: #8B5CF6;
-  --card-text-color: #6D28D9;
+  --card-text-color: #4C1D95;     /* was #6D28D9 */
   border: 1px solid rgba(139, 92, 246, 0.25);
 }
 
