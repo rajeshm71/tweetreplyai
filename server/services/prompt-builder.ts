@@ -104,6 +104,14 @@ function normalizeHandle(handle: string | null | undefined): string {
   return handle.trim().replace(/^@+/, '').toLowerCase();
 }
 
+/** Returns speaker label for OA prompt: "You", "@handle", or "Them". */
+function getSpeakerLabel(author: string | null | undefined, originalAuthorNorm: string): string {
+  if (originalAuthorNorm !== '' && normalizeHandle(author) === originalAuthorNorm) return 'You';
+  const a = author?.trim();
+  if (a && a !== '' && a.toLowerCase() !== 'unknown') return '@' + a.replace(/^@+/, '');
+  return 'Them';
+}
+
 export function buildUserPromptWithThread(
   baseUserPrompt: string,
   threadContext?: PromptBuilderOptions['threadContext'],
@@ -150,10 +158,12 @@ export function buildUserPromptWithThread(
     ];
     chain.forEach((tweet) => {
       if (tweet.isOriginal) return;
-      const isYou = normalizeHandle(tweet.author) === originalAuthorNorm;
-      lines.push(`${isYou ? 'You' : 'Them'}: "${tweet.text}"`);
+      const label = getSpeakerLabel(tweet.author, originalAuthorNorm);
+      lines.push(`${label}: "${tweet.text}"`);
     });
-    lines.push('Reply to the last message above.');
+    const targetLabel = getSpeakerLabel(currentEntry?.author, originalAuthorNorm);
+    lines.push(`You are replying to this message from ${targetLabel}: "${currentTweetText}"`);
+    lines.push('Write your reply to that message.');
     return lines.join('\n');
   }
 
