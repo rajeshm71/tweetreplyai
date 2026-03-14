@@ -137,31 +137,29 @@ export function buildUserPromptWithThread(
     );
   }
 
-  // Non–original-author: existing thread block appended to baseUserPrompt.
-  let userPrompt = baseUserPrompt;
-  if (threadContext.originalTweet) {
-    userPrompt += `\n\nNote: This tweet is a reply. The original tweet that started this conversation was: "${threadContext.originalTweet}"`;
-  }
-  if (threadContext.threadChain?.length > 1) {
-    userPrompt += `\n\nFull conversation thread:`;
-    let replyIndex = 0;
-    threadContext.threadChain.forEach((tweet) => {
-      if (tweet.isOriginal || tweet.isCurrent) return;
-      replyIndex += 1;
-      userPrompt += `\nReply ${replyIndex}: "${tweet.text}"`;
-    });
+  // Non-OA with thread: clean two-section format (original tweet + tweet being replied to), no conversation thread.
+  if (threadContext.isReply && threadContext.originalTweet) {
+    const originalTweet = threadContext.originalTweet ?? '';
+    const chain = threadContext.threadChain ?? [];
+    const rawCurrentEntry = chain.find((t) => t.isCurrent)
+      ?? chain[threadContext.currentTweetIndex]
+      ?? chain[chain.length - 1];
+
+    // Guard: if the extension sent wrong data (isCurrent on the original tweet),
+    // fall back to the last non-original entry so the original tweet never appears twice.
+    const currentEntry = rawCurrentEntry?.isOriginal
+      ? (chain.slice().reverse().find((t) => !t.isOriginal) ?? rawCurrentEntry)
+      : rawCurrentEntry;
+
+    const currentTweetText = currentEntry?.text ?? '';
+
+    return (
+      `The original tweet:\n"${originalTweet}"` +
+      `\n\nThe tweet you're replying to:\n"${currentTweetText}"` +
+      `\n\nReply to the tweet above.`
+    );
   }
 
-  userPrompt +=
-    '\n\nThe tweet you are replying to is the one shown above as Tweet: "...". ' +
-    'The original tweet and other replies listed here are background context only. ';
-
-  if (handles?.replyAuthorHandle && handles?.targetAuthorHandle) {
-    userPrompt +=
-      'You are writing on behalf of the person who will send this reply (the reply author), responding to that tweet written by another user (the tweet author). ';
-  }
-  userPrompt +=
-    'Write a reply that directly responds to that tweet from the logged-in user\'s perspective.';
-
-  return userPrompt;
+  // Simple standalone tweet (no original tweet context): return base prompt unchanged.
+  return baseUserPrompt;
 }

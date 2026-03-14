@@ -282,12 +282,16 @@
       this.usageData = null;
       this.injectedButtons = /* @__PURE__ */ new Set();
       this.injectedContainers = /* @__PURE__ */ new Set();
+      this.currentReplyTargetArticle = null;
+      this._replyTargetClearTimer = null;
+      this._originalTweetCache = null;
       this.lastNonComposePath = window.location.pathname;
       this.urlTrackingInterval = setInterval(() => {
         const path = window.location.pathname;
         if (!/\/compose\//.test(path)) {
           this.lastNonComposePath = path;
         }
+        this.tryEagerCacheOriginalTweet();
       }, POLLING.URL_TRACKING_MS);
       window.__tweetReplyInjector = this;
       this.beforeUnloadHandler = () => this.destroy();
@@ -511,6 +515,12 @@
           if (!tweetArticle) {
             return;
           }
+          this.currentReplyTargetArticle = tweetArticle;
+          if (this._replyTargetClearTimer) clearTimeout(this._replyTargetClearTimer);
+          this._replyTargetClearTimer = setTimeout(() => {
+            this.currentReplyTargetArticle = null;
+            this._replyTargetClearTimer = null;
+          }, 2500);
           this.extractUsernameFromTweet(tweetArticle).then((username) => {
             if (username && username !== "unknown") {
               this.trackReply(username).catch((err) => {
@@ -814,6 +824,154 @@
       const currentPath = window.location.pathname;
       const effectivePath = /\/compose\//.test(currentPath) ? this.lastNonComposePath : currentPath;
       return /\/status\/\d+/.test(effectivePath);
+    }
+    /**
+     * Get the status ID from the tweet details page URL (source of truth for which tweet this page is about).
+     * Uses same path logic as isTweetDetailPage (lastNonComposePath when on /compose/).
+     * @returns {string|null} Status ID or null if not a detail page
+     */
+    getStatusIdFromDetailPageUrl() {
+      const currentPath = window.location.pathname;
+      const effectivePath = /\/compose\//.test(currentPath) ? this.lastNonComposePath : currentPath;
+      const match = effectivePath.match(/\/status\/(\d+)/);
+      return match ? match[1] : null;
+    }
+    /**
+     * Extract original tweet info from page meta / URL — never virtualized, survives any scrolling.
+     * Author handle comes from the URL path; text from og:description or document.title.
+     * @returns {{ statusId: string, text: string|null, author: string }|null}
+     */
+    getOriginalTweetFromPageMeta() {
+      const path = /\/compose\//.test(window.location.pathname) ? this.lastNonComposePath : window.location.pathname;
+      const pathMatch = path.match(/^\/([A-Za-z0-9_]+)\/status\/(\d+)/);
+      if (!pathMatch) return null;
+      const author = pathMatch[1];
+      const statusId = pathMatch[2];
+      let text = null;
+      const ogDesc = document.querySelector('meta[property="og:description"]')?.content?.trim();
+      if (ogDesc && ogDesc.length > 10) text = ogDesc;
+      if (!text) {
+        const titleMatch = document.title.match(/:\s+"(.+?)"\s*\/\s*X\s*$/i);
+        if (titleMatch) text = titleMatch[1].trim();
+      }
+      return { statusId, text, author };
+    }
+    /**
+     * Get a tweet article's own status ID via the timestamp link.
+     * The <time> element is always wrapped in the tweet's own permalink, never a "Replying to" link.
+     * @param {Element} article
+     * @returns {string|null}
+     */
+    getOwnStatusIdFromArticle(article) {
+      if (!article) return null;
+      const timeLink = article.querySelector("time")?.closest('a[href*="/status/"]');
+      if (timeLink) {
+        const href = timeLink.getAttribute("href") || timeLink.href || "";
+        const m = href.match(/\/status\/(\d+)/);
+        if (m) return m[1];
+      }
+      return null;
+    }
+    /**
+     * Proactively populate _originalTweetCache for the current detail page.
+     * Called every URL_TRACKING_MS so the cache is ready before the user scrolls.
+     */
+    tryEagerCacheOriginalTweet() {
+      try {
+        const statusId = this.getStatusIdFromDetailPageUrl();
+        if (!statusId) return;
+        if (this._originalTweetCache?.statusId === statusId && this._originalTweetCache.fromDom) return;
+        if (this._originalTweetCache && this._originalTweetCache.statusId !== statusId) {
+          this._originalTweetCache = null;
+        }
+        const article = this.findOriginalTweetArticleByStatusId(statusId);
+        if (article) {
+          const data = this.extractTextAndAuthorFromArticle(article);
+          if (data) {
+            this._originalTweetCache = { statusId, text: data.text, author: data.author, fromDom: true };
+            return;
+          }
+        }
+        if (!this._originalTweetCache || this._originalTweetCache.statusId !== statusId) {
+          const meta = this.getOriginalTweetFromPageMeta();
+          if (meta && meta.statusId === statusId && meta.text) {
+            this._originalTweetCache = { statusId, text: meta.text, author: meta.author, fromDom: false };
+          }
+        }
+      } catch (e) {
+      }
+    }
+    /**
+     * Extract text and author from a single tweet article (same logic as extractTweetsFromContainer).
+     * @param {Element} article - article[data-testid="tweet"]
+     * @returns {{ text: string, author: string }|null}
+     */
+    extractTextAndAuthorFromArticle(article) {
+      if (!article) return null;
+      const tweetTextEl = article.querySelector('[data-testid="tweetText"]');
+      if (!tweetTextEl) return null;
+      const text = tweetTextEl.textContent?.trim();
+      if (!text || text.length < 10) return null;
+      let author = "unknown";
+      const userNameEl = article.querySelector('[data-testid="User-Name"]');
+      if (userNameEl) {
+        const fullText = userNameEl.textContent?.trim() || "";
+        const handleMatch = fullText.match(/@([A-Za-z0-9_]+)/);
+        if (handleMatch) author = handleMatch[1];
+      }
+      if (author === "unknown" && userNameEl) {
+        const profileLink = userNameEl.querySelector("a[href]");
+        if (profileLink) {
+          const href = profileLink.getAttribute("href") || "";
+          const hrefMatch = href.match(/^\/([A-Za-z0-9_]+)$/);
+          if (hrefMatch) author = hrefMatch[1];
+        }
+      }
+      if (author === "unknown") {
+        const links = article.querySelectorAll("a[href]");
+        const reservedPaths = /* @__PURE__ */ new Set(["status", "search", "intent", "i", "home", "hashtag", "compose", "settings", "explore", "notifications", "messages"]);
+        for (const link of links) {
+          const href = link.getAttribute("href") || "";
+          const hrefMatch = href.match(/^\/([A-Za-z0-9_]+)$/);
+          if (hrefMatch && !reservedPaths.has(hrefMatch[1].toLowerCase())) {
+            author = hrefMatch[1];
+            break;
+          }
+        }
+      }
+      return { text, author };
+    }
+    /**
+     * Find the article that owns the given status ID (the tweet's own permalink, not "Replying to" or quoted).
+     * @param {string} statusId - Status ID from URL
+     * @returns {Element|null} The article element or null
+     */
+    findOriginalTweetArticleByStatusId(statusId) {
+      if (!statusId) return null;
+      const articles = document.querySelectorAll('article[data-testid="tweet"]');
+      const statusPath = "/status/" + statusId;
+      for (const article of articles) {
+        const links = article.querySelectorAll('a[href*="' + statusPath + '"]');
+        for (const link of links) {
+          const href = (link.getAttribute("href") || link.href || "").split("?")[0];
+          if (!href.includes(statusPath)) continue;
+          if (href.includes("/analytics")) continue;
+          let node = link;
+          let insideReplyingTo = false;
+          while (node && node !== article) {
+            const text = (node.textContent || "").trim();
+            if (/^replying to @/i.test(text) || node !== link && /replying to/i.test(text)) {
+              insideReplyingTo = true;
+              break;
+            }
+            node = node.parentElement;
+          }
+          if (!insideReplyingTo) {
+            return article;
+          }
+        }
+      }
+      return null;
     }
     // Find the native Reply button inside toolbar
     findReplyButton(toolbarEl) {
@@ -1229,20 +1387,44 @@
         return;
       }
       if (this.usageData.used >= this.usageData.limit) {
-        button.disabled = true;
+        const container2 = button.closest(".tweetreply-button-container");
+        const improveBtn2 = container2?.querySelector(".tweetreply-improve-btn");
+        if (button.classList.contains("tweetreply-improve-btn")) {
+          button.style.display = "none";
+          return;
+        }
+        button.disabled = false;
         button.innerHTML = `
         <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" style="margin-right: 4px;">
-          <path d="M12 2L13.09 8.26L19 7.27L14.18 12.09L20 17.91L13.09 15.74L12 22L10.91 15.74L4 17.91L8.82 12.09L3 7.27L8.91 8.26L12 2Z" opacity="0.6"/>
+          <path d="M7 2v11h3v9l7-12h-4l4-8z"/>
         </svg>
-        <span>\u26A0\uFE0F Quota exceeded</span>
+        <span>Upgrade to unlock replies</span>
       `;
-        button.title = `Quota exceeded. Resets ${this.formatTimeDistance(new Date(this.usageData.resetAt))}`;
-        button.style.opacity = "0.6";
+        button.title = `You've used all ${this.usageData.limit} credits: upgrade now to keep replying!`;
+        button.style.opacity = "1";
+        button.style.background = "#3b82f6";
+        button.style.color = "#ffffff";
+        button.onclick = (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const domain = API.DEFAULT_DOMAIN;
+          const protocol = domain.includes("localhost") ? "http" : "https";
+          chrome.runtime.sendMessage({ action: "openLoginPage", url: `${protocol}://${domain}/pricing` });
+        };
+        if (improveBtn2) improveBtn2.style.display = "none";
         return;
       }
       const isImproveButton = button.classList.contains("tweetreply-improve-btn");
       button.disabled = false;
       delete button.dataset.requiresAuth;
+      const container = button.closest(".tweetreply-button-container");
+      const improveBtn = container?.querySelector(".tweetreply-improve-btn");
+      if (improveBtn) improveBtn.style.removeProperty("display");
+      if (!isImproveButton) {
+        button.onclick = null;
+        button.style.removeProperty("background");
+        button.style.removeProperty("color");
+      }
       if (isImproveButton) {
         button.innerHTML = `
         <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" style="margin-right: 4px;">
@@ -1310,7 +1492,7 @@
         return;
       }
       if (!this.usageData || this.usageData.used >= this.usageData.limit) {
-        this.showMessage(composer, "Quota exceeded. Upgrade your plan to continue.", "error");
+        this.showMessage(composer, "You've used all your credits! Upgrade to keep the replies flowing.", "info");
         return;
       }
       const tweetText = this.extractTweetText();
@@ -1416,7 +1598,7 @@
           this.isAuthenticated = false;
           errorMessage = "You have been logged out. Please sign in again.";
         } else if (error.message.includes("402")) {
-          errorMessage = "Quota exceeded - upgrade your plan";
+          errorMessage = "Credits used up: upgrade to continue!";
         } else if (error.message.includes("Network error")) {
           errorMessage = "Network error - check your connection";
         } else if (error.message) {
@@ -1447,7 +1629,7 @@
         return;
       }
       if (!this.usageData || this.usageData.used >= this.usageData.limit) {
-        this.showMessage(composer, "Quota exceeded. Upgrade your plan to continue.", "error");
+        this.showMessage(composer, "You've used all your credits! Upgrade to keep the replies flowing.", "info");
         return;
       }
       let draftText = "";
@@ -1546,7 +1728,7 @@
           this.isAuthenticated = false;
           errorMessage = "You have been logged out. Please sign in again.";
         } else if (error.message.includes("402")) {
-          errorMessage = "Quota exceeded - upgrade your plan";
+          errorMessage = "Credits used up: upgrade to continue!";
         } else if (error.message.includes("Network error")) {
           errorMessage = "Network error - check your connection";
         } else if (error.message) {
@@ -1569,6 +1751,16 @@
     }
     extractTweetText() {
       console.log("[TweetReply] \u{1F50D} Extracting tweet text...");
+      if (this.currentReplyTargetArticle && document.contains(this.currentReplyTargetArticle)) {
+        const tweetTextEl = this.currentReplyTargetArticle.querySelector('[data-testid="tweetText"]');
+        if (tweetTextEl) {
+          const text = tweetTextEl.textContent?.trim();
+          if (text && text.length > 10) {
+            console.log("[TweetReply] \u2705 Tweet text found via reply-target article (Method 0)");
+            return text;
+          }
+        }
+      }
       const tweetSelectors = [
         '[data-testid="tweet"] [data-testid="tweetText"]',
         ".tweet-text",
@@ -2302,7 +2494,46 @@
             threadLength: 1
           };
         }
-        const originalTweet = threadTweets[0];
+        const statusId = this.getStatusIdFromDetailPageUrl();
+        let originalTweet = null;
+        if (statusId) {
+          if (this._originalTweetCache && this._originalTweetCache.statusId !== statusId) {
+            this._originalTweetCache = null;
+          }
+          const urlOriginalArticle = this.findOriginalTweetArticleByStatusId(statusId);
+          if (urlOriginalArticle) {
+            const domOriginal = this.extractTextAndAuthorFromArticle(urlOriginalArticle);
+            if (domOriginal) {
+              originalTweet = domOriginal;
+              this._originalTweetCache = { statusId, text: domOriginal.text, author: domOriginal.author, fromDom: true };
+            }
+          }
+          if (!originalTweet && this._originalTweetCache?.statusId === statusId && this._originalTweetCache.fromDom) {
+            originalTweet = { text: this._originalTweetCache.text, author: this._originalTweetCache.author };
+          }
+          if (!originalTweet) {
+            const byId = threadTweets.find((t) => t.statusId === statusId);
+            if (byId) {
+              originalTweet = { text: byId.text, author: byId.author };
+              this._originalTweetCache = { statusId, text: byId.text, author: byId.author, fromDom: true };
+            }
+          }
+          if (!originalTweet) {
+            const meta = this.getOriginalTweetFromPageMeta();
+            if (meta?.statusId === statusId) {
+              originalTweet = { text: meta.text, author: meta.author };
+              if (!this._originalTweetCache) {
+                this._originalTweetCache = { statusId, text: meta.text, author: meta.author, fromDom: false };
+              }
+            }
+          }
+          if (!originalTweet) {
+            const pathMatch = (/\/compose\//.test(window.location.pathname) ? this.lastNonComposePath : window.location.pathname).match(/^\/([A-Za-z0-9_]+)\/status\/\d+/);
+            originalTweet = { text: null, author: pathMatch ? pathMatch[1] : "unknown" };
+          }
+        } else {
+          originalTweet = threadTweets[0] || { text: null, author: "unknown" };
+        }
         let currentTweetIndex = this.findCurrentTweetIndex(threadTweets, currentTweetText);
         if (currentTweetIndex < 0) {
           currentTweetIndex = threadTweets.length - 1;
@@ -2311,13 +2542,17 @@
         const threadChain = threadTweets.map((tweet, index) => ({
           text: tweet.text,
           author: tweet.author || "unknown",
-          isOriginal: index === 0,
+          isOriginal: statusId && tweet.statusId === statusId || !!originalTweet.text && tweet.text === originalTweet.text && (tweet.author || "unknown") === (originalTweet.author || "unknown"),
           isCurrent: index === currentTweetIndex
         }));
         let limitedChain = threadChain;
         let totalChars = threadChain.reduce((sum, t) => sum + t.text.length, 0);
         if (threadChain.length > VALIDATION.MAX_THREAD_CHAIN || totalChars > VALIDATION.MAX_THREAD_CHARS) {
-          const keepIndices = /* @__PURE__ */ new Set([0, currentTweetIndex]);
+          let originalIndex = statusId ? threadTweets.findIndex((t) => t.statusId === statusId) : -1;
+          if (originalIndex < 0 && originalTweet.text) {
+            originalIndex = threadTweets.findIndex((t) => t.text === originalTweet.text && (t.author || "unknown") === (originalTweet.author || "unknown"));
+          }
+          const keepIndices = /* @__PURE__ */ new Set([...originalIndex >= 0 ? [originalIndex] : [], currentTweetIndex]);
           const recentIndices = [];
           for (let i = Math.max(1, threadChain.length - 2); i < threadChain.length; i++) {
             if (i !== currentTweetIndex) recentIndices.push(i);
@@ -2516,7 +2751,7 @@
               }
             }
           }
-          extractedTweets.push({ text, author });
+          extractedTweets.push({ text, author, statusId: this.getOwnStatusIdFromArticle(tweet) });
         }
         return extractedTweets;
       } catch (error) {

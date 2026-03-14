@@ -1,5 +1,12 @@
 /* TweetReply Content Styles */
 
+/* Container: prevent overflow in reply dialog */
+.tweetreply-button-container {
+  max-width: 100%;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
 /* Suggest and Improve button styles - both use identical styling */
 .tweetreply-suggest-btn,
 .tweetreply-improve-btn {
@@ -17,6 +24,7 @@
   cursor: pointer;
   transition: all 0.2s ease;
   white-space: nowrap;
+  min-width: 0;
 }
 
 .tweetreply-suggest-btn:hover:not(:disabled),

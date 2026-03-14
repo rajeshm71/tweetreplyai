@@ -22,12 +22,17 @@ class TwitterReplyInjector {
     this.usageData = null;
     this.injectedButtons = new Set();
     this.injectedContainers = new Set(); // Track injected container IDs
+    this.currentReplyTargetArticle = null; // Tweet article when user clicked Reply (for scoped current-tweet extraction)
+    this._replyTargetClearTimer = null;
+    this._originalTweetCache = null; // { statusId, text, author, fromDom } — survives DOM virtualization
     this.lastNonComposePath = window.location.pathname;
     this.urlTrackingInterval = setInterval(() => {
       const path = window.location.pathname;
       if (!/\/compose\//.test(path)) {
         this.lastNonComposePath = path;
       }
+      // Proactively cache the original tweet for the current detail page before the user scrolls
+      this.tryEagerCacheOriginalTweet();
     }, POLLING.URL_TRACKING_MS);
 
     // Store global reference
@@ -340,6 +345,14 @@ class TwitterReplyInjector {
         if (!tweetArticle) {
           return; // Couldn't find tweet article
         }
+
+        // Store for scoped "current tweet" extraction when building reply prompt
+        this.currentReplyTargetArticle = tweetArticle;
+        if (this._replyTargetClearTimer) clearTimeout(this._replyTargetClearTimer);
+        this._replyTargetClearTimer = setTimeout(() => {
+          this.currentReplyTargetArticle = null;
+          this._replyTargetClearTimer = null;
+        }, 2500);
 
         // Track reply in background (non-blocking, fire-and-forget)
         // Don't await - execute in parallel with auto-like so tracking doesn't block auto-like
@@ -772,6 +785,168 @@ class TwitterReplyInjector {
     const currentPath = window.location.pathname;
     const effectivePath = /\/compose\//.test(currentPath) ? this.lastNonComposePath : currentPath;
     return /\/status\/\d+/.test(effectivePath);
+  }
+
+  /**
+   * Get the status ID from the tweet details page URL (source of truth for which tweet this page is about).
+   * Uses same path logic as isTweetDetailPage (lastNonComposePath when on /compose/).
+   * @returns {string|null} Status ID or null if not a detail page
+   */
+  getStatusIdFromDetailPageUrl() {
+    const currentPath = window.location.pathname;
+    const effectivePath = /\/compose\//.test(currentPath) ? this.lastNonComposePath : currentPath;
+    const match = effectivePath.match(/\/status\/(\d+)/);
+    return match ? match[1] : null;
+  }
+
+  /**
+   * Extract original tweet info from page meta / URL — never virtualized, survives any scrolling.
+   * Author handle comes from the URL path; text from og:description or document.title.
+   * @returns {{ statusId: string, text: string|null, author: string }|null}
+   */
+  getOriginalTweetFromPageMeta() {
+    const path = /\/compose\//.test(window.location.pathname) ? this.lastNonComposePath : window.location.pathname;
+    const pathMatch = path.match(/^\/([A-Za-z0-9_]+)\/status\/(\d+)/);
+    if (!pathMatch) return null;
+    const author = pathMatch[1];
+    const statusId = pathMatch[2];
+    let text = null;
+    // og:description is fullest (set by Twitter SSR and updated on SPA navigation)
+    const ogDesc = document.querySelector('meta[property="og:description"]')?.content?.trim();
+    if (ogDesc && ogDesc.length > 10) text = ogDesc;
+    // Fallback: parse title "DisplayName on X: "text..." / X"
+    if (!text) {
+      const titleMatch = document.title.match(/:\s+"(.+?)"\s*\/\s*X\s*$/i);
+      if (titleMatch) text = titleMatch[1].trim();
+    }
+    return { statusId, text, author };
+  }
+
+  /**
+   * Get a tweet article's own status ID via the timestamp link.
+   * The <time> element is always wrapped in the tweet's own permalink, never a "Replying to" link.
+   * @param {Element} article
+   * @returns {string|null}
+   */
+  getOwnStatusIdFromArticle(article) {
+    if (!article) return null;
+    const timeLink = article.querySelector('time')?.closest('a[href*="/status/"]');
+    if (timeLink) {
+      const href = timeLink.getAttribute('href') || timeLink.href || '';
+      const m = href.match(/\/status\/(\d+)/);
+      if (m) return m[1];
+    }
+    return null;
+  }
+
+  /**
+   * Proactively populate _originalTweetCache for the current detail page.
+   * Called every URL_TRACKING_MS so the cache is ready before the user scrolls.
+   */
+  tryEagerCacheOriginalTweet() {
+    try {
+      const statusId = this.getStatusIdFromDetailPageUrl();
+      if (!statusId) return;
+      // Already have a DOM-quality cache for this tweet — nothing to do
+      if (this._originalTweetCache?.statusId === statusId && this._originalTweetCache.fromDom) return;
+      // Invalidate cache when navigated to a different tweet
+      if (this._originalTweetCache && this._originalTweetCache.statusId !== statusId) {
+        this._originalTweetCache = null;
+      }
+      // Try DOM article (best quality)
+      const article = this.findOriginalTweetArticleByStatusId(statusId);
+      if (article) {
+        const data = this.extractTextAndAuthorFromArticle(article);
+        if (data) {
+          this._originalTweetCache = { statusId, text: data.text, author: data.author, fromDom: true };
+          return;
+        }
+      }
+      // Fallback: meta tags (text may be truncated, but author and statusId are always correct)
+      if (!this._originalTweetCache || this._originalTweetCache.statusId !== statusId) {
+        const meta = this.getOriginalTweetFromPageMeta();
+        if (meta && meta.statusId === statusId && meta.text) {
+          this._originalTweetCache = { statusId, text: meta.text, author: meta.author, fromDom: false };
+        }
+      }
+    } catch (e) {
+      // Non-critical background task; swallow silently
+    }
+  }
+
+  /**
+   * Extract text and author from a single tweet article (same logic as extractTweetsFromContainer).
+   * @param {Element} article - article[data-testid="tweet"]
+   * @returns {{ text: string, author: string }|null}
+   */
+  extractTextAndAuthorFromArticle(article) {
+    if (!article) return null;
+    const tweetTextEl = article.querySelector('[data-testid="tweetText"]');
+    if (!tweetTextEl) return null;
+    const text = tweetTextEl.textContent?.trim();
+    if (!text || text.length < 10) return null;
+    let author = 'unknown';
+    const userNameEl = article.querySelector('[data-testid="User-Name"]');
+    if (userNameEl) {
+      const fullText = userNameEl.textContent?.trim() || '';
+      const handleMatch = fullText.match(/@([A-Za-z0-9_]+)/);
+      if (handleMatch) author = handleMatch[1];
+    }
+    if (author === 'unknown' && userNameEl) {
+      const profileLink = userNameEl.querySelector('a[href]');
+      if (profileLink) {
+        const href = profileLink.getAttribute('href') || '';
+        const hrefMatch = href.match(/^\/([A-Za-z0-9_]+)$/);
+        if (hrefMatch) author = hrefMatch[1];
+      }
+    }
+    if (author === 'unknown') {
+      const links = article.querySelectorAll('a[href]');
+      const reservedPaths = new Set(['status', 'search', 'intent', 'i', 'home', 'hashtag', 'compose', 'settings', 'explore', 'notifications', 'messages']);
+      for (const link of links) {
+        const href = link.getAttribute('href') || '';
+        const hrefMatch = href.match(/^\/([A-Za-z0-9_]+)$/);
+        if (hrefMatch && !reservedPaths.has(hrefMatch[1].toLowerCase())) {
+          author = hrefMatch[1];
+          break;
+        }
+      }
+    }
+    return { text, author };
+  }
+
+  /**
+   * Find the article that owns the given status ID (the tweet's own permalink, not "Replying to" or quoted).
+   * @param {string} statusId - Status ID from URL
+   * @returns {Element|null} The article element or null
+   */
+  findOriginalTweetArticleByStatusId(statusId) {
+    if (!statusId) return null;
+    const articles = document.querySelectorAll('article[data-testid="tweet"]');
+    const statusPath = '/status/' + statusId;
+    for (const article of articles) {
+      const links = article.querySelectorAll('a[href*="' + statusPath + '"]');
+      for (const link of links) {
+        const href = (link.getAttribute('href') || link.href || '').split('?')[0];
+        if (!href.includes(statusPath)) continue;
+        if (href.includes('/analytics')) continue;
+        // Own permalink: not inside a "Replying to" node
+        let node = link;
+        let insideReplyingTo = false;
+        while (node && node !== article) {
+          const text = (node.textContent || '').trim();
+          if (/^replying to @/i.test(text) || (node !== link && /replying to/i.test(text))) {
+            insideReplyingTo = true;
+            break;
+          }
+          node = node.parentElement;
+        }
+        if (!insideReplyingTo) {
+          return article;
+        }
+      }
+    }
+    return null;
   }
 
   // Find the native Reply button inside toolbar
@@ -1792,7 +1967,19 @@ class TwitterReplyInjector {
   extractTweetText() {
     // Enhanced tweet text extraction based on inject.js approach
     console.log('[TweetReply] 🔍 Extracting tweet text...');
-    
+
+    // Method 0: When user clicked Reply, use the stored tweet article so "current tweet" is unambiguous
+    if (this.currentReplyTargetArticle && document.contains(this.currentReplyTargetArticle)) {
+      const tweetTextEl = this.currentReplyTargetArticle.querySelector('[data-testid="tweetText"]');
+      if (tweetTextEl) {
+        const text = tweetTextEl.textContent?.trim();
+        if (text && text.length > 10) {
+          console.log('[TweetReply] ✅ Tweet text found via reply-target article (Method 0)');
+          return text;
+        }
+      }
+    }
+
     // Method 1: Look for tweet text in tweet elements (most reliable)
     const tweetSelectors = [
       '[data-testid="tweet"] [data-testid="tweetText"]',
@@ -2741,21 +2928,75 @@ class TwitterReplyInjector {
         };
       }
 
-      // Step 4: Identify original tweet and current tweet
-      const originalTweet = threadTweets[0];
+      // Step 4: Three-tier original tweet resolution
+      // On a detail page the status ID in the URL is the ground truth; never fall back to threadTweets[0].
+      const statusId = this.getStatusIdFromDetailPageUrl();
+      let originalTweet = null;
+
+      if (statusId) {
+        // Invalidate cache when the user navigated to a different tweet
+        if (this._originalTweetCache && this._originalTweetCache.statusId !== statusId) {
+          this._originalTweetCache = null;
+        }
+
+        // Tier 2 (DOM article) — highest quality, full text; also updates cache
+        const urlOriginalArticle = this.findOriginalTweetArticleByStatusId(statusId);
+        if (urlOriginalArticle) {
+          const domOriginal = this.extractTextAndAuthorFromArticle(urlOriginalArticle);
+          if (domOriginal) {
+            originalTweet = domOriginal;
+            this._originalTweetCache = { statusId, text: domOriginal.text, author: domOriginal.author, fromDom: true };
+          }
+        }
+
+        // Tier 2b (cache) — article is no longer in DOM (scrolled/virtualized) but was seen before
+        if (!originalTweet && this._originalTweetCache?.statusId === statusId && this._originalTweetCache.fromDom) {
+          originalTweet = { text: this._originalTweetCache.text, author: this._originalTweetCache.author };
+        }
+
+        // Tier 3 (thread list by own status ID) — root still in container but article lookup missed
+        if (!originalTweet) {
+          const byId = threadTweets.find(t => t.statusId === statusId);
+          if (byId) {
+            originalTweet = { text: byId.text, author: byId.author };
+            this._originalTweetCache = { statusId, text: byId.text, author: byId.author, fromDom: true };
+          }
+        }
+
+        // Tier 1 (meta/URL) — og:description + URL path; text may be truncated but author is always accurate
+        if (!originalTweet) {
+          const meta = this.getOriginalTweetFromPageMeta();
+          if (meta?.statusId === statusId) {
+            originalTweet = { text: meta.text, author: meta.author };
+            if (!this._originalTweetCache) {
+              this._originalTweetCache = { statusId, text: meta.text, author: meta.author, fromDom: false };
+            }
+          }
+        }
+
+        // Last resort: we know the author from the URL even if text is not available
+        if (!originalTweet) {
+          const pathMatch = (/\/compose\//.test(window.location.pathname) ? this.lastNonComposePath : window.location.pathname)
+            .match(/^\/([A-Za-z0-9_]+)\/status\/\d+/);
+          originalTweet = { text: null, author: pathMatch ? pathMatch[1] : 'unknown' };
+        }
+      } else {
+        // Not a detail page: use first tweet in thread as original (existing behaviour)
+        originalTweet = threadTweets[0] || { text: null, author: 'unknown' };
+      }
+
       let currentTweetIndex = this.findCurrentTweetIndex(threadTweets, currentTweetText);
-      
-      // FIX: Handle case where current tweet not found - default to last tweet (most likely being replied to)
       if (currentTweetIndex < 0) {
         currentTweetIndex = threadTweets.length - 1;
         console.warn('[TweetReply] ⚠️ Current tweet not found in thread, defaulting to last tweet');
       }
 
-      // Step 5: Build thread chain with metadata
+      // Step 5: Build thread chain (isOriginal: prefer statusId match, fallback text+author)
       const threadChain = threadTweets.map((tweet, index) => ({
         text: tweet.text,
         author: tweet.author || 'unknown',
-        isOriginal: index === 0,
+        isOriginal: (statusId && tweet.statusId === statusId) ||
+          (!!originalTweet.text && tweet.text === originalTweet.text && (tweet.author || 'unknown') === (originalTweet.author || 'unknown')),
         isCurrent: index === currentTweetIndex
       }));
 
@@ -2763,8 +3004,12 @@ class TwitterReplyInjector {
       let limitedChain = threadChain;
       let totalChars = threadChain.reduce((sum, t) => sum + t.text.length, 0);
       if (threadChain.length > VALIDATION.MAX_THREAD_CHAIN || totalChars > VALIDATION.MAX_THREAD_CHARS) {
-        // Keep original + current + up to 2 most recent tweets (max 4 total)
-        const keepIndices = new Set([0, currentTweetIndex]); // Always keep original and current
+        // Resolve original's position in threadTweets via statusId first, then text+author
+        let originalIndex = statusId ? threadTweets.findIndex(t => t.statusId === statusId) : -1;
+        if (originalIndex < 0 && originalTweet.text) {
+          originalIndex = threadTweets.findIndex(t => t.text === originalTweet.text && (t.author || 'unknown') === (originalTweet.author || 'unknown'));
+        }
+        const keepIndices = new Set([...(originalIndex >= 0 ? [originalIndex] : []), currentTweetIndex]);
         const recentIndices = [];
         for (let i = Math.max(1, threadChain.length - 2); i < threadChain.length; i++) {
           if (i !== currentTweetIndex) recentIndices.push(i);
@@ -3009,7 +3254,7 @@ class TwitterReplyInjector {
           }
         }
 
-        extractedTweets.push({ text, author });
+        extractedTweets.push({ text, author, statusId: this.getOwnStatusIdFromArticle(tweet) });
       }
 
       return extractedTweets;
