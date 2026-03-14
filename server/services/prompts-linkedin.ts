@@ -37,7 +37,6 @@ Guidelines:
 
 Avoid:
 - LinkedIn clichés: "Let's connect", "synergy", "value-add", "circle back", "touch base", "moving forward"
-- Generic filler: "Great post!", "So true!", "Absolutely love this"
 - Hollow affirmations that say nothing
 - Motivational fluff
 - Starting with excessive praise`,

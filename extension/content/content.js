@@ -2,6 +2,9 @@ import { AuthManager } from '../utils/auth.js';
 import { ApiClient } from '../utils/api.js';
 import { API, POLLING, TIMEOUTS, DEFAULTS, VALIDATION, AUTH } from '../config/constants.js';
 
+/** Set false to disable thread/original-tweet diagnostic logs (wrong originalTweetAuthor debugging). */
+const DIAGNOSE_THREAD_SELECTION = true;
+
 class TwitterReplyInjector {
   constructor() {
     // Return existing instance if already created (SPA navigation guard)
@@ -940,9 +943,27 @@ class TwitterReplyInjector {
           node = node.parentElement;
         }
         if (!insideReplyingTo) {
-          return article;
+          // Only return the article if it actually owns this status ID (timestamp permalink).
+          // Otherwise we can return a reply tweet that merely links to statusId in "Replying to".
+          const ownId = this.getOwnStatusIdFromArticle(article);
+          if (ownId === statusId) return article;
         }
       }
+    }
+    return null;
+  }
+
+  /**
+   * When the reply composer modal is open (/compose/post), the tweet shown above the composer
+   * is the one we're replying to. Return that article so tweetId and current tweet text match the UI.
+   * @returns {Element|null}
+   */
+  getReplyTargetArticleFromComposerDialog() {
+    const dialogs = document.querySelectorAll('[role="dialog"]');
+    for (const dialog of dialogs) {
+      const hasComposer = dialog.querySelector('[data-testid^="tweetTextarea_"]');
+      const tweetArticle = dialog.querySelector('article[data-testid="tweet"]');
+      if (hasComposer && tweetArticle) return tweetArticle;
     }
     return null;
   }
@@ -1633,6 +1654,19 @@ class TwitterReplyInjector {
       return;
     }
 
+    // Diagnostic logging for wrong originalTweetAuthor / thread selection
+    if (DIAGNOSE_THREAD_SELECTION) {
+      const statusIdFromUrl = this.getStatusIdFromDetailPageUrl();
+      console.log('[TweetReply] DIAG URL pathname:', window.location.pathname);
+      console.log('[TweetReply] DIAG lastNonComposePath:', this.lastNonComposePath);
+      console.log('[TweetReply] DIAG isTweetDetailPage:', this.isTweetDetailPage());
+      console.log('[TweetReply] DIAG URL statusId:', statusIdFromUrl ?? 'null');
+      console.log('[TweetReply] DIAG reply-target tweetId (API):', tweetId);
+      if (statusIdFromUrl && tweetId) {
+        console.log('[TweetReply] DIAG statusId === tweetId?', statusIdFromUrl === tweetId);
+      }
+    }
+
     // Show loading state
     button.disabled = true;
     const originalText = button.innerHTML;
@@ -1963,6 +1997,18 @@ class TwitterReplyInjector {
   }
 
   extractTweetText() {
+    // When reply composer modal is open, the tweet shown in the dialog is the one we're replying to.
+    if (/\/compose\/post/.test(window.location.pathname)) {
+      const dialogArticle = this.getReplyTargetArticleFromComposerDialog();
+      if (dialogArticle) {
+        const tweetTextEl = dialogArticle.querySelector('[data-testid="tweetText"]');
+        if (tweetTextEl) {
+          const text = tweetTextEl.textContent?.trim();
+          if (text && text.length > 10) return text;
+        }
+      }
+    }
+
     // Method 0: When user clicked Reply, use the stored tweet article so "current tweet" is unambiguous
     if (this.currentReplyTargetArticle && document.contains(this.currentReplyTargetArticle)) {
       const tweetTextEl = this.currentReplyTargetArticle.querySelector('[data-testid="tweetText"]');
@@ -2091,13 +2137,25 @@ class TwitterReplyInjector {
   }
 
   extractTweetId() {
+    // When reply composer modal is open, use the tweet in the dialog (the one we're replying to).
+    if (/\/compose\/post/.test(window.location.pathname)) {
+      const dialogArticle = this.getReplyTargetArticleFromComposerDialog();
+      if (dialogArticle) {
+        const ownId = this.getOwnStatusIdFromArticle(dialogArticle);
+        if (ownId) {
+          console.log('[TweetReply] Tweet ID extracted from composer dialog:', ownId);
+          return ownId;
+        }
+      }
+    }
+
     // Method 1: From URL (works on /status/123 pages)
     const urlMatch = window.location.href.match(/status\/(\d+)/);
     if (urlMatch) {
       console.log('[TweetReply] Tweet ID extracted from URL:', urlMatch[1]);
       return urlMatch[1];
     }
-    
+
     // Method 2: From tweet element data attributes
     const tweetElements = document.querySelectorAll('[data-testid="tweet"]');
     for (const tweet of tweetElements) {
@@ -2851,6 +2909,17 @@ class TwitterReplyInjector {
       // Only extract full conversation context on tweet detail pages (URL containing /status/<digits>)
       const isDetailPage = this.isTweetDetailPage();
 
+      // Diagnostic logging for wrong originalTweetAuthor / thread selection (see DIAGNOSE_THREAD_SELECTION).
+      if (DIAGNOSE_THREAD_SELECTION) {
+        const currentPath = window.location.pathname;
+        const effectivePath = /\/compose\//.test(currentPath) ? this.lastNonComposePath : currentPath;
+        const statusIdHere = this.getStatusIdFromDetailPageUrl();
+        console.log('[TweetReply] DIAG extractThreadContext path:', currentPath, '| lastNonComposePath:', this.lastNonComposePath, '| effectivePath:', effectivePath);
+        console.log('[TweetReply] DIAG statusId:', statusIdHere ?? 'null');
+        console.log('[TweetReply] DIAG currentTweetText preview:', (currentTweetText || '').substring(0, 80) + (currentTweetText && currentTweetText.length > 80 ? '...' : ''));
+        console.log('[TweetReply] DIAG currentReplyTargetArticle set?', !!this.currentReplyTargetArticle);
+      }
+
       if (!isDetailPage) {
         if (DEBUG_THREAD_CONTEXT) console.log('[TweetReply] Not on detail page, using single-tweet context only');
         const authorInfo = this.extractAuthorInfo();
@@ -2892,6 +2961,20 @@ class TwitterReplyInjector {
 
       // Step 2: Find thread container
       const threadContainer = this.findThreadContainer();
+      if (DIAGNOSE_THREAD_SELECTION) {
+        if (!threadContainer) {
+          console.log('[TweetReply] DIAG findThreadContainer: null');
+        } else {
+          const articles = threadContainer.querySelectorAll('article[data-testid="tweet"]');
+          const desc = threadContainer.tagName.toLowerCase() + (threadContainer.className ? '.' + (typeof threadContainer.className === 'string' ? threadContainer.className.split(/\s+/)[0] : '') : '') + (threadContainer.getAttribute?.('data-testid') ? '[data-testid="' + threadContainer.getAttribute('data-testid') + '"]' : '');
+          console.log('[TweetReply] DIAG findThreadContainer: element=', desc, '| tweet count=', articles.length);
+          if (articles.length >= 1) {
+            const firstAuthor = (articles[0].querySelector('[data-testid="User-Name"]')?.textContent || '').match(/@([A-Za-z0-9_]+)/);
+            const lastAuthor = articles.length > 1 ? (articles[articles.length - 1].querySelector('[data-testid="User-Name"]')?.textContent || '').match(/@([A-Za-z0-9_]+)/) : null;
+            console.log('[TweetReply] DIAG container first author:', firstAuthor ? '@' + firstAuthor[1] : 'unknown', '| last author:', lastAuthor ? '@' + lastAuthor[1] : 'n/a');
+          }
+        }
+      }
       if (!threadContainer) {
         console.log('[TweetReply] ⚠️ Thread container not found, using current tweet only');
         return {
@@ -2913,6 +2996,13 @@ class TwitterReplyInjector {
       const threadTweets = this.extractTweetsFromContainer(threadContainer);
       if (DEBUG_THREAD_CONTEXT) console.log('[TweetReply] Found', threadTweets.length, 'tweets in thread');
 
+      if (DIAGNOSE_THREAD_SELECTION && threadTweets.length > 0) {
+        threadTweets.forEach((t, i) => {
+          const preview = (t.text || '').substring(0, 50) + ((t.text && t.text.length > 50) ? '...' : '');
+          console.log('[TweetReply] DIAG threadTweets[' + i + ']: author=@' + (t.author || 'unknown') + ' statusId=' + (t.statusId ?? 'null') + ' text="' + preview + '"');
+        });
+      }
+
       if (threadTweets.length === 0) {
         return {
           isReply: true,
@@ -2933,6 +3023,7 @@ class TwitterReplyInjector {
       // On a detail page the status ID in the URL is the ground truth; never fall back to threadTweets[0].
       const statusId = this.getStatusIdFromDetailPageUrl();
       let originalTweet = null;
+      let tierUsed = null;
 
       if (statusId) {
         // Invalidate cache when the user navigated to a different tweet
@@ -2946,6 +3037,7 @@ class TwitterReplyInjector {
           const domOriginal = this.extractTextAndAuthorFromArticle(urlOriginalArticle);
           if (domOriginal) {
             originalTweet = domOriginal;
+            tierUsed = 'Tier 1 DOM';
             this._originalTweetCache = { statusId, text: domOriginal.text, author: domOriginal.author, fromDom: true };
           }
         }
@@ -2953,6 +3045,7 @@ class TwitterReplyInjector {
         // Tier 1b (cache) — article is no longer in DOM (scrolled/virtualized) but was seen before
         if (!originalTweet && this._originalTweetCache?.statusId === statusId && this._originalTweetCache.fromDom) {
           originalTweet = { text: this._originalTweetCache.text, author: this._originalTweetCache.author };
+          tierUsed = 'Tier 1b cache';
         }
 
         // Tier 2 (thread list by own status ID) — root still in container but article lookup missed
@@ -2960,6 +3053,7 @@ class TwitterReplyInjector {
           const byId = threadTweets.find(t => t.statusId === statusId);
           if (byId) {
             originalTweet = { text: byId.text, author: byId.author };
+            tierUsed = 'Tier 2 threadList';
             this._originalTweetCache = { statusId, text: byId.text, author: byId.author, fromDom: true };
           }
         }
@@ -2969,6 +3063,7 @@ class TwitterReplyInjector {
           const meta = this.getOriginalTweetFromPageMeta();
           if (meta?.statusId === statusId) {
             originalTweet = { text: meta.text, author: meta.author };
+            tierUsed = 'Tier 3 meta';
             if (!this._originalTweetCache) {
               this._originalTweetCache = { statusId, text: meta.text, author: meta.author, fromDom: false };
             }
@@ -2980,10 +3075,12 @@ class TwitterReplyInjector {
           const pathMatch = (/\/compose\//.test(window.location.pathname) ? this.lastNonComposePath : window.location.pathname)
             .match(/^\/([A-Za-z0-9_]+)\/status\/\d+/);
           originalTweet = { text: null, author: pathMatch ? pathMatch[1] : 'unknown' };
+          tierUsed = 'lastResort';
         }
       } else {
         // Not a detail page: use first tweet in thread as original (existing behaviour)
         originalTweet = threadTweets[0] || { text: null, author: 'unknown' };
+        tierUsed = 'threadTweets[0]';
       }
 
       // Step 4b: Same-tweet conflict — the URL-focal tweet is also the one being replied to.
@@ -3006,10 +3103,24 @@ class TwitterReplyInjector {
         }
       }
 
+      if (DIAGNOSE_THREAD_SELECTION && tierUsed) {
+        const otPreview = (originalTweet?.text || '').substring(0, 60) + ((originalTweet?.text && originalTweet.text.length > 60) ? '...' : '');
+        console.log('[TweetReply] DIAG originalTweet from:', tierUsed, '| author=@' + (originalTweet?.author || 'unknown'), '| text="' + otPreview + '"');
+        if (originalWasOverridden) {
+          console.log('[TweetReply] DIAG same-tweet override: new author=@' + (originalTweet?.author || 'unknown'), '| text="' + otPreview + '"');
+        }
+      }
+
       let currentTweetIndex = this.findCurrentTweetIndex(threadTweets, currentTweetText);
       if (currentTweetIndex < 0) {
         currentTweetIndex = threadTweets.length - 1;
         console.warn('[TweetReply] ⚠️ Current tweet not found in thread, defaulting to last tweet');
+      }
+
+      if (DIAGNOSE_THREAD_SELECTION) {
+        const ct = threadTweets[currentTweetIndex];
+        const ctPreview = ct ? ((ct.text || '').substring(0, 50) + ((ct.text && ct.text.length > 50) ? '...' : '')) : 'n/a';
+        console.log('[TweetReply] DIAG currentTweetIndex:', currentTweetIndex, '| author=', ct ? '@' + (ct.author || 'unknown') : 'n/a', '| text="' + ctPreview + '"');
       }
 
       // Step 5: Build thread chain.
@@ -3069,6 +3180,15 @@ class TwitterReplyInjector {
         currentTweetIndex: recalculatedCurrentIndex, // FIX: Use recalculated index
         threadLength: limitedChain.length
       };
+
+      if (DIAGNOSE_THREAD_SELECTION) {
+        const origPreview = (result.originalTweet || '').substring(0, 80) + ((result.originalTweet && result.originalTweet.length > 80) ? '...' : '');
+        console.log('[TweetReply] DIAG final chain: originalTweetAuthor=@' + (result.originalTweetAuthor || 'none') + ' | originalTweet="' + origPreview + '" | currentTweetIndex=' + result.currentTweetIndex + ' | threadLength=' + result.threadLength);
+        result.threadChain.forEach((t, i) => {
+          const preview = (t.text || '').substring(0, 50) + ((t.text && t.text.length > 50) ? '...' : '');
+          console.log('[TweetReply] DIAG final chain[' + i + ']: author=@' + (t.author || 'unknown') + ' isOriginal=' + t.isOriginal + ' isCurrent=' + t.isCurrent + ' text="' + preview + '"');
+        });
+      }
 
       if (DEBUG_THREAD_CONTEXT) {
         console.log('[TweetReply] ✅ Thread context extracted:', {
