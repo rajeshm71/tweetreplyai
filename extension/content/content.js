@@ -810,6 +810,12 @@ class TwitterReplyInjector {
     if (!pathMatch) return null;
     const author = pathMatch[1];
     const statusId = pathMatch[2];
+
+    // Guard against stale SPA meta: og:url must exist and contain the same statusId as the current URL.
+    // If og:url is absent, treat as stale and return null so DOM tiers are used instead.
+    const ogUrl = document.querySelector('meta[property="og:url"]')?.content || '';
+    if (!ogUrl || !ogUrl.includes('/status/' + statusId)) return null;
+
     let text = null;
     // og:description is fullest (set by Twitter SSR and updated on SPA navigation)
     const ogDesc = document.querySelector('meta[property="og:description"]')?.content?.trim();
@@ -853,20 +859,12 @@ class TwitterReplyInjector {
       if (this._originalTweetCache && this._originalTweetCache.statusId !== statusId) {
         this._originalTweetCache = null;
       }
-      // Try DOM article (best quality)
+      // Try DOM article (best quality); skip meta fallback to avoid stale SPA data
       const article = this.findOriginalTweetArticleByStatusId(statusId);
       if (article) {
         const data = this.extractTextAndAuthorFromArticle(article);
         if (data) {
           this._originalTweetCache = { statusId, text: data.text, author: data.author, fromDom: true };
-          return;
-        }
-      }
-      // Fallback: meta tags (text may be truncated, but author and statusId are always correct)
-      if (!this._originalTweetCache || this._originalTweetCache.statusId !== statusId) {
-        const meta = this.getOriginalTweetFromPageMeta();
-        if (meta && meta.statusId === statusId && meta.text) {
-          this._originalTweetCache = { statusId, text: meta.text, author: meta.author, fromDom: false };
         }
       }
     } catch (e) {
@@ -1965,36 +1963,39 @@ class TwitterReplyInjector {
   }
 
   extractTweetText() {
-    // Enhanced tweet text extraction based on inject.js approach
-    console.log('[TweetReply] 🔍 Extracting tweet text...');
-
     // Method 0: When user clicked Reply, use the stored tweet article so "current tweet" is unambiguous
     if (this.currentReplyTargetArticle && document.contains(this.currentReplyTargetArticle)) {
       const tweetTextEl = this.currentReplyTargetArticle.querySelector('[data-testid="tweetText"]');
       if (tweetTextEl) {
         const text = tweetTextEl.textContent?.trim();
-        if (text && text.length > 10) {
-          console.log('[TweetReply] ✅ Tweet text found via reply-target article (Method 0)');
-          return text;
+        if (text && text.length > 10) return text;
+      }
+    }
+
+    // Method 0.5: On detail page with no reply target, default to the focal tweet (URL tweet).
+    // Avoids returning the first tweet on the whole page, which can be wrong when Suggest is used without clicking Reply.
+    if (this.isTweetDetailPage()) {
+      const statusId = this.getStatusIdFromDetailPageUrl();
+      if (statusId) {
+        const focalArticle = this.findOriginalTweetArticleByStatusId(statusId);
+        if (focalArticle) {
+          const data = this.extractTextAndAuthorFromArticle(focalArticle);
+          if (data?.text && data.text.length > 10) return data.text;
         }
       }
     }
 
-    // Method 1: Look for tweet text in tweet elements (most reliable)
+    // Method 1: Look for tweet text in tweet elements (fallback)
     const tweetSelectors = [
       '[data-testid="tweet"] [data-testid="tweetText"]',
       '.tweet-text',
       '[lang] span', // Twitter uses lang attribute on tweet text
     ];
-
     for (const selector of tweetSelectors) {
       const elements = document.querySelectorAll(selector);
       for (const element of elements) {
         const text = element.textContent?.trim();
-        if (text && text.length > 10) {
-          console.log('[TweetReply] ✅ Tweet text found via selector:', selector);
-          return text;
-        }
+        if (text && text.length > 10) return text;
       }
     }
 
@@ -2006,10 +2007,7 @@ class TwitterReplyInjector {
           .map(span => span.textContent || "")
           .join(" ")
           .trim();
-        if (text && text.length > 10) {
-          console.log('[TweetReply] ✅ Tweet text found via Draft.js spans');
-          return text;
-        }
+        if (text && text.length > 10) return text;
       }
     } catch (error) {
       console.warn('[TweetReply] Draft.js span extraction failed:', error);
@@ -2828,15 +2826,18 @@ class TwitterReplyInjector {
    * Returns structured data about the conversation thread
    */
   extractThreadContext() {
+    const DEBUG_THREAD_CONTEXT = false; // Set true for debugging thread extraction
     try {
-      console.log('[TweetReply] 🔍 ========== EXTRACTING THREAD CONTEXT ==========');
-      console.log('[TweetReply] 🔍 Starting thread context extraction...');
-      
+      if (DEBUG_THREAD_CONTEXT) {
+        console.log('[TweetReply] 🔍 ========== EXTRACTING THREAD CONTEXT ==========');
+        console.log('[TweetReply] 🔍 Starting thread context extraction...');
+      }
+
       // Get current tweet text (the one being replied to)
       const currentTweetText = this.extractTweetText();
-      console.log('[TweetReply] 🔍 Current tweet text length:', currentTweetText?.length || 0);
+      if (DEBUG_THREAD_CONTEXT) console.log('[TweetReply] 🔍 Current tweet text length:', currentTweetText?.length || 0);
       if (!currentTweetText) {
-        console.log('[TweetReply] ⚠️ No current tweet found, returning standalone context');
+        console.warn('[TweetReply] ⚠️ No current tweet found, returning standalone context');
         return {
           isReply: false,
           originalTweet: null,
@@ -2851,7 +2852,7 @@ class TwitterReplyInjector {
       const isDetailPage = this.isTweetDetailPage();
 
       if (!isDetailPage) {
-        console.log('[TweetReply] Not on detail page, using single-tweet context only');
+        if (DEBUG_THREAD_CONTEXT) console.log('[TweetReply] Not on detail page, using single-tweet context only');
         const authorInfo = this.extractAuthorInfo();
         return {
           isReply: true,
@@ -2870,7 +2871,7 @@ class TwitterReplyInjector {
 
       // Step 1: Detect if we're in a reply context
       const isReply = this.detectReplyContext();
-      console.log('[TweetReply] Reply context detected:', isReply);
+      if (DEBUG_THREAD_CONTEXT) console.log('[TweetReply] Reply context detected:', isReply);
 
       if (!isReply) {
         // Standalone tweet - not part of a thread
@@ -2910,7 +2911,7 @@ class TwitterReplyInjector {
 
       // Step 3: Extract all tweets from thread container
       const threadTweets = this.extractTweetsFromContainer(threadContainer);
-      console.log('[TweetReply] Found', threadTweets.length, 'tweets in thread');
+      if (DEBUG_THREAD_CONTEXT) console.log('[TweetReply] Found', threadTweets.length, 'tweets in thread');
 
       if (threadTweets.length === 0) {
         return {
@@ -2939,7 +2940,7 @@ class TwitterReplyInjector {
           this._originalTweetCache = null;
         }
 
-        // Tier 2 (DOM article) — highest quality, full text; also updates cache
+        // Tier 1 (DOM article) — highest quality, full text; also updates cache
         const urlOriginalArticle = this.findOriginalTweetArticleByStatusId(statusId);
         if (urlOriginalArticle) {
           const domOriginal = this.extractTextAndAuthorFromArticle(urlOriginalArticle);
@@ -2949,12 +2950,12 @@ class TwitterReplyInjector {
           }
         }
 
-        // Tier 2b (cache) — article is no longer in DOM (scrolled/virtualized) but was seen before
+        // Tier 1b (cache) — article is no longer in DOM (scrolled/virtualized) but was seen before
         if (!originalTweet && this._originalTweetCache?.statusId === statusId && this._originalTweetCache.fromDom) {
           originalTweet = { text: this._originalTweetCache.text, author: this._originalTweetCache.author };
         }
 
-        // Tier 3 (thread list by own status ID) — root still in container but article lookup missed
+        // Tier 2 (thread list by own status ID) — root still in container but article lookup missed
         if (!originalTweet) {
           const byId = threadTweets.find(t => t.statusId === statusId);
           if (byId) {
@@ -2963,7 +2964,7 @@ class TwitterReplyInjector {
           }
         }
 
-        // Tier 1 (meta/URL) — og:description + URL path; text may be truncated but author is always accurate
+        // Tier 3 (meta/URL) — og:description + URL path; text may be truncated but author is always accurate
         if (!originalTweet) {
           const meta = this.getOriginalTweetFromPageMeta();
           if (meta?.statusId === statusId) {
@@ -2985,17 +2986,39 @@ class TwitterReplyInjector {
         originalTweet = threadTweets[0] || { text: null, author: 'unknown' };
       }
 
+      // Step 4b: Same-tweet conflict — the URL-focal tweet is also the one being replied to.
+      // Example: User navigated Sahil→Bill and is replying to Bill. Bill's ID is in the URL so
+      // originalTweet resolves to Bill, but currentTweetText is also Bill. In this case the
+      // true "original" should be the earliest ancestor (Sahil), not Bill.
+      let originalWasOverridden = false;
+      if (
+        originalTweet?.text &&
+        currentTweetText &&
+        originalTweet.text.trim() === currentTweetText.trim()
+      ) {
+        // Find the first threadTweet that is NOT the current tweet (i.e. the true ancestor)
+        const ancestor = threadTweets.find(
+          t => t.text && t.text.trim() !== currentTweetText.trim()
+        );
+        if (ancestor) {
+          originalTweet = { text: ancestor.text, author: ancestor.author };
+          originalWasOverridden = true;
+        }
+      }
+
       let currentTweetIndex = this.findCurrentTweetIndex(threadTweets, currentTweetText);
       if (currentTweetIndex < 0) {
         currentTweetIndex = threadTweets.length - 1;
         console.warn('[TweetReply] ⚠️ Current tweet not found in thread, defaulting to last tweet');
       }
 
-      // Step 5: Build thread chain (isOriginal: prefer statusId match, fallback text+author)
+      // Step 5: Build thread chain.
+      // When originalWasOverridden the statusId no longer matches the new originalTweet, so skip
+      // the statusId-based isOriginal check and rely solely on text+author matching.
       const threadChain = threadTweets.map((tweet, index) => ({
         text: tweet.text,
         author: tweet.author || 'unknown',
-        isOriginal: (statusId && tweet.statusId === statusId) ||
+        isOriginal: (!originalWasOverridden && statusId && tweet.statusId === statusId) ||
           (!!originalTweet.text && tweet.text === originalTweet.text && (tweet.author || 'unknown') === (originalTweet.author || 'unknown')),
         isCurrent: index === currentTweetIndex
       }));
@@ -3004,8 +3027,11 @@ class TwitterReplyInjector {
       let limitedChain = threadChain;
       let totalChars = threadChain.reduce((sum, t) => sum + t.text.length, 0);
       if (threadChain.length > VALIDATION.MAX_THREAD_CHAIN || totalChars > VALIDATION.MAX_THREAD_CHARS) {
-        // Resolve original's position in threadTweets via statusId first, then text+author
-        let originalIndex = statusId ? threadTweets.findIndex(t => t.statusId === statusId) : -1;
+        // When originalWasOverridden, statusId points at focal tweet (e.g. Bill), not the true original (Sahil).
+        // Skip statusId lookup so we resolve the ancestor's index by text+author match.
+        let originalIndex = (!originalWasOverridden && statusId)
+          ? threadTweets.findIndex(t => t.statusId === statusId)
+          : -1;
         if (originalIndex < 0 && originalTweet.text) {
           originalIndex = threadTweets.findIndex(t => t.text === originalTweet.text && (t.author || 'unknown') === (originalTweet.author || 'unknown'));
         }
@@ -3044,28 +3070,28 @@ class TwitterReplyInjector {
         threadLength: limitedChain.length
       };
 
-      console.log('[TweetReply] ✅ Thread context extracted:', {
-        isReply: result.isReply,
-        originalTweetLength: result.originalTweet?.length || 0,
-        threadLength: result.threadLength,
-        currentIndex: result.currentTweetIndex
-      });
-
-      // LOG: Display original tweet and full thread chain together for debugging
-      if (result.isReply && result.originalTweet) {
-        console.log('[TweetReply] 📋 ORIGINAL TWEET & THREAD CHAIN:');
-        console.log('[TweetReply] ┌─────────────────────────────────────────────────────────┐');
-        console.log('[TweetReply] │ ORIGINAL TWEET:', result.originalTweetAuthor ? `@${result.originalTweetAuthor}` : 'unknown author');
-        console.log('[TweetReply] │', result.originalTweet);
-        console.log('[TweetReply] ├─────────────────────────────────────────────────────────┤');
-        console.log('[TweetReply] │ FULL THREAD CHAIN (' + result.threadLength + ' tweets):');
-        result.threadChain.forEach((tweet, idx) => {
-          const marker = tweet.isOriginal ? '🔵 ORIGINAL' : tweet.isCurrent ? '🟢 CURRENT (replying to)' : `⚪ Reply ${idx}`;
-          const author = tweet.author !== 'unknown' ? `@${tweet.author}` : 'unknown';
-          console.log('[TweetReply] │ [' + marker + '] ' + author + ':');
-          console.log('[TweetReply] │   "' + tweet.text.substring(0, 100) + (tweet.text.length > 100 ? '...' : '') + '"');
+      if (DEBUG_THREAD_CONTEXT) {
+        console.log('[TweetReply] ✅ Thread context extracted:', {
+          isReply: result.isReply,
+          originalTweetLength: result.originalTweet?.length || 0,
+          threadLength: result.threadLength,
+          currentIndex: result.currentTweetIndex
         });
-        console.log('[TweetReply] └─────────────────────────────────────────────────────────┘');
+        if (result.isReply && result.originalTweet) {
+          console.log('[TweetReply] 📋 ORIGINAL TWEET & THREAD CHAIN:');
+          console.log('[TweetReply] ┌─────────────────────────────────────────────────────────┐');
+          console.log('[TweetReply] │ ORIGINAL TWEET:', result.originalTweetAuthor ? `@${result.originalTweetAuthor}` : 'unknown author');
+          console.log('[TweetReply] │', result.originalTweet);
+          console.log('[TweetReply] ├─────────────────────────────────────────────────────────┤');
+          console.log('[TweetReply] │ FULL THREAD CHAIN (' + result.threadLength + ' tweets):');
+          result.threadChain.forEach((tweet, idx) => {
+            const marker = tweet.isOriginal ? '🔵 ORIGINAL' : tweet.isCurrent ? '🟢 CURRENT (replying to)' : `⚪ Reply ${idx}`;
+            const author = tweet.author !== 'unknown' ? `@${tweet.author}` : 'unknown';
+            console.log('[TweetReply] │ [' + marker + '] ' + author + ':');
+            console.log('[TweetReply] │   "' + tweet.text.substring(0, 100) + (tweet.text.length > 100 ? '...' : '') + '"');
+          });
+          console.log('[TweetReply] └─────────────────────────────────────────────────────────┘');
+        }
       }
 
       return result;

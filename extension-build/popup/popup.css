@@ -134,6 +134,12 @@
   --z-modal: 50;
   --z-popover: 60;
   --z-tooltip: 70;
+
+  /* Design 9: Glass + light blue */
+  --glass-blur: 24px;
+  --glass-bg: rgba(255, 255, 255, 0.88);
+  --glass-border: 1.5px solid rgba(255, 255, 255, 0.7);
+  --glass-shadow: 0 20px 48px rgba(0, 0, 0, 0.06), 0 4px 12px rgba(0, 0, 0, 0.03);
 }
 
 /* Dark Mode Theme - Deeper Dark (for users who prefer even darker) */
@@ -771,7 +777,7 @@ body {
 
 .card-label {
   font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-bold); /* Make TODAY / QUALITY / HISTORY / ANALYTICS text bolder */
   color: var(--color-text-primary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -798,14 +804,14 @@ body {
   z-index: 0;
 }
 
-/* Today Card - Vibrant Blue */
+/* Today Card - Vibrant Blue (slightly darker for better contrast per brightening plan) */
 .modern-card[data-theme="today"] {
-  --card-gradient-start: #3B82F6;
-  --card-gradient-end: #2563EB;
+  --card-gradient-start: #2563EB; /* was #3B82F6 */
+  --card-gradient-end: #1E3A8A;   /* deeper blue for stronger text gradient */
   --card-accent: #3B82F6;
   --card-bg: rgba(59, 130, 246, 0.12);
   --card-icon-color: #3B82F6;
-  --card-text-color: #1E40AF;
+  --card-text-color: #1E3A8A;     /* was #1E40AF */
   border: 1px solid rgba(59, 130, 246, 0.25);
 }
 
@@ -827,14 +833,14 @@ body {
   background-clip: text;
 }
 
-/* Quality Card - Success Green */
+/* Quality Card - Success Green (darkened slightly for stronger text) */
 .modern-card[data-theme="quality"] {
-  --card-gradient-start: #10B981;
-  --card-gradient-end: #059669;
+  --card-gradient-start: #059669; /* was #10B981 */
+  --card-gradient-end: #047857;
   --card-accent: #10B981;
   --card-bg: rgba(16, 185, 129, 0.12);
   --card-icon-color: #10B981;
-  --card-text-color: #047857;
+  --card-text-color: #065F46;     /* was #047857 */
   border: 1px solid rgba(16, 185, 129, 0.25);
 }
 
@@ -856,14 +862,14 @@ body {
   background-clip: text;
 }
 
-/* History Card - Warm Orange */
+/* History Card - Warm Orange (deeper orange for clearer labels) */
 .modern-card[data-theme="history"] {
-  --card-gradient-start: #F97316;
-  --card-gradient-end: #EA580C;
+  --card-gradient-start: #EA580C; /* was #F97316 */
+  --card-gradient-end: #C2410C;
   --card-accent: #F97316;
   --card-bg: rgba(249, 115, 22, 0.12);
   --card-icon-color: #F97316;
-  --card-text-color: #C2410C;
+  --card-text-color: #9A3412;     /* was #C2410C */
   border: 1px solid rgba(249, 115, 22, 0.25);
 }
 
@@ -885,14 +891,14 @@ body {
   background-clip: text;
 }
 
-/* Analytics Card - Vibrant Purple */
+/* Analytics Card - Vibrant Purple (richer purple tones for better readability) */
 .modern-card[data-theme="analytics"] {
-  --card-gradient-start: #8B5CF6;
-  --card-gradient-end: #7C3AED;
+  --card-gradient-start: #7C3AED; /* was #8B5CF6 */
+  --card-gradient-end: #5B21B6;
   --card-accent: #8B5CF6;
   --card-bg: rgba(139, 92, 246, 0.12);
   --card-icon-color: #8B5CF6;
-  --card-text-color: #6D28D9;
+  --card-text-color: #4C1D95;     /* was #6D28D9 */
   border: 1px solid rgba(139, 92, 246, 0.25);
 }
 
@@ -2057,4 +2063,268 @@ body {
   .analytics-summary-grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* ============================================
+   DESIGN 9: Single light blue + glass panels (shine)
+   Plan: add 9th design to extension popup (UI only).
+   Override only visual properties; preserve layout and all ids/classes.
+   ============================================ */
+
+/* Single light blue tray; only background overridden to keep width/min-height/font from base body rules. */
+body {
+  background: #e8f4fe;
+}
+
+.header {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+  border-bottom: var(--glass-border);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+/* Glass + shine; border explicitly overrides previous red-tinted usage-card border per plan. */
+.usage-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+  border: var(--glass-border);
+  box-shadow: var(--glass-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.modern-card,
+.modern-card-action {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+  border: var(--glass-border);
+  box-shadow: var(--glass-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.footer-actions {
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+/* Plan badge: glass-style on light blue; Pro/paid variants with high-contrast white text for visibility. */
+.plan-badge {
+  background: var(--glass-bg);
+  color: var(--color-text-primary);
+  border: var(--glass-border);
+  box-shadow: var(--glass-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+}
+.plan-badge--pro {
+  background: linear-gradient(135deg, #7c3aed, #6d28d9) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+.plan-badge--paid {
+  background: linear-gradient(135deg, #059669, #047857) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+/* Plan Step 7 (optional): panels match glass style; no id/class changes. */
+.settings-panel,
+.panel {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+  border: var(--glass-border);
+  box-shadow: var(--glass-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+/* Design 9: Dark mode: body tray and glass panels use dark theme vars; no existing vars removed. */
+@media (prefers-color-scheme: dark) {
+  body {
+    background: var(--color-background);
+  }
+  .header {
+    background: rgba(255, 255, 255, 0.08);
+    border-bottom-color: rgba(255, 255, 255, 0.12);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  }
+  .usage-card {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.12);
+    box-shadow: 0 20px 48px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  }
+  .modern-card,
+  .modern-card-action {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.12);
+    box-shadow: 0 20px 48px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  }
+  .footer-actions {
+    border-top-color: rgba(255, 255, 255, 0.1);
+  }
+  .settings-panel,
+  .panel {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.12);
+    box-shadow: 0 20px 48px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  }
+  .plan-badge {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.2);
+    color: var(--color-text-primary);
+  }
+  .plan-badge--pro {
+    color: #ffffff !important;
+  }
+  .plan-badge--paid {
+    color: #ffffff !important;
+  }
+}
+
+[data-theme="dark"] body,
+body[data-theme="dark"] {
+  background: var(--color-background);
+}
+[data-theme="dark"] .header {
+  background: rgba(255, 255, 255, 0.08);
+  border-bottom-color: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+[data-theme="dark"] .usage-card {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+[data-theme="dark"] .modern-card,
+[data-theme="dark"] .modern-card-action {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+[data-theme="dark"] .footer-actions {
+  border-top-color: rgba(255, 255, 255, 0.1);
+}
+[data-theme="dark"] .settings-panel,
+[data-theme="dark"] .panel {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+[data-theme="dark"] .plan-badge {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: var(--color-text-primary);
+}
+[data-theme="dark"] .plan-badge--pro,
+[data-theme="dark"] .plan-badge--paid {
+  color: #ffffff !important;
+}
+
+/* ============================================
+   QUOTA BANNER (shown when credits are used up)
+   ============================================ */
+
+.quota-banner {
+  background: #fff7ed;
+  border: 1px solid #fbbf24;
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-4);
+  margin-bottom: var(--spacing-4);
+}
+
+.quota-banner.hidden {
+  display: none !important;
+}
+
+.quota-banner-content {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+}
+
+.quota-banner-icon {
+  flex-shrink: 0;
+  color: #f97316;
+  display: flex;
+  align-items: center;
+}
+
+.quota-banner-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.quota-banner-text strong {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
+  color: #92400e;
+}
+
+.quota-banner-text span {
+  font-size: var(--font-size-xs);
+  color: #b45309;
+}
+
+.quota-banner-upgrade {
+  flex-shrink: 0;
+  background: #f97316;
+  color: #ffffff;
+  border: none;
+  padding: var(--spacing-2) var(--spacing-4);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
+  cursor: pointer;
+  transition: all var(--transition-base);
+  white-space: nowrap;
+}
+
+.quota-banner-upgrade:hover {
+  background: #ea580c;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(249, 115, 22, 0.35);
+}
+
+.quota-banner-upgrade:active {
+  transform: translateY(0);
+}
+
+.quota-banner-upgrade:focus-visible {
+  outline: 2px solid #f97316;
+  outline-offset: 2px;
+}
+
+/* Quota banner dark mode */
+@media (prefers-color-scheme: dark) {
+  .quota-banner {
+    background: #451a03;
+    border-color: #92400e;
+  }
+  .quota-banner-text strong {
+    color: #fbbf24;
+  }
+  .quota-banner-text span {
+    color: #fcd34d;
+  }
+  .quota-banner-icon {
+    color: #fbbf24;
+  }
+}
+
+[data-theme="dark"] .quota-banner {
+  background: #451a03;
+  border-color: #92400e;
+}
+[data-theme="dark"] .quota-banner-text strong {
+  color: #fbbf24;
+}
+[data-theme="dark"] .quota-banner-text span {
+  color: #fcd34d;
+}
+[data-theme="dark"] .quota-banner-icon {
+  color: #fbbf24;
 }

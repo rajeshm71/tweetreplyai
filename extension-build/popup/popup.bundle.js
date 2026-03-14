@@ -415,6 +415,10 @@
       this.resetText = document.getElementById("reset-text");
       this.quotaResetText = document.getElementById("quota-reset-text");
       this.statusMessage = document.getElementById("status-message");
+      this.quotaBanner = document.getElementById("quota-banner");
+      this.quotaBannerUsed = document.getElementById("quota-banner-used");
+      this.quotaBannerLimit = document.getElementById("quota-banner-limit");
+      this.quotaBannerBtn = document.getElementById("quota-banner-btn");
       this.userName = document.getElementById("user-name");
       this.planBadge = document.getElementById("plan-badge");
       this.usagePercentage = document.getElementById("usage-percentage");
@@ -442,6 +446,7 @@
       this.billingBtn?.addEventListener("click", () => this.handleManageBilling());
       this.upgradeBtn?.addEventListener("click", () => this.handleUpgrade());
       this.upgradeCta?.addEventListener("click", () => this.handleUpgrade());
+      this.quotaBannerBtn?.addEventListener("click", () => this.handleUpgrade());
       this.logoutBtn?.addEventListener("click", () => this.handleSignOut());
       this.settingsBtn?.addEventListener("click", () => this.showSettings());
       this.signoutBtn?.addEventListener("click", () => this.handleSignOut());
@@ -509,7 +514,7 @@
             this.setState("authenticated");
           } else if (this.usageData.status === "trial" || this.usageData.status === "active") {
             if (this.usageData.used >= this.usageData.limit) {
-              this.setState("quota-exceeded");
+              this.setState("authenticated");
             } else {
               this.setState("authenticated");
             }
@@ -644,7 +649,7 @@
     }
     updateUsageDisplay() {
       if (!this.usageData) return;
-      const { used, limit, resetAt, status } = this.usageData;
+      const { used, limit, resetAt, status, planCode } = this.usageData;
       const percentage = Math.min(used / limit * 100, 100);
       const isExceeded = used >= limit;
       if (this.progressFill) {
@@ -667,17 +672,28 @@
         this.statusText.textContent = isExceeded ? "Limit reached" : "Active";
       }
       const resetDistance = this.formatTimeDistance(new Date(resetAt));
+      const isTrial = planCode === "trial" || status === "trial";
+      const resetLine = isTrial ? "You've used all your trial credits: upgrade to keep replying." : `Resets ${resetDistance}`;
       if (this.resetText) {
-        this.resetText.textContent = `Resets ${resetDistance}`;
+        this.resetText.textContent = resetLine;
       }
       if (this.quotaResetText) {
-        this.quotaResetText.textContent = `Resets ${resetDistance}`;
+        this.quotaResetText.textContent = resetLine;
       }
       if (this.statusMessage) {
         if (isExceeded) {
-          this.statusMessage.textContent = `Daily limit reached. Resets ${resetDistance}`;
+          this.statusMessage.textContent = isTrial ? "You've used all your trial credits: upgrade to keep replying." : `You've used all your credits. Resets ${resetDistance}`;
         } else {
           this.statusMessage.textContent = 'Click "Reply" on any X post to generate suggestions';
+        }
+      }
+      if (this.quotaBanner) {
+        if (isExceeded) {
+          if (this.quotaBannerUsed) this.quotaBannerUsed.textContent = used;
+          if (this.quotaBannerLimit) this.quotaBannerLimit.textContent = limit;
+          this.quotaBanner.classList.remove("hidden");
+        } else {
+          this.quotaBanner.classList.add("hidden");
         }
       }
       this.updateModeBreakdown();
@@ -1266,7 +1282,7 @@
     }
     updatePlanBadge() {
       if (this.planBadge && this.usageData) {
-        const planCode = this.usageData.planCode || "trial";
+        const planCode = (this.usageData.planCode || "trial").toString().toLowerCase();
         const planLabels = {
           "trial": "Free Trial",
           "weekly": "Weekly Plan",
@@ -1274,16 +1290,16 @@
           "bypass": "Pro Plan"
         };
         this.planBadge.textContent = planLabels[planCode] || "Free Plan";
-        this.planBadge.className = "plan-badge";
-        if (planCode === "weekly" || planCode === "monthly") {
-          this.planBadge.style.background = "linear-gradient(135deg, #10B981, #059669)";
-        } else if (planCode === "bypass") {
-          this.planBadge.style.background = "linear-gradient(135deg, #8B5CF6, #7C3AED)";
-        } else {
-          this.planBadge.style.background = "";
-        }
+        this.planBadge.className = "plan-badge" + (planCode === "bypass" ? " plan-badge--pro" : planCode === "weekly" || planCode === "monthly" ? " plan-badge--paid" : "");
+        this.planBadge.style.background = "";
+        this.planBadge.style.color = "";
+        const isPaidPlan = planCode === "bypass" || planCode === "weekly" || planCode === "monthly";
         if (this.upgradeCta) {
-          this.upgradeCta.style.display = planCode === "bypass" || planCode === "weekly" || planCode === "monthly" ? "none" : "";
+          this.upgradeCta.style.display = isPaidPlan ? "none" : "";
+        }
+        const footerActions = this.upgradeCta?.closest(".footer-actions");
+        if (footerActions) {
+          footerActions.style.display = isPaidPlan ? "none" : "";
         }
       }
     }

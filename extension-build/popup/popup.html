@@ -52,6 +52,22 @@
 
     <!-- Authenticated State -->
     <div id="authenticated" class="state hidden" role="main" aria-label="TweetReply dashboard">
+      <!-- Quota Banner (shown when credits are used up) -->
+      <div id="quota-banner" class="quota-banner hidden" role="alert">
+        <div class="quota-banner-content">
+          <span class="quota-banner-icon">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true">
+              <path d="M7 2v11h3v9l7-12h-4l4-8z"/>
+            </svg>
+          </span>
+          <div class="quota-banner-text">
+            <strong>You've used <span id="quota-banner-used">--</span> / <span id="quota-banner-limit">--</span> credits</strong>
+            <span>Upgrade now to keep the replies flowing!</span>
+          </div>
+          <button id="quota-banner-btn" class="quota-banner-upgrade">Upgrade</button>
+        </div>
+      </div>
+
       <!-- Welcome Header -->
       <div class="welcome-section">
         <div class="user-greeting">
