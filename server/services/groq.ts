@@ -90,11 +90,23 @@ export class GroqModelRouter {
       console.log('[PROMPT] [Groq] system:', enhancedSystemPrompt);
       console.log('[PROMPT] [Groq] user:', userPromptText);
 
+      const messages = [
+        { role: "system" as const, content: enhancedSystemPrompt },
+        { role: "user" as const, content: userPromptText },
+      ];
+      const groqRequestBody = {
+        messages,
+        model: modelKey,
+        temperature: AI_PARAMS.TEMPERATURE,
+        max_completion_tokens: AI_PARAMS.GROQ_MAX_TOKENS,
+        top_p: 1,
+        stream: true,
+        stop: null,
+      };
+      console.log('[GROQ] Exact request sent to Groq (message count = ' + messages.length + '):', JSON.stringify(groqRequestBody, null, 2));
+
       const chatCompletion = await groq.chat.completions.create({
-        messages: [
-          { role: "system", content: enhancedSystemPrompt },
-          { role: "user", content: userPromptText },
-        ],
+        messages,
         model: modelKey,
         temperature: AI_PARAMS.TEMPERATURE,
         max_completion_tokens: AI_PARAMS.GROQ_MAX_TOKENS,
