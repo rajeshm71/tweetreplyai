@@ -62,12 +62,15 @@ export async function buildSystemPrompt(options: PromptBuilderOptions): Promise<
     }
   }
 
-  // Anchor persona: always write as the logged-in user replying to the tweet,
+  // Anchor persona: for regular replies, reinforce that we write as the logged-in user,
   // not as the author of the tweet being replied to.
-  prompt +=
-    '\n\nYou are writing a reply on behalf of the logged-in user (the person sending this reply). ' +
-    'Always write from their point of view, speaking to the author of the tweet they are replying to. ' +
-    'Do not write as if you are the author of that tweet.';
+  // Skipped for original-author replies because the base prompt already contains that persona.
+  if (!options.viewerIsOriginalAuthor) {
+    prompt +=
+      '\n\nYou are writing a reply on behalf of the logged-in user (the person sending this reply). ' +
+      'Always write from their point of view, speaking to the author of the tweet they are replying to. ' +
+      'Do not write as if you are the author of that tweet.';
+  }
 
   // When we know both handles, give the model explicit internal role labels while
   // explicitly forbidding it from introducing new handles in the reply text.
@@ -81,12 +84,6 @@ export async function buildSystemPrompt(options: PromptBuilderOptions): Promise<
 
     prompt +=
       ' Do not introduce or mention any usernames or handles in the reply text that are not already present in the tweet or thread. ' ;
-  }
-
-  if (options.viewerIsOriginalAuthor === true) {
-    prompt +=
-      '\n\nThe logged-in user wrote the original tweet that started this thread, but they are now replying to another user\'s tweet in the conversation. ' +
-      'Write as the original author replying to that other user, not as the other user.';
   }
 
   return prompt;

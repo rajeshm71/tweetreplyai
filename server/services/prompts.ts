@@ -9,7 +9,7 @@ export const REPLY_MODES = {
 export type ReplyMode = typeof REPLY_MODES[keyof typeof REPLY_MODES];
 
 // Shared meta-commentary prevention rule (applied to all prompts)
-const META_COMMENTARY_RULE = `
+export const META_COMMENTARY_RULE = `
 
 CRITICAL OUTPUT RULE: Output ONLY your reply text. Do NOT include:
 - Phrases like "Here's a reply", "This response", "Possible reply"

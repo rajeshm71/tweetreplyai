@@ -1,6 +1,7 @@
 import { Groq } from "groq-sdk";
 import { ReplyOptions, ReplyResponse } from "./openai.js";
 import { getPromptConfig, applyReplyModeToPrompt, type PromptConfig } from "./prompts.js";
+import { getOriginalAuthorPromptConfig } from "./prompts-original-author.js";
 import { replyPostProcessor } from "./reply-postprocessor.js";
 import { buildSystemPrompt, buildUserPromptWithThread } from "./prompt-builder.js";
 import { AI_MODELS, AI_PARAMS, MODEL_SPECS, REPLY_LIMITS } from "../config/constants.js";
@@ -42,8 +43,10 @@ export class GroqModelRouter {
       options.tweetText,
       options.modelPreference,
     );
-    const basePromptConfig = this.getPromptConfig(options.promptVariation);
-    
+    const basePromptConfig = options.viewerIsOriginalAuthor
+      ? getOriginalAuthorPromptConfig(options.promptVariation)
+      : this.getPromptConfig(options.promptVariation);
+
     // Apply reply mode modifications to prompt
     const promptConfig = applyReplyModeToPrompt(basePromptConfig, options.replyMode);
 

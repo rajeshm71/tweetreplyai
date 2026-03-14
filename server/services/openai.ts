@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { getPromptConfig, applyReplyModeToPrompt, type PromptConfig } from "./prompts.js";
+import { getOriginalAuthorPromptConfig } from "./prompts-original-author.js";
 import { replyPostProcessor } from "./reply-postprocessor.js";
 import { buildSystemPrompt, buildUserPromptWithThread } from "./prompt-builder.js";
 import type { EnrichedTweetAnalysis } from "./tweet-analysis-agents.js";
@@ -87,8 +88,10 @@ export class ModelRouter {
   async generateReply(options: ReplyOptions): Promise<ReplyResponse> {
     const startTime = Date.now();
     const modelKey = this.getModel(options.modelPreference);
-    const basePromptConfig = this.getPromptConfig(options.promptVariation);
-    
+    const basePromptConfig = options.viewerIsOriginalAuthor
+      ? getOriginalAuthorPromptConfig(options.promptVariation)
+      : this.getPromptConfig(options.promptVariation);
+
     const promptConfig = applyReplyModeToPrompt(basePromptConfig, options.replyMode);
 
     const enhancedSystemPrompt = await buildSystemPrompt({
