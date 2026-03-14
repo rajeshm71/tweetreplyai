@@ -4,6 +4,7 @@ import { getPromptConfig, applyReplyModeToPrompt, type PromptConfig } from "./pr
 import { getOriginalAuthorPromptConfig } from "./prompts-original-author.js";
 import { replyPostProcessor } from "./reply-postprocessor.js";
 import { buildSystemPrompt, buildUserPromptWithThread } from "./prompt-builder.js";
+import { getDynamicReplyMaxWords, getDynamicReplyWordRange } from "./oa-dynamic-reply-length.js";
 import { AI_MODELS, AI_PARAMS, MODEL_SPECS, REPLY_LIMITS } from "../config/constants.js";
 
 // Initialize Groq client
@@ -32,9 +33,8 @@ export class GroqModelRouter {
     return getPromptConfig(promptVariation);
   }
 
-  private postProcessReply(reply: string, replyMode?: string): string {
-    // Use comprehensive postprocessor service, passing replyMode
-    return replyPostProcessor.processReply(reply, replyMode);
+  private postProcessReply(reply: string, replyMode?: string, maxWordsOverride?: number): string {
+    return replyPostProcessor.processReply(reply, replyMode, maxWordsOverride);
   }
 
   async generateReply(options: ReplyOptions): Promise<ReplyResponse> {
@@ -50,6 +50,18 @@ export class GroqModelRouter {
     // Apply reply mode modifications to prompt
     const promptConfig = applyReplyModeToPrompt(basePromptConfig, options.replyMode);
 
+    // OA dynamic reply length: derive max words and range from comment (tweet being replied to)
+    let replyMaxWordsOverride: number | undefined;
+    let replyWordRange: { min: number; max: number } | undefined;
+    if (options.viewerIsOriginalAuthor && options.tweetText?.trim()) {
+      const max = getDynamicReplyMaxWords(options.tweetText);
+      const range = getDynamicReplyWordRange(options.tweetText);
+      if (max > 0 && range) {
+        replyMaxWordsOverride = max;
+        replyWordRange = range;
+      }
+    }
+
     const enhancedSystemPrompt = await buildSystemPrompt({
       baseSystemPrompt: promptConfig.systemPrompt,
       tweetAnalysis: options.tweetAnalysis,
@@ -59,6 +71,8 @@ export class GroqModelRouter {
       viewerIsOriginalAuthor: options.viewerIsOriginalAuthor,
       replyAuthorHandle: options.replyAuthorHandle,
       targetAuthorHandle: options.targetAuthorHandle,
+      replyMaxWordsOverride,
+      replyWordRange,
     });
 
     if (!groq) {
@@ -125,7 +139,7 @@ export class GroqModelRouter {
         fullReply += content;
       }
 
-      const processedReply = this.postProcessReply(fullReply, options.replyMode);
+      const processedReply = this.postProcessReply(fullReply, options.replyMode, replyMaxWordsOverride);
       const latencyMs = Date.now() - startTime;
 
       const estimatedInputTokens = Math.ceil((enhancedSystemPrompt + userPromptText).length / AI_PARAMS.TOKEN_ESTIMATION_CHARS_PER_TOKEN);

@@ -36,6 +36,14 @@ export const REPLY_LIMITS = {
   MAX_LENGTH_REDUCTION_PERCENT: 0.5,
 } as const;
 
+/** OA: when viewer is original author, reply length is derived from comment length. Tune tiers here. */
+export const OA_DYNAMIC_REPLY_TIERS = [
+  { commentWordMax: 3, replyMinWords: 1, replyMaxWords: 5 },
+  { commentWordMax: 8, replyMinWords: 6, replyMaxWords: 15 },
+  { commentWordMax: 15, replyMinWords: 16, replyMaxWords: 25 },
+  { commentWordMax: Infinity, replyMinWords: 26, replyMaxWords: 30 },
+] as const;
+
 export const QUALITY = {
   PASS_SCORE: 60,
   HIGH_SCORE: 80,

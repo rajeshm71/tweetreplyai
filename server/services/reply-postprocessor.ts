@@ -35,8 +35,9 @@ export class ReplyPostProcessor {
   /**
    * Light processing for improved drafts - skips aggressive rules that might remove improvements
    * Only applies basic cleanup: quotes, banned patterns, word count, format cleanup
+   * @param maxWordsOverride - Optional cap (e.g. OA dynamic reply length); never exceeds POST_PROCESSOR_MAX_WORDS
    */
-  processReplyLight(rawReply: string): string {
+  processReplyLight(rawReply: string, maxWordsOverride?: number): string {
     // Step 1: Store original reply for fallback (handle null/undefined)
     if (!rawReply || typeof rawReply !== 'string') {
       return '';
@@ -48,6 +49,10 @@ export class ReplyPostProcessor {
       return '';
     }
 
+    const effectiveMaxWords = maxWordsOverride != null
+      ? Math.min(maxWordsOverride, REPLY_LIMITS.POST_PROCESSOR_MAX_WORDS)
+      : REPLY_LIMITS.POST_PROCESSOR_MAX_WORDS;
+
     // Step 3: Start with original reply
     let processed = originalReply;
 
@@ -57,7 +62,7 @@ export class ReplyPostProcessor {
     // Step 4: Apply basic cleanup rules only (no aggressive removal)
     processed = this.removeWrapperQuotes(processed); // Remove quotes if AI wrapped response
     processed = this.removeBannedPatterns(processed); // Remove hashtags and banned phrases
-    processed = this.limitWordCount(processed, REPLY_LIMITS.POST_PROCESSOR_MAX_WORDS);
+    processed = this.limitWordCount(processed, effectiveMaxWords);
     
     // Step 5: Apply format cleanup rules
     processed = this.applyFormatCleanup(processed);
@@ -74,8 +79,9 @@ export class ReplyPostProcessor {
    * Main processing function - applies all rules in optimized order
    * @param rawReply - The raw reply text to process
    * @param replyMode - Optional reply mode: 'single-sentence' | 'enhanced'
+   * @param maxWordsOverride - Optional cap (e.g. OA dynamic reply length); never exceeds POST_PROCESSOR_MAX_WORDS
    */
-  processReply(rawReply: string, replyMode?: string): string {
+  processReply(rawReply: string, replyMode?: string, maxWordsOverride?: number): string {
     // Step 1: Store original reply for fallback (handle null/undefined)
     if (!rawReply || typeof rawReply !== 'string') {
       return '';
@@ -88,6 +94,12 @@ export class ReplyPostProcessor {
     }
 
     const isSingleSentence = replyMode === 'single-sentence';
+    let effectiveMaxWords = maxWordsOverride != null
+      ? Math.min(maxWordsOverride, REPLY_LIMITS.POST_PROCESSOR_MAX_WORDS)
+      : REPLY_LIMITS.POST_PROCESSOR_MAX_WORDS;
+    if (isSingleSentence && maxWordsOverride != null) {
+      effectiveMaxWords = Math.min(effectiveMaxWords, REPLY_LIMITS.SINGLE_SENTENCE_MAX_WORDS);
+    }
 
     // Step 3: Check if original has minimum words for removal operations
     const hasMinWords = this.hasMinimumWords(originalReply, REPLY_LIMITS.POST_PROCESSOR_MIN_WORDS);
@@ -101,7 +113,7 @@ export class ReplyPostProcessor {
     // Step 5: Apply previous postprocessing rules (always executed)
     processed = this.removeWrapperQuotes(processed); // Previous rule: Remove quotes if AI wrapped response
     processed = this.removeBannedPatterns(processed); // Previous rule: Remove hashtags and banned phrases
-    processed = this.limitWordCount(processed, REPLY_LIMITS.POST_PROCESSOR_MAX_WORDS);
+    processed = this.limitWordCount(processed, effectiveMaxWords);
     
     // Step 6: Apply new format cleanup rules (always executed)
     processed = this.applyFormatCleanup(processed);
@@ -133,7 +145,7 @@ export class ReplyPostProcessor {
         this.removeBannedPatterns(
           this.removeWrapperQuotes(originalReply)
         ),
-        REPLY_LIMITS.POST_PROCESSOR_MAX_WORDS
+        effectiveMaxWords
       );
       const originalWithCleanup = this.normalizeWhitespace(
         this.removeEndingPunctuation(

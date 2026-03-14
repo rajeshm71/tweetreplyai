@@ -28,6 +28,9 @@ interface PromptBuilderOptions {
   // Optional handles used only for internal role disambiguation in prompts.
   replyAuthorHandle?: string;
   targetAuthorHandle?: string;
+  /** OA dynamic reply length: when set, replace static "Keep under N words" with this range in system prompt */
+  replyMaxWordsOverride?: number;
+  replyWordRange?: { min: number; max: number };
 }
 
 export async function buildSystemPrompt(options: PromptBuilderOptions): Promise<string> {
@@ -94,6 +97,15 @@ export async function buildSystemPrompt(options: PromptBuilderOptions): Promise<
       prompt +=
         ' Do not introduce or mention any usernames or handles in the reply text that are not already present in the tweet or thread. ' ;
     }
+  }
+
+  // OA dynamic reply length: replace static word limit with range from config when provided
+  if (options.replyMaxWordsOverride != null && options.replyWordRange != null) {
+    const { min, max } = options.replyWordRange;
+    const wordLimitPhrase = min === max
+      ? `Keep under ${max} words`
+      : `Keep your reply to ${min}–${max} words`;
+    prompt = prompt.replace(/Keep under \d+ words/g, wordLimitPhrase);
   }
 
   return prompt;

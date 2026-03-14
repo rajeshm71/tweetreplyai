@@ -3,6 +3,7 @@ import { getPromptConfig, applyReplyModeToPrompt, type PromptConfig } from "./pr
 import { getOriginalAuthorPromptConfig } from "./prompts-original-author.js";
 import { replyPostProcessor } from "./reply-postprocessor.js";
 import { buildSystemPrompt, buildUserPromptWithThread } from "./prompt-builder.js";
+import { getDynamicReplyMaxWords, getDynamicReplyWordRange } from "./oa-dynamic-reply-length.js";
 import type { EnrichedTweetAnalysis } from "./tweet-analysis-agents.js";
 import { AI_MODELS, AI_PARAMS, MODEL_SPECS, REPLY_LIMITS } from "../config/constants.js";
 
@@ -76,13 +77,11 @@ export class ModelRouter {
     return getPromptConfig(promptVariation);
   }
 
-  private postProcessReply(reply: string, isImprovedDraft: boolean = false, replyMode?: string): string {
-    // For improved drafts, use lighter post-processing to preserve AI improvements
+  private postProcessReply(reply: string, isImprovedDraft: boolean = false, replyMode?: string, maxWordsOverride?: number): string {
     if (isImprovedDraft) {
-      return replyPostProcessor.processReplyLight(reply);
+      return replyPostProcessor.processReplyLight(reply, maxWordsOverride);
     }
-    // Use comprehensive postprocessor service for regular replies, passing replyMode
-    return replyPostProcessor.processReply(reply, replyMode);
+    return replyPostProcessor.processReply(reply, replyMode, maxWordsOverride);
   }
 
   async generateReply(options: ReplyOptions): Promise<ReplyResponse> {
@@ -94,6 +93,18 @@ export class ModelRouter {
 
     const promptConfig = applyReplyModeToPrompt(basePromptConfig, options.replyMode);
 
+    // OA dynamic reply length: derive max words and range from comment (tweet being replied to)
+    let replyMaxWordsOverride: number | undefined;
+    let replyWordRange: { min: number; max: number } | undefined;
+    if (options.viewerIsOriginalAuthor && options.tweetText?.trim()) {
+      const max = getDynamicReplyMaxWords(options.tweetText);
+      const range = getDynamicReplyWordRange(options.tweetText);
+      if (max > 0 && range) {
+        replyMaxWordsOverride = max;
+        replyWordRange = range;
+      }
+    }
+
     const enhancedSystemPrompt = await buildSystemPrompt({
       baseSystemPrompt: promptConfig.systemPrompt,
       tweetAnalysis: options.tweetAnalysis,
@@ -103,6 +114,8 @@ export class ModelRouter {
       viewerIsOriginalAuthor: options.viewerIsOriginalAuthor,
       replyAuthorHandle: options.replyAuthorHandle,
       targetAuthorHandle: options.targetAuthorHandle,
+      replyMaxWordsOverride,
+      replyWordRange,
     });
 
     if (!openai) {
@@ -143,7 +156,7 @@ export class ModelRouter {
         temperature: AI_PARAMS.TEMPERATURE,
       });
       const rawReply = response.output_text || "";
-      const processedReply = this.postProcessReply(rawReply, false, options.replyMode);
+      const processedReply = this.postProcessReply(rawReply, false, options.replyMode, replyMaxWordsOverride);
       const latencyMs = Date.now() - startTime;
 
       return {
