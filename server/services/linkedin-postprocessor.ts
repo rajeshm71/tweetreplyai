@@ -10,7 +10,7 @@ const LINKEDIN_CLICHE_PATTERNS = [
   /\bdeep dive\b/gi,
   /\bleverage\b/gi,
   /\bpivot\b/gi,
-  /\bgame.?changer\b/gi,
+  /\bgame[- ]?changer\b/gi,
   /\bdisruptive\b/gi,
   /\bthought leader(ship)?\b/gi,
   /\bpassionate about\b/gi,
@@ -22,6 +22,20 @@ const LINKEDIN_CLICHE_PATTERNS = [
   /^(great post|great insight|great point|amazing post|so true|absolutely|love this|this is so|wow,? this)[^a-z]/i,
 ];
 
+/** Replacements for cliché phrases so output text is actually modified. */
+const CLICHE_REPLACEMENTS: Array<{ pattern: RegExp; replacement: string }> = [
+  [/\bgame[- ]?changer\b/gi, "very useful resource"],
+  [/\blet'?s connect\b/gi, "feel free to connect"],
+  [/\bsynergy\b/gi, "good fit"],
+  [/\bvalue[- ]?add\b/gi, "value"],
+  [/\bcircle back\b/gi, "follow up"],
+  [/\btouch base\b/gi, "connect"],
+  [/\bdeep dive\b/gi, "deep look"],
+  [/\bleverage\b/gi, "use"],
+  [/\bthought leader(ship)?\b/gi, "expert"],
+  [/\bdisruptive\b/gi, "transformative"],
+].map(([p, r]) => ({ pattern: p as RegExp, replacement: r }));
+
 const META_COMMENTARY_PATTERNS = [
   /^(here'?s? (a |my )?(possible |sample |potential )?reply[:\s])/i,
   /^(reply[:\s])/i,
@@ -30,6 +44,22 @@ const META_COMMENTARY_PATTERNS = [
   /^(this (is |would be )?(a |my )?reply)/i,
   /^(i (would|could|might) (say|write|reply))/i,
 ];
+
+function stripLeadingTrailingQuotes(text: string): string {
+  return text.replace(/^[\s"'\u201C\u201D\u2018\u2019]+|[\s"'\u201C\u201D\u2018\u2019]+$/g, "").trim();
+}
+
+function replaceExclamationWithPeriod(text: string): string {
+  return text.replace(/!/g, ".");
+}
+
+function replaceClichéPhrases(text: string): string {
+  let result = text;
+  for (const { pattern, replacement } of CLICHE_REPLACEMENTS) {
+    result = result.replace(pattern, replacement);
+  }
+  return result;
+}
 
 function countWords(text: string): number {
   return text
@@ -77,10 +107,14 @@ export const linkedInPostProcessor = {
     if (!rawText || typeof rawText !== "string") return "";
 
     let text = rawText.trim();
+    text = stripLeadingTrailingQuotes(text);
 
     text = stripMetaCommentary(text);
 
     text = text.replace(/\n{3,}/g, "\n\n").trim();
+
+    text = replaceClichéPhrases(text);
+    text = replaceExclamationWithPeriod(text);
 
     warnClicheUsage(text);
 
@@ -90,8 +124,8 @@ export const linkedInPostProcessor = {
     }
 
     if (countWords(text) < LINKEDIN_REPLY_LIMITS.POST_PROCESSOR_MIN_WORDS) {
-      console.warn("[LinkedInPostprocessor] Reply too short after processing, using raw text");
-      return rawText.trim();
+      console.warn("[LinkedInPostprocessor] Reply too short after processing, returning processed text");
+      return text;
     }
 
     return text;
