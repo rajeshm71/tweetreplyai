@@ -99,18 +99,6 @@ export async function buildSystemPrompt(options: PromptBuilderOptions): Promise<
   return prompt;
 }
 
-function normalizeHandle(handle: string | null | undefined): string {
-  if (handle == null || handle === '') return '';
-  return handle.trim().replace(/^@+/, '').toLowerCase();
-}
-
-/** Returns speaker label for OA prompt: "You", "@handle", or "Them". */
-function getSpeakerLabel(author: string | null | undefined, originalAuthorNorm: string): string {
-  if (originalAuthorNorm !== '' && normalizeHandle(author) === originalAuthorNorm) return 'You';
-  const a = author?.trim();
-  if (a && a !== '' && a.toLowerCase() !== 'unknown') return '@' + a.replace(/^@+/, '');
-  return 'Them';
-}
 
 export function buildUserPromptWithThread(
   baseUserPrompt: string,
@@ -122,49 +110,31 @@ export function buildUserPromptWithThread(
     return baseUserPrompt;
   }
 
-  // Original author with thread: build OA-specific prompt (no duplication, chronological order).
+  // Original author with thread: show only your tweet and the one comment being replied to.
+  // No conversation history — keeps the prompt clean and avoids duplication/confusion.
   if (viewerIsOriginalAuthor) {
     const originalTweet = threadContext.originalTweet ?? '';
     const chain = threadContext.threadChain ?? [];
-    const currentEntry = chain.find((t) => t.isCurrent) ?? chain[threadContext.currentTweetIndex] ?? chain[chain.length - 1];
+    const rawCurrentEntry = chain.find((t) => t.isCurrent)
+      ?? chain[threadContext.currentTweetIndex]
+      ?? chain[chain.length - 1];
+
+    // Guard: if the extension sent wrong data (isCurrent on the original tweet),
+    // fall back to the last non-original entry so the original tweet never appears twice.
+    const currentEntry = rawCurrentEntry?.isOriginal
+      ? (() => {
+          console.warn('[PromptBuilder] OA: isCurrent was on the original tweet — falling back to last non-original entry. Extension may be sending wrong currentTweetIndex.');
+          return chain.slice().reverse().find((t) => !t.isOriginal) ?? rawCurrentEntry;
+        })()
+      : rawCurrentEntry;
+
     const currentTweetText = currentEntry?.text ?? '';
 
-    // Single comment: your tweet + the one comment + minimal instruction.
-    if (threadContext.threadLength === 2) {
-      return (
-        `Your tweet that started this conversation:\n"${originalTweet}"` +
-        `\n\nThe comment you're replying to:\n"${currentTweetText}"` +
-        `\n\nReply to the comment above.`
-      );
-    }
-
-    // Multi-turn: need to attribute You/Them. Fall back to single-comment if we can't.
-    const originalAuthorNorm = normalizeHandle(threadContext.originalTweetAuthor);
-    const canAttribute =
-      originalAuthorNorm !== '' &&
-      chain.some((t) => !t.isOriginal && t.author !== 'unknown' && normalizeHandle(t.author) !== '');
-
-    if (!canAttribute) {
-      return (
-        `Your tweet that started this conversation:\n"${originalTweet}"` +
-        `\n\nThe comment you're replying to:\n"${currentTweetText}"` +
-        `\n\nReply to the comment above.`
-      );
-    }
-
-    const lines: string[] = [
-      `Your tweet that started this conversation:\n"${originalTweet}"`,
-      'Conversation so far:',
-    ];
-    chain.forEach((tweet) => {
-      if (tweet.isOriginal) return;
-      const label = getSpeakerLabel(tweet.author, originalAuthorNorm);
-      lines.push(`${label}: "${tweet.text}"`);
-    });
-    const targetLabel = getSpeakerLabel(currentEntry?.author, originalAuthorNorm);
-    lines.push(`You are replying to this message from ${targetLabel}: "${currentTweetText}"`);
-    lines.push('Write your reply to that message.');
-    return lines.join('\n');
+    return (
+      `Your tweet that started this conversation:\n"${originalTweet}"` +
+      `\n\nThe comment you're replying to:\n"${currentTweetText}"` +
+      `\n\nReply to the comment above.`
+    );
   }
 
   // Non–original-author: existing thread block appended to baseUserPrompt.
