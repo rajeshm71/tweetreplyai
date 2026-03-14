@@ -104,6 +104,8 @@ export class GroqModelRouter {
       });
 
       // Collect streaming response
+      console.log('[GROQ] Streaming response...');
+      console.log('[GROQ] Chat completion:', chatCompletion);
       let fullReply = '';
       for await (const chunk of chatCompletion) {
         const content = chunk.choices[0]?.delta?.content || '';
