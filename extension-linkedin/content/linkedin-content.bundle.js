@@ -1,0 +1,551 @@
+"use strict";
+(() => {
+  // extension-linkedin/utils/auth.js
+  var AuthManager = class {
+    constructor() {
+      this.token = null;
+      this.authStatusCache = null;
+      this.cacheExpiry = 0;
+      this.apiClient = null;
+    }
+    setApiClient(apiClient) {
+      this.apiClient = apiClient;
+    }
+    async isAuthenticated(validateWithServer = false) {
+      if (!validateWithServer && this.authStatusCache && Date.now() < this.cacheExpiry) {
+        return this.authStatusCache;
+      }
+      try {
+        const response = await new Promise((resolve) => {
+          chrome.runtime.sendMessage({ action: "getAuthStatus" }, resolve);
+        });
+        const hasToken = response.authenticated;
+        this.token = response.token;
+        if (!hasToken) {
+          this.authStatusCache = false;
+          this.cacheExpiry = Date.now() + 3e4;
+          return false;
+        }
+        if (validateWithServer && this.apiClient) {
+          try {
+            await this.apiClient.getCurrentUser();
+            this.authStatusCache = true;
+            this.cacheExpiry = Date.now() + 3e4;
+            return true;
+          } catch (error) {
+            if (error.message && error.message.includes("401")) {
+              console.log("[Auth] Token validation failed (401), auto-logging out");
+              await this.signOut();
+              this.authStatusCache = false;
+              this.cacheExpiry = Date.now() + 3e4;
+              return false;
+            }
+            this.authStatusCache = false;
+            this.cacheExpiry = Date.now() + 3e4;
+            return false;
+          }
+        }
+        this.authStatusCache = hasToken;
+        this.cacheExpiry = Date.now() + 3e4;
+        return hasToken;
+      } catch (error) {
+        console.error("Failed to check auth status:", error);
+        this.authStatusCache = false;
+        return false;
+      }
+    }
+    async getToken() {
+      if (!this.token) {
+        await this.isAuthenticated();
+      }
+      return this.token;
+    }
+    async signOut() {
+      try {
+        this.token = null;
+        this.authStatusCache = false;
+        this.cacheExpiry = 0;
+        await new Promise((resolve) => {
+          chrome.runtime.sendMessage({ action: "clearAuth" }, resolve);
+        });
+        return true;
+      } catch (error) {
+        console.error("Failed to sign out:", error);
+        return false;
+      }
+    }
+    async storeToken(token) {
+      try {
+        this.token = token;
+        this.authStatusCache = true;
+        this.cacheExpiry = Date.now() + 3e4;
+        await new Promise((resolve) => {
+          chrome.runtime.sendMessage({
+            action: "storeToken",
+            token
+          }, resolve);
+        });
+        return true;
+      } catch (error) {
+        console.error("Failed to store token:", error);
+        return false;
+      }
+    }
+    // Clear cache to force re-check
+    clearCache() {
+      this.authStatusCache = null;
+      this.cacheExpiry = 0;
+    }
+  };
+
+  // extension-linkedin/config/constants.js
+  var API = {
+    DEFAULT_DOMAIN: "tweetreplyai.vercel.app",
+    LOGIN_URL: "https://tweetreplyai.vercel.app/login",
+    TAB_PATTERN: "https://tweetreplyai.vercel.app/*"
+  };
+  var TIMEOUTS = {
+    USAGE_LOAD_MS: 1e4,
+    AUTH_SYNC_DELAY_MS: 500,
+    DOM_DEBOUNCE_MS: 150,
+    BUTTON_THROTTLE_MS: 200,
+    PLACEMENT_OBSERVER_MS: 200
+  };
+  var DEFAULTS = {
+    ANALYTICS_DAYS: 30,
+    REPLY_HISTORY_LIMIT: 50
+  };
+  var VALIDATION = {
+    MIN_POST_LENGTH: 20,
+    MAX_POST_LENGTH: 700
+  };
+  var AUTH = {
+    TOKEN_EXPIRY_MS: 7 * 24 * 60 * 60 * 1e3,
+    ONE_DAY_MS: 24 * 60 * 60 * 1e3
+  };
+  var LINKEDIN = {
+    PLATFORM: "linkedin",
+    MAX_REPLY_WORDS: 60
+  };
+
+  // extension-linkedin/utils/api.js
+  var ApiClient = class {
+    constructor() {
+      this.authManager = new AuthManager();
+      this.baseUrl = null;
+    }
+    async getBaseUrl() {
+      if (!this.baseUrl) {
+        const response = await new Promise((resolve) => {
+          chrome.runtime.sendMessage({ action: "getApiDomain" }, resolve);
+        });
+        const domain = response.domain || API.DEFAULT_DOMAIN;
+        const protocol = domain.includes("localhost") ? "http" : "https";
+        this.baseUrl = `${protocol}://${domain}`;
+      }
+      return this.baseUrl;
+    }
+    async makeRequest(endpoint, options = {}) {
+      return new Promise((resolve, reject) => {
+        chrome.runtime.sendMessage(
+          {
+            action: "apiRequest",
+            endpoint,
+            method: options.method || "GET",
+            body: options.body,
+            headers: options.headers || {}
+          },
+          (response) => {
+            if (chrome.runtime.lastError) {
+              reject(new Error(chrome.runtime.lastError.message));
+              return;
+            }
+            if (!response) {
+              reject(new Error("No response from background script"));
+              return;
+            }
+            if (!response.success) {
+              if (response.status === 401) {
+                this.authManager.signOut().catch((err) => {
+                  console.error("Failed to sign out on 401:", err);
+                });
+                reject(new Error("401: Unauthorized"));
+                return;
+              }
+              if (response.status === 402) {
+                reject(new Error("402: Payment required - quota exceeded"));
+                return;
+              }
+              reject(new Error(`${response.status}: ${response.error}`));
+              return;
+            }
+            resolve(response.data);
+          }
+        );
+      });
+    }
+    async getCurrentUser() {
+      return this.makeRequest("/api/auth/user");
+    }
+    async getUsage() {
+      return this.makeRequest("/api/usage");
+    }
+    async generateReply(data) {
+      return this.makeRequest("/api/generate-reply", {
+        method: "POST",
+        body: { ...data, platform: LINKEDIN.PLATFORM }
+      });
+    }
+    async createBillingPortal() {
+      const response = await this.makeRequest("/api/billing/portal", {
+        method: "POST"
+      });
+      return response.portal_url;
+    }
+    async getPlans() {
+      return this.makeRequest("/api/plans");
+    }
+    async createCheckout(planCode) {
+      return this.makeRequest("/api/checkout", {
+        method: "POST",
+        body: { plan_code: planCode }
+      });
+    }
+    async getReplyHistory(limit = DEFAULTS.REPLY_HISTORY_LIMIT) {
+      return this.makeRequest(`/api/reply-history?limit=${limit}`);
+    }
+  };
+
+  // extension-linkedin/content/linkedin-content.js
+  var LOG_PREFIX = "[LinkedInReply]";
+  var BUTTON_CLASS = "li-ai-reply-btn";
+  var BUTTON_WRAPPER_CLASS = "li-ai-reply-btn-wrapper";
+  function log(...args) {
+    console.log(LOG_PREFIX, ...args);
+  }
+  var LinkedInReplyInjector = class {
+    constructor() {
+      if (window.__linkedInReplyInjector) {
+        return window.__linkedInReplyInjector;
+      }
+      this.authManager = new AuthManager();
+      this.apiClient = new ApiClient();
+      this.isAuthenticated = false;
+      this.observer = null;
+      this._scanTimer = null;
+      window.__linkedInReplyInjector = this;
+      this.initialize();
+    }
+    // ─── Initialization ──────────────────────────────────────────────────────────
+    async initialize() {
+      try {
+        this.isAuthenticated = await this.authManager.isAuthenticated();
+      } catch (_) {
+        this.isAuthenticated = false;
+      }
+      chrome.runtime.onMessage.addListener((message) => {
+        if (message.action === "authUpdated") {
+          this.authManager.clearCache();
+          this.authManager.isAuthenticated().then((isAuth) => {
+            this.isAuthenticated = isAuth;
+          });
+        }
+      });
+      this.startObserving();
+      this.scanForEditors();
+    }
+    // ─── DOM Observation ─────────────────────────────────────────────────────────
+    startObserving() {
+      this.observer = new MutationObserver(() => {
+        if (this._scanTimer) clearTimeout(this._scanTimer);
+        this._scanTimer = setTimeout(() => {
+          this.scanForEditors();
+          this._scanTimer = null;
+        }, TIMEOUTS.DOM_DEBOUNCE_MS);
+      });
+      this.observer.observe(document.body, { childList: true, subtree: true });
+    }
+    scanForEditors() {
+      const editors = document.querySelectorAll('.ql-editor[contenteditable="true"]');
+      for (const editor of editors) {
+        const form = this.findCommentForm(editor);
+        if (!form) continue;
+        if (form.querySelector(`.${BUTTON_CLASS}`)) continue;
+        this.injectButton(editor, form);
+      }
+    }
+    findCommentForm(editor) {
+      return editor.closest(".comments-comment-box__form") || editor.closest(".comments-reply-box__form") || editor.closest("form") || editor.closest('[class*="comment-box"]');
+    }
+    // ─── Button Injection ────────────────────────────────────────────────────────
+    injectButton(editor, form) {
+      const wrapper = document.createElement("div");
+      wrapper.className = BUTTON_WRAPPER_CLASS;
+      const btn = document.createElement("button");
+      btn.className = BUTTON_CLASS;
+      btn.setAttribute("type", "button");
+      btn.setAttribute("aria-label", "Generate AI reply with LinkedIn Reply AI");
+      btn.innerHTML = `
+      <span class="li-ai-btn-icon" aria-hidden="true">\u2728</span>
+      <span class="li-ai-btn-text">Generate Reply</span>
+    `;
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.handleGenerateReply(editor, btn);
+      });
+      wrapper.appendChild(btn);
+      const submitBtn = form.querySelector('button[type="submit"]') || form.querySelector(".comments-comment-box__submit-button") || form.querySelector('[class*="submit-button"]');
+      if (submitBtn?.parentElement) {
+        submitBtn.parentElement.insertBefore(wrapper, submitBtn);
+      } else {
+        form.appendChild(wrapper);
+      }
+      log("Button injected for editor placeholder:", editor.dataset.placeholder || "comment box");
+    }
+    // ─── Reply Generation ────────────────────────────────────────────────────────
+    async handleGenerateReply(editor, btn) {
+      if (!this.isAuthenticated) {
+        this.isAuthenticated = await this.authManager.isAuthenticated();
+      }
+      if (!this.isAuthenticated) {
+        this.setButtonState(btn, "error", "Sign in required");
+        return;
+      }
+      const context = this.extractContext(editor);
+      if (!context.postText || context.postText.length < VALIDATION.MIN_POST_LENGTH) {
+        log("Post text not found or too short:", context.postText?.length ?? 0);
+        this.setButtonState(btn, "error", "Post text not found");
+        return;
+      }
+      log("Context extracted:", {
+        preview: context.postText.substring(0, 80),
+        postId: context.postId,
+        author: context.authorName,
+        isOA: context.viewerIsOA,
+        hasThread: !!context.threadContext
+      });
+      this.setButtonState(btn, "loading");
+      try {
+        const { liPromptVariation = "default" } = await chrome.storage.local.get(["liPromptVariation"]);
+        const payload = {
+          tweet_text: context.postText,
+          tweet_id: context.postId || "",
+          author_info: { username: context.authorName },
+          prompt_variation: liPromptVariation,
+          viewer_is_original_author: context.viewerIsOA
+        };
+        if (context.threadContext) {
+          payload.thread_context = context.threadContext;
+        }
+        const response = await this.apiClient.generateReply(payload);
+        const reply = response?.reply || response?.tweet;
+        if (reply) {
+          this.insertTextIntoEditor(editor, reply);
+          this.setButtonState(btn, "done", "Reply Added \u2713");
+          setTimeout(() => this.setButtonState(btn, "default"), 2500);
+        } else {
+          this.setButtonState(btn, "error", "No reply generated");
+        }
+      } catch (error) {
+        log("Error generating reply:", error.message);
+        if (error.message?.includes("402")) {
+          this.setButtonState(btn, "error", "Quota exceeded");
+        } else if (error.message?.includes("401")) {
+          this.isAuthenticated = false;
+          this.authManager.clearCache();
+          this.setButtonState(btn, "error", "Sign in required");
+        } else {
+          this.setButtonState(btn, "error", "Error \u2014 try again");
+        }
+      }
+    }
+    // ─── Context Extraction ──────────────────────────────────────────────────────
+    extractContext(editor) {
+      const ctx = {
+        postText: "",
+        postId: null,
+        authorName: "",
+        viewerIsOA: false,
+        threadContext: null
+      };
+      const postContainer = this.findPostContainer(editor);
+      if (!postContainer) {
+        log("Could not find post container from editor");
+        return ctx;
+      }
+      ctx.postText = this.extractPostText(postContainer);
+      ctx.postId = this.extractPostId(postContainer);
+      ctx.authorName = this.extractAuthorName(postContainer);
+      ctx.viewerIsOA = this.detectViewerIsOA(postContainer);
+      ctx.threadContext = this.buildThreadContext(editor, postContainer);
+      return ctx;
+    }
+    findPostContainer(editor) {
+      let el = editor.parentElement;
+      while (el && el !== document.body) {
+        if (el.hasAttribute("data-urn") || el.classList.contains("feed-shared-update-v2") || el.classList.contains("occludable-update") || el.classList.contains("main-feed-activity-card")) {
+          return el;
+        }
+        el = el.parentElement;
+      }
+      const allUrns = document.querySelectorAll("[data-urn]");
+      for (const urn of allUrns) {
+        if (urn.contains(editor)) return urn;
+      }
+      return editor.closest("article") || document.querySelector("main");
+    }
+    extractPostText(container) {
+      const selectors = [
+        ".feed-shared-update-v2__description .break-words",
+        ".update-components-text .break-words",
+        ".feed-shared-text-view .break-words",
+        ".feed-shared-update-v2__description",
+        ".update-components-text",
+        ".feed-shared-inline-show-more-text .break-words",
+        ".attributed-text-segment-list__content",
+        '[data-test-id="main-feed-activity-card__commentary"]'
+      ];
+      for (const sel of selectors) {
+        const el = container.querySelector(sel);
+        if (el) {
+          const text = el.textContent?.trim();
+          if (text && text.length > 10) {
+            return text.substring(0, VALIDATION.MAX_POST_LENGTH);
+          }
+        }
+      }
+      return "";
+    }
+    extractPostId(container) {
+      const urnEl = container.hasAttribute("data-urn") ? container : container.querySelector("[data-urn]");
+      if (urnEl) return urnEl.getAttribute("data-urn");
+      const idEl = container.querySelector("[data-id]");
+      if (idEl) return idEl.getAttribute("data-id");
+      return null;
+    }
+    extractAuthorName(container) {
+      const selectors = [
+        '.update-components-actor__name span[dir="ltr"]',
+        '.feed-shared-actor__name span[dir="ltr"]',
+        ".update-components-actor__name",
+        ".feed-shared-actor__name"
+      ];
+      for (const sel of selectors) {
+        const el = container.querySelector(sel);
+        if (el) {
+          const text = (el.firstChild?.nodeType === Node.TEXT_NODE ? el.firstChild.textContent : el.textContent)?.trim().split("\n")[0];
+          if (text) return text;
+        }
+      }
+      return "";
+    }
+    detectViewerIsOA(container) {
+      const indicators = [
+        '[aria-label*="Edit post"]',
+        '[aria-label*="Delete post"]',
+        '[aria-label*="Edit article"]'
+      ];
+      for (const sel of indicators) {
+        if (container.querySelector(sel)) {
+          log("OA detected via selector:", sel);
+          return true;
+        }
+      }
+      return false;
+    }
+    buildThreadContext(editor, postContainer) {
+      const commentItem = editor.closest(".comments-comment-item") || editor.closest('[class*="reply-container"]');
+      if (!commentItem) return null;
+      const commentContent = commentItem.querySelector(".comments-comment-item__main-content") || commentItem.querySelector(".feed-shared-main-content") || commentItem.previousElementSibling?.querySelector(".comments-comment-item__main-content");
+      const commentText = commentContent?.textContent?.trim();
+      if (!commentText || commentText.length < 5) return null;
+      const originalPostText = this.extractPostText(postContainer);
+      return {
+        isReply: true,
+        originalTweet: originalPostText || null,
+        originalTweetAuthor: null,
+        threadChain: [
+          { text: originalPostText || "", author: "unknown", isOriginal: true, isCurrent: false },
+          { text: commentText.substring(0, 300), author: "unknown", isOriginal: false, isCurrent: true }
+        ],
+        currentTweetIndex: 1,
+        threadLength: 2
+      };
+    }
+    // ─── Text Insertion ──────────────────────────────────────────────────────────
+    insertTextIntoEditor(editor, text) {
+      editor.focus();
+      const quill = this.getQuillInstance(editor);
+      if (quill) {
+        try {
+          quill.setText(text);
+          quill.setSelection(text.length, 0);
+          log("Text inserted via Quill API");
+          return;
+        } catch (e) {
+          log("Quill API failed, trying execCommand:", e.message);
+        }
+      }
+      try {
+        const selection = window.getSelection();
+        const range = document.createRange();
+        range.selectNodeContents(editor);
+        selection.removeAllRanges();
+        selection.addRange(range);
+        const inserted = document.execCommand("insertText", false, text);
+        if (inserted) {
+          log("Text inserted via execCommand");
+          return;
+        }
+      } catch (e) {
+        log("execCommand failed:", e.message);
+      }
+      editor.innerHTML = `<p>${text}</p>`;
+      editor.dispatchEvent(new InputEvent("input", { bubbles: true, composed: true }));
+      editor.dispatchEvent(new Event("change", { bubbles: true }));
+      log("Text inserted via innerHTML fallback");
+    }
+    getQuillInstance(editor) {
+      const container = editor.closest(".ql-container");
+      if (!container) return null;
+      if (container.__quill) return container.__quill;
+      const parent = container.parentElement;
+      if (parent?.__quill) return parent.__quill;
+      return null;
+    }
+    // ─── Button States ───────────────────────────────────────────────────────────
+    setButtonState(btn, state, message) {
+      const textEl = btn.querySelector(".li-ai-btn-text");
+      btn.disabled = false;
+      btn.classList.remove(
+        `${BUTTON_CLASS}--loading`,
+        `${BUTTON_CLASS}--done`,
+        `${BUTTON_CLASS}--error`
+      );
+      switch (state) {
+        case "loading":
+          if (textEl) textEl.textContent = "Generating\u2026";
+          btn.disabled = true;
+          btn.classList.add(`${BUTTON_CLASS}--loading`);
+          break;
+        case "done":
+          if (textEl) textEl.textContent = message || "Reply Added \u2713";
+          btn.classList.add(`${BUTTON_CLASS}--done`);
+          break;
+        case "error":
+          if (textEl) textEl.textContent = message || "Error \u2014 try again";
+          btn.classList.add(`${BUTTON_CLASS}--error`);
+          setTimeout(() => this.setButtonState(btn, "default"), 3e3);
+          break;
+        default:
+          if (textEl) textEl.textContent = "Generate Reply";
+      }
+    }
+    destroy() {
+      this.observer?.disconnect();
+      if (this._scanTimer) clearTimeout(this._scanTimer);
+    }
+  };
+  new LinkedInReplyInjector();
+})();

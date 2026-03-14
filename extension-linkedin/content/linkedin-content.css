@@ -1,0 +1,163 @@
+/* ============================================================
+   LinkedIn Reply AI — Content Script Styles
+   Scoped to .li-ai-reply-btn-wrapper to avoid conflicts with
+   LinkedIn's own stylesheet.
+   ============================================================ */
+
+/* ── Wrapper ──────────────────────────────────────────────── */
+.li-ai-reply-btn-wrapper {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 8px;
+}
+
+/* ── Base Button ──────────────────────────────────────────── */
+.li-ai-reply-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  background: #ffffff;
+  color: #0a66c2;
+  border: 1.5px solid #0a66c2;
+  border-radius: 16px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease, border-color 150ms ease,
+    box-shadow 150ms ease, transform 100ms ease;
+  white-space: nowrap;
+  user-select: none;
+  -webkit-user-select: none;
+  outline: none;
+  /* Sit naturally within LinkedIn's action bar */
+  vertical-align: middle;
+}
+
+.li-ai-reply-btn:hover:not(:disabled) {
+  background: #0a66c2;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(10, 102, 194, 0.35);
+  transform: translateY(-1px);
+}
+
+.li-ai-reply-btn:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+.li-ai-reply-btn:focus-visible {
+  outline: 2px solid #0a66c2;
+  outline-offset: 2px;
+}
+
+/* ── Icon ─────────────────────────────────────────────────── */
+.li-ai-btn-icon {
+  font-size: 12px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+/* ── Text Label ───────────────────────────────────────────── */
+.li-ai-btn-text {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* ── Loading State ────────────────────────────────────────── */
+.li-ai-reply-btn--loading {
+  background: #f3f2ef;
+  color: #666666;
+  border-color: #c5c5c5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.li-ai-reply-btn--loading:hover {
+  background: #f3f2ef;
+  color: #666666;
+  border-color: #c5c5c5;
+  box-shadow: none;
+  transform: none;
+}
+
+/* Spinner animation on the icon when loading */
+.li-ai-reply-btn--loading .li-ai-btn-icon {
+  display: inline-block;
+  animation: li-ai-spin 1s linear infinite;
+}
+
+@keyframes li-ai-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* ── Done State ───────────────────────────────────────────── */
+.li-ai-reply-btn--done {
+  background: #057642;
+  color: #ffffff;
+  border-color: #057642;
+}
+
+.li-ai-reply-btn--done:hover {
+  background: #046236;
+  color: #ffffff;
+  border-color: #046236;
+  box-shadow: 0 2px 8px rgba(5, 118, 66, 0.35);
+}
+
+/* ── Error State ──────────────────────────────────────────── */
+.li-ai-reply-btn--error {
+  background: #fff0ef;
+  color: #cc1016;
+  border-color: #cc1016;
+}
+
+.li-ai-reply-btn--error:hover {
+  background: #cc1016;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(204, 16, 22, 0.35);
+}
+
+/* ── Dark Theme Support ───────────────────────────────────── */
+@media (prefers-color-scheme: dark) {
+  .li-ai-reply-btn {
+    background: transparent;
+    color: #70b5f9;
+    border-color: #70b5f9;
+  }
+
+  .li-ai-reply-btn:hover:not(:disabled) {
+    background: #70b5f9;
+    color: #1b1f23;
+  }
+
+  .li-ai-reply-btn--loading {
+    background: rgba(255, 255, 255, 0.08);
+    color: #999999;
+    border-color: #555555;
+  }
+
+  .li-ai-reply-btn--done {
+    background: #057642;
+    color: #ffffff;
+    border-color: #057642;
+  }
+
+  .li-ai-reply-btn--error {
+    background: rgba(204, 16, 22, 0.15);
+    color: #ff6b70;
+    border-color: #ff6b70;
+  }
+}
+
+/* ── Reduced Motion ───────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .li-ai-reply-btn,
+  .li-ai-btn-icon {
+    transition: none;
+    animation: none;
+  }
+}

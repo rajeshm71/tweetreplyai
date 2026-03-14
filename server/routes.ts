@@ -12,6 +12,8 @@ import { usageService } from "./services/usage.js";
 import { whitelistService } from "./services/whitelistService.js";
 import { runGuardrail, generateGuardrailFriendlyReply, type GuardrailResult } from "./services/guardrail.js";
 import { ANALYTICS, PERIODS, QUALITY, VALIDATION } from "./config/constants.js";
+// Static import: avoids per-request dynamic import; LinkedIn pipeline remains isolated from Twitter path.
+import { generateLinkedInReply } from "./services/linkedin-ai-service.js";
 import { z, ZodError } from "zod";
 import passport from "passport";
 import session from "express-session";
@@ -635,6 +637,8 @@ export async function registerRoutes(app: Express): Promise<Express> {
           has_poll: z.boolean().optional(),
           timestamp: z.string().optional(),
         }).optional(),
+        platform: z.enum(['twitter', 'linkedin']).optional().default('twitter'),
+        viewer_is_original_author: z.boolean().optional(),
       });
 
       const { 
@@ -643,6 +647,8 @@ export async function registerRoutes(app: Express): Promise<Express> {
         model_key, 
         prompt_variation,
         reply_mode,
+        platform,
+        viewer_is_original_author,
         author_info,
         thread_context,
         conversation_context,
@@ -865,6 +871,96 @@ export async function registerRoutes(app: Express): Promise<Express> {
           },
         });
       }
+
+      // --- LinkedIn independent pipeline (bypasses all Twitter-specific analysis) ---
+      if (platform === 'linkedin') {
+        const linkedInResponse = await generateLinkedInReply({
+          postText: tweet_text,
+          postId: tweet_id,
+          promptVariation: prompt_variation,
+          viewerIsOriginalAuthor: viewer_is_original_author ?? false,
+          authorInfo: author_info,
+          // Map shared normalizedThreadContext (uses Twitter field names) to the
+          // LinkedIn-specific interface that uses originalPost/originalPostAuthor.
+          threadContext: normalizedThreadContext
+            ? {
+                isReply: normalizedThreadContext.isReply,
+                originalPost: normalizedThreadContext.originalTweet,
+                originalPostAuthor: normalizedThreadContext.originalTweetAuthor,
+                threadChain: normalizedThreadContext.threadChain,
+                currentTweetIndex: normalizedThreadContext.currentTweetIndex,
+                threadLength: normalizedThreadContext.threadLength,
+              }
+            : undefined,
+        });
+
+        await storage.createReplyEvent({
+          id: crypto.randomUUID(),
+          userId,
+          modelKey: linkedInResponse.modelKey,
+          promptKey: prompt_variation || 'default',
+          latencyMs: linkedInResponse.latencyMs,
+          tokensUsed: (linkedInResponse.tokensIn || 0) + (linkedInResponse.tokensOut || 0),
+          cost: 0,
+        });
+
+        const historyEntry = await storage.createReplyHistory({
+          id: crypto.randomUUID(),
+          userId,
+          originalTweet: tweet_text,
+          generatedReply: linkedInResponse.reply,
+          modelKey: linkedInResponse.modelKey,
+          promptKey: prompt_variation || 'default',
+          qualityScore: 0,
+          replyMode: 'enhanced',
+          performance: {
+            qualityParameters: [],
+            latencyMs: linkedInResponse.latencyMs,
+          },
+        });
+
+        const liTokensIn = linkedInResponse.tokensIn ?? 0;
+        const liTokensOut = linkedInResponse.tokensOut ?? 0;
+        const liCost = aiRouter.estimateCost(linkedInResponse.modelKey, liTokensIn, liTokensOut);
+        const liStageBreakdown = [
+          ...guardrailClassificationStage,
+          {
+            stage: 'reply_generation',
+            modelKey: linkedInResponse.modelKey,
+            promptTokens: liTokensIn,
+            completionTokens: liTokensOut,
+            totalTokens: liTokensIn + liTokensOut,
+            cost: liCost,
+            latencyMs: linkedInResponse.latencyMs,
+          },
+        ];
+
+        await storage.createReplyTokens({
+          id: crypto.randomUUID(),
+          userId,
+          replyHistoryId: historyEntry.id,
+          stageBreakdown: liStageBreakdown,
+          totalPromptTokens: liTokensIn,
+          totalCompletionTokens: liTokensOut,
+          totalTokens: liTokensIn + liTokensOut,
+          totalCost: liCost,
+        });
+
+        return res.json({
+          reply: linkedInResponse.reply,
+          qualityScore: null,
+          used: updatedCounter.creditsUsed ?? (updatedCounter.repliesUsed * 2),
+          limit: updatedCounter.limit,
+          resetAt: updatedCounter.resetAt,
+          analysis: null,
+          meta: {
+            modelKey: linkedInResponse.modelKey,
+            latencyMs: linkedInResponse.latencyMs,
+            qualityBreakdown: [],
+          },
+        });
+      }
+      // --- End LinkedIn pipeline ---
 
       // Prepare author info for analysis
       const authorInfo = author_info && author_info.username ? {

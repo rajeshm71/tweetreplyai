@@ -44,6 +44,12 @@ export const OA_DYNAMIC_REPLY_TIERS = [
   { commentWordMax: Infinity, replyMinWords: 26, replyMaxWords: 30 },
 ] as const;
 
+export const LINKEDIN_REPLY_LIMITS = {
+  MAX_WORDS: 60,
+  POST_PROCESSOR_MAX_WORDS: 60,
+  POST_PROCESSOR_MIN_WORDS: 5,
+} as const;
+
 export const QUALITY = {
   PASS_SCORE: 60,
   HIGH_SCORE: 80,
