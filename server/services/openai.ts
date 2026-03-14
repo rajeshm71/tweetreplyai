@@ -119,7 +119,8 @@ export class ModelRouter {
       const userPromptText = buildUserPromptWithThread(
         promptConfig.userPrompt(options.tweetText),
         options.threadContext,
-        { replyAuthorHandle: options.replyAuthorHandle, targetAuthorHandle: options.targetAuthorHandle }
+        { replyAuthorHandle: options.replyAuthorHandle, targetAuthorHandle: options.targetAuthorHandle },
+        options.viewerIsOriginalAuthor
       );
 
       console.log('[PROMPT] [OpenAI] generate-reply', {

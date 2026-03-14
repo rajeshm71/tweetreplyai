@@ -76,7 +76,8 @@ export class GroqModelRouter {
       const userPromptText = buildUserPromptWithThread(
         promptConfig.userPrompt(options.tweetText),
         options.threadContext,
-        { replyAuthorHandle: options.replyAuthorHandle, targetAuthorHandle: options.targetAuthorHandle }
+        { replyAuthorHandle: options.replyAuthorHandle, targetAuthorHandle: options.targetAuthorHandle },
+        options.viewerIsOriginalAuthor
       );
 
       // Log full prompts used for generate-reply

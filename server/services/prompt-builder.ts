@@ -55,7 +55,8 @@ export async function buildSystemPrompt(options: PromptBuilderOptions): Promise<
     const contextPrompt = tweetContextAnalyzer.generateContextPrompt(
       options.tweetContext,
       authorInfo,
-      conversationContext
+      conversationContext,
+      options.viewerIsOriginalAuthor
     );
     if (contextPrompt) {
       prompt = `${prompt}\n\n${contextPrompt}`;
@@ -75,54 +76,112 @@ export async function buildSystemPrompt(options: PromptBuilderOptions): Promise<
   // When we know both handles, give the model explicit internal role labels while
   // explicitly forbidding it from introducing new handles in the reply text.
   if (options.replyAuthorHandle && options.targetAuthorHandle) {
-    prompt +=
-      '\n\nInternally, treat the reply author as @' +
-      options.replyAuthorHandle +
-      ' and the tweet author they are responding to as @' +
-      options.targetAuthorHandle +
-      '. Write the reply from the reply author\'s point of view, speaking to the tweet author.';
+    if (options.viewerIsOriginalAuthor) {
+      prompt +=
+        '\n\nInternally: you (reply author) are @' +
+        options.replyAuthorHandle +
+        ', the person you are replying to is @' +
+        options.targetAuthorHandle +
+        '. Do not introduce or mention any usernames or handles in the reply text that are not already present in the tweet or thread.';
+    } else {
+      prompt +=
+        '\n\nInternally, treat the reply author as @' +
+        options.replyAuthorHandle +
+        ' and the tweet author they are responding to as @' +
+        options.targetAuthorHandle +
+        '. Write the reply from the reply author\'s point of view, speaking to the tweet author.';
 
-    prompt +=
-      ' Do not introduce or mention any usernames or handles in the reply text that are not already present in the tweet or thread. ' ;
+      prompt +=
+        ' Do not introduce or mention any usernames or handles in the reply text that are not already present in the tweet or thread. ' ;
+    }
   }
 
   return prompt;
 }
 
+function normalizeHandle(handle: string | null | undefined): string {
+  if (handle == null || handle === '') return '';
+  return handle.trim().replace(/^@+/, '').toLowerCase();
+}
+
 export function buildUserPromptWithThread(
   baseUserPrompt: string,
   threadContext?: PromptBuilderOptions['threadContext'],
-  handles?: { replyAuthorHandle?: string; targetAuthorHandle?: string }
+  handles?: { replyAuthorHandle?: string; targetAuthorHandle?: string },
+  viewerIsOriginalAuthor?: boolean
 ): string {
-  let userPrompt = baseUserPrompt;
-  if (threadContext?.isReply && threadContext.threadLength > 1) {
-    if (threadContext.originalTweet) {
-      userPrompt += `\n\nNote: This tweet is a reply. The original tweet that started this conversation was: "${threadContext.originalTweet}"`;
-    }
-    if (threadContext.threadChain?.length > 1) {
-      userPrompt += `\n\nFull conversation thread:`;
-      let replyIndex = 0;
-      threadContext.threadChain.forEach((tweet) => {
-        if (tweet.isOriginal || tweet.isCurrent) return; // already in Note and at top
-        replyIndex += 1;
-        userPrompt += `\nReply ${replyIndex}: "${tweet.text}"`;
-      });
-    }
-
-    // Make the target tweet explicit so the model replies to the correct message.
-    userPrompt +=
-      '\n\nThe tweet you are replying to is the one shown above as Tweet: "...". ' +
-      'The original tweet and other replies listed here are background context only. ';
-
-    // When handle information is available, reinforce roles generically (without
-    // surfacing actual handles).
-    if (handles?.replyAuthorHandle && handles?.targetAuthorHandle) {
-      userPrompt +=
-        'You are writing on behalf of the person who will send this reply (the reply author), responding to that tweet written by another user (the tweet author). ';
-    }
-
-    userPrompt +=
-      'Write a reply that directly responds to that tweet from the logged-in user\'s perspective.';
+  if (!threadContext?.isReply || threadContext.threadLength <= 1) {
+    return baseUserPrompt;
   }
+
+  // Original author with thread: build OA-specific prompt (no duplication, chronological order).
+  if (viewerIsOriginalAuthor) {
+    const originalTweet = threadContext.originalTweet ?? '';
+    const chain = threadContext.threadChain ?? [];
+    const currentEntry = chain.find((t) => t.isCurrent) ?? chain[threadContext.currentTweetIndex] ?? chain[chain.length - 1];
+    const currentTweetText = currentEntry?.text ?? '';
+
+    // Single comment: your tweet + the one comment + minimal instruction.
+    if (threadContext.threadLength === 2) {
+      return (
+        `Your tweet that started this conversation:\n"${originalTweet}"` +
+        `\n\nThe comment you're replying to:\n"${currentTweetText}"` +
+        `\n\nReply to the comment above.`
+      );
+    }
+
+    // Multi-turn: need to attribute You/Them. Fall back to single-comment if we can't.
+    const originalAuthorNorm = normalizeHandle(threadContext.originalTweetAuthor);
+    const canAttribute =
+      originalAuthorNorm !== '' &&
+      chain.some((t) => !t.isOriginal && t.author !== 'unknown' && normalizeHandle(t.author) !== '');
+
+    if (!canAttribute) {
+      return (
+        `Your tweet that started this conversation:\n"${originalTweet}"` +
+        `\n\nThe comment you're replying to:\n"${currentTweetText}"` +
+        `\n\nReply to the comment above.`
+      );
+    }
+
+    const lines: string[] = [
+      `Your tweet that started this conversation:\n"${originalTweet}"`,
+      'Conversation so far:',
+    ];
+    chain.forEach((tweet) => {
+      if (tweet.isOriginal) return;
+      const isYou = normalizeHandle(tweet.author) === originalAuthorNorm;
+      lines.push(`${isYou ? 'You' : 'Them'}: "${tweet.text}"`);
+    });
+    lines.push('Reply to the last message above.');
+    return lines.join('\n');
+  }
+
+  // Non–original-author: existing thread block appended to baseUserPrompt.
+  let userPrompt = baseUserPrompt;
+  if (threadContext.originalTweet) {
+    userPrompt += `\n\nNote: This tweet is a reply. The original tweet that started this conversation was: "${threadContext.originalTweet}"`;
+  }
+  if (threadContext.threadChain?.length > 1) {
+    userPrompt += `\n\nFull conversation thread:`;
+    let replyIndex = 0;
+    threadContext.threadChain.forEach((tweet) => {
+      if (tweet.isOriginal || tweet.isCurrent) return;
+      replyIndex += 1;
+      userPrompt += `\nReply ${replyIndex}: "${tweet.text}"`;
+    });
+  }
+
+  userPrompt +=
+    '\n\nThe tweet you are replying to is the one shown above as Tweet: "...". ' +
+    'The original tweet and other replies listed here are background context only. ';
+
+  if (handles?.replyAuthorHandle && handles?.targetAuthorHandle) {
+    userPrompt +=
+      'You are writing on behalf of the person who will send this reply (the reply author), responding to that tweet written by another user (the tweet author). ';
+  }
+  userPrompt +=
+    'Write a reply that directly responds to that tweet from the logged-in user\'s perspective.';
+
   return userPrompt;
 }

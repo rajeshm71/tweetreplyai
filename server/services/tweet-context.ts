@@ -229,7 +229,7 @@ export class TweetContextAnalyzer {
   }
 
   // Helper method to generate context-aware prompt additions
-  generateContextPrompt(tweetContext: TweetContext, authorInfo?: AuthorInfo, conversationContext?: ConversationContext): string {
+  generateContextPrompt(tweetContext: TweetContext, authorInfo?: AuthorInfo, conversationContext?: ConversationContext, viewerIsOriginalAuthor?: boolean): string {
     const contextParts: string[] = [];
     
     // Add sentiment context
@@ -260,7 +260,8 @@ export class TweetContextAnalyzer {
     }
     
     // ENHANCED THREAD CONTEXT (NEW - Most Important)
-    if (conversationContext && conversationContext.isThread && conversationContext.threadLength > 1) {
+    // Skip thread instruction when reply owner is the original author (base prompt already establishes their thread).
+    if (conversationContext && conversationContext.isThread && conversationContext.threadLength > 1 && !viewerIsOriginalAuthor) {
       // LOG: Display original tweet and thread chain being used in prompt
       if (conversationContext.originalTweet) {
         console.log('[TweetContext] 📋 THREAD CONTEXT FOR PROMPT:');
