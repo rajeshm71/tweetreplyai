@@ -93,6 +93,9 @@ export async function generateLinkedInReply(
     threadContext: options.threadContext,
   });
 
+  console.log("[LinkedIn] System prompt:", systemPrompt);
+  console.log("[LinkedIn] User prompt:", userPrompt);
+
   let rawResult: { text: string; tokensIn: number; tokensOut: number };
 
   try {

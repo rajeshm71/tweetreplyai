@@ -36,6 +36,18 @@ const CLICHE_REPLACEMENTS: Array<{ pattern: RegExp; replacement: string }> = [
   [/\bdisruptive\b/gi, "transformative"],
 ].map(([p, r]) => ({ pattern: p as RegExp, replacement: r }));
 
+/** Same as X: hollow openers to strip from the start of the reply. */
+const START_PHRASES = [
+  "Couldn't agree more",
+  "Preach",
+  "Spot on",
+  "Sounds like",
+  "Feels like",
+  "Looks like",
+  "Seems like",
+  "makes sense",
+];
+
 const META_COMMENTARY_PATTERNS = [
   /^(here'?s? (a |my )?(possible |sample |potential )?reply[:\s])/i,
   /^(reply[:\s])/i,
@@ -45,12 +57,50 @@ const META_COMMENTARY_PATTERNS = [
   /^(i (would|could|might) (say|write|reply))/i,
 ];
 
+function escapeRegex(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function stripRemovableStartPhrases(text: string): string {
+  if (!text || !text.trim()) return text;
+  let cleaned = text.trim();
+  for (const phrase of START_PHRASES) {
+    const escaped = escapeRegex(phrase);
+    const withPunct = new RegExp(`^${escaped}\\s*[.,!?:;]+\\s*`, "i");
+    if (withPunct.test(cleaned)) {
+      cleaned = cleaned.replace(withPunct, "").trim();
+      break;
+    }
+    const withSpace = new RegExp(`^${escaped}\\s+`, "i");
+    if (withSpace.test(cleaned)) {
+      cleaned = cleaned.replace(withSpace, "").trim();
+      break;
+    }
+  }
+  return cleaned;
+}
+
 function stripLeadingTrailingQuotes(text: string): string {
   return text.replace(/^[\s"'\u201C\u201D\u2018\u2019]+|[\s"'\u201C\u201D\u2018\u2019]+$/g, "").trim();
 }
 
 function replaceExclamationWithPeriod(text: string): string {
   return text.replace(/!/g, ".");
+}
+
+/** Same as X: replace em/en dashes with space; preserve digit-digit (e.g. 9-5). */
+function replaceDashes(text: string): string {
+  if (!text) return text;
+  let cleaned = text.replace(/(\d)[—–](\d)/g, "$1-$2");
+  cleaned = cleaned.replace(/—/g, " ").replace(/–/g, " ");
+  cleaned = cleaned.replace(/(\w)-(\w)/g, (match, before, after) => {
+    if (/\d/.test(before) && /\d/.test(after)) return match;
+    return `${before} ${after}`;
+  });
+  cleaned = cleaned.replace(/\s+-\s+/g, " ");
+  cleaned = cleaned.replace(/^-\s+/g, "");
+  cleaned = cleaned.replace(/\s+-$/g, "");
+  return cleaned;
 }
 
 function replaceClichéPhrases(text: string): string {
@@ -99,8 +149,11 @@ export const linkedInPostProcessor = {
 
     text = text.replace(/\n{3,}/g, "\n\n").trim();
 
+    text = stripRemovableStartPhrases(text);
+
     text = replaceClichéPhrases(text);
     text = replaceExclamationWithPeriod(text);
+    text = replaceDashes(text);
 
     warnClicheUsage(text);
 

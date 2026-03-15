@@ -44,6 +44,15 @@ const HOLLOW_OPENERS = [
   /^wow,?\s/i,
   /^very insightful/i,
   /^100%/,
+  // Same as X start phrases (in case any slip through post-processor)
+  /^couldn't agree more/i,
+  /^preach/i,
+  /^spot on/i,
+  /^sounds like/i,
+  /^feels like/i,
+  /^looks like/i,
+  /^seems like/i,
+  /^makes sense/i,
 ];
 
 const META_COMMENTARY = [
