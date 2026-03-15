@@ -36,10 +36,6 @@ interface PromptBuilderOptions {
 export async function buildSystemPrompt(options: PromptBuilderOptions): Promise<string> {
   let prompt = options.baseSystemPrompt;
 
-  if (options.tweetAnalysis?.enrichedContextPrompt) {
-    prompt = `${options.tweetAnalysis.enrichedContextPrompt}\n\n${prompt}`;
-  }
-
   if (options.tweetContext) {
     const authorInfo = options.authorInfo?.username ? {
       username: options.authorInfo.username,
@@ -92,11 +88,13 @@ export async function buildSystemPrompt(options: PromptBuilderOptions): Promise<
         options.replyAuthorHandle +
         ' and the tweet author they are responding to as @' +
         options.targetAuthorHandle +
-        '. Write the reply from the reply author\'s point of view, speaking to the tweet author.';
-
-      prompt +=
-        ' Do not introduce or mention any usernames or handles in the reply text that are not already present in the tweet or thread. ' ;
+        '. Do not introduce or mention any usernames or handles in the reply text that are not already present in the tweet or thread.';
     }
+  }
+
+  // Tweet-specific analysis and reply guidance last (after persona/handles)
+  if (options.tweetAnalysis?.enrichedContextPrompt) {
+    prompt += '\n\n' + options.tweetAnalysis.enrichedContextPrompt;
   }
 
   // OA dynamic reply length: replace static word limit with range from config when provided
