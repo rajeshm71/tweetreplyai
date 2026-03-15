@@ -924,6 +924,11 @@ export async function registerRoutes(app: Express): Promise<Express> {
           cost: 0,
         });
 
+        console.log('[API] createReplyHistory (LinkedIn)', {
+          platform: 'linkedin',
+          tweetTextLen: typeof tweet_text === 'string' ? tweet_text.length : 0,
+          replyLen: typeof linkedInResponse?.reply === 'string' ? linkedInResponse.reply.length : 0,
+        });
         const historyEntry = await storage.createReplyHistory({
           id: crypto.randomUUID(),
           userId,

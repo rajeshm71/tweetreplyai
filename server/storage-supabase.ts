@@ -858,6 +858,27 @@ export class SupabaseStorage implements IStorage {
 
   // Reply history operations
   async createReplyHistory(replyHistory: InsertReplyHistory): Promise<ReplyHistory> {
+    const LOG_PREFIX = '[createReplyHistory]';
+
+    // Diagnostic: incoming payload (safe, no huge strings)
+    const incomingKeys = Object.keys(replyHistory);
+    const perfType = typeof replyHistory.performance;
+    let perfStringify: string;
+    try {
+      perfStringify = replyHistory.performance != null ? JSON.stringify(replyHistory.performance) : 'null';
+    } catch (e) {
+      perfStringify = 'stringify error';
+    }
+    const originalTweetLen = typeof replyHistory.originalTweet === 'string' ? replyHistory.originalTweet.length : 0;
+    const generatedReplyLen = typeof replyHistory.generatedReply === 'string' ? replyHistory.generatedReply.length : 0;
+    console.log(LOG_PREFIX, 'incoming', {
+      keys: incomingKeys,
+      types: Object.fromEntries(incomingKeys.map((k) => [k, typeof (replyHistory as unknown as Record<string, unknown>)[k]])),
+      performance: { typeof: perfType, stringifyLen: perfStringify.length, stringifyPrefix: perfStringify.substring(0, 200) },
+      originalTweetLen,
+      generatedReplyLen,
+    });
+
     // Normalize performance to valid JSON for jsonb column (avoid PGRST102 "Empty or invalid json")
     let performanceJson: Record<string, unknown> | null = null;
     if (replyHistory.performance != null && typeof replyHistory.performance === 'object') {
@@ -885,14 +906,48 @@ export class SupabaseStorage implements IStorage {
       created_at: replyHistory.createdAt ? replyHistory.createdAt.toISOString() : new Date().toISOString()
     };
 
+    // Diagnostic: payload we send to Supabase
+    let payloadStringifyOk = false;
+    let payloadStringLen = 0;
+    let payloadStringPrefix = '';
+    try {
+      const payloadStr = JSON.stringify(dbReplyHistory);
+      payloadStringifyOk = true;
+      payloadStringLen = payloadStr.length;
+      payloadStringPrefix = payloadStr.substring(0, 300);
+    } catch (e) {
+      console.log(LOG_PREFIX, 'JSON.stringify(dbReplyHistory) threw', e);
+    }
+    const perfJsonType = typeof dbReplyHistory.performance;
+    let perfJsonStr = '';
+    try {
+      perfJsonStr = dbReplyHistory.performance != null ? JSON.stringify(dbReplyHistory.performance) : 'null';
+    } catch {
+      perfJsonStr = 'stringify error';
+    }
+    console.log(LOG_PREFIX, 'payload', {
+      stringifyOk: payloadStringifyOk,
+      payloadStringLen,
+      payloadPrefix: payloadStringPrefix,
+      performance: { typeof: perfJsonType, stringifyLen: perfJsonStr.length, stringifyPrefix: perfJsonStr.substring(0, 200) },
+    });
+
     const { data, error } = await supabase
       .from('reply_history')
       .insert(dbReplyHistory)
       .select('id, user_id, original_tweet, generated_reply, model_key, prompt_variation, quality_score, was_used, used_at, tweet_url, performance, reply_mode, created_at')
       .single();
-    
+
     if (error) {
       console.error('Supabase createReplyHistory error:', error);
+      console.log(LOG_PREFIX, 'on error diagnostic', {
+        incomingKeys,
+        originalTweetLen,
+        generatedReplyLen,
+        payloadStringifyOk,
+        payloadStringLen,
+        performanceType: perfJsonType,
+      });
       throw error;
     }
 
