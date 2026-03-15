@@ -628,6 +628,17 @@ export class ReplyPostProcessor {
   }
 
   /**
+   * Strip " on [phrase]," after Congrat(s)/Congratulation(s) to reduce repetitive template.
+   * E.g. "Congratulation on finally seeing some MRR, that's awesome." -> "Congratulation, that's awesome."
+   */
+  private stripCongratsOnPhrase(text: string): string {
+    if (!text) {
+      return text;
+    }
+    return text.replace(/\b(Congrat(?:ulation)?s?)\s+on\s+[^,.]+,\s*/gi, "$1, ");
+  }
+
+  /**
    * Helper method: Apply all format cleanup rules
    * Centralizes format cleanup logic for reuse in fallback scenarios
    */
@@ -637,6 +648,7 @@ export class ReplyPostProcessor {
     }
     let cleaned = text;
     cleaned = this.replaceExclamationWithPeriod(cleaned); // Replace ! with . (Twitter)
+    cleaned = this.stripCongratsOnPhrase(cleaned); // Strip "Congrats on [X], " template
     cleaned = this.replaceDashes(cleaned); // Rule 2: Replace dashes, preserve digits
     cleaned = this.replaceSemicolons(cleaned); // Replace semicolons with commas
     cleaned = this.removeSingleQuotes(cleaned); // Remove quotes around words
