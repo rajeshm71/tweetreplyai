@@ -889,9 +889,9 @@ export class SupabaseStorage implements IStorage {
       }
     }
 
-    // Map camelCase fields to snake_case database columns
-    const dbReplyHistory = {
-      id: replyHistory.id,
+    // Map camelCase fields to snake_case database columns.
+    // Build payload without undefined; omit performance when null (some PostgREST setups reject null jsonb).
+    const dbReplyHistory: Record<string, unknown> = {
       user_id: replyHistory.userId,
       original_tweet: replyHistory.originalTweet ?? '',
       generated_reply: replyHistory.generatedReply ?? '',
@@ -901,10 +901,11 @@ export class SupabaseStorage implements IStorage {
       was_used: replyHistory.wasUsed ?? false,
       used_at: replyHistory.usedAt ? replyHistory.usedAt.toISOString() : null,
       tweet_url: replyHistory.tweetUrl ?? null,
-      performance: performanceJson,
       reply_mode: replyHistory.replyMode ?? 'enhanced',
       created_at: replyHistory.createdAt ? replyHistory.createdAt.toISOString() : new Date().toISOString()
     };
+    if (replyHistory.id) dbReplyHistory.id = replyHistory.id;
+    if (performanceJson != null) dbReplyHistory.performance = performanceJson;
 
     // Diagnostic: payload we send to Supabase
     let payloadStringifyOk = false;
@@ -932,9 +933,10 @@ export class SupabaseStorage implements IStorage {
       performance: { typeof: perfJsonType, stringifyLen: perfJsonStr.length, stringifyPrefix: perfJsonStr.substring(0, 200) },
     });
 
+    // PostgREST can expect array body for insert; single-object can trigger PGRST102 in some setups
     const { data, error } = await supabase
       .from('reply_history')
-      .insert(dbReplyHistory)
+      .insert([dbReplyHistory])
       .select('id, user_id, original_tweet, generated_reply, model_key, prompt_variation, quality_score, was_used, used_at, tweet_url, performance, reply_mode, created_at')
       .single();
 
