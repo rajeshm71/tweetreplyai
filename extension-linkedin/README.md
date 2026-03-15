@@ -88,6 +88,7 @@ When submitting to the Chrome Web Store (or similar):
 ## Structure
 
 - **content/** — Injected into LinkedIn pages; finds comment boxes, extracts post/thread context, calls API, inserts reply.
+- **docs/LINKEDIN-DOM-SCAN.md** — Reference: LinkedIn DOM structure and the `scanLinkedInFull()` console script for debugging comment/reply selectors.
 - **popup/** — Sign in/out, usage, plan, Default Tone setting.
 - **background/** — Service worker; auth sync from web app, API proxy, install welcome.
 - **utils/** — API client (adds `platform: 'linkedin'`), auth manager.

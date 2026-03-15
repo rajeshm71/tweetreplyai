@@ -239,6 +239,7 @@
       this.isAuthenticated = false;
       this.observer = null;
       this._scanTimer = null;
+      this._loggedInUser = null;
       window.__linkedInReplyInjector = this;
       this.initialize();
     }
@@ -402,6 +403,7 @@
       ctx.postId = this.extractPostId(postContainer);
       ctx.authorName = this.extractAuthorName(postContainer);
       log("extractContext: post", { postTextLen: ctx.postText?.length ?? 0, postId: ctx.postId?.substring(0, 40), author: ctx.authorName?.substring(0, 30) });
+      if (ctx.authorName) log("extractContext: post author", { author: ctx.authorName.substring(0, 40) });
       ctx.viewerIsOA = this.detectViewerIsOA(postContainer);
       log("extractContext: viewerIsOA (is other = !viewerIsOA)", { viewerIsOA: ctx.viewerIsOA, isOther: !ctx.viewerIsOA });
       ctx.threadContext = this.buildThreadContext(editor, postContainer);
@@ -487,26 +489,115 @@
       if (idEl) return idEl.getAttribute("data-id");
       return null;
     }
+    /**
+     * Extract post author display name from the post container (DOM-aligned with LINKEDIN-DOM-SCAN).
+     * Scoped to container so we get the author of the specific post, not another card/comment.
+     */
     extractAuthorName(container) {
-      const selectors = [
-        '.update-components-actor__name span[dir="ltr"]',
-        '.feed-shared-actor__name span[dir="ltr"]',
-        ".update-components-actor__name",
-        ".feed-shared-actor__name"
-      ];
-      for (const sel of selectors) {
-        const el = container.querySelector(sel);
-        if (el) {
-          const text = (el.firstChild?.nodeType === Node.TEXT_NODE ? el.firstChild.textContent : el.textContent)?.trim().split("\n")[0];
-          if (text) return text;
+      if (!container) return "";
+      let name = "";
+      const actorEl = container.querySelector('[class*="update-components-actor"]') || container.querySelector(".feed-shared-actor");
+      if (actorEl) {
+        const nameSpan = [...actorEl.querySelectorAll("span")].find((el) => {
+          if (el.getAttribute("aria-hidden") !== "true") return false;
+          if (el.children.length !== 0) return false;
+          const t = el.innerText?.trim();
+          if (!t || t.length === 0) return false;
+          const cls = typeof el.className === "string" ? el.className : "";
+          if (cls.includes("visually-hidden")) return false;
+          return true;
+        });
+        if (nameSpan) {
+          const t = (nameSpan.innerText?.trim() || "").split("\n")[0]?.trim();
+          if (t) name = t;
+        }
+        if (!name) {
+          const profileLink = actorEl.querySelector('a[href*="/in/"], a[href*="/company/"]');
+          const ariaLabel = profileLink?.getAttribute("aria-label")?.trim();
+          if (ariaLabel) {
+            const cleaned = ariaLabel.replace(/^View\s+/, "").replace(/'s\s+.*$/i, "").trim();
+            if (cleaned) name = cleaned;
+          }
         }
       }
-      return "";
+      if (!name) {
+        const selectors = [
+          '.update-components-actor__name span[dir="ltr"]',
+          '.feed-shared-actor__name span[dir="ltr"]',
+          ".update-components-actor__name",
+          ".feed-shared-actor__name"
+        ];
+        for (const sel of selectors) {
+          const el = container.querySelector(sel);
+          if (el) {
+            const text = (el.firstChild?.nodeType === Node.TEXT_NODE ? el.firstChild.textContent : el.textContent)?.trim().split("\n")[0]?.trim();
+            if (text) {
+              name = text;
+              break;
+            }
+          }
+        }
+      }
+      return name || "";
+    }
+    /**
+     * Get logged-in user from DOM (LINKEDIN-DOM-SCAN getLoggedInUser strategies, DOM-only).
+     * Cached on instance for OA detection. Used to compare with post author.
+     */
+    getLoggedInUserFromDOM() {
+      if (this._loggedInUser !== null) return this._loggedInUser;
+      let name = "";
+      let slug = null;
+      let profileUrl = null;
+      let link = null;
+      const navLink = document.querySelector('[class*="global-nav__me"] a[href*="/in/"]');
+      const navImg = document.querySelector('[class*="global-nav__me"] img') || document.querySelector(".global-nav__me-photo");
+      if (navLink) {
+        link = navLink;
+        const raw = link.href || "";
+        profileUrl = raw.split("?")[0] || null;
+        slug = profileUrl && profileUrl.match(/\/in\/([^/?]+)/) ? profileUrl.match(/\/in\/([^/?]+)/)[1] : null;
+        if (navImg && navImg.alt) name = navImg.alt.trim();
+      }
+      if (!link) {
+        const withImg = [...document.querySelectorAll('a[href*="/in/"]')].filter((a) => a.querySelector("img"));
+        const selfLink = withImg[0];
+        if (selfLink) {
+          link = selfLink;
+          const raw = link.href || "";
+          profileUrl = raw.split("?")[0] || null;
+          slug = profileUrl && profileUrl.match(/\/in\/([^/?]+)/) ? profileUrl.match(/\/in\/([^/?]+)/)[1] : null;
+          const selfImg = selfLink.querySelector("img");
+          if (!name && selfImg && selfImg.alt)
+            name = selfImg.alt.replace(/^Photo of\s+/i, "").trim();
+        }
+      }
+      if (!link) {
+        this._loggedInUser = null;
+        return null;
+      }
+      if (!name) name = "";
+      const result = { name, slug, profileUrl };
+      this._loggedInUser = result;
+      return result;
+    }
+    /**
+     * Get post author profile (slug, profileUrl) from post container for OA comparison.
+     */
+    getPostAuthorProfileFromContainer(container) {
+      if (!container) return { slug: null, profileUrl: null, isCompany: false };
+      const actorEl = container.querySelector('[class*="update-components-actor"]') || container.querySelector(".feed-shared-actor");
+      const profileLink = actorEl?.querySelector('a[href*="/in/"], a[href*="/company/"]');
+      if (!profileLink || !profileLink.href) return { slug: null, profileUrl: null, isCompany: false };
+      const rawUrl = profileLink.href;
+      const cleanUrl = rawUrl.split("?")[0];
+      const slug = cleanUrl.match(/\/in\/([^/?]+)/)?.[1] || null;
+      const isCompany = rawUrl.includes("/company/");
+      return { slug, profileUrl: cleanUrl, isCompany };
     }
     /**
      * Detects if the viewer is the original author of the post.
-     * Can be wrong when the overflow menu was never opened (Edit/Delete not in DOM).
-     * The "You" fallback is best-effort.
+     * Uses Edit/Delete, "You", then logged-in user vs post author comparison (slug/url/name).
      */
     detectViewerIsOA(container) {
       const indicators = [
@@ -516,7 +607,7 @@
       ];
       for (const sel of indicators) {
         if (container.querySelector(sel)) {
-          log("detectViewerIsOA: OA detected via Edit/Delete selector", sel);
+          log("detectViewerIsOA: OA via Edit/Delete");
           return true;
         }
       }
@@ -531,12 +622,31 @@
         if (el) {
           const text = (el.firstChild?.nodeType === Node.TEXT_NODE ? el.firstChild.textContent : el.textContent)?.trim().split("\n")[0] ?? "";
           if (text === "You" || /^You\b/.test(text)) {
-            log('detectViewerIsOA: OA detected via actor "You" fallback');
+            log("detectViewerIsOA: OA via You");
             return true;
           }
         }
       }
-      log('detectViewerIsOA: not OA (viewer is "other")', { checkedEditDelete: true, checkedYouFallback: true });
+      const me = this.getLoggedInUserFromDOM();
+      const postAuthor = this.getPostAuthorProfileFromContainer(container);
+      const postAuthorName = this.extractAuthorName(container);
+      const normalizeUrl = (url) => url && typeof url === "string" ? url.trim().toLowerCase().replace(/\/$/, "") : "";
+      const normalizeName = (n) => n && typeof n === "string" ? n.trim().toLowerCase().replace(/\s+/g, " ") : "";
+      if (me) {
+        if (postAuthor.slug && me.slug && postAuthor.slug.toLowerCase() === me.slug.toLowerCase()) {
+          log("detectViewerIsOA: OA via slug match");
+          return true;
+        }
+        if (postAuthor.profileUrl && me.profileUrl && normalizeUrl(postAuthor.profileUrl) === normalizeUrl(me.profileUrl)) {
+          log("detectViewerIsOA: OA via profileUrl match");
+          return true;
+        }
+        if (me.name && postAuthorName && normalizeName(postAuthorName) === normalizeName(me.name)) {
+          log("detectViewerIsOA: OA via name match");
+          return true;
+        }
+      }
+      log("detectViewerIsOA: not OA (no match)");
       return false;
     }
     /**
@@ -596,8 +706,29 @@
         });
       }
       log("buildThreadContext: commentItem", { found: !!commentItem, via: commentItem ? editor.closest(".comments-comment-item") ? "comments-comment-item" : "reply-container" : "none" });
+      let commentText = null;
+      if (placeholderIntent === "reply" || isReplyToCommentByDom) {
+        const commentArticle = editor.closest("article.comments-comment-entity");
+        if (commentArticle) {
+          const textEl = commentArticle.querySelector("span.comments-comment-item__main-content");
+          const t = textEl?.textContent?.trim();
+          if (t && t.length >= 5) {
+            commentText = t;
+            log("buildThreadContext: found comment via article.comments-comment-entity", commentText.length, "chars");
+          }
+        }
+      }
       const commentBodySelectors = [
         ".comments-comment-item__main-content",
+        ".comments-comment-item_main-content",
+        // single underscore - actual LinkedIn class
+        ".feed-shared-main-content--comment",
+        "section.comments-comment-entity__content",
+        ".feed-shared-inline-show-more-text",
+        ".comments-comment-item__inline-show-more-text",
+        // double underscore (current LinkedIn DOM)
+        ".comments-comment-item_inline-show-more-text",
+        '[class*="comment-item_main-content"]',
         ".comments-comment-item__description",
         ".comments-comment-item__content",
         ".comments-comment-item .update-components-text",
@@ -616,6 +747,13 @@
             if (t && t.length >= 5) return t;
           }
         }
+        const contentSection = root.matches?.("section.comments-comment-entity__content") ? root : root.querySelector?.("section.comments-comment-entity__content");
+        if (contentSection) {
+          const clone = contentSection.cloneNode(true);
+          clone.querySelectorAll("form, button, .ql-editor, .comments-comment-box").forEach((el) => el.remove());
+          const t = clone.textContent?.trim();
+          if (t && t.length >= 5) return t;
+        }
         const item = root.matches?.(".comments-comment-item") ? root : root.querySelector?.(".comments-comment-item");
         if (item) {
           const clone = item.cloneNode(true);
@@ -625,12 +763,11 @@
         }
         return null;
       }
-      let commentText = null;
-      if (commentItem) {
+      if (!commentText && commentItem) {
         const commentContent = commentItem.querySelector(".comments-comment-item__main-content") || commentItem.querySelector(".feed-shared-main-content") || commentItem.previousElementSibling?.querySelector(".comments-comment-item__main-content");
         commentText = commentContent?.textContent?.trim();
         log("buildThreadContext: commentItem found", commentText ? `comment length ${commentText.length}` : "no body");
-      } else if (isReplyBoxForm) {
+      } else if (!commentText && isReplyBoxForm) {
         log("buildThreadContext: reply-to-comment path (comments-reply-box); form class:", form?.className?.substring(0, 80));
         let searchRoot = form.previousElementSibling || form.parentElement;
         while (searchRoot && !commentText) {
@@ -639,10 +776,16 @@
           if (!commentText) searchRoot = searchRoot.parentElement;
         }
         if (!commentText) log("buildThreadContext: reply-box fallback could not find comment text");
-      } else if (isCrWrapper) {
+      } else if (!commentText && isCrWrapper) {
         const replyWrapper = this.getReplyWrapperElement(form);
         log("buildThreadContext: reply-to-comment path (--cr wrapper); replyWrapper:", !!replyWrapper);
-        if (replyWrapper?.previousElementSibling) {
+        const replyThreadItem = replyWrapper?.closest?.(".comments-thread-item");
+        const commentThreadItem = replyThreadItem?.previousElementSibling;
+        if (replyThreadItem && commentThreadItem) {
+          commentText = getCommentTextFromRoot(commentThreadItem);
+          if (commentText) log("buildThreadContext: --cr found comment via comments-thread-item previous sibling", commentText.length, "chars");
+        }
+        if (!commentText && replyWrapper?.previousElementSibling) {
           commentText = getCommentTextFromRoot(replyWrapper.previousElementSibling);
           if (commentText) log("buildThreadContext: --cr found comment via wrapper.previousElementSibling", commentText.length, "chars");
           if (!commentText) {
@@ -694,12 +837,15 @@
         return null;
       }
       const originalPostText = this.extractPostText(postContainer);
+      const postAuthorName = this.extractAuthorName(postContainer);
+      const originalTweetAuthor = postAuthorName && postAuthorName.trim() ? postAuthorName.trim().slice(0, 50) : null;
+      const authorLabel = originalTweetAuthor || "unknown";
       const built = {
         isReply: true,
         originalTweet: originalPostText || null,
-        originalTweetAuthor: null,
+        originalTweetAuthor,
         threadChain: [
-          { text: originalPostText || "", author: "unknown", isOriginal: true, isCurrent: false },
+          { text: originalPostText || "", author: authorLabel, isOriginal: true, isCurrent: false },
           { text: safeTruncate(commentText, 300), author: "unknown", isOriginal: false, isCurrent: true }
         ],
         currentTweetIndex: 1,
