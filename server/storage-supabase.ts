@@ -858,19 +858,29 @@ export class SupabaseStorage implements IStorage {
 
   // Reply history operations
   async createReplyHistory(replyHistory: InsertReplyHistory): Promise<ReplyHistory> {
+    // Normalize performance to valid JSON for jsonb column (avoid PGRST102 "Empty or invalid json")
+    let performanceJson: Record<string, unknown> | null = null;
+    if (replyHistory.performance != null && typeof replyHistory.performance === 'object') {
+      try {
+        performanceJson = JSON.parse(JSON.stringify(replyHistory.performance)) as Record<string, unknown>;
+      } catch {
+        performanceJson = {};
+      }
+    }
+
     // Map camelCase fields to snake_case database columns
     const dbReplyHistory = {
       id: replyHistory.id,
       user_id: replyHistory.userId,
-      original_tweet: replyHistory.originalTweet,
-      generated_reply: replyHistory.generatedReply,
+      original_tweet: replyHistory.originalTweet ?? '',
+      generated_reply: replyHistory.generatedReply ?? '',
       model_key: replyHistory.modelKey,
       prompt_variation: replyHistory.promptKey || null,
-      quality_score: replyHistory.qualityScore,
-      was_used: replyHistory.wasUsed || false,
+      quality_score: replyHistory.qualityScore ?? null,
+      was_used: replyHistory.wasUsed ?? false,
       used_at: replyHistory.usedAt ? replyHistory.usedAt.toISOString() : null,
-      tweet_url: replyHistory.tweetUrl,
-      performance: replyHistory.performance,
+      tweet_url: replyHistory.tweetUrl ?? null,
+      performance: performanceJson,
       reply_mode: replyHistory.replyMode ?? 'enhanced',
       created_at: replyHistory.createdAt ? replyHistory.createdAt.toISOString() : new Date().toISOString()
     };
@@ -882,7 +892,7 @@ export class SupabaseStorage implements IStorage {
       .single();
     
     if (error) {
-      console.error('Supabase createReplyHistory error (line 388):', error);
+      console.error('Supabase createReplyHistory error:', error);
       throw error;
     }
 

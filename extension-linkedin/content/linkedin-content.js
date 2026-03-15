@@ -405,16 +405,92 @@ class LinkedInReplyInjector {
     return false;
   }
 
+  /**
+   * Returns true if the form is inside LinkedIn's "comment reply" wrapper (comments-comment-box--cr).
+   */
+  isReplyToCommentForm(form) {
+    return !!this.getReplyWrapperElement(form);
+  }
+
+  /**
+   * Returns the ancestor element that has comments-comment-box--cr (the reply wrapper).
+   * Used to find the parent comment via previousElementSibling of this wrapper.
+   */
+  getReplyWrapperElement(form) {
+    if (!form) return null;
+    let el = form.parentElement;
+    for (let i = 0; i < 15 && el; i++) {
+      const cls = el.className && typeof el.className === 'string' ? el.className : '';
+      if (cls.includes('comments-comment-box--cr') || cls.includes('comment-box--cr')) return el;
+      el = el.parentElement;
+    }
+    return null;
+  }
+
+  /**
+   * Uses the editor placeholder to decide: "Add a comment..." = comment on post, "Add a reply..." = reply to comment.
+   * Returns 'comment' | 'reply' | null (null = unknown, fall back to DOM).
+   */
+  getPlaceholderIntent(editor) {
+    const raw = (editor?.dataset?.placeholder ?? editor?.getAttribute?.('data-placeholder') ?? '').trim().toLowerCase();
+    if (!raw) return null;
+    if (raw.includes('reply') || raw.includes('répondre')) return 'reply';
+    if (raw.includes('comment')) return 'comment';
+    return null;
+  }
+
   buildThreadContext(editor, postContainer) {
     const form = this.findCommentForm(editor);
     const formClass = form?.className ?? '(no form)';
     log('buildThreadContext: form', { hasForm: !!form, formClass: typeof formClass === 'string' ? formClass.substring(0, 80) : formClass });
 
-    // Primary: reply editor inside or adjacent to .comments-comment-item
+    // --- Decide: reply to post vs reply to comment. Placeholder is the source of truth. ---
+    const placeholderIntent = this.getPlaceholderIntent(editor);
+    if (placeholderIntent === 'comment') {
+      log('Detected: reply-to-post (comment on post)', { reason: 'placeholder indicates "Add a comment..."' });
+      return null;
+    }
+    if (placeholderIntent === 'reply') {
+      log('Detected: reply-to-comment', { reason: 'placeholder indicates "Add a reply..."' });
+    }
+
+    // If placeholder was unknown, fall back to DOM: commentItem, reply-box form, or --cr wrapper
     const commentItem =
       editor.closest('.comments-comment-item') ||
       editor.closest('[class*="reply-container"]');
+    const isReplyBoxForm = !!(form?.classList?.contains?.('comments-reply-box__form') || form?.className?.includes?.('comments-reply-box'));
+    const isCrWrapper = this.isReplyToCommentForm(form);
+    const isReplyToCommentByDom = !!commentItem || isReplyBoxForm || isCrWrapper;
+
+    if (placeholderIntent === null && !isReplyToCommentByDom) {
+      log('Detected: reply-to-post', { reason: 'placeholder unknown and no reply DOM cues' });
+      return null;
+    }
+    if (placeholderIntent === null && isReplyToCommentByDom) {
+      log('Detected: reply-to-comment', {
+        reason: commentItem ? 'editor inside comment item' : isReplyBoxForm ? 'reply-box form' : 'comments-comment-box--cr wrapper',
+      });
+    }
     log('buildThreadContext: commentItem', { found: !!commentItem, via: commentItem ? (editor.closest('.comments-comment-item') ? 'comments-comment-item' : 'reply-container') : 'none' });
+
+    const commentBodySelectors = [
+      '.comments-comment-item__main-content',
+      '.feed-shared-main-content',
+      '[class*="comment-item__main-content"]',
+      '[class*="main-content"]',
+    ];
+
+    function getCommentTextFromRoot(root) {
+      if (!root) return null;
+      for (const sel of commentBodySelectors) {
+        const el = root.querySelector?.(sel) || (root.matches?.(sel) ? root : null);
+        if (el) {
+          const t = el.textContent?.trim();
+          if (t && t.length >= 5) return t;
+        }
+      }
+      return null;
+    }
 
     let commentText = null;
     if (commentItem) {
@@ -424,33 +500,67 @@ class LinkedInReplyInjector {
         commentItem.previousElementSibling?.querySelector('.comments-comment-item__main-content');
       commentText = commentContent?.textContent?.trim();
       log('buildThreadContext: commentItem found', commentText ? `comment length ${commentText.length}` : 'no body');
-    } else if (form?.classList?.contains('comments-reply-box__form') || form?.className?.includes?.('comments-reply-box')) {
+    } else if (isReplyBoxForm) {
       log('buildThreadContext: reply-to-comment path (comments-reply-box); form class:', form?.className?.substring(0, 80));
-      // Fallback: form is reply box; find comment body from form's parent/sibling
-      const commentBodySelectors = [
-        '.comments-comment-item__main-content',
-        '.feed-shared-main-content',
-        '[class*="comment-item__main-content"]',
-        '[class*="main-content"]',
-      ];
       let searchRoot = form.previousElementSibling || form.parentElement;
       while (searchRoot && !commentText) {
-        for (const sel of commentBodySelectors) {
-          const el = searchRoot.querySelector?.(sel) || (searchRoot.matches?.(sel) ? searchRoot : null);
-          if (el) {
-            const t = el.textContent?.trim();
-            if (t && t.length >= 5) {
-              commentText = t;
-              log('buildThreadContext: reply-box fallback found comment', t.length, 'chars');
+        commentText = getCommentTextFromRoot(searchRoot);
+        if (commentText) log('buildThreadContext: reply-box fallback found comment', commentText.length, 'chars');
+        if (!commentText) searchRoot = searchRoot.parentElement;
+      }
+      if (!commentText) log('buildThreadContext: reply-box fallback could not find comment text');
+    } else if (isCrWrapper) {
+      // Reply box is inside comments-comment-box--cr. Parent comment is usually the previous sibling of that wrapper.
+      const replyWrapper = this.getReplyWrapperElement(form);
+      log('buildThreadContext: reply-to-comment path (--cr wrapper); replyWrapper:', !!replyWrapper);
+
+      // Strategy 1: Comment block is the immediate previous sibling of the --cr wrapper (DOM: [comment][reply-form-wrapper])
+      if (replyWrapper?.previousElementSibling) {
+        commentText = getCommentTextFromRoot(replyWrapper.previousElementSibling);
+        if (commentText) log('buildThreadContext: --cr found comment via wrapper.previousElementSibling', commentText.length, 'chars');
+        if (!commentText) {
+          const item = replyWrapper.previousElementSibling.querySelector?.('.comments-comment-item');
+          if (item) commentText = getCommentTextFromRoot(item);
+          if (commentText) log('buildThreadContext: --cr found comment via .comments-comment-item in previous sibling', commentText.length, 'chars');
+        }
+      }
+
+      // Strategy 2: Walk previous siblings of form parents (original fallback)
+      if (!commentText) {
+        let searchRoot = form?.parentElement?.previousElementSibling ?? form?.previousElementSibling ?? replyWrapper ?? form?.parentElement;
+        for (let steps = 0; steps < 8 && searchRoot && !commentText; steps++) {
+          commentText = getCommentTextFromRoot(searchRoot);
+          if (commentText) {
+            log('buildThreadContext: --cr fallback found comment (walk)', commentText.length, 'chars');
+            break;
+          }
+          const commentItemEl = searchRoot.querySelector?.('.comments-comment-item');
+          if (commentItemEl) commentText = getCommentTextFromRoot(commentItemEl);
+          if (commentText) {
+            log('buildThreadContext: --cr fallback found comment via .comments-comment-item', commentText.length, 'chars');
+            break;
+          }
+          searchRoot = searchRoot.previousElementSibling || searchRoot.parentElement;
+        }
+      }
+
+      // Strategy 3 (out-of-box): Walk backward from reply wrapper to find the nearest comment block before it in DOM
+      if (!commentText && replyWrapper) {
+        let prev = replyWrapper.previousElementSibling;
+        for (let w = 0; w < 12 && prev; w++) {
+          const item = prev.classList?.contains?.('comments-comment-item') ? prev : prev.querySelector?.('.comments-comment-item');
+          if (item) {
+            commentText = getCommentTextFromRoot(item);
+            if (commentText) {
+              log('buildThreadContext: --cr found comment via walk-back from wrapper', commentText.length, 'chars');
               break;
             }
           }
+          prev = prev.previousElementSibling;
         }
-        if (!commentText) searchRoot = searchRoot.parentElement;
       }
-      if (!commentText) log('buildThreadContext: reply-box fallback could not find comment text (comment-on-comment may be missed)');
-    } else {
-      log('buildThreadContext: no commentItem and not reply-box form (comment-on-comment not recognized)', { formClass: formClass.substring(0, 60) });
+
+      if (!commentText) log('buildThreadContext: --cr fallback could not find comment text');
     }
 
     if (!commentText || commentText.length < 5) {
