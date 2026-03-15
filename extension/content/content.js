@@ -27,6 +27,7 @@ class TwitterReplyInjector {
     this.injectedContainers = new Set(); // Track injected container IDs
     this.currentReplyTargetArticle = null; // Tweet article when user clicked Reply (for scoped current-tweet extraction)
     this._replyTargetClearTimer = null;
+    this.pendingReplyTarget = null; // { username, tweetId, setAt } — for counting reply only on Send click
     this._originalTweetCache = null; // { statusId, text, author, fromDom } — survives DOM virtualization
     this.lastNonComposePath = window.location.pathname;
     this.urlTrackingInterval = setInterval(() => {
@@ -324,6 +325,49 @@ class TwitterReplyInjector {
         const target = e.target;
         if (!target) return;
 
+        // Branch 1: Send button in reply composer — count reply only when user actually sends
+        // 1a: Legacy path when X uses tweetComposer (e.g. inline reply)
+        const composerContainer = target.closest('[data-testid="tweetComposer"]');
+        const submitButton = target.closest('[data-testid="tweetButton"], [data-testid="tweetButtonInline"]');
+        if (composerContainer && submitButton && composerContainer.contains(submitButton) && this.isReplyComposer(composerContainer)) {
+          const pending = this.pendingReplyTarget;
+          const maxAgeMs = 10 * 60 * 1000; // 10 minutes
+          if (pending && pending.username && pending.username !== 'unknown' && (Date.now() - pending.setAt) < maxAgeMs) {
+            this.trackReply(pending.username).catch(err => {
+              console.warn('[TweetReply] Reply tracking failed:', err);
+            });
+            setTimeout(() => this.updateReplyCountsOnTweets(), 600);
+          }
+          this.pendingReplyTarget = null;
+          return;
+        }
+
+        // 1b: Modal reply — X uses role="dialog" (no tweetComposer). Send button is tweetButton inside dialog.
+        const dialog = target.closest('[role="dialog"]');
+        const sendBtnInDialog = target.closest('[data-testid="tweetButton"], [data-testid="tweetButtonInline"]');
+        if (dialog && sendBtnInDialog && dialog.contains(sendBtnInDialog)) {
+          let usernameToTrack = null;
+          const pending = this.pendingReplyTarget;
+          const maxAgeMs = 10 * 60 * 1000; // 10 minutes
+          if (pending && pending.username && pending.username !== 'unknown' && (Date.now() - pending.setAt) < maxAgeMs) {
+            usernameToTrack = pending.username;
+          }
+          if (!usernameToTrack) {
+            const replyTargetArticle = dialog.querySelector('article[data-testid="tweet"]');
+            if (replyTargetArticle) {
+              usernameToTrack = this.extractUsernameFromTweetSync(replyTargetArticle);
+            }
+          }
+          if (usernameToTrack && usernameToTrack !== 'unknown') {
+            this.trackReply(usernameToTrack).catch(err => {
+              console.warn('[TweetReply] Reply tracking failed:', err);
+            });
+            setTimeout(() => this.updateReplyCountsOnTweets(), 600);
+          }
+          this.pendingReplyTarget = null;
+          return;
+        }
+
         // Check if clicked element is a Reply button
         const isReplyButton = target.matches('[data-testid="reply"]') ||
                              target.closest('[data-testid="reply"]') ||
@@ -357,21 +401,14 @@ class TwitterReplyInjector {
           this._replyTargetClearTimer = null;
         }, 2500);
 
-        // Track reply in background (non-blocking, fire-and-forget)
-        // Don't await - execute in parallel with auto-like so tracking doesn't block auto-like
-        // Fire and forget - execute asynchronously without blocking
-        this.extractUsernameFromTweet(tweetArticle).then(username => {
-          if (username && username !== 'unknown') {
-            this.trackReply(username).catch(err => {
-              console.warn('[TweetReply] Reply tracking failed:', err);
-            });
-          }
-        }).catch(error => {
-          // Silently fail - tracking shouldn't block auto-like
-          console.warn('[TweetReply] Failed to extract username for tracking:', error);
-        });
+        // Store pending reply target synchronously so it is set before user can click Send
+        const tweetId = this.getTweetIdFromArticle(tweetArticle);
+        const username = this.extractUsernameFromTweetSync(tweetArticle);
+        if (username && username !== 'unknown') {
+          this.pendingReplyTarget = { username, tweetId: tweetId || null, setAt: Date.now() };
+        }
 
-        // Execute auto-like asynchronously (don't wait for tracking)
+        // Execute auto-like asynchronously (don't wait for pending-reply-target)
         // Use setTimeout to defer slightly and avoid race conditions with Twitter's handlers
         this.isAutoLikeEnabled().then(autoLikeEnabled => {
           if (autoLikeEnabled) {

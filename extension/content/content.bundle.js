@@ -285,6 +285,7 @@
       this.injectedContainers = /* @__PURE__ */ new Set();
       this.currentReplyTargetArticle = null;
       this._replyTargetClearTimer = null;
+      this.pendingReplyTarget = null;
       this._originalTweetCache = null;
       this.lastNonComposePath = window.location.pathname;
       this.urlTrackingInterval = setInterval(() => {
@@ -509,6 +510,44 @@
         try {
           const target = e.target;
           if (!target) return;
+          const composerContainer = target.closest('[data-testid="tweetComposer"]');
+          const submitButton = target.closest('[data-testid="tweetButton"], [data-testid="tweetButtonInline"]');
+          if (composerContainer && submitButton && composerContainer.contains(submitButton) && this.isReplyComposer(composerContainer)) {
+            const pending = this.pendingReplyTarget;
+            const maxAgeMs = 10 * 60 * 1e3;
+            if (pending && pending.username && pending.username !== "unknown" && Date.now() - pending.setAt < maxAgeMs) {
+              this.trackReply(pending.username).catch((err) => {
+                console.warn("[TweetReply] Reply tracking failed:", err);
+              });
+              setTimeout(() => this.updateReplyCountsOnTweets(), 600);
+            }
+            this.pendingReplyTarget = null;
+            return;
+          }
+          const dialog = target.closest('[role="dialog"]');
+          const sendBtnInDialog = target.closest('[data-testid="tweetButton"], [data-testid="tweetButtonInline"]');
+          if (dialog && sendBtnInDialog && dialog.contains(sendBtnInDialog)) {
+            let usernameToTrack = null;
+            const pending = this.pendingReplyTarget;
+            const maxAgeMs = 10 * 60 * 1e3;
+            if (pending && pending.username && pending.username !== "unknown" && Date.now() - pending.setAt < maxAgeMs) {
+              usernameToTrack = pending.username;
+            }
+            if (!usernameToTrack) {
+              const replyTargetArticle = dialog.querySelector('article[data-testid="tweet"]');
+              if (replyTargetArticle) {
+                usernameToTrack = this.extractUsernameFromTweetSync(replyTargetArticle);
+              }
+            }
+            if (usernameToTrack && usernameToTrack !== "unknown") {
+              this.trackReply(usernameToTrack).catch((err) => {
+                console.warn("[TweetReply] Reply tracking failed:", err);
+              });
+              setTimeout(() => this.updateReplyCountsOnTweets(), 600);
+            }
+            this.pendingReplyTarget = null;
+            return;
+          }
           const isReplyButton = target.matches('[data-testid="reply"]') || target.closest('[data-testid="reply"]') || target.matches('button[aria-label*="Reply" i]') || target.closest('button[aria-label*="Reply" i]') || target.matches('[role="button"][aria-label*="Reply" i]') || target.closest('[role="button"][aria-label*="Reply" i]') || target.matches('[data-testid="tweetButtonInline"]') || target.closest('[data-testid="tweetButtonInline"]');
           if (!isReplyButton) return;
           const replyButton = target.closest('[data-testid="reply"]') || target.closest('button[aria-label*="Reply" i]') || target.closest('[role="button"][aria-label*="Reply" i]') || target.closest('[data-testid="tweetButtonInline"]') || target;
@@ -522,26 +561,22 @@
             this.currentReplyTargetArticle = null;
             this._replyTargetClearTimer = null;
           }, 2500);
-          this.extractUsernameFromTweet(tweetArticle).then((username) => {
-            if (username && username !== "unknown") {
-              this.trackReply(username).catch((err) => {
-                console.warn("[TweetReply] Reply tracking failed:", err);
-              });
-            }
-          }).catch((error) => {
-            console.warn("[TweetReply] Failed to extract username for tracking:", error);
-          });
+          const tweetId = this.getTweetIdFromArticle(tweetArticle);
+          const username = this.extractUsernameFromTweetSync(tweetArticle);
+          if (username && username !== "unknown") {
+            this.pendingReplyTarget = { username, tweetId: tweetId || null, setAt: Date.now() };
+          }
           this.isAutoLikeEnabled().then((autoLikeEnabled) => {
             if (autoLikeEnabled) {
               setTimeout(() => {
-                const tweetId = this.getTweetIdFromArticle(tweetArticle);
-                if (tweetId !== null && this.autoLikedTweetIds.has(tweetId)) {
+                const tweetId2 = this.getTweetIdFromArticle(tweetArticle);
+                if (tweetId2 !== null && this.autoLikedTweetIds.has(tweetId2)) {
                   return;
                 }
                 const likeButton = this.findLikeButton(tweetArticle);
                 if (likeButton) {
                   this.performAutoLike(likeButton).then(() => {
-                    if (tweetId !== null) this.autoLikedTweetIds.add(tweetId);
+                    if (tweetId2 !== null) this.autoLikedTweetIds.add(tweetId2);
                   }).catch((err) => {
                     console.warn("[TweetReply] Auto-like execution failed:", err);
                   });
@@ -963,9 +998,24 @@
             node = node.parentElement;
           }
           if (!insideReplyingTo) {
-            return article;
+            const ownId = this.getOwnStatusIdFromArticle(article);
+            if (ownId === statusId) return article;
           }
         }
+      }
+      return null;
+    }
+    /**
+     * When the reply composer modal is open (/compose/post), the tweet shown above the composer
+     * is the one we're replying to. Return that article so tweetId and current tweet text match the UI.
+     * @returns {Element|null}
+     */
+    getReplyTargetArticleFromComposerDialog() {
+      const dialogs = document.querySelectorAll('[role="dialog"]');
+      for (const dialog of dialogs) {
+        const hasComposer = dialog.querySelector('[data-testid^="tweetTextarea_"]');
+        const tweetArticle = dialog.querySelector('article[data-testid="tweet"]');
+        if (hasComposer && tweetArticle) return tweetArticle;
       }
       return null;
     }
@@ -1757,6 +1807,16 @@
       return container?.querySelector(".tweetreply-suggest-btn");
     }
     extractTweetText() {
+      if (/\/compose\/post/.test(window.location.pathname)) {
+        const dialogArticle = this.getReplyTargetArticleFromComposerDialog();
+        if (dialogArticle) {
+          const tweetTextEl = dialogArticle.querySelector('[data-testid="tweetText"]');
+          if (tweetTextEl) {
+            const text = tweetTextEl.textContent?.trim();
+            if (text && text.length > 10) return text;
+          }
+        }
+      }
       if (this.currentReplyTargetArticle && document.contains(this.currentReplyTargetArticle)) {
         const tweetTextEl = this.currentReplyTargetArticle.querySelector('[data-testid="tweetText"]');
         if (tweetTextEl) {
@@ -1856,6 +1916,16 @@
       return null;
     }
     extractTweetId() {
+      if (/\/compose\/post/.test(window.location.pathname)) {
+        const dialogArticle = this.getReplyTargetArticleFromComposerDialog();
+        if (dialogArticle) {
+          const ownId = this.getOwnStatusIdFromArticle(dialogArticle);
+          if (ownId) {
+            console.log("[TweetReply] Tweet ID extracted from composer dialog:", ownId);
+            return ownId;
+          }
+        }
+      }
       const urlMatch = window.location.href.match(/status\/(\d+)/);
       if (urlMatch) {
         console.log("[TweetReply] Tweet ID extracted from URL:", urlMatch[1]);

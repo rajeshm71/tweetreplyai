@@ -618,6 +618,16 @@ export class ReplyPostProcessor {
   }
 
   /**
+   * Replace exclamation marks with periods (Twitter post-processing)
+   */
+  private replaceExclamationWithPeriod(text: string): string {
+    if (!text) {
+      return text;
+    }
+    return text.replace(/!/g, ".");
+  }
+
+  /**
    * Helper method: Apply all format cleanup rules
    * Centralizes format cleanup logic for reuse in fallback scenarios
    */
@@ -626,6 +636,7 @@ export class ReplyPostProcessor {
       return text;
     }
     let cleaned = text;
+    cleaned = this.replaceExclamationWithPeriod(cleaned); // Replace ! with . (Twitter)
     cleaned = this.replaceDashes(cleaned); // Rule 2: Replace dashes, preserve digits
     cleaned = this.replaceSemicolons(cleaned); // Replace semicolons with commas
     cleaned = this.removeSingleQuotes(cleaned); // Remove quotes around words
