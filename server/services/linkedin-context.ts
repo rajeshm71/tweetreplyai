@@ -15,6 +15,14 @@ export class LinkedInContextAnalyzer {
     }
   ): string {
     const parts: string[] = [];
+    const commentOnComment = !!(threadContext?.isReply && threadContext.threadLength > 1);
+    console.log("[LinkedIn] linkedInContextAnalyzer.generateContextPrompt:", {
+      viewerIsOriginalAuthor,
+      isOther: !viewerIsOriginalAuthor,
+      hasThreadContext: !!threadContext,
+      threadLength: threadContext?.threadLength ?? 0,
+      commentOnCommentContextAdded: commentOnComment,
+    });
 
     if (analysis.enrichedContextPrompt) {
       parts.push(analysis.enrichedContextPrompt);

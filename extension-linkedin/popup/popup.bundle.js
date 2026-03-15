@@ -237,15 +237,38 @@
       this.setupFocusRefresh();
       this.setupCleanup();
     }
+    /** Returns false if the extension context is invalid (e.g. after reload). */
+    isExtensionContextValid() {
+      try {
+        void chrome.runtime?.id;
+        return true;
+      } catch {
+        return false;
+      }
+    }
+    /** True if the error indicates we should stop the refresh loop (context dead or unreachable). */
+    shouldStopRefreshLoop(error) {
+      const msg = (error?.message || String(error)).toLowerCase();
+      return msg.includes("extension context invalidated") || msg.includes("invalid") || msg.includes("could not establish connection") || msg.includes("receiving end does not exist") || msg.includes("err_failed") || msg.includes("failed to fetch");
+    }
     startUsageDataRefresh() {
       if (this.usageDataInterval) clearInterval(this.usageDataInterval);
       this.usageDataInterval = setInterval(async () => {
+        if (!this.isExtensionContextValid()) {
+          if (this.usageDataInterval) clearInterval(this.usageDataInterval);
+          this.usageDataInterval = null;
+          return;
+        }
         if (this.currentState === "authenticated") {
           try {
             await this.loadUsageData();
             this.updateUsageDisplay();
           } catch (error) {
             console.error("[LinkedInPopup] Failed to refresh usage data:", error);
+            if (this.shouldStopRefreshLoop(error)) {
+              if (this.usageDataInterval) clearInterval(this.usageDataInterval);
+              this.usageDataInterval = null;
+            }
           }
         }
       }, POLLING.USAGE_REFRESH_MS);

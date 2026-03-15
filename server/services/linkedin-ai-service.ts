@@ -71,6 +71,23 @@ export async function generateLinkedInReply(
   options: LinkedInReplyOptions,
 ): Promise<LinkedInReplyResponse> {
   const startTime = Date.now();
+  const tc = options.threadContext;
+  const commentOnComment = !!(tc?.isReply && tc?.threadLength != null && tc.threadLength > 1);
+  console.log("[LinkedIn] generateLinkedInReply input:", {
+    viewerIsOriginalAuthor: options.viewerIsOriginalAuthor ?? false,
+    isOther: !(options.viewerIsOriginalAuthor ?? false),
+    hasThreadContext: !!tc,
+    threadContext: tc
+      ? {
+          isReply: tc.isReply,
+          threadLength: tc.threadLength,
+          originalPostLen: tc.originalPost?.length ?? 0,
+          threadChainLength: tc.threadChain?.length ?? 0,
+          currentTweetIndex: tc.currentTweetIndex,
+        }
+      : null,
+    commentOnCommentMode: commentOnComment,
+  });
 
   const analysis = await linkedInAnalysisAgents.analyzePost(options.postText);
 

@@ -140,11 +140,19 @@ class BackgroundManager {
 
   async requestAuthFromWebApp(tabId) {
     try {
-      // Execute script in the web app context to call our extension auth endpoint
+      const tab = await chrome.tabs.get(tabId).catch(() => null);
+      const tabUrl = tab?.url || '';
+      if (!tabUrl || tabUrl.startsWith('chrome-extension://')) return;
+
+      // Execute script in the web app context to call our extension auth endpoint.
+      // Guard: only run on real web app origin; never on chrome-extension: (avoids GET chrome-extension://invalid/ after reload).
       const results = await chrome.scripting.executeScript({
         target: { tabId },
         function: async () => {
           try {
+            if (window.location.protocol === 'chrome-extension:') return null;
+            const origin = window.location.origin || '';
+            if (!origin || origin.startsWith('chrome-extension:')) return null;
             const response = await fetch('/api/extension/auth', {
               credentials: 'include' // Include httpOnly cookies
             });

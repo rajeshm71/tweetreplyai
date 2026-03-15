@@ -152,6 +152,8 @@ class LinkedInReplyInjector {
       author: context.authorName,
       isOA: context.viewerIsOA,
       hasThread: !!context.threadContext,
+      viewerIsOA: context.viewerIsOA,
+      threadLength: context.threadContext?.threadLength,
     });
 
     this.setButtonState(btn, 'loading');
@@ -171,6 +173,14 @@ class LinkedInReplyInjector {
       if (context.threadContext) {
         payload.thread_context = context.threadContext;
       }
+      const commentOnComment = !!(context.threadContext?.isReply && context.threadContext?.threadLength > 1);
+      log('handleGenerateReply: payload summary', {
+        viewer_is_original_author: payload.viewer_is_original_author,
+        isOther: !payload.viewer_is_original_author,
+        hasThreadContext: !!payload.thread_context,
+        threadContext: payload.thread_context ? { isReply: payload.thread_context.isReply, threadLength: payload.thread_context.threadLength, chainLen: payload.thread_context.threadChain?.length } : null,
+        commentOnCommentRecognized: commentOnComment,
+      });
 
       const response = await this.apiClient.generateReply(payload);
       const reply = response?.reply || response?.tweet;
@@ -207,24 +217,47 @@ class LinkedInReplyInjector {
       threadContext: null,
     };
 
+    log('extractContext: starting', { placeholder: editor.dataset?.placeholder?.substring(0, 40) });
     const postContainer = this.findPostContainer(editor);
     if (!postContainer) {
-      log('Could not find post container from editor');
+      log('extractContext: could not find post container from editor');
       return ctx;
     }
+    log('extractContext: postContainer found', { tag: postContainer.tagName, urn: postContainer.getAttribute?.('data-urn')?.substring(0, 60) });
 
     ctx.postText = this.extractPostText(postContainer);
     ctx.postId = this.extractPostId(postContainer);
     ctx.authorName = this.extractAuthorName(postContainer);
+    log('extractContext: post', { postTextLen: ctx.postText?.length ?? 0, postId: ctx.postId?.substring(0, 40), author: ctx.authorName?.substring(0, 30) });
+
     ctx.viewerIsOA = this.detectViewerIsOA(postContainer);
+    log('extractContext: viewerIsOA (is other = !viewerIsOA)', { viewerIsOA: ctx.viewerIsOA, isOther: !ctx.viewerIsOA });
+
     ctx.threadContext = this.buildThreadContext(editor, postContainer);
+    log('extractContext: threadContext', {
+      hasThread: !!ctx.threadContext,
+      threadLength: ctx.threadContext?.threadLength ?? 0,
+      isReply: ctx.threadContext?.isReply ?? false,
+      commentOnCommentRecognized: !!(ctx.threadContext?.isReply && ctx.threadContext?.threadLength > 1),
+    });
 
     return ctx;
   }
 
+  /**
+   * Returns true only for activity URNs (feed posts). Rejects comment URNs so we don't
+   * treat a comment container as the post when replying to a comment.
+   */
+  isActivityUrn(urn) {
+    if (!urn || typeof urn !== 'string') return false;
+    if (!urn.startsWith('urn:li:activity:')) return false;
+    if (urn.includes('comment') || urn.includes('fsd_comment')) return false;
+    return true;
+  }
+
   findPostContainer(editor) {
-    // Walk up from the editor to find the element with a LinkedIn data-urn attribute.
-    // LinkedIn wraps each feed post in an element with data-urn="urn:li:activity:..."
+    // Walk up from the editor to find the element with a LinkedIn activity data-urn.
+    // Only treat a node as the post if its URN is activity-like; skip comment URNs.
     let el = editor.parentElement;
     while (el && el !== document.body) {
       if (
@@ -233,18 +266,39 @@ class LinkedInReplyInjector {
         el.classList.contains('occludable-update') ||
         el.classList.contains('main-feed-activity-card')
       ) {
-        return el;
+        const urnEl = el.hasAttribute('data-urn') ? el : el.querySelector('[data-urn]');
+        const urn = urnEl?.getAttribute('data-urn');
+        if (this.isActivityUrn(urn)) {
+          log('findPostContainer: found activity URN (walk-up)', urn?.substring(0, 50));
+          return el;
+        }
+        log('findPostContainer: skipping non-activity URN', urn?.substring(0, 50));
       }
       el = el.parentElement;
     }
 
-    // Fallback: search all data-urn containers and find the one that contains this editor
+    // Fallback: search all data-urn containers and find one with activity URN that contains this editor
     const allUrns = document.querySelectorAll('[data-urn]');
-    for (const urn of allUrns) {
-      if (urn.contains(editor)) return urn;
+    for (const urnEl of allUrns) {
+      const urn = urnEl.getAttribute('data-urn');
+      if (this.isActivityUrn(urn) && urnEl.contains(editor)) {
+        log('findPostContainer: found activity URN (fallback)', urn?.substring(0, 50));
+        return urnEl;
+      }
     }
 
-    return editor.closest('article') || document.querySelector('main');
+    const articleOrMain = editor.closest('article') || document.querySelector('main');
+    log('findPostContainer: using article/main fallback', !!articleOrMain);
+    if (!articleOrMain) {
+      let chain = [];
+      let p = editor.parentElement;
+      for (let i = 0; i < 8 && p; i++) {
+        chain.push(p.tagName + (p.className && typeof p.className === 'string' ? '.' + p.className.split(/\s+/).slice(0, 2).join('.') : ''));
+        p = p.parentElement;
+      }
+      log('findPostContainer: no container; parent chain', chain.join(' <- '));
+    }
+    return articleOrMain;
   }
 
   extractPostText(container) {
@@ -308,6 +362,11 @@ class LinkedInReplyInjector {
     return '';
   }
 
+  /**
+   * Detects if the viewer is the original author of the post.
+   * Can be wrong when the overflow menu was never opened (Edit/Delete not in DOM).
+   * The "You" fallback is best-effort.
+   */
   detectViewerIsOA(container) {
     // LinkedIn only renders edit/delete controls when the viewer is the post author.
     // These aria-labels are present in the DOM even when the overflow menu is closed.
@@ -319,38 +378,92 @@ class LinkedInReplyInjector {
 
     for (const sel of indicators) {
       if (container.querySelector(sel)) {
-        log('OA detected via selector:', sel);
+        log('detectViewerIsOA: OA detected via Edit/Delete selector', sel);
         return true;
       }
     }
 
+    // Fallback: "You" in the actor/header area (e.g. "You" as post author)
+    const actorSelectors = [
+      '.update-components-actor__name span[dir="ltr"]',
+      '.feed-shared-actor__name span[dir="ltr"]',
+      '.update-components-actor__name',
+      '.feed-shared-actor__name',
+    ];
+    for (const sel of actorSelectors) {
+      const el = container.querySelector(sel);
+      if (el) {
+        const text = (el.firstChild?.nodeType === Node.TEXT_NODE ? el.firstChild.textContent : el.textContent)?.trim().split('\n')[0] ?? '';
+        if (text === 'You' || /^You\b/.test(text)) {
+          log('detectViewerIsOA: OA detected via actor "You" fallback');
+          return true;
+        }
+      }
+    }
+
+    log('detectViewerIsOA: not OA (viewer is "other")', { checkedEditDelete: true, checkedYouFallback: true });
     return false;
   }
 
   buildThreadContext(editor, postContainer) {
-    // Detect nested reply: when replying to a comment, LinkedIn opens a reply editor
-    // inside or adjacent to the comment's DOM node (.comments-comment-item).
+    const form = this.findCommentForm(editor);
+    const formClass = form?.className ?? '(no form)';
+    log('buildThreadContext: form', { hasForm: !!form, formClass: typeof formClass === 'string' ? formClass.substring(0, 80) : formClass });
+
+    // Primary: reply editor inside or adjacent to .comments-comment-item
     const commentItem =
       editor.closest('.comments-comment-item') ||
       editor.closest('[class*="reply-container"]');
+    log('buildThreadContext: commentItem', { found: !!commentItem, via: commentItem ? (editor.closest('.comments-comment-item') ? 'comments-comment-item' : 'reply-container') : 'none' });
 
-    if (!commentItem) return null;
+    let commentText = null;
+    if (commentItem) {
+      const commentContent =
+        commentItem.querySelector('.comments-comment-item__main-content') ||
+        commentItem.querySelector('.feed-shared-main-content') ||
+        commentItem.previousElementSibling?.querySelector('.comments-comment-item__main-content');
+      commentText = commentContent?.textContent?.trim();
+      log('buildThreadContext: commentItem found', commentText ? `comment length ${commentText.length}` : 'no body');
+    } else if (form?.classList?.contains('comments-reply-box__form') || form?.className?.includes?.('comments-reply-box')) {
+      log('buildThreadContext: reply-to-comment path (comments-reply-box); form class:', form?.className?.substring(0, 80));
+      // Fallback: form is reply box; find comment body from form's parent/sibling
+      const commentBodySelectors = [
+        '.comments-comment-item__main-content',
+        '.feed-shared-main-content',
+        '[class*="comment-item__main-content"]',
+        '[class*="main-content"]',
+      ];
+      let searchRoot = form.previousElementSibling || form.parentElement;
+      while (searchRoot && !commentText) {
+        for (const sel of commentBodySelectors) {
+          const el = searchRoot.querySelector?.(sel) || (searchRoot.matches?.(sel) ? searchRoot : null);
+          if (el) {
+            const t = el.textContent?.trim();
+            if (t && t.length >= 5) {
+              commentText = t;
+              log('buildThreadContext: reply-box fallback found comment', t.length, 'chars');
+              break;
+            }
+          }
+        }
+        if (!commentText) searchRoot = searchRoot.parentElement;
+      }
+      if (!commentText) log('buildThreadContext: reply-box fallback could not find comment text (comment-on-comment may be missed)');
+    } else {
+      log('buildThreadContext: no commentItem and not reply-box form (comment-on-comment not recognized)', { formClass: formClass.substring(0, 60) });
+    }
 
-    // Find the comment text being replied to (the content of the parent comment)
-    const commentContent =
-      commentItem.querySelector('.comments-comment-item__main-content') ||
-      commentItem.querySelector('.feed-shared-main-content') ||
-      commentItem.previousElementSibling?.querySelector('.comments-comment-item__main-content');
-
-    const commentText = commentContent?.textContent?.trim();
-    if (!commentText || commentText.length < 5) return null;
+    if (!commentText || commentText.length < 5) {
+      log('buildThreadContext: returning null', { reason: !commentText ? 'no commentText' : 'commentText too short', len: commentText?.length ?? 0 });
+      return null;
+    }
 
     const originalPostText = this.extractPostText(postContainer);
 
     // The thread_context wire format matches the Zod schema in routes.ts
     // which uses originalTweet/originalTweetAuthor as field names.
     // routes.ts maps these to the LinkedIn-internal originalPost/originalPostAuthor.
-    return {
+    const built = {
       isReply: true,
       originalTweet: originalPostText || null,
       originalTweetAuthor: null,
@@ -361,6 +474,8 @@ class LinkedInReplyInjector {
       currentTweetIndex: 1,
       threadLength: 2,
     };
+    log('buildThreadContext: built thread (comment-on-comment recognized)', { threadLength: built.threadLength, commentPreviewLen: commentText.length });
+    return built;
   }
 
   // ─── Text Insertion ──────────────────────────────────────────────────────────

@@ -58,8 +58,14 @@ export function buildLinkedInUserPrompt(
   >,
 ): string {
   const { threadContext, postText } = options;
+  const isOA = options.viewerIsOriginalAuthor ?? false;
 
   if (options.viewerIsOriginalAuthor && threadContext?.isReply && threadContext.threadLength > 1) {
+    console.log("[LinkedIn] buildLinkedInUserPrompt: branch = OA replying to comment (comment-on-comment)", {
+      viewerIsOriginalAuthor: true,
+      threadLength: threadContext.threadLength,
+      isReplyToComment: true,
+    });
     const chain = threadContext.threadChain ?? [];
     const commentEntry =
       chain.find((t) => t.isCurrent) ??
@@ -71,6 +77,11 @@ export function buildLinkedInUserPrompt(
   }
 
   if (threadContext?.isReply && threadContext.originalPost) {
+    console.log("[LinkedIn] buildLinkedInUserPrompt: branch = other replying to comment (comment-on-comment)", {
+      viewerIsOriginalAuthor: false,
+      threadLength: threadContext.threadLength,
+      isReplyToComment: true,
+    });
     const chain = threadContext.threadChain ?? [];
     const commentEntry =
       chain.find((t) => t.isCurrent) ??
@@ -80,5 +91,12 @@ export function buildLinkedInUserPrompt(
     return `The original post:\n"${threadContext.originalPost}"\n\nThe comment you're replying to:\n"${commentText}"\n\nReply to the comment above.`;
   }
 
+  console.log("[LinkedIn] buildLinkedInUserPrompt: branch = reply to post only (no comment-on-comment)", {
+    viewerIsOriginalAuthor: isOA,
+    hasThreadContext: !!threadContext,
+    threadLength: threadContext?.threadLength ?? 0,
+    isReplyToComment: false,
+    reason: !threadContext ? "no threadContext" : !threadContext.isReply ? "isReply false" : (threadContext.threadLength ?? 0) <= 1 ? "threadLength <= 1" : "unknown",
+  });
   return options.baseConfig.userPrompt(postText);
 }

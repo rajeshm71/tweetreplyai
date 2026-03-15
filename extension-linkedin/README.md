@@ -50,7 +50,7 @@ The extension icon should appear in the toolbar. No icon errors should appear on
    Go to [LinkedIn Feed](https://www.linkedin.com/feed/), open any post, and focus the main comment box or a reply box. A **Generate Reply** button appears next to the submit control. Click it to generate a reply; the text is inserted into the comment field. You can edit it before posting.
 
 4. **Your own posts**  
-   When you reply to a comment on your own post, the extension detects that you are the post author and the backend uses the matching “post author” reply style.
+   When you reply to a comment on your own post, the extension detects that you are the post author and the backend uses the matching “post author” reply style. **Limitation:** Original-author detection can be wrong if the post’s overflow menu was never opened (the extension uses Edit/Delete controls or a “You” fallback in the header).
 
 ## Manual verification checklist
 

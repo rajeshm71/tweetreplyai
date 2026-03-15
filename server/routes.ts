@@ -874,6 +874,26 @@ export async function registerRoutes(app: Express): Promise<Express> {
 
       // --- LinkedIn independent pipeline (bypasses all Twitter-specific analysis) ---
       if (platform === 'linkedin') {
+        const commentOnComment = !!(
+          normalizedThreadContext?.isReply &&
+          normalizedThreadContext?.threadLength != null &&
+          normalizedThreadContext.threadLength > 1
+        );
+        console.log("[API] [LinkedIn] Request:", {
+          viewer_is_original_author: viewer_is_original_author ?? false,
+          isOther: !(viewer_is_original_author ?? false),
+          hasThreadContext: !!normalizedThreadContext,
+          threadContext: normalizedThreadContext
+            ? {
+                isReply: normalizedThreadContext.isReply,
+                threadLength: normalizedThreadContext.threadLength,
+                hasOriginalPost: !!normalizedThreadContext.originalTweet,
+                threadChainLength: normalizedThreadContext.threadChain?.length ?? 0,
+                currentTweetIndex: normalizedThreadContext.currentTweetIndex,
+              }
+            : null,
+          commentOnCommentRecognized: commentOnComment,
+        });
         const linkedInResponse = await generateLinkedInReply({
           postText: tweet_text,
           postId: tweet_id,

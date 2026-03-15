@@ -136,10 +136,16 @@
     }
     async requestAuthFromWebApp(tabId) {
       try {
+        const tab = await chrome.tabs.get(tabId).catch(() => null);
+        const tabUrl = tab?.url || "";
+        if (!tabUrl || tabUrl.startsWith("chrome-extension://")) return;
         const results = await chrome.scripting.executeScript({
           target: { tabId },
           function: async () => {
             try {
+              if (window.location.protocol === "chrome-extension:") return null;
+              const origin = window.location.origin || "";
+              if (!origin || origin.startsWith("chrome-extension:")) return null;
               const response = await fetch("/api/extension/auth", {
                 credentials: "include"
                 // Include httpOnly cookies
