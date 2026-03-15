@@ -171,7 +171,13 @@ class LinkedInReplyInjector {
     this.setButtonState(btn, 'loading');
 
     try {
-      const { liPromptVariation = 'default' } = await chrome.storage.local.get(['liPromptVariation']);
+      let liPromptVariation = 'default';
+      try {
+        const stored = await chrome.storage?.local?.get(['liPromptVariation']);
+        if (stored?.liPromptVariation) liPromptVariation = stored.liPromptVariation;
+      } catch (e) {
+        log('chrome.storage unavailable, using default variation');
+      }
 
       // Build payload — api.js automatically appends platform: 'linkedin'
       const payload = {
@@ -487,8 +493,13 @@ class LinkedInReplyInjector {
 
     const commentBodySelectors = [
       '.comments-comment-item__main-content',
+      '.comments-comment-item__description',
+      '.comments-comment-item__content',
+      '.comments-comment-item .update-components-text',
       '.feed-shared-main-content',
       '[class*="comment-item__main-content"]',
+      '[class*="comment-item__description"]',
+      '[class*="comment-item__content"]',
       '[class*="main-content"]',
     ];
 
@@ -500,6 +511,17 @@ class LinkedInReplyInjector {
           const t = el.textContent?.trim();
           if (t && t.length >= 5) return t;
         }
+      }
+      // Nuclear fallback: find the nearest .comments-comment-item, strip interactive
+      // children (forms, buttons, editors), and read whatever text remains.
+      const item = root.matches?.('.comments-comment-item')
+        ? root
+        : root.querySelector?.('.comments-comment-item');
+      if (item) {
+        const clone = item.cloneNode(true);
+        clone.querySelectorAll('form, button, .ql-editor, .comments-comment-box').forEach(el => el.remove());
+        const t = clone.textContent?.trim();
+        if (t && t.length >= 5) return t;
       }
       return null;
     }
@@ -572,7 +594,10 @@ class LinkedInReplyInjector {
         }
       }
 
-      if (!commentText) log('buildThreadContext: --cr fallback could not find comment text');
+      if (!commentText) {
+        log('buildThreadContext: --cr all strategies failed; wrapper outerHTML prefix:',
+          replyWrapper?.outerHTML?.substring(0, 400));
+      }
     }
 
     if (!commentText || commentText.length < 5) {

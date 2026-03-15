@@ -335,7 +335,13 @@
       });
       this.setButtonState(btn, "loading");
       try {
-        const { liPromptVariation = "default" } = await chrome.storage.local.get(["liPromptVariation"]);
+        let liPromptVariation = "default";
+        try {
+          const stored = await chrome.storage?.local?.get(["liPromptVariation"]);
+          if (stored?.liPromptVariation) liPromptVariation = stored.liPromptVariation;
+        } catch (e) {
+          log("chrome.storage unavailable, using default variation");
+        }
         const payload = {
           tweet_text: context.postText,
           tweet_id: context.postId || "",
@@ -592,8 +598,13 @@
       log("buildThreadContext: commentItem", { found: !!commentItem, via: commentItem ? editor.closest(".comments-comment-item") ? "comments-comment-item" : "reply-container" : "none" });
       const commentBodySelectors = [
         ".comments-comment-item__main-content",
+        ".comments-comment-item__description",
+        ".comments-comment-item__content",
+        ".comments-comment-item .update-components-text",
         ".feed-shared-main-content",
         '[class*="comment-item__main-content"]',
+        '[class*="comment-item__description"]',
+        '[class*="comment-item__content"]',
         '[class*="main-content"]'
       ];
       function getCommentTextFromRoot(root) {
@@ -604,6 +615,13 @@
             const t = el.textContent?.trim();
             if (t && t.length >= 5) return t;
           }
+        }
+        const item = root.matches?.(".comments-comment-item") ? root : root.querySelector?.(".comments-comment-item");
+        if (item) {
+          const clone = item.cloneNode(true);
+          clone.querySelectorAll("form, button, .ql-editor, .comments-comment-box").forEach((el) => el.remove());
+          const t = clone.textContent?.trim();
+          if (t && t.length >= 5) return t;
         }
         return null;
       }
@@ -664,7 +682,12 @@
             prev = prev.previousElementSibling;
           }
         }
-        if (!commentText) log("buildThreadContext: --cr fallback could not find comment text");
+        if (!commentText) {
+          log(
+            "buildThreadContext: --cr all strategies failed; wrapper outerHTML prefix:",
+            replyWrapper?.outerHTML?.substring(0, 400)
+          );
+        }
       }
       if (!commentText || commentText.length < 5) {
         log("buildThreadContext: returning null", { reason: !commentText ? "no commentText" : "commentText too short", len: commentText?.length ?? 0 });
