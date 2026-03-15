@@ -223,6 +223,12 @@
   function log(...args) {
     console.log(LOG_PREFIX, ...args);
   }
+  function safeTruncate(str, maxLen) {
+    if (!str || str.length <= maxLen) return str;
+    const code = str.charCodeAt(maxLen - 1);
+    if (code >= 55296 && code <= 56319) maxLen -= 1;
+    return str.substring(0, maxLen);
+  }
   var LinkedInReplyInjector = class {
     constructor() {
       if (window.__linkedInReplyInjector) {
@@ -462,7 +468,7 @@
         if (el) {
           const text = el.textContent?.trim();
           if (text && text.length > 10) {
-            return text.substring(0, VALIDATION.MAX_POST_LENGTH);
+            return safeTruncate(text, VALIDATION.MAX_POST_LENGTH);
           }
         }
       }
@@ -671,7 +677,7 @@
         originalTweetAuthor: null,
         threadChain: [
           { text: originalPostText || "", author: "unknown", isOriginal: true, isCurrent: false },
-          { text: commentText.substring(0, 300), author: "unknown", isOriginal: false, isCurrent: true }
+          { text: safeTruncate(commentText, 300), author: "unknown", isOriginal: false, isCurrent: true }
         ],
         currentTweetIndex: 1,
         threadLength: 2

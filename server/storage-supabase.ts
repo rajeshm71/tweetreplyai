@@ -1,4 +1,15 @@
 import { supabase } from './supabase.js';
+
+/**
+ * Replace lone Unicode surrogates (unpaired high or low surrogates) with the replacement character.
+ * Lone surrogates are created when a string is truncated mid-surrogate-pair; PostgreSQL rejects
+ * them when parsing JSON, causing 22P02 "invalid input syntax for type json".
+ */
+function sanitizeLoneSurrogates(str: string): string {
+  if (typeof str !== 'string') return str;
+  return str.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '\uFFFD');
+}
+
 import type {
   User,
   UpsertUser,
@@ -893,8 +904,8 @@ export class SupabaseStorage implements IStorage {
     // Build payload without undefined; omit performance when null (some PostgREST setups reject null jsonb).
     const dbReplyHistory: Record<string, unknown> = {
       user_id: replyHistory.userId,
-      original_tweet: replyHistory.originalTweet ?? '',
-      generated_reply: replyHistory.generatedReply ?? '',
+      original_tweet: sanitizeLoneSurrogates(replyHistory.originalTweet ?? ''),
+      generated_reply: sanitizeLoneSurrogates(replyHistory.generatedReply ?? ''),
       model_key: replyHistory.modelKey,
       prompt_variation: replyHistory.promptKey || null,
       quality_score: replyHistory.qualityScore ?? null,
