@@ -79,20 +79,6 @@ function stripMetaCommentary(text: string): string {
   return text;
 }
 
-function trimToWordLimit(text: string, maxWords: number): string {
-  const words = text.trim().split(/\s+/);
-  if (words.length <= maxWords) return text.trim();
-
-  const trimmed = words.slice(0, maxWords).join(" ");
-
-  const lastPunctuation = trimmed.search(/[.!?][^.!?]*$/);
-  if (lastPunctuation > trimmed.length * 0.6) {
-    return trimmed.substring(0, lastPunctuation + 1);
-  }
-
-  return trimmed + "…";
-}
-
 function warnClicheUsage(text: string): void {
   const found = LINKEDIN_CLICHE_PATTERNS.filter((p) => p.test(text)).map((p) =>
     p.source.replace(/\\b/g, "").replace(/[^a-z'?\s.]/gi, ""),
@@ -117,11 +103,6 @@ export const linkedInPostProcessor = {
     text = replaceExclamationWithPeriod(text);
 
     warnClicheUsage(text);
-
-    const wordCount = countWords(text);
-    if (wordCount > LINKEDIN_REPLY_LIMITS.POST_PROCESSOR_MAX_WORDS) {
-      text = trimToWordLimit(text, LINKEDIN_REPLY_LIMITS.POST_PROCESSOR_MAX_WORDS);
-    }
 
     if (countWords(text) < LINKEDIN_REPLY_LIMITS.POST_PROCESSOR_MIN_WORDS) {
       console.warn("[LinkedInPostprocessor] Reply too short after processing, returning processed text");

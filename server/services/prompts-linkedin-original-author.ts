@@ -1,5 +1,5 @@
 import { LINKEDIN_REPLY_LIMITS } from "../config/constants.js";
-import { LINKEDIN_META_COMMENTARY_RULE, type LinkedInPromptConfig } from "./prompts-linkedin.js";
+import { LINKEDIN_META_COMMENTARY_RULE, LINKEDIN_SIMPLE_LANGUAGE_RULE, type LinkedInPromptConfig } from "./prompts-linkedin.js";
 
 export const LINKEDIN_OA_PROMPT_VARIATIONS: Record<string, LinkedInPromptConfig> = {
   default: {
@@ -169,6 +169,6 @@ export function getLinkedInOriginalAuthorPromptConfig(promptName: string = "defa
   const config = LINKEDIN_OA_PROMPT_VARIATIONS[promptName] || LINKEDIN_OA_PROMPT_VARIATIONS.default;
   return {
     ...config,
-    systemPrompt: config.systemPrompt + LINKEDIN_META_COMMENTARY_RULE,
+    systemPrompt: config.systemPrompt + LINKEDIN_META_COMMENTARY_RULE + LINKEDIN_SIMPLE_LANGUAGE_RULE,
   };
 }

@@ -10,6 +10,10 @@ CRITICAL OUTPUT RULE: Output ONLY your reply text. Do NOT include:
 
 Start directly with your reply. Just write the reply itself, nothing else.`;
 
+export const LINKEDIN_SIMPLE_LANGUAGE_RULE = `
+
+LANGUAGE: Use simple, everyday words and short, clear sentences. Avoid complex or jargon terms (e.g. heterogeneous, substantive, nuanced, leverage, synergy). Write so a general audience can understand easily.`;
+
 export interface LinkedInPromptConfig {
   name: string;
   description: string;
@@ -185,7 +189,7 @@ export function getLinkedInPromptConfig(promptName: string = "default"): LinkedI
   const config = LINKEDIN_PROMPT_VARIATIONS[promptName] || LINKEDIN_PROMPT_VARIATIONS.default;
   return {
     ...config,
-    systemPrompt: config.systemPrompt + LINKEDIN_META_COMMENTARY_RULE,
+    systemPrompt: config.systemPrompt + LINKEDIN_META_COMMENTARY_RULE + LINKEDIN_SIMPLE_LANGUAGE_RULE,
   };
 }
 
