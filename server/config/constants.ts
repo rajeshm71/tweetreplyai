@@ -96,3 +96,11 @@ export const WHITELIST = {
   /** When true, whitelisted users see the model dropdown in the extension; when false, nobody sees it. */
   SHOW_MODEL_SELECT_FOR_WHITELIST: false,
 } as const;
+
+/** Rate limits for API (global and generate-reply). Trust proxy must be set so req.ip is correct. */
+export const RATE_LIMIT = {
+  GLOBAL_API_WINDOW_MS: 15 * 60 * 1000,
+  GLOBAL_API_MAX: 200,
+  GENERATE_REPLY_WINDOW_MS: 60 * 1000,
+  GENERATE_REPLY_MAX: 30,
+} as const;

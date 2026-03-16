@@ -11,7 +11,7 @@ import { dodoPaymentsService, PLANS } from "./services/dodo-payments.js";
 import { usageService } from "./services/usage.js";
 import { whitelistService } from "./services/whitelistService.js";
 import { runGuardrail, generateGuardrailFriendlyReply, type GuardrailResult } from "./services/guardrail.js";
-import { ANALYTICS, PERIODS, QUALITY, VALIDATION } from "./config/constants.js";
+import { ANALYTICS, PERIODS, QUALITY, RATE_LIMIT, VALIDATION } from "./config/constants.js";
 // Static import: avoids per-request dynamic import; LinkedIn pipeline remains isolated from Twitter path.
 import { generateLinkedInReply } from "./services/linkedin-ai-service.js";
 import { z, ZodError } from "zod";
@@ -113,6 +113,29 @@ export async function registerRoutes(app: Express): Promise<Express> {
     message: { message: 'Too many attempts. Try again later.' },
     standardHeaders: true,
     legacyHeaders: false,
+  });
+
+  // Global API rate limit (all /api/* except webhook)
+  const globalApiLimiter = rateLimit({
+    windowMs: RATE_LIMIT.GLOBAL_API_WINDOW_MS,
+    max: RATE_LIMIT.GLOBAL_API_MAX,
+    message: { message: 'Too many requests. Try again later.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+    // Dodo webhook must not be rate-limited (signature-verified provider callbacks)
+    skip: (req) =>
+      req.path === '/api/dodo/webhook' || (req.originalUrl?.startsWith?.('/api/dodo/webhook') ?? false),
+  });
+  app.use('/api', globalApiLimiter);
+
+  // Generate-reply rate limit: per user (after auth), same used for suggest-improvements
+  const generateReplyLimiter = rateLimit({
+    windowMs: RATE_LIMIT.GENERATE_REPLY_WINDOW_MS,
+    max: RATE_LIMIT.GENERATE_REPLY_MAX,
+    message: { message: 'Too many requests. Try again later.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: (req) => (req as any).user?.id ?? req.ip ?? 'anonymous',
   });
 
   // Auth routes
@@ -601,7 +624,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
   });
 
   // Reply generation route
-  app.post('/api/generate-reply', isAuthenticated, async (req: any, res) => {
+  app.post('/api/generate-reply', isAuthenticated, generateReplyLimiter, async (req: any, res) => {
     try {
       const userId = getUserId(req);
       
@@ -2265,7 +2288,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
   });
 
   // Suggest improvements endpoint
-  app.post('/api/suggest-improvements', isAuthenticated, async (req: any, res) => {
+  app.post('/api/suggest-improvements', isAuthenticated, generateReplyLimiter, async (req: any, res) => {
     try {
       const userId = getUserId(req);
       
