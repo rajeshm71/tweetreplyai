@@ -3,6 +3,8 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes.js";
 import { serveStatic, log } from "./static.js";
 import { getClientErrorBody } from "./config/env.js";
+import cors from "cors";
+import { corsApiOptions } from "./config/cors.js";
 
 const app = express();
 
@@ -16,6 +18,8 @@ app.use('/api/dodo/webhook', express.raw({ type: 'application/json' }));
 // Apply JSON parser for all other routes
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+app.use('/api', cors(corsApiOptions));
 
 app.use((req, res, next) => {
   const start = Date.now();
