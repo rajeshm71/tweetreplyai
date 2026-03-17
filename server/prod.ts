@@ -49,13 +49,19 @@ app.use((req, res, next) => {
 // Initialize the app
 let isInitialized = false;
 
+const isProduction = process.env.NODE_ENV === 'production' || !!process.env.VERCEL;
+
 async function initializeApp() {
   if (isInitialized) return;
   
-  console.log('=== SERVER STARTUP DEBUG ===');
-  console.log('NODE_ENV:', process.env.NODE_ENV);
-  console.log('SESSION_SECRET configured:', !!process.env.SESSION_SECRET);
-  console.log('SUPABASE_URL configured:', !!process.env.SUPABASE_URL);
+  if (isProduction) {
+    console.log('Server starting (production)');
+  } else {
+    console.log('=== SERVER STARTUP DEBUG ===');
+    console.log('NODE_ENV:', process.env.NODE_ENV);
+    console.log('SESSION_SECRET configured:', !!process.env.SESSION_SECRET);
+    console.log('SUPABASE_URL configured:', !!process.env.SUPABASE_URL);
+  }
   
   try {
     await registerRoutes(app);

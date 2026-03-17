@@ -12,6 +12,7 @@ import { usageService } from "./services/usage.js";
 import { whitelistService } from "./services/whitelistService.js";
 import { runGuardrail, generateGuardrailFriendlyReply, type GuardrailResult } from "./services/guardrail.js";
 import { ANALYTICS, PERIODS, QUALITY, RATE_LIMIT, VALIDATION } from "./config/constants.js";
+import { getSessionSecret } from "./config/env.js";
 // Static import: avoids per-request dynamic import; LinkedIn pipeline remains isolated from Twitter path.
 import { generateLinkedInReply } from "./services/linkedin-ai-service.js";
 import { z, ZodError } from "zod";
@@ -43,7 +44,7 @@ const jwtIsAuthenticated = (req: any, res: any, next: any) => {
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.SESSION_SECRET || 'dev-secret');
+    const decoded = jwt.verify(token, getSessionSecret());
     req.user = decoded;
     return next();
   } catch (error) {
@@ -71,8 +72,9 @@ export async function registerRoutes(app: Express): Promise<Express> {
   // Auth middleware - using local auth only
   // Use persistent session store for production, memory store for development
   
+  getSessionSecret(); // Fail fast in production if SESSION_SECRET is missing
   let sessionConfig: any = {
-      secret: process.env.SESSION_SECRET || 'dev-secret',
+      secret: getSessionSecret(),
       resave: false,
       saveUninitialized: false,
       cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 }, // 1 week
@@ -206,7 +208,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
         // Generate JWT token for serverless environments
         const token = jwt.sign(
           { id: user.id, email: user.email },
-          process.env.SESSION_SECRET || 'dev-secret',
+          getSessionSecret(),
           { expiresIn: '7d' }
         );
         res.cookie('token', token, { httpOnly: true, secure: true, sameSite: 'strict' });
@@ -230,7 +232,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
         // Generate JWT token for serverless environments
         const token = jwt.sign(
           { id: user.id, email: user.email },
-          process.env.SESSION_SECRET || 'dev-secret',
+          getSessionSecret(),
           { expiresIn: '7d' }
         );
         res.cookie('token', token, { httpOnly: true, secure: true, sameSite: 'strict' });
@@ -278,7 +280,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
       const user = req.user as any;
       const token = jwt.sign(
         { id: user.id, email: user.email },
-        process.env.SESSION_SECRET || 'dev-secret',
+        getSessionSecret(),
         { expiresIn: '7d' }
       );
       res.cookie('token', token, { httpOnly: true, secure: true, sameSite: 'strict' });
@@ -434,7 +436,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
         const token = req.cookies?.token;
         if (token) {
           try {
-            const decoded = jwt.verify(token, process.env.SESSION_SECRET || 'dev-secret') as any;
+            const decoded = jwt.verify(token, getSessionSecret()) as any;
             user = await storage.getUser(decoded.id);
           } catch (error) {
             // Token invalid or expired
@@ -452,7 +454,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
       // Generate a fresh JWT token for extension use
       const extensionToken = jwt.sign(
         { id: user.id, email: user.email },
-        process.env.SESSION_SECRET || 'dev-secret',
+        getSessionSecret(),
         { expiresIn: '7d' }
       );
       
