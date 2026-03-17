@@ -2,6 +2,7 @@ import "dotenv/config";
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes.js";
 import { serveStatic, log } from "./static.js";
+import { getClientErrorBody } from "./config/env.js";
 
 const app = express();
 
@@ -82,10 +83,9 @@ async function initializeApp() {
     }
     
     const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
-    
+    const body = getClientErrorBody(err, status === 404 ? "Not found" : "Internal Server Error");
     console.error('Server error:', err);
-    res.status(status).json({ message });
+    res.status(status).json(body);
   });
 
   // Production mode - only serve static files, no Vite

@@ -3,6 +3,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { createServer } from "http";
 import { registerRoutes } from "./routes.js";
 import { serveStatic, log } from "./static.js";
+import { getClientErrorBody } from "./config/env.js";
 
 const app = express();
 
@@ -62,10 +63,9 @@ app.use((req, res, next) => {
     }
     
     const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
-    
+    const body = getClientErrorBody(err, "Internal Server Error");
     console.error('Server error:', err);
-    res.status(status).json({ message });
+    res.status(status).json(body);
   });
 
   // importantly only setup vite in development and after

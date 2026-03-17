@@ -12,7 +12,7 @@ import { usageService } from "./services/usage.js";
 import { whitelistService } from "./services/whitelistService.js";
 import { runGuardrail, generateGuardrailFriendlyReply, type GuardrailResult } from "./services/guardrail.js";
 import { ANALYTICS, PERIODS, QUALITY, RATE_LIMIT, VALIDATION } from "./config/constants.js";
-import { getSessionSecret } from "./config/env.js";
+import { getSessionSecret, getClientErrorBody } from "./config/env.js";
 // Static import: avoids per-request dynamic import; LinkedIn pipeline remains isolated from Twitter path.
 import { generateLinkedInReply } from "./services/linkedin-ai-service.js";
 import { z, ZodError } from "zod";
@@ -192,7 +192,8 @@ export async function registerRoutes(app: Express): Promise<Express> {
   app.post('/api/auth/register', authRateLimiter, (req, res, next) => {
     passport.authenticate('local-register', (err: any, user: any, info: any) => {
       if (err) {
-        return res.status(500).json({ message: 'Registration failed', error: err.message });
+        console.error('Registration error:', err);
+        return res.status(500).json(getClientErrorBody(err, 'Registration failed'));
       }
       if (!user) {
         return res.status(400).json({ message: info?.message || 'Registration failed' });
@@ -220,7 +221,8 @@ export async function registerRoutes(app: Express): Promise<Express> {
   app.post('/api/auth/login', authRateLimiter, (req, res, next) => {
     passport.authenticate('local-login', (err: any, user: any, info: any) => {
       if (err) {
-        return res.status(500).json({ message: 'Login failed', error: err.message });
+        console.error('Login error:', err);
+        return res.status(500).json(getClientErrorBody(err, 'Login failed'));
       }
       if (!user) {
         return res.status(401).json({ message: info?.message || 'Invalid credentials' });
@@ -549,10 +551,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
     } catch (error: any) {
       console.error("[API-DEBUG] /api/usage - ERROR:", error);
       console.error("[API-DEBUG] /api/usage - ERROR stack:", error?.stack);
-      res.status(500).json({ 
-        message: "Failed to fetch usage",
-        error: process.env.NODE_ENV === 'development' ? error?.message : undefined
-      });
+      res.status(500).json(getClientErrorBody(error, "Failed to fetch usage"));
     }
   });
 
@@ -1343,11 +1342,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
         });
       }
 
-      // Return detailed error for debugging
-      res.status(500).json({ 
-        message: "Failed to generate reply",
-        error: process.env.NODE_ENV === 'development' ? errorMessage : undefined
-      });
+      res.status(500).json(getClientErrorBody(error, "Failed to generate reply"));
     }
   });
 
@@ -1781,9 +1776,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
       });
     } catch (error: any) {
       console.error("Error canceling subscription:", error);
-      res.status(500).json({ 
-        message: error.message || "Failed to cancel subscription" 
-      });
+      res.status(500).json(getClientErrorBody(error, "Failed to cancel subscription"));
     }
   });
 
@@ -2175,14 +2168,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
       console.error('[Webhook] Dodo Payments webhook error:', error);
       console.error('[Webhook] Error stack:', error.stack);
       console.error('[Webhook] Error message:', error.message);
-      
-      // Return 200 to prevent Dodo Payments from retrying if it's a signature issue
-      // (we'll fix the signature issue separately)
-      const statusCode = error.message?.includes('signature') ? 200 : 500;
-      res.status(statusCode).json({ 
-        received: true,
-        error: error.message || 'Webhook handler failed'
-      });
+      res.status(500).json({ received: true, ...getClientErrorBody(error, 'Webhook handler failed') });
     }
   });
 
@@ -2448,7 +2434,6 @@ User draft reply: ${draft_reply}`;
       
       let improvedReply = '';
       let improvementResponse: { reply: string; modelKey: string; tokensIn?: number; tokensOut?: number; latencyMs: number } | null = null;
-      let aiError = null;
       
       try {
         // Use the new improveDraft method
@@ -2459,12 +2444,7 @@ User draft reply: ${draft_reply}`;
         improvedReply = improvementResponse.reply;
       } catch (error) {
         console.error('Error generating improvement:', error);
-        aiError = error instanceof Error ? error.message : 'Unknown error';
-        // Don't consume quota if AI generation fails
-        return res.status(500).json({
-          message: "Failed to generate improvement",
-          error: aiError,
-        });
+        return res.status(500).json(getClientErrorBody(error, "Failed to generate improvement"));
       }
 
       // Consume credits after successful improvement
