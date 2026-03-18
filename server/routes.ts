@@ -31,6 +31,22 @@ const generateId = () => {
   return `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 };
 
+// Shared helpers to keep validation responses consistent across routes.
+const toValidationErrorResponse = (error: ZodError) => ({
+  message: "Validation error",
+  errors: error.errors.map(err => ({
+    field: err.path.join('.'),
+    message: err.message,
+  })),
+});
+
+const handleZodError = (res: any, error: unknown) => {
+  if (error instanceof ZodError) {
+    return res.status(400).json(toValidationErrorResponse(error));
+  }
+  return null;
+};
+
 // JWT-based authentication for serverless environments
 const jwtIsAuthenticated = (req: any, res: any, next: any) => {
   const token = req.headers.authorization?.replace('Bearer ', '') || req.cookies?.token;
@@ -181,7 +197,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
       return res.status(200).json({ success: true, xUsername: normalized });
     } catch (err) {
       if (err instanceof ZodError) {
-        return res.status(400).json({ message: 'Invalid X username', errors: err.errors });
+        return res.status(400).json(toValidationErrorResponse(err));
       }
       console.error('Error updating X username:', err);
       return res.status(500).json({ message: 'Failed to update X username' });
@@ -190,6 +206,19 @@ export async function registerRoutes(app: Express): Promise<Express> {
 
   // Local authentication routes
   app.post('/api/auth/register', authRateLimiter, (req, res, next) => {
+    try {
+      const schema = z.object({
+        email: z.string().min(1, 'Email is required.').email('Invalid email format.'),
+        password: z.string().min(1, 'Password is required.'),
+      });
+
+      schema.parse(req.body);
+    } catch (error) {
+      const handled = handleZodError(res, error);
+      if (handled) return handled;
+      throw error;
+    }
+
     passport.authenticate('local-register', (err: any, user: any, info: any) => {
       if (err) {
         console.error('Registration error:', err);
@@ -219,6 +248,19 @@ export async function registerRoutes(app: Express): Promise<Express> {
   });
 
   app.post('/api/auth/login', authRateLimiter, (req, res, next) => {
+    try {
+      const schema = z.object({
+        email: z.string().min(1, 'Email is required.').email('Invalid email format.'),
+        password: z.string().min(1, 'Password is required.'),
+      });
+
+      schema.parse(req.body);
+    } catch (error) {
+      const handled = handleZodError(res, error);
+      if (handled) return handled;
+      throw error;
+    }
+
     passport.authenticate('local-login', (err: any, user: any, info: any) => {
       if (err) {
         console.error('Login error:', err);
@@ -309,12 +351,14 @@ export async function registerRoutes(app: Express): Promise<Express> {
   // Forgot password: send reset email if user exists and uses password auth
   app.post('/api/auth/forgot-password', authRateLimiter, async (req: any, res) => {
     try {
-      const email = typeof req.body?.email === 'string' ? req.body.email.trim() : '';
+      const schema = z.object({
+        email: z.string().min(1, 'Email is required.').email('Invalid email format.'),
+      });
+
+      const { email: rawEmail } = schema.parse(req.body);
+      const email = rawEmail.trim();
+
       console.log('[forgot-password] request email:', email || '(empty)');
-      if (!email) {
-        console.log('[forgot-password] no email in body');
-        return res.status(400).json({ message: 'Email is required.' });
-      }
       const user = await storage.getUserByEmail(email);
       if (!user) {
         console.log('[forgot-password] no user found for email:', email);
@@ -342,6 +386,9 @@ export async function registerRoutes(app: Express): Promise<Express> {
       return res.status(200).json({ message: 'Password reset email sent.' });
     } catch (err) {
       console.error('[forgot-password] error:', err);
+      if (err instanceof ZodError) {
+        return res.status(400).json(toValidationErrorResponse(err));
+      }
       return res.status(500).json({ message: 'Failed to start password reset. Try again later.' });
     }
   });
@@ -349,11 +396,14 @@ export async function registerRoutes(app: Express): Promise<Express> {
   // Reset password: validate token, set new password, clear token
   app.post('/api/auth/reset-password', authRateLimiter, async (req: any, res) => {
     try {
-      const token = typeof req.body?.token === 'string' ? req.body.token.trim() : '';
-      const newPassword = typeof req.body?.newPassword === 'string' ? req.body.newPassword : '';
-      if (!token || !newPassword) {
-        return res.status(400).json({ message: 'Token and new password are required.' });
-      }
+      const schema = z.object({
+        token: z.string().min(1, 'Token is required.'),
+        newPassword: z.string().min(1, 'New password is required.'),
+      });
+
+      const { token: rawToken, newPassword } = schema.parse(req.body);
+      const token = rawToken.trim();
+
       const user = await storage.getUserByResetToken(token);
       if (!user) {
         return res.status(400).json({ message: 'Invalid or expired reset link. Request a new one.' });
@@ -368,6 +418,9 @@ export async function registerRoutes(app: Express): Promise<Express> {
       return res.status(200).json({ message: 'Password reset successfully. You can sign in now.' });
     } catch (err) {
       console.error('Reset password error:', err);
+      if (err instanceof ZodError) {
+        return res.status(400).json(toValidationErrorResponse(err));
+      }
       return res.status(500).json({ message: 'Failed to reset password.' });
     }
   });
@@ -376,11 +429,13 @@ export async function registerRoutes(app: Express): Promise<Express> {
   app.post('/api/auth/change-password', isAuthenticated, async (req: any, res) => {
     try {
       const userId = getUserId(req);
-      const currentPassword = typeof req.body?.currentPassword === 'string' ? req.body.currentPassword : '';
-      const newPassword = typeof req.body?.newPassword === 'string' ? req.body.newPassword : '';
-      if (!currentPassword || !newPassword) {
-        return res.status(400).json({ message: 'Current password and new password are required.' });
-      }
+      const schema = z.object({
+        currentPassword: z.string().min(1, 'Current password is required.'),
+        newPassword: z.string().min(1, 'New password is required.'),
+      });
+
+      const { currentPassword, newPassword } = schema.parse(req.body);
+
       const user = await storage.getUser(userId);
       if (!user?.password) {
         return res.status(400).json({ message: 'Account does not use password login.' });
@@ -1398,6 +1453,10 @@ export async function registerRoutes(app: Express): Promise<Express> {
 
     } catch (error) {
       console.error("Error creating checkout session:", error);
+
+      const handled = handleZodError(res, error);
+      if (handled) return handled;
+
       res.status(500).json({ message: "Failed to create checkout session" });
     }
   });
@@ -2197,16 +2256,8 @@ export async function registerRoutes(app: Express): Promise<Express> {
     } catch (error) {
       console.error("Error creating feedback:", error);
 
-      // Handle Zod validation errors
-      if (error instanceof ZodError) {
-        return res.status(400).json({
-          message: "Validation error",
-          errors: error.errors.map(err => ({
-            field: err.path.join('.'),
-            message: err.message
-          }))
-        });
-      }
+      const handled = handleZodError(res, error);
+      if (handled) return handled;
 
       res.status(500).json({ message: "Failed to create feedback" });
     }
@@ -2241,13 +2292,30 @@ export async function registerRoutes(app: Express): Promise<Express> {
   app.post('/api/reply-history/:id/mark-used', isAuthenticated, async (req: any, res) => {
     try {
       const userId = getUserId(req);
-      const { id } = req.params;
-      const { tweetUrl } = req.body;
+      const paramsSchema = z.object({
+        id: z.string().uuid('Invalid reply history id.'),
+      });
+
+      const bodySchema = z.object({
+        tweetUrl: z.string().optional(),
+      });
+
+      const { id } = paramsSchema.parse(req.params);
+      const { tweetUrl } = bodySchema.parse(req.body ?? {});
       
       await storage.markReplyAsUsed(id, tweetUrl);
       res.json({ success: true });
     } catch (error) {
       console.error("Error marking reply as used:", error);
+      if (error instanceof ZodError) {
+        return res.status(400).json({
+          message: "Validation error",
+          errors: error.errors.map(err => ({
+            field: err.path.join('.'),
+            message: err.message,
+          })),
+        });
+      }
       res.status(500).json({ message: "Failed to mark reply as used" });
     }
   });
