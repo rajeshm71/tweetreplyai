@@ -22,11 +22,16 @@ export class AuthManager {
         chrome.runtime.sendMessage({ action: 'getAuthStatus' }, resolve);
       });
 
-      const hasToken = response.authenticated;
-      this.token = response.token;
+      const isAuthenticated = !!response?.authenticated;
+      if (isAuthenticated) {
+        const tokenResult = await chrome.storage.local.get(['authToken']);
+        this.token = tokenResult.authToken || null;
+      } else {
+        this.token = null;
+      }
 
       // If no token in storage, not authenticated
-      if (!hasToken) {
+      if (!isAuthenticated) {
         this.authStatusCache = false;
         this.cacheExpiry = Date.now() + 30000;
         return false;
@@ -58,9 +63,9 @@ export class AuthManager {
       }
 
       // If not validating with server, just return storage check result
-      this.authStatusCache = hasToken;
+      this.authStatusCache = isAuthenticated;
       this.cacheExpiry = Date.now() + 30000;
-      return hasToken;
+      return isAuthenticated;
     } catch (error) {
       console.error('Failed to check auth status:', error);
       this.authStatusCache = false;

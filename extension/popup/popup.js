@@ -1005,25 +1005,45 @@ class PopupManager {
     entries.forEach(entry => {
       const item = document.createElement('div');
       item.className = 'history-item';
-      item.innerHTML = `
-        <div class="history-header">
-          <span class="history-date">${new Date(entry.createdAt).toLocaleDateString()}</span>
-          ${entry.qualityScore ? `<span class="quality-badge">Quality: ${entry.qualityScore}</span>` : ''}
-        </div>
-        <div class="history-tweet">${this.truncate(entry.originalTweet, 80)}</div>
-        <div class="history-reply">${entry.generatedReply}</div>
-        <button class="copy-btn" data-text="${this.escapeHtml(entry.generatedReply)}">Copy</button>
-      `;
-      
-      // Add copy functionality
-      const copyBtn = item.querySelector('.copy-btn');
-      copyBtn?.addEventListener('click', () => {
-        navigator.clipboard.writeText(entry.generatedReply);
+
+      const header = document.createElement('div');
+      header.className = 'history-header';
+
+      const dateEl = document.createElement('span');
+      dateEl.className = 'history-date';
+      dateEl.textContent = new Date(entry.createdAt).toLocaleDateString();
+      header.appendChild(dateEl);
+
+      if (entry.qualityScore) {
+        const qualityEl = document.createElement('span');
+        qualityEl.className = 'quality-badge';
+        qualityEl.textContent = `Quality: ${entry.qualityScore}`;
+        header.appendChild(qualityEl);
+      }
+
+      const tweetEl = document.createElement('div');
+      tweetEl.className = 'history-tweet';
+      tweetEl.textContent = this.truncate(String(entry.originalTweet ?? ''), 80);
+
+      const replyEl = document.createElement('div');
+      replyEl.className = 'history-reply';
+      replyEl.textContent = String(entry.generatedReply ?? '');
+
+      const copyBtn = document.createElement('button');
+      copyBtn.className = 'copy-btn';
+      copyBtn.textContent = 'Copy';
+      copyBtn.addEventListener('click', () => {
+        navigator.clipboard.writeText(String(entry.generatedReply ?? ''));
         copyBtn.textContent = 'Copied!';
         setTimeout(() => {
           copyBtn.textContent = 'Copy';
         }, 1000);
       });
+
+      item.appendChild(header);
+      item.appendChild(tweetEl);
+      item.appendChild(replyEl);
+      item.appendChild(copyBtn);
       
       listElement.appendChild(item);
     });
@@ -1246,12 +1266,14 @@ class PopupManager {
       info: 'ℹ',
       streak: '🔥'
     };
+    const allowedTypes = new Set(Object.keys(iconMap));
     
     const insightItems = insights.map(insight => {
-      const icon = iconMap[insight.type] || 'ℹ';
+      const safeType = allowedTypes.has(insight.type) ? insight.type : 'info';
+      const icon = iconMap[safeType] || 'ℹ';
       return `
         <div class="insight-item">
-          <div class="insight-icon ${insight.type}">${icon}</div>
+          <div class="insight-icon ${safeType}">${icon}</div>
           <div class="insight-text">${this.escapeHtml(insight.text)}</div>
         </div>
       `;

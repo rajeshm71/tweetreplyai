@@ -227,12 +227,11 @@ class BackgroundManager {
       const isExpired = tokenAge > 7 * 24 * 60 * 60 * 1000;
       
       sendResponse({
-        authenticated: hasToken && !isExpired,
-        token: result.authToken || null
+        authenticated: hasToken && !isExpired
       });
     } catch (error) {
       console.error('Failed to get auth status:', error);
-      sendResponse({ authenticated: false, token: null });
+      sendResponse({ authenticated: false });
     }
   }
 

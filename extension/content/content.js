@@ -171,7 +171,17 @@ class TwitterReplyInjector {
     const targetElement = dataTextSpan ? dataTextSpan.parentElement : textArea;
     
     if (targetElement) {
-      targetElement.innerHTML = `<span data-text="true">${text}</span>`;
+      const span = document.createElement('span');
+      span.dataset.text = 'true';
+      span.textContent = text;
+      if (typeof targetElement.replaceChildren === 'function') {
+        targetElement.replaceChildren(span);
+      } else {
+        while (targetElement.firstChild) {
+          targetElement.removeChild(targetElement.firstChild);
+        }
+        targetElement.appendChild(span);
+      }
       targetElement.dispatchEvent(new InputEvent("input", {
         bubbles: true,
         cancelable: true
@@ -3643,8 +3653,17 @@ class TwitterReplyInjector {
         composer.click();
         await this.sleep(20);
         
-        // Replace innerHTML directly
-        targetElement.innerHTML = `<span data-text="true">${cleanText}</span>`;
+        const span = document.createElement('span');
+        span.dataset.text = 'true';
+        span.textContent = cleanText;
+        if (typeof targetElement.replaceChildren === 'function') {
+          targetElement.replaceChildren(span);
+        } else {
+          while (targetElement.firstChild) {
+            targetElement.removeChild(targetElement.firstChild);
+          }
+          targetElement.appendChild(span);
+        }
         
         // Dispatch input event
         targetElement.dispatchEvent(new InputEvent('input', {
@@ -3696,6 +3715,11 @@ class TwitterReplyInjector {
 
   showQualityBadge(composer, score) {
     try {
+      const numericScore = typeof score === 'number' ? score : Number(score);
+      if (Number.isNaN(numericScore)) {
+        return;
+      }
+
       // Safety check
       if (!composer || !composer.parentElement) {
         console.warn('[TweetReply] Cannot show quality badge: composer or parent not found');
@@ -3710,10 +3734,16 @@ class TwitterReplyInjector {
 
       const badge = document.createElement('div');
       badge.className = 'tweetreply-quality-badge';
-      badge.innerHTML = `
-        <span class="quality-label">Quality:</span>
-        <span class="quality-score quality-${this.getQualityClass(score)}">${score}</span>
-      `;
+      const label = document.createElement('span');
+      label.className = 'quality-label';
+      label.textContent = 'Quality:';
+
+      const scoreEl = document.createElement('span');
+      scoreEl.className = `quality-score quality-${this.getQualityClass(numericScore)}`;
+      scoreEl.textContent = String(numericScore);
+
+      badge.appendChild(label);
+      badge.appendChild(scoreEl);
 
       const parent = composer.parentElement;
       if (parent) {
