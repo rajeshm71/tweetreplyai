@@ -1,17 +1,11 @@
 import { API, TIMEOUTS } from '../config/constants.js';
-import { installConsoleGate } from '../utils/consoleGate.js';
-
-globalThis.__tweetreplyaiExtLoggingAllowed = false;
-installConsoleGate(() => globalThis.__tweetreplyaiExtLoggingAllowed === true);
 
 class BackgroundManager {
   constructor() {
     this.debug = false; // Set to true for development debugging
-    this.debugAllowed = false;
     this.setupInstallHandler();
     this.setupMessageHandlers();
     this.setupAuthHandlers();
-    this.refreshDebugAllowed();
   }
 
   log(message, ...args) {
@@ -129,7 +123,6 @@ class BackgroundManager {
             authToken: results[0].result.token,
             authTime: Date.now()
           });
-          await this.refreshDebugAllowed();
           
           // Broadcast auth update to all extension contexts
           chrome.runtime.sendMessage({ action: 'authUpdated' }).catch(() => {});
@@ -171,7 +164,6 @@ class BackgroundManager {
           authToken: results[0].result.token,
           authTime: Date.now()
         });
-        await this.refreshDebugAllowed();
         
         // Broadcast auth update to all extension contexts
         chrome.runtime.sendMessage({ action: 'authUpdated' }).catch(() => {});
@@ -235,19 +227,18 @@ class BackgroundManager {
       const isExpired = tokenAge > 7 * 24 * 60 * 60 * 1000;
       
       sendResponse({
-        authenticated: hasToken && !isExpired
+        authenticated: hasToken && !isExpired,
+        token: result.authToken || null
       });
     } catch (error) {
       console.error('Failed to get auth status:', error);
-      sendResponse({ authenticated: false });
+      sendResponse({ authenticated: false, token: null });
     }
   }
 
   async handleClearAuth(sendResponse) {
     try {
       await chrome.storage.local.remove(['authToken', 'authTime']);
-      this.debugAllowed = false;
-      globalThis.__tweetreplyaiExtLoggingAllowed = false;
       sendResponse({ success: true });
     } catch (error) {
       console.error('Failed to clear auth:', error);
@@ -261,46 +252,10 @@ class BackgroundManager {
         authToken: token,
         authTime: Date.now()
       });
-      await this.refreshDebugAllowed();
       sendResponse({ success: true });
     } catch (error) {
       console.error('Failed to store token:', error);
       sendResponse({ success: false });
-    }
-  }
-
-  async refreshDebugAllowed() {
-    try {
-      const result = await chrome.storage.local.get(['authToken', 'apiDomain']);
-      const token = result.authToken;
-      if (!token) {
-        this.debugAllowed = false;
-        globalThis.__tweetreplyaiExtLoggingAllowed = false;
-        return;
-      }
-
-      const domain = result.apiDomain || API.DEFAULT_DOMAIN;
-      const protocol = domain.includes('localhost') ? 'http' : 'https';
-      const response = await fetch(`${protocol}://${domain}/api/auth/user`, {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${token}`
-        },
-        credentials: 'include'
-      });
-
-      if (!response.ok) {
-        this.debugAllowed = false;
-        globalThis.__tweetreplyaiExtLoggingAllowed = false;
-        return;
-      }
-
-      const user = await response.json();
-      this.debugAllowed = !!user?.isWhitelisted;
-      globalThis.__tweetreplyaiExtLoggingAllowed = this.debugAllowed;
-    } catch {
-      this.debugAllowed = false;
-      globalThis.__tweetreplyaiExtLoggingAllowed = false;
     }
   }
 

@@ -4,11 +4,9 @@
   var AuthManager = class {
     constructor() {
       this.token = null;
-      this.isWhitelisted = false;
       this.authStatusCache = null;
       this.cacheExpiry = 0;
       this.apiClient = null;
-      globalThis.__tweetreplyaiExtLoggingAllowed = false;
     }
     setApiClient(apiClient) {
       this.apiClient = apiClient;
@@ -21,25 +19,16 @@
         const response = await new Promise((resolve) => {
           chrome.runtime.sendMessage({ action: "getAuthStatus" }, resolve);
         });
-        const isAuthenticated = !!response?.authenticated;
-        if (isAuthenticated) {
-          const tokenResult = await chrome.storage.local.get(["authToken"]);
-          this.token = tokenResult.authToken || null;
-        } else {
-          this.token = null;
-        }
-        if (!isAuthenticated) {
+        const hasToken = response.authenticated;
+        this.token = response.token;
+        if (!hasToken) {
           this.authStatusCache = false;
           this.cacheExpiry = Date.now() + 3e4;
-          this.isWhitelisted = false;
-          globalThis.__tweetreplyaiExtLoggingAllowed = false;
           return false;
         }
         if (validateWithServer && this.apiClient) {
           try {
-            const user = await this.apiClient.getCurrentUser();
-            this.isWhitelisted = !!user?.isWhitelisted;
-            globalThis.__tweetreplyaiExtLoggingAllowed = this.isWhitelisted;
+            await this.apiClient.getCurrentUser();
             this.authStatusCache = true;
             this.cacheExpiry = Date.now() + 3e4;
             return true;
@@ -49,25 +38,19 @@
               await this.signOut();
               this.authStatusCache = false;
               this.cacheExpiry = Date.now() + 3e4;
-              this.isWhitelisted = false;
-              globalThis.__tweetreplyaiExtLoggingAllowed = false;
               return false;
             }
             this.authStatusCache = false;
             this.cacheExpiry = Date.now() + 3e4;
-            this.isWhitelisted = false;
-            globalThis.__tweetreplyaiExtLoggingAllowed = false;
             return false;
           }
         }
-        this.authStatusCache = isAuthenticated;
+        this.authStatusCache = hasToken;
         this.cacheExpiry = Date.now() + 3e4;
-        return isAuthenticated;
+        return hasToken;
       } catch (error) {
         console.error("Failed to check auth status:", error);
         this.authStatusCache = false;
-        this.isWhitelisted = false;
-        globalThis.__tweetreplyaiExtLoggingAllowed = false;
         return false;
       }
     }
@@ -80,10 +63,8 @@
     async signOut() {
       try {
         this.token = null;
-        this.isWhitelisted = false;
         this.authStatusCache = false;
         this.cacheExpiry = 0;
-        globalThis.__tweetreplyaiExtLoggingAllowed = false;
         await new Promise((resolve) => {
           chrome.runtime.sendMessage({ action: "clearAuth" }, resolve);
         });
@@ -271,58 +252,7 @@
     }
   };
 
-  // extension/utils/consoleGate.js
-  var GLOBAL_FLAG_KEY = "__tweetreplyaiExtLoggingAllowed";
-  var GLOBAL_STATE_KEY = "__tweetreplyaiConsoleGateState";
-  function installConsoleGate(getAllowed) {
-    const state = globalThis[GLOBAL_STATE_KEY];
-    if (state?.installed) {
-      state.getAllowed = getAllowed;
-      return;
-    }
-    const originals = {
-      log: console.log.bind(console),
-      warn: console.warn.bind(console),
-      error: console.error.bind(console),
-      info: console.info.bind(console),
-      debug: console.debug.bind(console)
-    };
-    const sharedState = {
-      installed: true,
-      getAllowed,
-      originals
-    };
-    globalThis[GLOBAL_STATE_KEY] = sharedState;
-    const allowed = () => {
-      try {
-        return sharedState.getAllowed?.() === true;
-      } catch {
-        return false;
-      }
-    };
-    console.log = (...args) => {
-      if (allowed()) originals.log(...args);
-    };
-    console.warn = (...args) => {
-      if (allowed()) originals.warn(...args);
-    };
-    console.error = (...args) => {
-      if (allowed()) originals.error(...args);
-    };
-    console.info = (...args) => {
-      if (allowed()) originals.info(...args);
-    };
-    console.debug = (...args) => {
-      if (allowed()) originals.debug(...args);
-    };
-  }
-  if (typeof globalThis[GLOBAL_FLAG_KEY] !== "boolean") {
-    globalThis[GLOBAL_FLAG_KEY] = false;
-  }
-
   // extension/popup/popup.js
-  globalThis.__tweetreplyaiExtLoggingAllowed = false;
-  installConsoleGate(() => globalThis.__tweetreplyaiExtLoggingAllowed === true);
   var PopupManager = class {
     constructor() {
       this.authManager = new AuthManager();
@@ -1079,38 +1009,23 @@
       entries.forEach((entry) => {
         const item = document.createElement("div");
         item.className = "history-item";
-        const header = document.createElement("div");
-        header.className = "history-header";
-        const dateEl = document.createElement("span");
-        dateEl.className = "history-date";
-        dateEl.textContent = new Date(entry.createdAt).toLocaleDateString();
-        header.appendChild(dateEl);
-        if (entry.qualityScore) {
-          const qualityEl = document.createElement("span");
-          qualityEl.className = "quality-badge";
-          qualityEl.textContent = `Quality: ${entry.qualityScore}`;
-          header.appendChild(qualityEl);
-        }
-        const tweetEl = document.createElement("div");
-        tweetEl.className = "history-tweet";
-        tweetEl.textContent = this.truncate(String(entry.originalTweet ?? ""), 80);
-        const replyEl = document.createElement("div");
-        replyEl.className = "history-reply";
-        replyEl.textContent = String(entry.generatedReply ?? "");
-        const copyBtn = document.createElement("button");
-        copyBtn.className = "copy-btn";
-        copyBtn.textContent = "Copy";
-        copyBtn.addEventListener("click", () => {
-          navigator.clipboard.writeText(String(entry.generatedReply ?? ""));
+        item.innerHTML = `
+        <div class="history-header">
+          <span class="history-date">${new Date(entry.createdAt).toLocaleDateString()}</span>
+          ${entry.qualityScore ? `<span class="quality-badge">Quality: ${entry.qualityScore}</span>` : ""}
+        </div>
+        <div class="history-tweet">${this.truncate(entry.originalTweet, 80)}</div>
+        <div class="history-reply">${entry.generatedReply}</div>
+        <button class="copy-btn" data-text="${this.escapeHtml(entry.generatedReply)}">Copy</button>
+      `;
+        const copyBtn = item.querySelector(".copy-btn");
+        copyBtn?.addEventListener("click", () => {
+          navigator.clipboard.writeText(entry.generatedReply);
           copyBtn.textContent = "Copied!";
           setTimeout(() => {
             copyBtn.textContent = "Copy";
           }, 1e3);
         });
-        item.appendChild(header);
-        item.appendChild(tweetEl);
-        item.appendChild(replyEl);
-        item.appendChild(copyBtn);
         listElement.appendChild(item);
       });
     }
@@ -1289,13 +1204,11 @@
         info: "\u2139",
         streak: "\u{1F525}"
       };
-      const allowedTypes = new Set(Object.keys(iconMap));
       const insightItems = insights.map((insight) => {
-        const safeType = allowedTypes.has(insight.type) ? insight.type : "info";
-        const icon = iconMap[safeType] || "\u2139";
+        const icon = iconMap[insight.type] || "\u2139";
         return `
         <div class="insight-item">
-          <div class="insight-icon ${safeType}">${icon}</div>
+          <div class="insight-icon ${insight.type}">${icon}</div>
           <div class="insight-text">${this.escapeHtml(insight.text)}</div>
         </div>
       `;
@@ -1369,7 +1282,7 @@
     }
     updatePlanBadge() {
       if (this.planBadge && this.usageData) {
-        const planCode = (this.usageData.planCode || "trial").toString().toLowerCase();
+        const planCode = this.usageData.planCode || "trial";
         const planLabels = {
           "trial": "Free Trial",
           "weekly": "Weekly Plan",
@@ -1380,13 +1293,8 @@
         this.planBadge.className = "plan-badge" + (planCode === "bypass" ? " plan-badge--pro" : planCode === "weekly" || planCode === "monthly" ? " plan-badge--paid" : "");
         this.planBadge.style.background = "";
         this.planBadge.style.color = "";
-        const isPaidPlan = planCode === "bypass" || planCode === "weekly" || planCode === "monthly";
         if (this.upgradeCta) {
-          this.upgradeCta.style.display = isPaidPlan ? "none" : "";
-        }
-        const footerActions = this.upgradeCta?.closest(".footer-actions");
-        if (footerActions) {
-          footerActions.style.display = isPaidPlan ? "none" : "";
+          this.upgradeCta.style.display = planCode === "bypass" || planCode === "weekly" || planCode === "monthly" ? "none" : "";
         }
       }
     }

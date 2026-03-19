@@ -39,45 +39,115 @@
       const testAuthBtn = document.getElementById('test-auth');
       const testApiBtn = document.getElementById('test-api');
 
-      // Test authentication
-      testAuthBtn.addEventListener('click', async () => {
-        try {
-          const result = await chrome.storage.local.get(['authToken', 'authTime']);
-          debugInfo.innerHTML = `
-            <p><strong>Authentication Test:</strong></p>
-            <p>Token exists: ${!!result.authToken}</p>
-            <p>Auth time: ${result.authTime ? new Date(result.authTime).toLocaleString() : 'None'}</p>
-            <p>Token preview: ${result.authToken ? result.authToken.substring(0, 20) + '...' : 'None'}</p>
-          `;
-        } catch (error) {
-          debugInfo.innerHTML = `<p>Auth test error: ${error.message}</p>`;
-        }
-      });
+      const clearDebugInfo = () => {
+        while (debugInfo.firstChild) debugInfo.removeChild(debugInfo.firstChild);
+      };
 
-      // Test API
-      testApiBtn.addEventListener('click', async () => {
+      const appendLine = (text, isStrong = false) => {
+        const p = document.createElement('p');
+        if (isStrong) {
+          const strong = document.createElement('strong');
+          strong.textContent = text;
+          p.appendChild(strong);
+        } else {
+          p.textContent = text;
+        }
+        debugInfo.appendChild(p);
+      };
+
+      const getApiBaseUrl = async () => {
+        const domainResponse = await new Promise((resolve) => {
+          chrome.runtime.sendMessage({ action: 'getApiDomain' }, resolve);
+        });
+        const domain = domainResponse?.domain || 'tweetreplyai.vercel.app';
+        const protocol = domain.includes('localhost') ? 'http' : 'https';
+        return `${protocol}://${domain}`;
+      };
+
+      const resolveDebugAccess = async () => {
         try {
-          const response = await fetch('https://tweetreplyai-ly1ayk4l0-rajeshm71s-projects.vercel.app/api/auth/user', {
+          const storageResult = await chrome.storage.local.get(['authToken']);
+          const token = storageResult.authToken;
+          if (!token) return false;
+
+          const baseUrl = await getApiBaseUrl();
+          const response = await fetch(`${baseUrl}/api/auth/user`, {
+            method: 'GET',
+            headers: {
+              Authorization: `Bearer ${token}`
+            },
             credentials: 'include'
           });
-          debugInfo.innerHTML = `
-            <p><strong>API Test:</strong></p>
-            <p>Status: ${response.status}</p>
-            <p>Status Text: ${response.statusText}</p>
-            <p>Response: ${await response.text()}</p>
-          `;
-        } catch (error) {
-          debugInfo.innerHTML = `<p>API test error: ${error.message}</p>`;
-        }
-      });
+          if (!response.ok) return false;
 
-      // Initial debug info
-      debugInfo.innerHTML = `
-        <p><strong>Extension Debug Info:</strong></p>
-        <p>Extension ID: ${chrome.runtime.id}</p>
-        <p>Manifest version: ${chrome.runtime.getManifest().version}</p>
-        <p>Current URL: ${window.location.href}</p>
-      `;
+          const user = await response.json();
+          return !!user?.isWhitelisted;
+        } catch {
+          return false;
+        }
+      };
+
+      const showAccessDenied = () => {
+        clearDebugInfo();
+        appendLine('Debug access denied.');
+        appendLine('This view is available only for whitelisted users.');
+        testAuthBtn.disabled = true;
+        testApiBtn.disabled = true;
+      };
+
+      const setupDebugView = async () => {
+        const baseUrl = await getApiBaseUrl();
+
+        // Test authentication (no token preview)
+        testAuthBtn.addEventListener('click', async () => {
+          try {
+            const result = await chrome.storage.local.get(['authToken', 'authTime']);
+            clearDebugInfo();
+            appendLine('Authentication Test:', true);
+            appendLine(`Token exists: ${!!result.authToken}`);
+            appendLine(`Auth time: ${result.authTime ? new Date(result.authTime).toLocaleString() : 'None'}`);
+          } catch {
+            clearDebugInfo();
+            appendLine('Auth test failed.');
+          }
+        });
+
+        // Test API (no raw response body)
+        testApiBtn.addEventListener('click', async () => {
+          try {
+            const result = await chrome.storage.local.get(['authToken']);
+            const token = result.authToken;
+            const response = await fetch(`${baseUrl}/api/auth/user`, {
+              method: 'GET',
+              headers: token ? { Authorization: `Bearer ${token}` } : {},
+              credentials: 'include'
+            });
+            clearDebugInfo();
+            appendLine('API Test:', true);
+            appendLine(`Status: ${response.status}`);
+            appendLine(`Status Text: ${response.statusText}`);
+          } catch {
+            clearDebugInfo();
+            appendLine('API test failed.');
+          }
+        });
+
+        clearDebugInfo();
+        appendLine('Extension Debug Info:', true);
+        appendLine(`Extension ID: ${chrome.runtime.id}`);
+        appendLine(`Manifest version: ${chrome.runtime.getManifest().version}`);
+        appendLine(`Current URL: ${window.location.href}`);
+      };
+
+      resolveDebugAccess().then((allowed) => {
+        if (!allowed) {
+          showAccessDenied();
+          return;
+        }
+        setupDebugView().catch(() => {
+          showAccessDenied();
+        });
+      });
     });
   </script>
 </body>

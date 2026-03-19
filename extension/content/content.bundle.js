@@ -4,9 +4,11 @@
   var AuthManager = class {
     constructor() {
       this.token = null;
+      this.isWhitelisted = false;
       this.authStatusCache = null;
       this.cacheExpiry = 0;
       this.apiClient = null;
+      globalThis.__tweetreplyaiExtLoggingAllowed = false;
     }
     setApiClient(apiClient) {
       this.apiClient = apiClient;
@@ -19,16 +21,25 @@
         const response = await new Promise((resolve) => {
           chrome.runtime.sendMessage({ action: "getAuthStatus" }, resolve);
         });
-        const hasToken = response.authenticated;
-        this.token = response.token;
-        if (!hasToken) {
+        const isAuthenticated = !!response?.authenticated;
+        if (isAuthenticated) {
+          const tokenResult = await chrome.storage.local.get(["authToken"]);
+          this.token = tokenResult.authToken || null;
+        } else {
+          this.token = null;
+        }
+        if (!isAuthenticated) {
           this.authStatusCache = false;
           this.cacheExpiry = Date.now() + 3e4;
+          this.isWhitelisted = false;
+          globalThis.__tweetreplyaiExtLoggingAllowed = false;
           return false;
         }
         if (validateWithServer && this.apiClient) {
           try {
-            await this.apiClient.getCurrentUser();
+            const user = await this.apiClient.getCurrentUser();
+            this.isWhitelisted = !!user?.isWhitelisted;
+            globalThis.__tweetreplyaiExtLoggingAllowed = this.isWhitelisted;
             this.authStatusCache = true;
             this.cacheExpiry = Date.now() + 3e4;
             return true;
@@ -38,19 +49,25 @@
               await this.signOut();
               this.authStatusCache = false;
               this.cacheExpiry = Date.now() + 3e4;
+              this.isWhitelisted = false;
+              globalThis.__tweetreplyaiExtLoggingAllowed = false;
               return false;
             }
             this.authStatusCache = false;
             this.cacheExpiry = Date.now() + 3e4;
+            this.isWhitelisted = false;
+            globalThis.__tweetreplyaiExtLoggingAllowed = false;
             return false;
           }
         }
-        this.authStatusCache = hasToken;
+        this.authStatusCache = isAuthenticated;
         this.cacheExpiry = Date.now() + 3e4;
-        return hasToken;
+        return isAuthenticated;
       } catch (error) {
         console.error("Failed to check auth status:", error);
         this.authStatusCache = false;
+        this.isWhitelisted = false;
+        globalThis.__tweetreplyaiExtLoggingAllowed = false;
         return false;
       }
     }
@@ -63,8 +80,10 @@
     async signOut() {
       try {
         this.token = null;
+        this.isWhitelisted = false;
         this.authStatusCache = false;
         this.cacheExpiry = 0;
+        globalThis.__tweetreplyaiExtLoggingAllowed = false;
         await new Promise((resolve) => {
           chrome.runtime.sendMessage({ action: "clearAuth" }, resolve);
         });
@@ -265,7 +284,58 @@
     }
   };
 
+  // extension/utils/consoleGate.js
+  var GLOBAL_FLAG_KEY = "__tweetreplyaiExtLoggingAllowed";
+  var GLOBAL_STATE_KEY = "__tweetreplyaiConsoleGateState";
+  function installConsoleGate(getAllowed) {
+    const state = globalThis[GLOBAL_STATE_KEY];
+    if (state?.installed) {
+      state.getAllowed = getAllowed;
+      return;
+    }
+    const originals = {
+      log: console.log.bind(console),
+      warn: console.warn.bind(console),
+      error: console.error.bind(console),
+      info: console.info.bind(console),
+      debug: console.debug.bind(console)
+    };
+    const sharedState = {
+      installed: true,
+      getAllowed,
+      originals
+    };
+    globalThis[GLOBAL_STATE_KEY] = sharedState;
+    const allowed = () => {
+      try {
+        return sharedState.getAllowed?.() === true;
+      } catch {
+        return false;
+      }
+    };
+    console.log = (...args) => {
+      if (allowed()) originals.log(...args);
+    };
+    console.warn = (...args) => {
+      if (allowed()) originals.warn(...args);
+    };
+    console.error = (...args) => {
+      if (allowed()) originals.error(...args);
+    };
+    console.info = (...args) => {
+      if (allowed()) originals.info(...args);
+    };
+    console.debug = (...args) => {
+      if (allowed()) originals.debug(...args);
+    };
+  }
+  if (typeof globalThis[GLOBAL_FLAG_KEY] !== "boolean") {
+    globalThis[GLOBAL_FLAG_KEY] = false;
+  }
+
   // extension/content/content.js
+  globalThis.__tweetreplyaiExtLoggingAllowed = false;
+  installConsoleGate(() => globalThis.__tweetreplyaiExtLoggingAllowed === true);
   var DIAGNOSE_THREAD_SELECTION = true;
   var TwitterReplyInjector = class {
     constructor() {
@@ -398,7 +468,17 @@
       const dataTextSpan = textArea.querySelector('[data-text="true"]');
       const targetElement = dataTextSpan ? dataTextSpan.parentElement : textArea;
       if (targetElement) {
-        targetElement.innerHTML = `<span data-text="true">${text}</span>`;
+        const span = document.createElement("span");
+        span.dataset.text = "true";
+        span.textContent = text;
+        if (typeof targetElement.replaceChildren === "function") {
+          targetElement.replaceChildren(span);
+        } else {
+          while (targetElement.firstChild) {
+            targetElement.removeChild(targetElement.firstChild);
+          }
+          targetElement.appendChild(span);
+        }
         targetElement.dispatchEvent(new InputEvent("input", {
           bubbles: true,
           cancelable: true
@@ -3054,7 +3134,17 @@
           const targetElement = dataTextSpan ? dataTextSpan.parentElement : composer;
           composer.click();
           await this.sleep(20);
-          targetElement.innerHTML = `<span data-text="true">${cleanText}</span>`;
+          const span = document.createElement("span");
+          span.dataset.text = "true";
+          span.textContent = cleanText;
+          if (typeof targetElement.replaceChildren === "function") {
+            targetElement.replaceChildren(span);
+          } else {
+            while (targetElement.firstChild) {
+              targetElement.removeChild(targetElement.firstChild);
+            }
+            targetElement.appendChild(span);
+          }
           targetElement.dispatchEvent(new InputEvent("input", {
             bubbles: true,
             cancelable: true
@@ -3083,6 +3173,10 @@
     }
     showQualityBadge(composer, score) {
       try {
+        const numericScore = typeof score === "number" ? score : Number(score);
+        if (Number.isNaN(numericScore)) {
+          return;
+        }
         if (!composer || !composer.parentElement) {
           console.warn("[TweetReply] Cannot show quality badge: composer or parent not found");
           return;
@@ -3093,10 +3187,14 @@
         }
         const badge = document.createElement("div");
         badge.className = "tweetreply-quality-badge";
-        badge.innerHTML = `
-        <span class="quality-label">Quality:</span>
-        <span class="quality-score quality-${this.getQualityClass(score)}">${score}</span>
-      `;
+        const label = document.createElement("span");
+        label.className = "quality-label";
+        label.textContent = "Quality:";
+        const scoreEl = document.createElement("span");
+        scoreEl.className = `quality-score quality-${this.getQualityClass(numericScore)}`;
+        scoreEl.textContent = String(numericScore);
+        badge.appendChild(label);
+        badge.appendChild(scoreEl);
         const parent = composer.parentElement;
         if (parent) {
           parent.insertBefore(badge, composer.nextSibling);
