@@ -1,6 +1,10 @@
 import { AuthManager } from '../utils/auth.js';
 import { ApiClient } from '../utils/api.js';
+import { installConsoleGate } from '../utils/consoleGate.js';
 import { API, POLLING, TIMEOUTS, DEFAULTS, VALIDATION, AUTH } from '../config/constants.js';
+
+globalThis.__tweetreplyaiExtLoggingAllowed = false;
+installConsoleGate(() => globalThis.__tweetreplyaiExtLoggingAllowed === true);
 
 /** Set false to disable thread/original-tweet diagnostic logs (wrong originalTweetAuthor debugging). */
 const DIAGNOSE_THREAD_SELECTION = true;

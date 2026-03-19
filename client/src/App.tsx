@@ -84,6 +84,11 @@ function Router() {
   const { user, isAuthenticated, isLoading } = useAuth();
   const needsXUsername = isAuthenticated && user && !user.xUsername;
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    (window as any).__tweetreplyaiLoggingAllowed = !!user?.isWhitelisted;
+  }, [user?.isWhitelisted]);
+
   return (
     <Suspense fallback={<LoadingFallback />}>
       <Switch>

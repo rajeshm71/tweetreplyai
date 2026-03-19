@@ -1,9 +1,11 @@
 export class AuthManager {
   constructor() {
     this.token = null;
+    this.isWhitelisted = false;
     this.authStatusCache = null;
     this.cacheExpiry = 0;
     this.apiClient = null; // Will be set by caller if needed for validation
+    globalThis.__tweetreplyaiExtLoggingAllowed = false;
   }
 
   setApiClient(apiClient) {
@@ -34,6 +36,8 @@ export class AuthManager {
       if (!isAuthenticated) {
         this.authStatusCache = false;
         this.cacheExpiry = Date.now() + 30000;
+        this.isWhitelisted = false;
+        globalThis.__tweetreplyaiExtLoggingAllowed = false;
         return false;
       }
 
@@ -41,7 +45,9 @@ export class AuthManager {
       if (validateWithServer && this.apiClient) {
         try {
           // Validate token by calling /api/auth/user
-          await this.apiClient.getCurrentUser();
+          const user = await this.apiClient.getCurrentUser();
+          this.isWhitelisted = !!user?.isWhitelisted;
+          globalThis.__tweetreplyaiExtLoggingAllowed = this.isWhitelisted;
           // If successful, user is authenticated
           this.authStatusCache = true;
           this.cacheExpiry = Date.now() + 30000;
@@ -53,11 +59,15 @@ export class AuthManager {
             await this.signOut();
             this.authStatusCache = false;
             this.cacheExpiry = Date.now() + 30000;
+            this.isWhitelisted = false;
+            globalThis.__tweetreplyaiExtLoggingAllowed = false;
             return false;
           }
           // Other errors - assume not authenticated
           this.authStatusCache = false;
           this.cacheExpiry = Date.now() + 30000;
+          this.isWhitelisted = false;
+          globalThis.__tweetreplyaiExtLoggingAllowed = false;
           return false;
         }
       }
@@ -69,6 +79,8 @@ export class AuthManager {
     } catch (error) {
       console.error('Failed to check auth status:', error);
       this.authStatusCache = false;
+      this.isWhitelisted = false;
+      globalThis.__tweetreplyaiExtLoggingAllowed = false;
       return false;
     }
   }
@@ -84,8 +96,10 @@ export class AuthManager {
     try {
       // Clear local storage
       this.token = null;
+      this.isWhitelisted = false;
       this.authStatusCache = false;
       this.cacheExpiry = 0;
+      globalThis.__tweetreplyaiExtLoggingAllowed = false;
 
       // Clear from extension storage
       await new Promise((resolve) => {

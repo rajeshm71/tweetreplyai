@@ -1,6 +1,10 @@
 import { AuthManager } from '../utils/auth.js';
 import { ApiClient } from '../utils/api.js';
+import { installConsoleGate } from '../utils/consoleGate.js';
 import { POLLING, DEFAULTS } from '../config/constants.js';
+
+globalThis.__tweetreplyaiExtLoggingAllowed = false;
+installConsoleGate(() => globalThis.__tweetreplyaiExtLoggingAllowed === true);
 
 class PopupManager {
   constructor() {
