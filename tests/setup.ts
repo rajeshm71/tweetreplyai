@@ -6,6 +6,15 @@ import { handlers } from './mocks/handlers';
 // Load test environment variables
 config({ path: '.env.test' });
 
+// Ensure Supabase module initialization doesn't throw during tests.
+// Some unit tests don't require a real DB connection, but the client is imported at module load time.
+if (!process.env.SUPABASE_URL) {
+  process.env.SUPABASE_URL = 'http://localhost:54321';
+}
+if (!process.env.SUPABASE_ANON_KEY && !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  process.env.SUPABASE_ANON_KEY = 'test-anon-key';
+}
+
 // Set test environment variables if .env.test doesn't exist
 if (!process.env.DATABASE_URL) {
   // For unit tests, we don't need a real database connection

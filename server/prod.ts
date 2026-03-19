@@ -5,6 +5,7 @@ import { serveStatic, log } from "./static.js";
 import { getClientErrorBody } from "./config/env.js";
 import cors from "cors";
 import { corsApiOptions } from "./config/cors.js";
+import { redactForLogs, safeStringifyForLogs } from "./utils/logging.js";
 
 const app = express();
 
@@ -37,7 +38,13 @@ app.use((req, res, next) => {
     if (path.startsWith("/api")) {
       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
       if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+        try {
+          const redacted = redactForLogs(capturedJsonResponse);
+          const safePreview = safeStringifyForLogs(redacted, 1000);
+          logLine += ` :: ${safePreview}`;
+        } catch {
+          // Never let logging failures affect request handling.
+        }
       }
 
       if (logLine.length > 80) {
