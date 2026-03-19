@@ -12,7 +12,7 @@ import { usageService } from "./services/usage.js";
 import { whitelistService } from "./services/whitelistService.js";
 import { runGuardrail, generateGuardrailFriendlyReply, type GuardrailResult } from "./services/guardrail.js";
 import { ANALYTICS, PERIODS, QUALITY, RATE_LIMIT, VALIDATION } from "./config/constants.js";
-import { getSessionSecret, getClientErrorBody } from "./config/env.js";
+import { getSessionSecret, getClientErrorBody, isProduction } from "./config/env.js";
 // Static import: avoids per-request dynamic import; LinkedIn pipeline remains isolated from Twitter path.
 import { generateLinkedInReply } from "./services/linkedin-ai-service.js";
 import { z, ZodError } from "zod";
@@ -93,7 +93,13 @@ export async function registerRoutes(app: Express): Promise<Express> {
       secret: getSessionSecret(),
       resave: false,
       saveUninitialized: false,
-      cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 }, // 1 week
+      cookie: {
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 1 week
+        httpOnly: true,
+        secure: isProduction,
+        sameSite: 'lax',
+        path: '/',
+      },
   };
 
   // Use memory store for sessions since we're using JWT for serverless
