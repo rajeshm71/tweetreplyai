@@ -302,8 +302,8 @@ export async function registerRoutes(app: Express): Promise<Express> {
 
   app.get('/api/auth/google', (req, res, next) => {
     console.log('Request URL:', req.url);
-    console.log('Request headers:', req.headers);
-    console.log('Current callback URL from env:', process.env.GOOGLE_CALLBACK_URL);
+    // Avoid logging raw headers (can contain cookies/authorization tokens).
+    console.log('[Google OAuth] callbackConfigured:', !!process.env.GOOGLE_CALLBACK_URL);
     const returnUrl = validateReturnUrl(req.query?.returnUrl as string | undefined);
     passport.authenticate('google', {
       scope: ['profile', 'email'],
@@ -320,7 +320,8 @@ export async function registerRoutes(app: Express): Promise<Express> {
       })(req, res, next);
     },
     (req, res) => {
-      console.log('Google auth successful, user:', req.user);
+      // Avoid logging the full user object (can contain profile/PII). Log only an identifier.
+      console.log('[Google OAuth] success, userId:', (req.user as any)?.id);
       const user = req.user as any;
       const token = jwt.sign(
         { id: user.id, email: user.email },
