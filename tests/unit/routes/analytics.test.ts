@@ -17,6 +17,13 @@ vi.mock("../../../server/localAuth", () => ({ setupLocalAuth: vi.fn() }));
 vi.mock("../../../server/services/feedback-analytics", () => ({
   feedbackAnalytics: {
     getSimpleAnalytics: vi.fn().mockResolvedValue({ totalReplies: 0 }),
+    getFeedbackStats: vi.fn().mockResolvedValue({
+      overall_quality: { upvotes: 0, downvotes: 0, upvote_percentage: 0 },
+      by_model: {},
+      recent_trends: [],
+      quality_metrics: { avg_quality_score: 0, high_quality_replies: 0, low_quality_replies: 0, regeneration_rate: 0 },
+    }),
+    getRecommendations: vi.fn().mockResolvedValue([]),
   },
 }));
 
@@ -87,6 +94,74 @@ describe("Analytics Routes - Unit Tests", () => {
 
     expect(res.status).toBe(500);
     expect(res.body.message).toBe("Failed to fetch analytics");
+  });
+
+  // ── GET /api/analytics/feedback-stats ──────────────────────────────────────
+
+  describe("GET /api/analytics/feedback-stats", () => {
+    it("returns 200 with feedback stats", async () => {
+      const res = await app.raw()
+        .get("/api/analytics/feedback-stats")
+        .set("Authorization", `Bearer ${authToken}`);
+      expect(res.status).toBe(200);
+    });
+
+    it("passes days param to getFeedbackStats", async () => {
+      const { feedbackAnalytics } = await import("../../../server/services/feedback-analytics");
+      const res = await app.raw()
+        .get("/api/analytics/feedback-stats?days=7")
+        .set("Authorization", `Bearer ${authToken}`);
+      expect(res.status).toBe(200);
+      expect(feedbackAnalytics.getFeedbackStats).toHaveBeenCalledWith("test-user", 7);
+    });
+
+    it("defaults to 30 days when no query param", async () => {
+      const { feedbackAnalytics } = await import("../../../server/services/feedback-analytics");
+      await app.raw()
+        .get("/api/analytics/feedback-stats")
+        .set("Authorization", `Bearer ${authToken}`);
+      expect(feedbackAnalytics.getFeedbackStats).toHaveBeenCalledWith("test-user", 30);
+    });
+
+    it("returns 400 when days > 365", async () => {
+      const res = await app.raw()
+        .get("/api/analytics/feedback-stats?days=366")
+        .set("Authorization", `Bearer ${authToken}`);
+      expect(res.status).toBe(400);
+      expect(res.body).toHaveProperty("message", "Days must be between 1 and 365");
+    });
+
+    it("returns 400 when days < 1", async () => {
+      const res = await app.raw()
+        .get("/api/analytics/feedback-stats?days=-5")
+        .set("Authorization", `Bearer ${authToken}`);
+      expect(res.status).toBe(400);
+    });
+
+    it("returns 401 when not authenticated", async () => {
+      const unauthApp = express();
+      unauthApp.use(express.json());
+      unauthApp.use((req: any, _res: any, next: any) => {
+        req.user = null;
+        req.isAuthenticated = () => false;
+        req.logout = vi.fn((cb: any) => cb());
+        next();
+      });
+      await setupRoutes(unauthApp);
+      const { createTestApp } = await import("../../helpers/request");
+      const res = await createTestApp(unauthApp).raw().get("/api/analytics/feedback-stats");
+      expect(res.status).toBe(401);
+    });
+
+    it("returns 500 when getFeedbackStats throws", async () => {
+      const { feedbackAnalytics } = await import("../../../server/services/feedback-analytics");
+      vi.mocked(feedbackAnalytics.getFeedbackStats).mockRejectedValue(new Error("DB error"));
+      const res = await app.raw()
+        .get("/api/analytics/feedback-stats?days=30")
+        .set("Authorization", `Bearer ${authToken}`);
+      expect(res.status).toBe(500);
+      expect(res.body.message).toBe("Failed to fetch feedback stats");
+    });
   });
 });
 

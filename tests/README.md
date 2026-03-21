@@ -10,8 +10,26 @@ This directory contains all tests for the TweetReply AI backend.
 | `npm run test:integration` | `tests/integration/**` only |
 | `npm test` | Full Vitest discovery of `*.test.ts` across the project |
 | `npm run test:watch` | Watch mode (re-runs on file change) |
-| `npm run test:coverage` | Coverage report (80% threshold required) |
+| `npm run test:coverage` | Coverage report: runs **all** Vitest tests (including integration) with v8 coverage. See thresholds and exclusions below. |
+| `npm run test:coverage:unit` | Same as coverage but **excludes** `tests/integration/**` — use for PR/CI when no Supabase DB is configured. |
 | `npm run test:ui` | Visual Vitest UI |
+
+### Coverage thresholds and exclusions
+
+Global thresholds (aggregate) in `vitest.config.ts` are **lines 60%**, **functions 60%**, **branches 40%**, **statements 60%**. Files under `coverage.exclude` do not count toward these totals, including:
+
+- `node_modules/`, `dist/`, `tests/`, `client/`
+- `**/storage-supabase.ts` (raw Supabase DB layer)
+- `extension/**` (browser extension bundles)
+
+Raising these numbers should be a deliberate effort (more unit tests and/or narrower include globs), not an arbitrary bump.
+
+### Coverage vs unit-only
+
+- **`npm run test:unit`** — Fast; does not run integration tests. Use for day-to-day development.
+- **`npm run test:integration`** — Requires a real `DATABASE_URL` (e.g. Supabase); tests skip or run accordingly.
+- **`npm run test:coverage`** — Full suite; may **fail** if integration tests need a live DB or secrets.
+- **`npm run test:coverage:unit`** — Coverage for unit tests only; suitable for CI when integration is optional.
 
 ---
 
@@ -61,7 +79,7 @@ Every unit test file is assigned a tier label that describes its coverage qualit
 
 | File | Tier | Coverage |
 |------|------|----------|
-| `tests/unit/services/ai-router.test.ts` | T1 | generateReply: model selection, fallback, error handling |
+| `tests/unit/services/ai-router.test.ts` | T1 | generateReply (model selection, Groq→OpenAI fallback, unknown model→FALLBACK call); improveDraft; getModelInfo; estimateCost |
 | `tests/unit/services/authService.test.ts` | T1 | createUser, validatePassword with env guards |
 | `tests/unit/services/credits.test.ts` | T1 | CREDIT_COSTS values, getCreditCost for all modes |
 | `tests/unit/services/guardrail.test.ts` | T1 | runGuardrail: pass, fail, category detection, env guards |
@@ -246,9 +264,11 @@ afterEach(() => vi.unstubAllEnvs());
 
 ## Coverage Thresholds
 
-Configured in `vitest.config.ts`:
+Configured in `vitest.config.ts` (global aggregate only; `perFile: false`):
 
-- **Lines**: 80%+
-- **Functions**: 80%+
-- **Branches**: 80%+
-- **Statements**: 80%+
+- **Lines**: 60%+
+- **Functions**: 60%+
+- **Branches**: 40%+
+- **Statements**: 60%+
+
+Excluded paths (e.g. `**/storage-supabase.ts`, `extension/**`) do not contribute to these totals. See **Coverage thresholds and exclusions** under Running Tests above.

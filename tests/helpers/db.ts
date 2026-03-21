@@ -12,7 +12,15 @@ export async function setupTestDatabase() {
 }
 
 export async function cleanDatabase() {
-  // No-op by default to avoid accidental destructive operations.
+  // Only run against a real Supabase database; never run against production-looking URLs
+  if (!process.env.DATABASE_URL?.includes('supabase.co')) return;
+
+  // Delete in FK-safe order (children before parents) — only rows belonging to inttest- users
+  await supabase.from('usage_counters').delete().like('user_id', 'inttest-%');
+  await supabase.from('subscriptions').delete().like('user_id', 'inttest-%');
+  await supabase.from('reply_history').delete().like('user_id', 'inttest-%');
+  await supabase.from('feedback').delete().like('user_id', 'inttest-%');
+  await supabase.from('users').delete().like('email', 'inttest-%@example.com');
 }
 
 export async function closeTestDatabase() {
