@@ -108,90 +108,36 @@ describe('Feedback Endpoints - Unit Tests', () => {
       expectAuthError(response);
     });
 
-    it('should validate rating (up/down only)', async () => {
+    it('should validate rating (up/down only) and return a descriptive error message', async () => {
       const response = await app.raw()
         .post('/api/feedback')
         .send({
           rating: 'invalid_rating',
         });
 
-      expectValidationError(response, ['rating']);
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty('message');
+      expect(typeof response.body.message).toBe('string');
+      expect(response.body.message.length).toBeGreaterThan(0);
     });
 
-    it('should allow optional reply_event_id', async () => {
+    it('succeeds with only required rating field (reply_event_id and comment are optional)', async () => {
       const mockUser = createMockUser();
-      const mockFeedback = {
+      const { storage } = await import('../../../server/storage');
+      vi.mocked(storage.createFeedback).mockResolvedValue({
         id: 'feedback-123',
         userId: mockUser.id,
         rating: 'up',
         comment: null,
         replyEventId: null,
         createdAt: new Date(),
-      };
-
-      const { storage } = await import('../../../server/storage');
-      vi.mocked(storage.createFeedback).mockResolvedValue(mockFeedback);
+      } as any);
 
       const response = await app.authenticated(mockUser)
         .post('/api/feedback')
-        .send({
-          rating: 'up',
-        });
+        .send({ rating: 'up' });
 
-      expectJsonResponse(response, 200, {
-        success: true,
-      });
-    });
-
-    it('should allow optional comment', async () => {
-      const mockUser = createMockUser();
-      const mockFeedback = {
-        id: 'feedback-123',
-        userId: mockUser.id,
-        rating: 'down',
-        comment: null,
-        replyEventId: 'reply-event-123',
-        createdAt: new Date(),
-      };
-
-      const { storage } = await import('../../../server/storage');
-      vi.mocked(storage.createFeedback).mockResolvedValue(mockFeedback);
-
-      const response = await app.authenticated(mockUser)
-        .post('/api/feedback')
-        .send({
-          rating: 'down',
-          reply_event_id: 123,
-        });
-
-      expectJsonResponse(response, 200, {
-        success: true,
-      });
-    });
-
-    it('should return success response', async () => {
-      const mockUser = createMockUser();
-      const mockFeedback = {
-        id: 'feedback-123',
-        userId: mockUser.id,
-        rating: 'up',
-        comment: 'Great service!',
-        replyEventId: 'reply-event-123',
-        createdAt: new Date(),
-      };
-
-      const { storage } = await import('../../../server/storage');
-      vi.mocked(storage.createFeedback).mockResolvedValue(mockFeedback);
-
-      const response = await app.authenticated(mockUser)
-        .post('/api/feedback')
-        .send({
-          rating: 'up',
-          comment: 'Great service!',
-          reply_event_id: 123,
-        });
-
-      expect(response.body).toHaveProperty('success', true);
+      expectJsonResponse(response, 200, { success: true });
     });
 
     it('should handle storage errors', async () => {

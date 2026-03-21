@@ -3,54 +3,14 @@ import { Express } from 'express';
 import { createMockUser } from '../factories/user.factory';
 
 export function createAuthenticatedAgent(app: Express, user: any = null) {
-  const agent = request.agent(app);
-  const mockUser = user || createMockUser();
-  
-  // Override the agent's request method to inject authentication
-  const originalRequest = agent.request;
-  agent.request = function(method: string, url: string) {
-    const req = originalRequest.call(this, method, url);
-    
-    // Override the request to inject authentication
-    const originalEnd = req.end;
-    req.end = function(callback: any) {
-      // Inject authentication before the request
-      this.req.user = mockUser;
-      this.req.isAuthenticated = () => true;
-      this.req.logout = (cb: any) => cb();
-      
-      return originalEnd.call(this, callback);
-    };
-    
-    return req;
-  };
-  
-  return agent;
+  // Auth behavior should be configured in the Express app middleware for each test.
+  // Keep the helper minimal and deterministic.
+  void (user || createMockUser());
+  return request.agent(app);
 }
 
 export function createUnauthenticatedAgent(app: Express) {
-  const agent = request.agent(app);
-  
-  // Override the agent's request method to inject unauthenticated state
-  const originalRequest = agent.request;
-  agent.request = function(method: string, url: string) {
-    const req = originalRequest.call(this, method, url);
-    
-    // Override the request to inject unauthenticated state
-    const originalEnd = req.end;
-    req.end = function(callback: any) {
-      // Inject unauthenticated state before the request
-      this.req.user = null;
-      this.req.isAuthenticated = () => false;
-      this.req.logout = (cb: any) => cb();
-      
-      return originalEnd.call(this, callback);
-    };
-    
-    return req;
-  };
-  
-  return agent;
+  return request.agent(app);
 }
 
 export function mockPassportSession(user: any = null) {

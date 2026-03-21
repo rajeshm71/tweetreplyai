@@ -1,0 +1,92 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import express from "express";
+import { setupRoutes } from "../../../server/routes";
+import { createTestApp } from "../../helpers/request";
+import { signTestJwt } from "../../helpers/jwt";
+
+vi.mock("../../../server/replitAuth", () => ({
+  setupAuth: vi.fn(),
+  isAuthenticated: vi.fn((req: any, _res: any, next: any) => {
+    req.user = { id: "test-user" };
+    req.isAuthenticated = () => true;
+    next();
+  }),
+  getUserId: vi.fn(() => "test-user"),
+}));
+vi.mock("../../../server/localAuth", () => ({ setupLocalAuth: vi.fn() }));
+vi.mock("../../../server/services/feedback-analytics", () => ({
+  feedbackAnalytics: {
+    getSimpleAnalytics: vi.fn().mockResolvedValue({ totalReplies: 0 }),
+  },
+}));
+
+describe("Analytics Routes - Unit Tests", () => {
+  let app: any;
+  const authToken = signTestJwt({ id: "test-user", email: "test@example.com" });
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    const expressApp = express();
+    expressApp.use(express.json());
+    await setupRoutes(expressApp);
+    app = createTestApp(expressApp);
+  });
+
+  it("serves simple analytics payload", async () => {
+    const res = await app.raw()
+      .get("/api/analytics/simple")
+      .set("Authorization", `Bearer ${authToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ totalReplies: 0 });
+  });
+
+  it("returns non-zero totalReplies when analytics data exists", async () => {
+    const { feedbackAnalytics } = await import("../../../server/services/feedback-analytics");
+    vi.mocked(feedbackAnalytics.getSimpleAnalytics).mockResolvedValue({ totalReplies: 42 } as any);
+
+    const res = await app.raw()
+      .get("/api/analytics/simple")
+      .set("Authorization", `Bearer ${authToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.totalReplies).toBe(42);
+  });
+
+  it("returns 401 when not authenticated", async () => {
+    const unauthApp = express();
+    unauthApp.use(express.json());
+    unauthApp.use((req: any, _res: any, next: any) => {
+      req.user = null;
+      req.isAuthenticated = () => false;
+      req.logout = vi.fn((cb: any) => cb());
+      next();
+    });
+    await setupRoutes(unauthApp);
+
+    const { createTestApp } = await import("../../helpers/request");
+    const res = await createTestApp(unauthApp).raw().get("/api/analytics/simple");
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 400 when days is out of range", async () => {
+    const res = await app.raw()
+      .get("/api/analytics/simple?days=366")
+      .set("Authorization", `Bearer ${authToken}`);
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toBe("Days must be between 1 and 365");
+  });
+
+  it("returns 500 when analytics service throws", async () => {
+    const { feedbackAnalytics } = await import("../../../server/services/feedback-analytics");
+    vi.mocked(feedbackAnalytics.getSimpleAnalytics).mockRejectedValue(new Error("DB error"));
+
+    const res = await app.raw()
+      .get("/api/analytics/simple")
+      .set("Authorization", `Bearer ${authToken}`);
+
+    expect(res.status).toBe(500);
+    expect(res.body.message).toBe("Failed to fetch analytics");
+  });
+});
+

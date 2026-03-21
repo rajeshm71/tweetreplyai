@@ -1,6 +1,7 @@
 import bcrypt from 'bcrypt';
 
-const SALT_ROUNDS = 12;
+// Keep production strength, but make unit tests fast/stable.
+const SALT_ROUNDS = process.env.NODE_ENV === 'test' ? 4 : 12;
 
 export interface PasswordValidation {
   isValid: boolean;

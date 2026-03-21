@@ -3,34 +3,14 @@ import { Express } from 'express';
 import { createAuthenticatedAgent, createUnauthenticatedAgent } from './auth';
 
 export function createTestApp(app: Express | any) {
-  // Check if it's a real Express app (has _router property)
-  if (app && app._router) {
-    // Use the real Express app with actual routes
-    return {
-      authenticated: (user?: any) => createAuthenticatedAgent(app, user),
-      unauthenticated: () => createUnauthenticatedAgent(app),
-      raw: () => request(app),
-    };
+  if (!app || !app._router) {
+    throw new Error('createTestApp expects a real Express app with routes');
   }
-  
-  // If it's a mock app, create a simple Express app for testing
-  const express = require('express');
-  const mockExpressApp = express();
-  mockExpressApp.use(express.json());
-  
-  // Add basic routes for testing
-  mockExpressApp.get('/api/usage', (req: any, res: any) => {
-    res.json({ used: 5, limit: 10, resetAt: new Date() });
-  });
-  
-  mockExpressApp.post('/api/generate-reply', (req: any, res: any) => {
-    res.json({ reply: 'Test reply', used: 1, limit: 10 });
-  });
-  
+
   return {
-    authenticated: (user?: any) => createAuthenticatedAgent(mockExpressApp, user),
-    unauthenticated: () => createUnauthenticatedAgent(mockExpressApp),
-    raw: () => request(mockExpressApp),
+    authenticated: (user?: any) => createAuthenticatedAgent(app, user),
+    unauthenticated: () => createUnauthenticatedAgent(app),
+    raw: () => request(app),
   };
 }
 

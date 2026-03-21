@@ -19,8 +19,8 @@
     "test:ui": "vitest --ui",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest watch",
-    "test:integration": "vitest run --testNamePattern='Integration'",
-    "test:unit": "vitest run --testNamePattern='Unit'",
+    "test:integration": "vitest run tests/integration",
+    "test:unit": "vitest run tests/unit tests/simple.test.ts",
     "vercel-build": "vite build --mode production && esbuild server/prod.ts --platform=node --packages=external --bundle --format=esm --outdir=dist --external:vite --external:rollup --external:@rollup/*"
   },
   "dependencies": {
@@ -67,6 +67,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "date-fns": "^3.6.0",
     "dodopayments": "^2.6.1",

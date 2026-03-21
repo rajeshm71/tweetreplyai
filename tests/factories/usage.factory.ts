@@ -1,6 +1,7 @@
 import type { UsageCounter, InsertUsageCounter } from '../../shared/types';
 
 export const createMockUsageCounter = (overrides: Partial<InsertUsageCounter> = {}): InsertUsageCounter => ({
+  id: `usage-${Date.now()}`,
   userId: `test-user-${Date.now()}`,
   planCode: 'trial',
   periodStart: new Date(),

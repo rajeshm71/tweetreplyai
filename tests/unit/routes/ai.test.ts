@@ -5,12 +5,14 @@ import { createTestApp, expectJsonResponse, expectAuthError, expectValidationErr
 import { createMockUser } from '../../factories/user.factory';
 import { createMockUsageStatus } from '../../factories/usage.factory';
 import { setupRoutes } from '../../../server/routes';
+import { signTestJwt } from '../../helpers/jwt';
 
 // Mock the AI router
 vi.mock('../../../server/services/ai-router', () => ({
   aiRouter: {
     getModelsByProvider: vi.fn(),
     generateReply: vi.fn(),
+    estimateCost: vi.fn().mockReturnValue(0),
   },
 }));
 
@@ -23,36 +25,18 @@ vi.mock('../../../server/services/usage', () => ({
   },
 }));
 
-// Mock the storage module
+// Mock the storage module — dates are set fresh in beforeEach to avoid stale Date instances
 vi.mock('../../../server/storage', () => ({
   storage: {
+    getUser: vi.fn(),
     createReplyEvent: vi.fn(),
-    createReplyHistory: vi.fn().mockResolvedValue({
-      id: 'test-reply-history-id',
-      userId: 'test-user',
-      originalTweet: 'Test tweet',
-      generatedReply: 'Test reply',
-      wasUsed: false,
-      modelKey: 'gpt-4o-mini',
-      promptVariation: 'default',
-      qualityScore: 85,
-      createdAt: new Date(),
-    }),
+    createReplyHistory: vi.fn(),
+    createReplyTokens: vi.fn().mockResolvedValue(undefined),
     getReplyHistory: vi.fn().mockResolvedValue([]),
     markReplyAsUsed: vi.fn().mockResolvedValue(undefined),
     updateReplyPerformance: vi.fn().mockResolvedValue(undefined),
     getUserPreferences: vi.fn().mockResolvedValue(undefined),
-    upsertUserPreferences: vi.fn().mockResolvedValue({
-      id: 'test-prefs-id',
-      userId: 'test-user',
-      preferredPrompt: 'default',
-      preferredModel: 'gpt-4o-mini',
-      tonePreference: 'casual',
-      maxReplyLength: 200,
-      autoRegenerate: true,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    }),
+    upsertUserPreferences: vi.fn(),
   },
 }));
 
@@ -107,11 +91,29 @@ vi.mock('../../../server/services/quality-checker', () => ({
   qualityChecker: {
     checkQuality: vi.fn().mockReturnValue({
       passed: true,
-      score: 85,
+      totalScore: 85,
+      parameters: [],
       issues: [],
     }),
     getImprovementSuggestions: vi.fn().mockReturnValue([]),
   },
+}));
+
+// Mock guardrail so `/api/generate-reply` doesn't depend on any real classifier behavior.
+vi.mock('../../../server/services/guardrail', () => ({
+  runGuardrail: vi.fn().mockResolvedValue({
+    violation: 0,
+    category: 'none',
+    rationale: '',
+    usage: undefined,
+  }),
+  generateGuardrailFriendlyReply: vi.fn().mockResolvedValue({
+    reply: 'Guardrail-safe reply',
+    modelKey: 'gpt-4o-mini',
+    latencyMs: 1,
+    tokensIn: 0,
+    tokensOut: 0,
+  }),
 }));
 
 describe('AI Endpoints - Unit Tests', () => {
@@ -136,84 +138,41 @@ describe('AI Endpoints - Unit Tests', () => {
     
     // Setup actual routes
     await setupRoutes(expressApp);
-    
-    // Debug: Check if routes are registered
-    console.log('Routes registered:', expressApp._router?.stack?.length || 'No routes');
-    
+
     app = createTestApp(expressApp);
+
+    // Set date-dependent mocks fresh each test to prevent stale Date objects
+    const { storage } = await import('../../../server/storage');
+    vi.mocked(storage.createReplyHistory).mockResolvedValue({
+      id: 'test-reply-history-id',
+      userId: 'test-user',
+      originalTweet: 'Test tweet',
+      generatedReply: 'Test reply',
+      wasUsed: false,
+      modelKey: 'gpt-4o-mini',
+      promptVariation: 'default',
+      qualityScore: 85,
+      createdAt: new Date(),
+    } as any);
+    vi.mocked(storage.upsertUserPreferences).mockResolvedValue({
+      id: 'test-prefs-id',
+      userId: 'test-user',
+      preferredPrompt: 'default',
+      preferredModel: 'gpt-4o-mini',
+      tonePreference: 'casual',
+      maxReplyLength: 200,
+      autoRegenerate: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    } as any);
   });
 
-  describe('GET /api/models', () => {
-    it('should return list of available AI models', async () => {
-      const mockModels = {
-        openai: ['gpt-4o-mini'],
-        groq: ['meta-llama/llama-4-scout-17b-16e-instruct'],
-      };
-
-      const { aiRouter } = await import('../../../server/services/ai-router');
-      vi.mocked(aiRouter.getModelsByProvider).mockReturnValue(mockModels);
-
-      const response = await app.raw().get('/api/models');
-
-      expectJsonResponse(response, 200, mockModels);
-    });
-
-    it('should handle errors gracefully', async () => {
-      const { aiRouter } = await import('../../../server/services/ai-router');
-      vi.mocked(aiRouter.getModelsByProvider).mockImplementation(() => {
-        throw new Error('Service unavailable');
-      });
-
-      const response = await app.raw().get('/api/models');
-
-      expectJsonResponse(response, 500, {
-        message: 'Failed to fetch models',
-      });
-    });
-  });
-
-  describe('GET /api/prompts', () => {
-    it('should return available prompt variations', async () => {
-      const mockPrompts = [
-        { name: 'default', description: 'Current production prompt - natural, casual responses' },
-        { name: 'conversational', description: 'More engaging, asks questions, starts conversations' },
-        { name: 'direct', description: 'Straightforward, has opinions, more decisive' },
-        { name: 'supportive', description: 'More positive, encouraging, builds people up' },
-        { name: 'analytical', description: 'More thoughtful, analytical, focuses on details' },
-        { name: 'humorous', description: 'Witty, playful, finds humor in situations' },
-      ];
-
-      // Mock the prompts service
-      vi.doMock('../../../server/services/prompts', () => ({
-        getAvailablePrompts: vi.fn().mockReturnValue(mockPrompts),
-      }));
-
-      const response = await app.raw().get('/api/prompts');
-
-      expectJsonResponse(response, 200, mockPrompts);
-    });
-
-    it('should return correct prompt structure', async () => {
-      const response = await app.raw().get('/api/prompts');
-
-      expect(response.body[0]).toHaveProperty('name');
-      expect(response.body[0]).toHaveProperty('description');
-    });
-
-    it('should handle errors gracefully', async () => {
-      // Since getAvailablePrompts is a synchronous function that doesn't throw errors,
-      // we'll test that it returns the expected data structure instead
-      const response = await app.raw().get('/api/prompts');
-
-      expectJsonResponse(response, 200, expect.any(Array));
-      expect(response.body.length).toBeGreaterThan(0);
-      expect(response.body[0]).toHaveProperty('name');
-      expect(response.body[0]).toHaveProperty('description');
-    });
-  });
+  // GET /api/models and GET /api/prompts tests have been moved to
+  // tests/unit/routes/ai.catalog.test.ts to avoid double-execution.
 
   describe('POST /api/generate-reply', () => {
     const mockUser = createMockUser();
+    const authToken = signTestJwt({ id: 'test-user', email: mockUser.email });
     const mockReplyResponse = {
       reply: 'This is a test reply',
       modelKey: 'gpt-3.5-turbo',
@@ -229,17 +188,20 @@ describe('AI Endpoints - Unit Tests', () => {
 
       vi.mocked(usageService.canUseReply).mockResolvedValue({ canUse: true, reason: null });
       vi.mocked(usageService.consumeReply).mockResolvedValue({
+        creditsUsed: 1,
         repliesUsed: 1,
         limit: 10,
         resetAt: new Date(),
       });
       vi.mocked(aiRouter.generateReply).mockResolvedValue(mockReplyResponse);
+      vi.mocked(storage.getUser).mockResolvedValue({ id: 'test-user', email: mockUser.email } as any);
       vi.mocked(storage.createReplyEvent).mockResolvedValue({});
     });
 
     it('should generate reply successfully', async () => {
       const response = await app.authenticated(mockUser)
         .post('/api/generate-reply')
+        .set('Authorization', `Bearer ${authToken}`)
         .send({
           tweet_text: 'This is a test tweet',
           tweet_id: '1234567890',
@@ -287,6 +249,7 @@ describe('AI Endpoints - Unit Tests', () => {
     it('should validate tweet_text minimum length', async () => {
       const response = await app.authenticated(mockUser)
         .post('/api/generate-reply')
+        .set('Authorization', `Bearer ${authToken}`)
         .send({
           tweet_text: '', // Empty string
         });
@@ -297,6 +260,7 @@ describe('AI Endpoints - Unit Tests', () => {
     it('should validate tweet_text maximum length', async () => {
       const response = await app.authenticated(mockUser)
         .post('/api/generate-reply')
+        .set('Authorization', `Bearer ${authToken}`)
         .send({
           tweet_text: 'a'.repeat(2001), // Too long
         });
@@ -314,6 +278,7 @@ describe('AI Endpoints - Unit Tests', () => {
 
       const response = await app.authenticated(mockUser)
         .post('/api/generate-reply')
+        .set('Authorization', `Bearer ${authToken}`)
         .send({
           tweet_text: 'This is a test tweet',
         });
@@ -331,6 +296,7 @@ describe('AI Endpoints - Unit Tests', () => {
 
       const response = await app.authenticated(mockUser)
         .post('/api/generate-reply')
+        .set('Authorization', `Bearer ${authToken}`)
         .send({
           tweet_text: 'This is a test tweet',
         });
@@ -350,11 +316,12 @@ describe('AI Endpoints - Unit Tests', () => {
 
       await app.authenticated(mockUser)
         .post('/api/generate-reply')
+        .set('Authorization', `Bearer ${authToken}`)
         .send({
           tweet_text: 'This is a test tweet',
         });
 
-      expect(usageService.consumeReply).toHaveBeenCalledWith('test-user');
+      expect(usageService.consumeReply).toHaveBeenCalledWith('test-user', 'enhanced');
     });
 
     it('should log reply event', async () => {
@@ -362,18 +329,20 @@ describe('AI Endpoints - Unit Tests', () => {
 
       await app.authenticated(mockUser)
         .post('/api/generate-reply')
+        .set('Authorization', `Bearer ${authToken}`)
         .send({
           tweet_text: 'This is a test tweet',
           tweet_id: '1234567890',
         });
 
       expect(storage.createReplyEvent).toHaveBeenCalledWith({
+        id: expect.any(String),
         userId: 'test-user',
-        tweetId: '1234567890',
         modelKey: mockReplyResponse.modelKey,
-        tokensIn: mockReplyResponse.tokensIn,
-        tokensOut: mockReplyResponse.tokensOut,
+        promptKey: 'default',
         latencyMs: mockReplyResponse.latencyMs,
+        tokensUsed: mockReplyResponse.tokensIn + mockReplyResponse.tokensOut,
+        cost: 0,
       });
     });
 
@@ -383,6 +352,7 @@ describe('AI Endpoints - Unit Tests', () => {
 
       const response = await app.authenticated(mockUser)
         .post('/api/generate-reply')
+        .set('Authorization', `Bearer ${authToken}`)
         .send({
           tweet_text: 'This is a test tweet',
         });
@@ -395,6 +365,7 @@ describe('AI Endpoints - Unit Tests', () => {
     it('should support optional model_key', async () => {
       const response = await app.authenticated(mockUser)
         .post('/api/generate-reply')
+        .set('Authorization', `Bearer ${authToken}`)
         .send({
           tweet_text: 'This is a test tweet',
           model_key: 'gpt-4',
@@ -406,6 +377,7 @@ describe('AI Endpoints - Unit Tests', () => {
     it('should support optional prompt_variation', async () => {
       const response = await app.authenticated(mockUser)
         .post('/api/generate-reply')
+        .set('Authorization', `Bearer ${authToken}`)
         .send({
           tweet_text: 'This is a test tweet',
           prompt_variation: 'humorous',
@@ -418,15 +390,42 @@ describe('AI Endpoints - Unit Tests', () => {
       const { usageService } = await import('../../../server/services/usage');
       vi.mocked(usageService.canUseReply).mockRejectedValue(new Error('User not found'));
 
+      const { storage } = await import('../../../server/storage');
+      vi.mocked(storage.getUser).mockResolvedValue(null);
+
       const response = await app.authenticated(mockUser)
         .post('/api/generate-reply')
-        .send({
-          tweet_text: 'This is a test tweet',
-        });
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({ tweet_text: 'This is a test tweet' });
 
       expectJsonResponse(response, 404, {
         message: 'User not found',
       });
+    });
+
+    it('should return guardrail-friendly reply (not original AI reply) when guardrail fires', async () => {
+      const { runGuardrail, generateGuardrailFriendlyReply } = await import('../../../server/services/guardrail');
+      const { aiRouter } = await import('../../../server/services/ai-router');
+
+      vi.mocked(runGuardrail).mockResolvedValue({
+        violation: 1,
+        category: 'hate_speech',
+        rationale: 'Content violates policy',
+        usage: undefined,
+      });
+
+      const response = await app.authenticated(mockUser)
+        .post('/api/generate-reply')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({ tweet_text: 'This is a test tweet' });
+
+      expect(response.status).toBe(200);
+      // Should use guardrail-friendly reply, NOT call the regular AI
+      expect(vi.mocked(generateGuardrailFriendlyReply)).toHaveBeenCalled();
+      expect(vi.mocked(aiRouter.generateReply)).not.toHaveBeenCalled();
+      expect(response.body).toHaveProperty('reply', 'Guardrail-safe reply');
+      // Meta should contain safety outcome info
+      expect(response.body.meta).toHaveProperty('safetyOutcome', 'violation_friendly_reply');
     });
   });
 });

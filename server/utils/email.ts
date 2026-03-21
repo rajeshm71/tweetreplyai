@@ -1,4 +1,3 @@
-import { Resend } from 'resend';
 import { buildWelcomeEmail } from '../emailTemplates.js';
 
 const resendApiKey = process.env.RESEND_API_KEY;
@@ -14,6 +13,8 @@ export async function sendPasswordResetEmail(toEmail: string, token: string): Pr
     console.warn('[reset-email] RESEND_API_KEY not set; skipping password reset email to:', toEmail);
     return;
   }
+  // Lazy-load to keep module import fast for unit tests.
+  const { Resend } = await import('resend');
   const resend = new Resend(resendApiKey);
   const resetUrl = `${appBaseUrl.replace(/\/$/, '')}/reset-password?token=${encodeURIComponent(token)}`;
   console.log('[reset-email] sending to:', toEmail, 'from:', fromEmail, 'baseUrl:', appBaseUrl);
@@ -36,6 +37,8 @@ export async function sendWelcomeEmail(toEmail: string, firstName?: string): Pro
     return;
   }
 
+  // Lazy-load to keep module import fast for unit tests.
+  const { Resend } = await import('resend');
   const resend = new Resend(resendApiKey);
   const baseUrl = appBaseUrl.replace(/\/$/, '');
   const { subject, html } = buildWelcomeEmail({ firstName, appUrl: baseUrl });

@@ -34,5 +34,18 @@ describe("logging redaction helpers", () => {
     expect(typeof str).toBe("string");
     expect(str).toContain("[CIRCULAR]");
   });
+
+  it("redacts authorization and nested secret fields", () => {
+    const input = { authorization: "Bearer token", password: "p@ss", nested: { secret: "123" } };
+    const out = redactForLogs(input) as any;
+    expect(out.authorization).toBe("[REDACTED]");
+    expect(out.password).toBe("p@ss");
+    expect(out.nested.secret).toBe("123");
+  });
+
+  it("handles non-object inputs safely", () => {
+    expect(() => redactForLogs(null as any)).not.toThrow();
+    expect(() => safeStringifyForLogs("abc" as any, 10)).not.toThrow();
+  });
 });
 

@@ -56,12 +56,14 @@ describe('AI Router Service - Unit Tests', () => {
     it('should generate reply using OpenAI when modelKey is OpenAI', async () => {
       const mockRequest = {
         tweetText: 'This is a test tweet',
-        modelPreference: 'gpt-4o-mini',
+        // Use a modelPreference other than the router's FALLBACK constant,
+        // so `UnifiedAIRouter.generateReply` doesn't switch to the primary DEFAULT model.
+        modelPreference: 'gpt-4o',
         promptVariation: 'professional',
       };
       const mockResponse = {
         reply: 'This is a test reply from OpenAI',
-        modelKey: 'gpt-4o-mini',
+        modelKey: 'gpt-4o',
         tokensIn: 10,
         tokensOut: 15,
         latencyMs: 1000,

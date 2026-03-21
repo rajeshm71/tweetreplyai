@@ -5,11 +5,19 @@ import { createTestApp, expectJsonResponse, expectAuthError, expectNotFoundError
 import { createMockUser } from '../../factories/user.factory';
 import { createMockUsageStatus } from '../../factories/usage.factory';
 import { setupRoutes } from '../../../server/routes';
+import { signTestJwt } from '../../helpers/jwt';
 
 // Mock the usage service
 vi.mock('../../../server/services/usage', () => ({
   usageService: {
     getUsageStatus: vi.fn(),
+  },
+}));
+
+// Mock storage used by `/api/usage` (route calls storage.getUser(userId))
+vi.mock('../../../server/storage', () => ({
+  storage: {
+    getUser: vi.fn(),
   },
 }));
 
@@ -57,6 +65,7 @@ describe('Usage Endpoints - Unit Tests', () => {
   describe('GET /api/usage', () => {
     it('should return usage status for authenticated user', async () => {
       const mockUser = createMockUser();
+      const token = signTestJwt({ id: mockUser.id, email: mockUser.email });
       const mockUsageStatus = createMockUsageStatus({
         used: 5,
         limit: 10,
@@ -64,11 +73,15 @@ describe('Usage Endpoints - Unit Tests', () => {
         planCode: 'trial',
       });
 
+      const { storage } = await import('../../../server/storage');
+      vi.mocked(storage.getUser).mockResolvedValue(mockUser as any);
+
       const { usageService } = await import('../../../server/services/usage');
       vi.mocked(usageService.getUsageStatus).mockResolvedValue(mockUsageStatus);
 
       const response = await app.authenticated(mockUser)
-        .get('/api/usage');
+        .get('/api/usage')
+        .set('Authorization', `Bearer ${token}`);
 
       expectJsonResponse(response, 200, {
         used: mockUsageStatus.used,
@@ -102,6 +115,7 @@ describe('Usage Endpoints - Unit Tests', () => {
 
     it('should show correct used/limit/resetAt values', async () => {
       const mockUser = createMockUser();
+      const token = signTestJwt({ id: mockUser.id, email: mockUser.email });
       const mockUsageStatus = createMockUsageStatus({
         used: 7,
         limit: 50,
@@ -109,11 +123,15 @@ describe('Usage Endpoints - Unit Tests', () => {
         planCode: 'weekly',
       });
 
+      const { storage } = await import('../../../server/storage');
+      vi.mocked(storage.getUser).mockResolvedValue(mockUser as any);
+
       const { usageService } = await import('../../../server/services/usage');
       vi.mocked(usageService.getUsageStatus).mockResolvedValue(mockUsageStatus);
 
       const response = await app.authenticated(mockUser)
-        .get('/api/usage');
+        .get('/api/usage')
+        .set('Authorization', `Bearer ${token}`);
 
       expect(response.body.used).toBe(7);
       expect(response.body.limit).toBe(50);
@@ -123,22 +141,33 @@ describe('Usage Endpoints - Unit Tests', () => {
 
     it('should return 404 for user without usage counter', async () => {
       const mockUser = createMockUser();
+      const token = signTestJwt({ id: mockUser.id, email: mockUser.email });
+      const { storage } = await import('../../../server/storage');
+      vi.mocked(storage.getUser).mockResolvedValue(mockUser as any);
+
       const { usageService } = await import('../../../server/services/usage');
       vi.mocked(usageService.getUsageStatus).mockResolvedValue(null);
 
       const response = await app.authenticated(mockUser)
-        .get('/api/usage');
+        .get('/api/usage')
+        .set('Authorization', `Bearer ${token}`);
 
       expectJsonResponse(response, 404, { message: "User not found" });
     });
 
     it('should handle usage service errors', async () => {
       const mockUser = createMockUser();
+      const token = signTestJwt({ id: mockUser.id, email: mockUser.email });
+
+      const { storage } = await import('../../../server/storage');
+      vi.mocked(storage.getUser).mockResolvedValue(mockUser as any);
+
       const { usageService } = await import('../../../server/services/usage');
       vi.mocked(usageService.getUsageStatus).mockRejectedValue(new Error('Database error'));
 
       const response = await app.authenticated(mockUser)
-        .get('/api/usage');
+        .get('/api/usage')
+        .set('Authorization', `Bearer ${token}`);
 
       expectJsonResponse(response, 500, {
         message: 'Failed to fetch usage',
@@ -147,11 +176,15 @@ describe('Usage Endpoints - Unit Tests', () => {
 
     it('should handle different plan types', async () => {
       const mockUser = createMockUser();
+      const token = signTestJwt({ id: mockUser.id, email: mockUser.email });
       const testCases = [
         { planCode: 'trial', limit: 10 },
         { planCode: 'weekly', limit: 50 },
         { planCode: 'monthly', limit: 200 },
       ];
+
+      const { storage } = await import('../../../server/storage');
+      vi.mocked(storage.getUser).mockResolvedValue(mockUser as any);
 
       const { usageService } = await import('../../../server/services/usage');
 
@@ -160,7 +193,8 @@ describe('Usage Endpoints - Unit Tests', () => {
         vi.mocked(usageService.getUsageStatus).mockResolvedValue(mockUsageStatus);
 
         const response = await app.authenticated(mockUser)
-          .get('/api/usage');
+          .get('/api/usage')
+          .set('Authorization', `Bearer ${token}`);
 
         expectJsonResponse(response, 200, {
           planCode: testCase.planCode,
@@ -174,6 +208,7 @@ describe('Usage Endpoints - Unit Tests', () => {
 
     it('should handle expired usage counter', async () => {
       const mockUser = createMockUser();
+      const token = signTestJwt({ id: mockUser.id, email: mockUser.email });
       const expiredDate = new Date(Date.now() - 24 * 60 * 60 * 1000); // Yesterday
       const mockUsageStatus = createMockUsageStatus({
         used: 5,
@@ -182,11 +217,15 @@ describe('Usage Endpoints - Unit Tests', () => {
         planCode: 'trial',
       });
 
+      const { storage } = await import('../../../server/storage');
+      vi.mocked(storage.getUser).mockResolvedValue(mockUser as any);
+
       const { usageService } = await import('../../../server/services/usage');
       vi.mocked(usageService.getUsageStatus).mockResolvedValue(mockUsageStatus);
 
       const response = await app.authenticated(mockUser)
-        .get('/api/usage');
+        .get('/api/usage')
+        .set('Authorization', `Bearer ${token}`);
 
       expectJsonResponse(response, 200, {
         used: 5,

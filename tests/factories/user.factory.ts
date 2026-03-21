@@ -26,7 +26,7 @@ export const createMockUserWithReplit = (overrides: Partial<UpsertUser> = {}): U
 
 export const createMockUserWithStripe = (overrides: Partial<UpsertUser> = {}): UpsertUser => ({
   ...createMockUser(overrides),
-  stripeCustomerId: `cus_test_${Date.now()}`,
+  dodoCustomerId: `cus_test_${Date.now()}`,
 });
 
 export const createMockUserResponse = (overrides: Partial<User> = {}): Partial<User> => ({

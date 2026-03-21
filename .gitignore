@@ -7,9 +7,11 @@ vite.config.ts.*
 *.zip
 .env
 .env.local
+.env.test
 docs/
 how-it-works-preview.html
 before-after-preview.html
 powerful-features-preview.html
 extension-popup-glass-preview.html
 .vercel
+MASTER_UNIT_TEST_PLAN.md

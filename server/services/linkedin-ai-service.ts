@@ -11,7 +11,13 @@ import { getLinkedInOriginalAuthorPromptConfig } from "./prompts-linkedin-origin
 import { linkedInPostProcessor } from "./linkedin-postprocessor.js";
 import { linkedInQualityChecker } from "./linkedin-quality-checker.js";
 
-const groq = process.env.GROQ_API_KEY ? new Groq() : null;
+// Lazy-init to keep unit tests fast and avoid Groq constructor work at import time.
+let groqClient: Groq | null | undefined;
+function getGroqClient(): Groq | null {
+  if (groqClient !== undefined) return groqClient;
+  groqClient = process.env.GROQ_API_KEY ? new Groq() : null;
+  return groqClient;
+}
 
 export interface LinkedInReplyOptions {
   postText: string;
@@ -38,6 +44,7 @@ async function callGroq(
   systemPrompt: string,
   userPrompt: string,
 ): Promise<{ text: string; tokensIn: number; tokensOut: number }> {
+  const groq = getGroqClient();
   if (!groq) {
     return {
       text: "Interesting perspective. The professional context here really resonates with how many practitioners think about this challenge.",

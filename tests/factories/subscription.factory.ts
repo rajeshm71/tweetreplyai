@@ -1,12 +1,13 @@
 import type { Subscription, InsertSubscription } from '../../shared/types';
 
 export const createMockSubscription = (overrides: Partial<InsertSubscription> = {}): InsertSubscription => ({
+  id: `sub-row-${Date.now()}`,
   userId: `test-user-${Date.now()}`,
   planCode: 'monthly',
   status: 'active',
   currentPeriodStart: new Date(),
   currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-  stripeSubscriptionId: `sub_test_${Date.now()}`,
+  dodoSubscriptionId: `sub_test_${Date.now()}`,
   amountPaid: 999,
   currency: 'usd',
   ...overrides,

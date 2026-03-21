@@ -2,7 +2,13 @@ import { Groq } from "groq-sdk";
 import crypto from "crypto";
 import { AI_MODELS, AI_PARAMS, CACHE } from "../config/constants.js";
 
-const groq = process.env.GROQ_API_KEY ? new Groq() : null;
+// Lazy-init to avoid Groq constructor work at module import time.
+let groqClient: Groq | null | undefined;
+function getGroqClient(): Groq | null {
+  if (groqClient !== undefined) return groqClient;
+  groqClient = process.env.GROQ_API_KEY ? new Groq() : null;
+  return groqClient;
+}
 const LINKEDIN_ANALYSIS_ENABLED = process.env.LINKEDIN_ANALYSIS_ENABLED !== 'false';
 const LINKEDIN_ANALYSIS_CACHE_TTL = parseInt(process.env.LINKEDIN_ANALYSIS_CACHE_TTL || String(CACHE.DEFAULT_TTL_SECONDS), 10);
 const LINKEDIN_ANALYSIS_MODEL = AI_MODELS.ANALYSIS;
@@ -77,6 +83,7 @@ function getDefaultIntention(): LinkedInIntentionResult {
 }
 
 async function analyzeUnderstanding(postText: string): Promise<LinkedInPostUnderstanding> {
+  const groq = getGroqClient();
   if (!groq) return getDefaultUnderstanding();
 
   try {
@@ -126,6 +133,7 @@ Return ONLY valid JSON, no additional text.`;
 }
 
 async function analyzeIntention(postText: string): Promise<LinkedInIntentionResult> {
+  const groq = getGroqClient();
   if (!groq) return getDefaultIntention();
 
   try {

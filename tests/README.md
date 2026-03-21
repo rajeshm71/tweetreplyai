@@ -1,323 +1,254 @@
 # Testing Guide
 
-This directory contains comprehensive tests for the TweetReply AI backend API.
-
-## Test Structure
-
-```
-tests/
-├── setup.ts                          # Global test setup
-├── README.md                         # This file
-├── helpers/
-│   ├── db.ts                        # Database test utilities
-│   ├── auth.ts                      # Authentication helpers
-│   └── request.ts                   # HTTP request helpers
-├── factories/
-│   ├── user.factory.ts             # User test data
-│   ├── usage.factory.ts            # Usage test data
-│   └── subscription.factory.ts     # Subscription test data
-├── mocks/
-│   ├── handlers.ts                 # MSW handlers
-│   ├── stripe.mock.ts              # Stripe mocks
-│   └── openai.mock.ts              # OpenAI mocks
-├── unit/
-│   ├── routes/
-│   │   ├── auth.test.ts           # Auth endpoints
-│   │   ├── ai.test.ts             # AI endpoints
-│   │   ├── usage.test.ts          # Usage endpoints
-│   │   ├── billing.test.ts        # Billing endpoints
-│   │   └── feedback.test.ts       # Feedback endpoints
-│   └── services/
-│       ├── ai-router.test.ts      # AI router service
-│       ├── usage.test.ts          # Usage service
-│       └── stripe.test.ts         # Stripe service
-└── integration/
-    ├── setup.ts                    # Integration test setup
-    ├── auth.integration.test.ts    # Auth flow tests
-    ├── ai-generation.integration.test.ts
-    ├── subscription.integration.test.ts
-    └── data-integrity.integration.test.ts
-```
+This directory contains all tests for the TweetReply AI backend.
 
 ## Running Tests
 
-### All Tests
-```bash
-npm test
+| Script | Scope |
+|--------|--------|
+| `npm run test:unit` | `tests/unit/**` + `tests/simple.test.ts` (path-based, not title-based) |
+| `npm run test:integration` | `tests/integration/**` only |
+| `npm test` | Full Vitest discovery of `*.test.ts` across the project |
+| `npm run test:watch` | Watch mode (re-runs on file change) |
+| `npm run test:coverage` | Coverage report (80% threshold required) |
+| `npm run test:ui` | Visual Vitest UI |
+
+---
+
+## Test Quality Tiers
+
+Every unit test file is assigned a tier label that describes its coverage quality:
+
+| Tier | Label | What it means |
+|------|-------|---------------|
+| **T1** | Behavioral | Tight assertions against real production logic; input→output verified |
+| **T2** | Route boundary | `supertest` + `setupRoutes`, all deps mocked, HTTP contract (status + body shape) verified |
+| **T3** | Smoke / import | `expect(mod).toBeDefined()` — verifies the module loads; no logic tested. Describe blocks are prefixed `[SMOKE]` |
+| **T4** | Vacuous / scaffold | `expect(true).toBe(true)` — must be replaced; none remain in this repo |
+
+---
+
+## Unit Test File Inventory
+
+### Route tests (T2)
+
+| File | Tier | Coverage |
+|------|------|----------|
+| `tests/unit/routes/auth.test.ts` | T1/T2 | Register, login, logout, session, Google OAuth, rate-limit |
+| `tests/unit/routes/auth.oauth.test.ts` | T2 | Google OAuth redirect (302) + callback failure |
+| `tests/unit/routes/auth.password-reset.test.ts` | T2 | Forgot-password, reset-password (valid token, expired, weak pwd) |
+| `tests/unit/routes/auth.change-password.test.ts` | T2 | 401, 400 mismatch/weak, 200 success, 500 storage error |
+| `tests/unit/routes/ai.test.ts` | T2 | Generate-reply (Twitter): 200, 401, 400, 402, guardrail violation, usage increment |
+| `tests/unit/routes/ai.catalog.test.ts` | T2 | GET /api/models, GET /api/prompts |
+| `tests/unit/routes/ai.generate-reply.twitter.test.ts` | T2 | Twitter platform: 200, 401, 400, 402, 500, guardrail |
+| `tests/unit/routes/ai.generate-reply.linkedin.test.ts` | T2 | LinkedIn platform: 200, 402, 500 |
+| `tests/unit/routes/ai.suggest-improvements.test.ts` | T2 | 401, 400, 200, 402, 404, 500 |
+| `tests/unit/routes/analytics.test.ts` | T2 | GET /api/analytics: 401, 200, 500 |
+| `tests/unit/routes/billing.checkout.test.ts` | T2 | POST /api/checkout: 401, 400, 200, 500 |
+| `tests/unit/routes/billing.portal.test.ts` | T2 | GET /api/billing/portal: 401, 404, 200, 500 |
+| `tests/unit/routes/billing.subscription.test.ts` | T2 | GET /api/subscription/status, cancel: 401, 404, 200, 500 |
+| `tests/unit/routes/subscription.test.ts` | T2 | GET /api/subscription: 401, 404, active/trial details |
+| `tests/unit/routes/dodo.webhook.test.ts` | T2 | POST /api/webhooks/dodo: 400 bad sig, 200 payment success, 200 cancellation |
+| `tests/unit/routes/feedback.test.ts` | T2 | POST /api/feedback: 401, 400 rating validation, 200 success, 500 |
+| `tests/unit/routes/quality-metrics.test.ts` | T2 | GET /api/quality/metrics: 401, 200, days coercion, 500 |
+| `tests/unit/routes/reply-history.test.ts` | T2 | GET /api/reply-history, POST mark-used (UUID required), DELETE, 401/500 |
+| `tests/unit/routes/reply-templates.test.ts` | T2 | CRUD for /api/reply-templates: 401, 400, 200, 500 |
+| `tests/unit/routes/usage.test.ts` | T2 | GET /api/usage: 401, 200 with all fields |
+| `tests/unit/routes/user.preferences.test.ts` | T2 | GET/PUT /api/user/preferences: 401, 200, default-creation |
+| `tests/unit/routes/user.x-username.test.ts` | T2 | GET/PUT /api/user/x-username: 401, 400, 200, 500 |
+
+### Service / util tests (T1)
+
+| File | Tier | Coverage |
+|------|------|----------|
+| `tests/unit/services/ai-router.test.ts` | T1 | generateReply: model selection, fallback, error handling |
+| `tests/unit/services/authService.test.ts` | T1 | createUser, validatePassword with env guards |
+| `tests/unit/services/credits.test.ts` | T1 | CREDIT_COSTS values, getCreditCost for all modes |
+| `tests/unit/services/guardrail.test.ts` | T1 | runGuardrail: pass, fail, category detection, env guards |
+| `tests/unit/services/reply-postprocessor.test.ts` | T1 | processReply/processReplyLight: quotes, banned patterns, word limits, whitespace |
+| `tests/unit/services/usage.test.ts` | T1 | canUseReply, consumeReply, initializeTrialForUser |
+| `tests/unit/services/whitelistService.test.ts` | T1 | isWhitelisted with env guards |
+| `tests/unit/utils/email.test.ts` | T1 | sendEmail with env guards (RESEND_API_KEY) |
+| `tests/unit/utils/logging.test.ts` | T1 | log levels, structured output |
+| `tests/unit/utils/password.test.ts` | T1 | hashPassword, verifyPassword, validatePasswordStrength, validateEmail |
+| `tests/unit/config/cors.test.ts` | T1 | CORS allowed origins with env guards |
+| `tests/unit/config/env.test.ts` | T1 | Required/optional env vars, getEnv, validation |
+| `tests/unit/shared/constants.test.ts` | T1 | PLAN_LIMITS and PLAN_PERIODS_DAYS value assertions |
+
+### Smoke-only tests (T3 — `[SMOKE]` prefix)
+
+These files verify that the module loads without throwing. They do **not** test logic.
+Upgrade them to T1 by mocking the API client and asserting on inputs/outputs.
+
+| File | What to add next |
+|------|-----------------|
+| `tests/unit/config/constants.test.ts` | Value assertions for server config constants |
+| `tests/unit/services/dodo-payments.test.ts` | `planCodeFromPriceId` mapping cases |
+| `tests/unit/services/feedback-analytics.test.ts` | `computeFeedbackStats` with mock data |
+| `tests/unit/services/groq.test.ts` | Mock `groq.chat.completions.create` → assert prompt shape |
+| `tests/unit/services/linkedin-ai-service.test.ts` | Mock AI client → assert `generateLinkedInReply` output shape |
+| `tests/unit/services/linkedin-quality-checker.test.ts` | `checkLinkedInQuality` with sample text |
+| `tests/unit/services/openai.test.ts` | Mock `openai.chat.completions.create` → assert prompt shape |
+| `tests/unit/services/prompt-builder.test.ts` | `buildPrompt` with tone/length/style combinations |
+| `tests/unit/services/quality-checker.test.ts` | `checkQuality` with sample replies |
+| `tests/unit/extension/auth-manager.test.ts` | `AuthManager.login/logout/getToken` |
+| `tests/unit/extension/console-gate.test.ts` | `installConsoleGate` suppression behavior |
+
+---
+
+## File Structure
+
+```
+tests/
+├── setup.ts                          # Global Vitest setup (env stubs, timers)
+├── simple.test.ts                    # App bootstrap smoke (T3 → T2 setupRoutes)
+├── README.md                         # This file
+├── helpers/
+│   └── request.ts                    # createTestApp(), expectJsonResponse()
+├── unit/
+│   ├── config/
+│   │   ├── constants.test.ts         # [SMOKE] Server config constants
+│   │   ├── cors.test.ts              # T1 CORS origin rules
+│   │   └── env.test.ts               # T1 Env var validation
+│   ├── extension/
+│   │   ├── auth-manager.test.ts      # [SMOKE] Extension AuthManager
+│   │   └── console-gate.test.ts      # [SMOKE] Extension console gate
+│   ├── routes/
+│   │   ├── ai.test.ts                # T2 generate-reply (main)
+│   │   ├── ai.catalog.test.ts        # T2 models + prompts catalog
+│   │   ├── ai.generate-reply.linkedin.test.ts
+│   │   ├── ai.generate-reply.twitter.test.ts
+│   │   ├── ai.suggest-improvements.test.ts
+│   │   ├── analytics.test.ts
+│   │   ├── auth.test.ts              # T1/T2 auth endpoints
+│   │   ├── auth.change-password.test.ts
+│   │   ├── auth.oauth.test.ts
+│   │   ├── auth.password-reset.test.ts
+│   │   ├── billing.checkout.test.ts
+│   │   ├── billing.portal.test.ts
+│   │   ├── billing.subscription.test.ts
+│   │   ├── dodo.webhook.test.ts
+│   │   ├── feedback.test.ts
+│   │   ├── quality-metrics.test.ts
+│   │   ├── reply-history.test.ts
+│   │   ├── reply-templates.test.ts
+│   │   ├── subscription.test.ts
+│   │   ├── usage.test.ts
+│   │   ├── user.preferences.test.ts
+│   │   └── user.x-username.test.ts
+│   ├── services/
+│   │   ├── ai-router.test.ts         # T1 AI router service
+│   │   ├── authService.test.ts       # T1 auth service
+│   │   ├── credits.test.ts           # T1 credit costs
+│   │   ├── dodo-payments.test.ts     # [SMOKE] Dodo Payments
+│   │   ├── feedback-analytics.test.ts # [SMOKE] Feedback analytics
+│   │   ├── groq.test.ts              # [SMOKE] Groq client
+│   │   ├── guardrail.test.ts         # T1 content guardrail
+│   │   ├── linkedin-ai-service.test.ts # [SMOKE] LinkedIn AI
+│   │   ├── linkedin-quality-checker.test.ts # [SMOKE] LinkedIn quality
+│   │   ├── openai.test.ts            # [SMOKE] OpenAI client
+│   │   ├── prompt-builder.test.ts    # [SMOKE] Prompt builder
+│   │   ├── quality-checker.test.ts   # [SMOKE] Quality checker
+│   │   ├── reply-postprocessor.test.ts # T1 post-processor
+│   │   ├── usage.test.ts             # T1 usage service
+│   │   └── whitelistService.test.ts  # T1 whitelist service
+│   ├── shared/
+│   │   └── constants.test.ts         # T1 plan limits/periods
+│   └── utils/
+│       ├── email.test.ts             # T1 email utility
+│       ├── logging.test.ts           # T1 logger
+│       └── password.test.ts          # T1 password utils
+└── integration/                      # Integration tests (require Supabase DATABASE_URL)
+    └── ...
 ```
 
-### Unit Tests Only
-```bash
-npm run test:unit
-```
+---
 
-### Integration Tests Only
-```bash
-npm run test:integration
-```
+## Writing New Tests
 
-### Watch Mode (for development)
-```bash
-npm run test:watch
-```
+### Route test template (T2)
 
-### Coverage Report
-```bash
-npm run test:coverage
-```
-
-### Visual Test UI
-```bash
-npm run test:ui
-```
-
-## Test Types
-
-### Unit Tests
-- **Location**: `tests/unit/`
-- **Purpose**: Test individual functions and endpoints in isolation
-- **Mocks**: All external dependencies (database, APIs) are mocked
-- **Speed**: Fast execution (< 30 seconds)
-- **Coverage**: 80%+ threshold required
-
-### Integration Tests
-- **Location**: `tests/integration/`
-- **Purpose**: Test complete workflows with real database
-- **Database**: Uses Supabase database (requires DATABASE_URL)
-- **Speed**: Slower execution (< 2 minutes)
-- **Coverage**: Critical user flows
-
-## Test Configuration
-
-### Environment Variables
-Tests use a separate test environment. Set these in your `.env.test` file:
-
-```env
-DATABASE_URL=postgresql://[supabase-db-url]
-SESSION_SECRET=test-secret-key
-GOOGLE_CLIENT_ID=test-google-client-id
-GOOGLE_CLIENT_SECRET=test-google-client-secret
-STRIPE_SECRET_KEY=sk_test_xxx
-OPENAI_API_KEY=test-openai-key
-GROQ_API_KEY=test-groq-key
-NODE_ENV=test
-```
-
-### Database Setup
-Integration tests require a Supabase database:
-1. Create a project in Supabase
-2. Run migrations: `npm run db:push`
-3. Set `DATABASE_URL` to point to your Supabase database
-4. If no `DATABASE_URL` is set, integration tests will be skipped
-
-## Writing Tests
-
-### Test Structure
 ```typescript
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { createTestApp, expectJsonResponse } from '../helpers/request';
+import { createTestApp } from '../../helpers/request';
 
-describe('Feature Name - Unit Tests', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
+vi.mock('../../../server/storage', () => ({
+  storage: { getUser: vi.fn(), /* add methods used by this route */ },
+}));
 
-  describe('Endpoint Name', () => {
-    it('should do something specific', async () => {
-      // Arrange
-      const app = createTestApp(mockApp);
-      
-      // Act
-      const response = await app.authenticated(user)
-        .post('/api/endpoint')
-        .send(data);
-      
-      // Assert
-      expectJsonResponse(response, 200, expectedData);
-    });
+const authToken = 'test-token';
+
+function app() {
+  vi.resetModules();
+  const { setupRoutes } = require('../../../server/routes');
+  const express = require('express');
+  const a = express();
+  a.use(express.json());
+  setupRoutes(a);
+  return { raw: () => require('supertest')(a) };
+}
+
+describe('My Route - Unit Tests', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('returns 401 when unauthenticated', async () => { /* ... */ });
+  it('returns 400 when input is invalid', async () => { /* ... */ });
+  it('returns 200 on success', async () => { /* ... */ });
+  it('returns 500 when storage throws', async () => { /* ... */ });
+});
+```
+
+### Service test template (T1)
+
+```typescript
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+vi.mock('../../../server/storage', () => ({
+  storage: { someMethod: vi.fn() },
+}));
+
+describe('My Service - Unit Tests', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('returns expected value for valid input', async () => {
+    const { myService } = await import('../../../server/services/my-service');
+    const result = await myService.doThing('input');
+    expect(result).toEqual({ success: true });
   });
 });
 ```
 
-### Test Helpers
+### Mocking env variables
 
-#### Database Helpers
+Use `vi.stubEnv` + `vi.resetModules()` for modules whose behavior depends on `process.env`:
+
 ```typescript
-import { setupTestDatabase, cleanDatabase, createTestUser } from '../helpers/db';
-
-// Setup test database
-const testDb = await setupTestDatabase();
-
-// Clean database before/after tests
-await cleanDatabase();
-
-// Create test data
-const user = await createTestUser({ email: 'test@example.com' });
+beforeEach(() => {
+  vi.resetModules();
+  vi.stubEnv('MY_API_KEY', 'test-key');
+});
+afterEach(() => vi.unstubAllEnvs());
 ```
 
-#### Authentication Helpers
-```typescript
-import { createAuthenticatedAgent, createUnauthenticatedAgent } from '../helpers/auth';
+---
 
-// Create authenticated request
-const agent = createAuthenticatedAgent(app, user);
+## Common Pitfalls
 
-// Create unauthenticated request
-const agent = createUnauthenticatedAgent(app);
-```
+| Issue | Fix |
+|-------|-----|
+| Route returns 400 for a `:id` param | Zod may require a UUID — use `"00000000-0000-0000-0000-000000000001"` |
+| Mock returns `undefined`, Express sends `""` | Explicitly return an object from the mock |
+| Assertion on `storage.method` never fires | The method may be called inside Passport strategy logic which is bypassed by the mock |
+| `days=0` returns 200 not 400 | Route uses `parseInt(days) \|\| 30`, so `0` becomes `30` |
+| `validatePasswordStrength` — no special char check | The function only checks length, uppercase, lowercase, and digit |
 
-#### Request Helpers
-```typescript
-import { expectJsonResponse, expectAuthError, expectValidationError } from '../helpers/request';
+---
 
-// Test successful JSON response
-expectJsonResponse(response, 200, expectedData);
+## Coverage Thresholds
 
-// Test authentication error
-expectAuthError(response);
+Configured in `vitest.config.ts`:
 
-// Test validation error
-expectValidationError(response);
-```
-
-### Test Factories
-```typescript
-import { createMockUser } from '../factories/user.factory';
-import { createMockUsageCounter } from '../factories/usage.factory';
-
-// Create test data with defaults
-const user = createMockUser();
-const usage = createMockUsageCounter({ limit: 50 });
-```
-
-### Mocking External Services
-```typescript
-// Mock Stripe
-vi.mock('../../../server/services/stripe', () => ({
-  stripeService: {
-    createCheckoutSession: vi.fn(),
-  },
-}));
-
-// Mock database
-vi.mock('../../../server/storage', () => ({
-  storage: {
-    getUser: vi.fn(),
-  },
-}));
-```
-
-## Test Guidelines
-
-### Naming Conventions
-- Test files: `*.test.ts` for unit tests, `*.integration.test.ts` for integration tests
-- Test descriptions: Use "should" statements
-- Group related tests with `describe` blocks
-
-### Test Organization
-- One test file per route group or service
-- Group tests by functionality
-- Use `beforeEach` to reset mocks
-- Use `beforeAll`/`afterAll` for setup/cleanup
-
-### Assertions
-- Use specific assertion helpers (`expectJsonResponse`, `expectAuthError`)
-- Test both success and error cases
-- Verify response status, headers, and body
-- Test edge cases and boundary conditions
-
-### Mocking Strategy
-- Mock external APIs (Stripe, OpenAI, Groq)
-- Mock database operations for unit tests
-- Use real database for integration tests
-- Reset mocks between tests
-
-### Coverage Requirements
 - **Lines**: 80%+
 - **Functions**: 80%+
 - **Branches**: 80%+
 - **Statements**: 80%+
-
-## CI/CD Integration
-
-Tests run automatically on:
-- Pull requests
-- Pushes to main branch
-- Manual triggers
-
-### GitHub Actions
-```yaml
-name: Tests
-on: [push, pull_request]
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
-      - run: npm install
-      - run: npm run test:coverage
-```
-
-## Debugging Tests
-
-### Running Specific Tests
-```bash
-# Run specific test file
-npm test auth.test.ts
-
-# Run tests matching pattern
-npm test -- --grep "should login"
-
-# Run tests in specific directory
-npm test unit/routes/
-```
-
-### Debug Mode
-```bash
-# Run with debug output
-DEBUG=* npm test
-
-# Run single test with debug
-npm test -- --reporter=verbose auth.test.ts
-```
-
-### Test Database
-- Integration tests use Supabase database
-- Database is cleaned before/after each test
-- Use `createTestUser()` for consistent test data
-- Tests are skipped if no Supabase DATABASE_URL is configured
-
-## Common Issues
-
-### Test Failures
-1. **Mock not working**: Check if mock is properly set up in `beforeEach`
-2. **Database errors**: Ensure test database is properly configured
-3. **Timeout errors**: Increase `testTimeout` in `vitest.config.ts`
-4. **Coverage issues**: Add tests for missing branches
-
-### Performance
-- Unit tests should run in < 30 seconds
-- Integration tests should run in < 2 minutes
-- Use `vi.hoisted()` for expensive setup
-- Clean up resources in `afterEach`
-
-### Flaky Tests
-- Avoid relying on external services
-- Use deterministic test data
-- Mock time-dependent operations
-- Ensure proper cleanup between tests
-
-## Contributing
-
-When adding new features:
-1. Write unit tests first (TDD approach)
-2. Add integration tests for critical flows
-3. Ensure coverage thresholds are met
-4. Update this documentation if needed
-
-When fixing bugs:
-1. Write a test that reproduces the bug
-2. Fix the bug
-3. Ensure the test passes
-4. Run full test suite
