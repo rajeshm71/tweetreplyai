@@ -1396,6 +1396,29 @@ body {
   line-height: var(--line-height-relaxed);
 }
 
+.settings-checkbox-row {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: var(--spacing-3);
+  cursor: pointer;
+  margin-bottom: var(--spacing-2);
+}
+
+.settings-checkbox-row input[type="checkbox"] {
+  margin-top: 2px;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  accent-color: var(--color-primary-500);
+}
+
+.settings-checkbox-row span {
+  flex: 1;
+  font-weight: var(--font-weight-medium);
+  line-height: 1.4;
+}
+
 .settings-section .primary-btn {
   width: 100%;
   margin-top: var(--spacing-3);

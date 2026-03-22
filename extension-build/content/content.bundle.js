@@ -153,6 +153,9 @@
     TOKEN_EXPIRY_MS: 7 * 24 * 60 * 60 * 1e3,
     ONE_DAY_MS: 24 * 60 * 60 * 1e3
   };
+  var STORAGE = {
+    RELATIONSHIP_HINTS_ENABLED: "relationshipHintsEnabled"
+  };
 
   // extension/utils/api.js
   var ApiClient = class {
@@ -356,6 +359,7 @@
       this.followStatusByUser = /* @__PURE__ */ new Map();
       this.followBadgeRefreshTimer = null;
       this.followStatusMessageHandler = null;
+      this.relationshipHintsEnabled = true;
       this.currentReplyTargetArticle = null;
       this._replyTargetClearTimer = null;
       this.pendingReplyTarget = null;
@@ -677,6 +681,7 @@
     }
     async initialize() {
       this.authManager.setApiClient(this.apiClient);
+      await this.loadRelationshipHintsSetting();
       this.isAuthenticated = await this.authManager.isAuthenticated(true);
       if (this.isAuthenticated) {
         await this.loadUsageData();
@@ -697,6 +702,15 @@
       }
       if (!this.storageChangeHandler) {
         this.storageChangeHandler = (changes, areaName) => {
+          if (areaName === "sync" && changes[STORAGE.RELATIONSHIP_HINTS_ENABLED]) {
+            const nv = changes[STORAGE.RELATIONSHIP_HINTS_ENABLED].newValue;
+            this.relationshipHintsEnabled = nv !== false;
+            if (!this.relationshipHintsEnabled) {
+              this.removeRelationshipBadgesFromDom();
+            } else {
+              this.scheduleFollowBadgeRefresh();
+            }
+          }
           if (areaName === "local") {
             if (changes.token) {
               this.refreshAuthState();
@@ -734,6 +748,14 @@
         throw error;
       }
     }
+    async loadRelationshipHintsSetting() {
+      try {
+        const r = await chrome.storage.sync.get([STORAGE.RELATIONSHIP_HINTS_ENABLED]);
+        this.relationshipHintsEnabled = r[STORAGE.RELATIONSHIP_HINTS_ENABLED] !== false;
+      } catch {
+        this.relationshipHintsEnabled = true;
+      }
+    }
     // ============================================================================
     // FOLLOW STATUS — main-world interceptor → postMessage → cache → badge
     // ============================================================================
@@ -754,6 +776,9 @@
       window.addEventListener("message", this.followStatusMessageHandler);
       window.postMessage({ type: "TWEETREPLY_REQUEST_BUFFER_REPLAY" }, "*");
     }
+    removeRelationshipBadgesFromDom() {
+      document.querySelectorAll('[data-tweetreply-follow-badge="1"]').forEach((n) => n.remove());
+    }
     scheduleFollowBadgeRefresh() {
       if (this.followBadgeRefreshTimer) clearTimeout(this.followBadgeRefreshTimer);
       this.followBadgeRefreshTimer = setTimeout(() => {
@@ -762,6 +787,10 @@
       }, 150);
     }
     updateFollowBadgesOnPage() {
+      if (!this.relationshipHintsEnabled) {
+        this.removeRelationshipBadgesFromDom();
+        return;
+      }
       const articles = document.querySelectorAll('article[data-testid="tweet"]');
       articles.forEach((article) => {
         const username = this.extractUsernameFromTweetSync(article);

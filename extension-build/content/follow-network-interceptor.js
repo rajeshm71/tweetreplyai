@@ -1,6 +1,7 @@
 /**
- * Page-world script (Main world). Loaded via chrome-extension:// URL.
- * Intercepts X GraphQL/REST JSON for follow relationship fields.
+ * Page-world script (Main world). Registered as MV3 content script world MAIN @ document_start,
+ * or legacy: loaded via chrome-extension:// URL (deprecated path).
+ * Intercepts X GraphQL JSON for follow relationship fields.
  */
 (function () {
   if (window.__TWEETREPLY_FOLLOW_INTERCEPTOR__) return;
@@ -13,6 +14,10 @@
   var followStatusBuffer = [];
   var BUFFER_MAX_SIZE = 200;
 
+  /**
+   * Substrings of GraphQL operation paths (see Network tab on x.com). Update when X renames routes.
+   * Last reviewed: 2025-03 — HomeTimeline, TweetDetail, UserBy*, etc.
+   */
   var INTERCEPT_PATTERNS = [
     '/UserByScreenName',
     '/UserByRestId',
@@ -30,10 +35,35 @@
     '/NotificationsTimeline',
   ];
 
+  function normalizeUrlString(url) {
+    if (!url || typeof url !== 'string') return '';
+    try {
+      return new URL(url, location.href).href;
+    } catch (_e) {
+      return url;
+    }
+  }
+
+  /** Resolve fetch() first argument to an absolute URL string for pattern matching. */
+  function normalizeFetchInput(input) {
+    if (typeof input === 'string') {
+      return normalizeUrlString(input);
+    }
+    if (typeof URL !== 'undefined' && input instanceof URL) {
+      return normalizeUrlString(input.href);
+    }
+    if (input && typeof input === 'object') {
+      var u = input.url;
+      if (typeof u === 'string') return normalizeUrlString(u);
+    }
+    return '';
+  }
+
   function shouldIntercept(url) {
     if (!url || typeof url !== 'string') return false;
+    var abs = normalizeUrlString(url);
     for (var i = 0; i < INTERCEPT_PATTERNS.length; i++) {
-      if (url.indexOf(INTERCEPT_PATTERNS[i]) !== -1) return true;
+      if (abs.indexOf(INTERCEPT_PATTERNS[i]) !== -1) return true;
     }
     return false;
   }
@@ -181,7 +211,7 @@
   var originalFetch = window.fetch;
   window.fetch = function () {
     var args = arguments;
-    var url = typeof args[0] === 'string' ? args[0] : args[0] && args[0].url ? args[0].url : '';
+    var url = normalizeFetchInput(args[0]);
     return originalFetch.apply(this, args).then(function (response) {
       if (shouldIntercept(url)) {
         response
@@ -200,7 +230,8 @@
   var originalXHRSend = XMLHttpRequest.prototype.send;
 
   XMLHttpRequest.prototype.open = function (method, url) {
-    this._tweetreplyUrl = url ? url.toString() : '';
+    var u = url;
+    this._tweetreplyUrl = u != null ? normalizeUrlString(String(u)) : '';
     return originalXHROpen.apply(this, arguments);
   };
 
@@ -210,8 +241,9 @@
       'load',
       function () {
         try {
-          if (xhr._tweetreplyUrl && shouldIntercept(xhr._tweetreplyUrl) && xhr.responseText) {
-            processResponse(xhr._tweetreplyUrl, xhr.responseText);
+          var u = xhr._tweetreplyUrl || '';
+          if (xhr.responseText && shouldIntercept(u)) {
+            processResponse(u, xhr.responseText);
           }
         } catch (_e) {}
       },

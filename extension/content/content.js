@@ -1,7 +1,7 @@
 import { AuthManager } from '../utils/auth.js';
 import { ApiClient } from '../utils/api.js';
 import { installConsoleGate } from '../utils/consoleGate.js';
-import { API, POLLING, TIMEOUTS, DEFAULTS, VALIDATION, AUTH } from '../config/constants.js';
+import { API, POLLING, TIMEOUTS, DEFAULTS, VALIDATION, AUTH, STORAGE } from '../config/constants.js';
 
 globalThis.__tweetreplyaiExtLoggingAllowed = false;
 installConsoleGate(() => globalThis.__tweetreplyaiExtLoggingAllowed === true);
@@ -33,6 +33,8 @@ class TwitterReplyInjector {
     this.followStatusByUser = new Map();
     this.followBadgeRefreshTimer = null;
     this.followStatusMessageHandler = null;
+    /** Follow chips on X; default on. Synced via chrome.storage.sync (see popup Settings). */
+    this.relationshipHintsEnabled = true;
     this.currentReplyTargetArticle = null; // Tweet article when user clicked Reply (for scoped current-tweet extraction)
     this._replyTargetClearTimer = null;
     this.pendingReplyTarget = null; // { username, tweetId, setAt } — for counting reply only on Send click
@@ -465,6 +467,8 @@ class TwitterReplyInjector {
     // Set apiClient in authManager for server validation
     this.authManager.setApiClient(this.apiClient);
     
+    await this.loadRelationshipHintsSetting();
+
     // Check authentication status (validate with server to catch web app logout)
     this.isAuthenticated = await this.authManager.isAuthenticated(true);
     
@@ -503,6 +507,15 @@ class TwitterReplyInjector {
     // Only add if not already added (prevent accumulation)
     if (!this.storageChangeHandler) {
       this.storageChangeHandler = (changes, areaName) => {
+        if (areaName === 'sync' && changes[STORAGE.RELATIONSHIP_HINTS_ENABLED]) {
+          const nv = changes[STORAGE.RELATIONSHIP_HINTS_ENABLED].newValue;
+          this.relationshipHintsEnabled = nv !== false;
+          if (!this.relationshipHintsEnabled) {
+            this.removeRelationshipBadgesFromDom();
+          } else {
+            this.scheduleFollowBadgeRefresh();
+          }
+        }
         if (areaName === 'local') {
           // Auth state updates
           if (changes.token) {
@@ -553,6 +566,15 @@ class TwitterReplyInjector {
     }
   }
 
+  async loadRelationshipHintsSetting() {
+    try {
+      const r = await chrome.storage.sync.get([STORAGE.RELATIONSHIP_HINTS_ENABLED]);
+      this.relationshipHintsEnabled = r[STORAGE.RELATIONSHIP_HINTS_ENABLED] !== false;
+    } catch {
+      this.relationshipHintsEnabled = true;
+    }
+  }
+
   // ============================================================================
   // FOLLOW STATUS — main-world interceptor → postMessage → cache → badge
   // ============================================================================
@@ -575,6 +597,10 @@ class TwitterReplyInjector {
     window.postMessage({ type: 'TWEETREPLY_REQUEST_BUFFER_REPLAY' }, '*');
   }
 
+  removeRelationshipBadgesFromDom() {
+    document.querySelectorAll('[data-tweetreply-follow-badge="1"]').forEach((n) => n.remove());
+  }
+
   scheduleFollowBadgeRefresh() {
     if (this.followBadgeRefreshTimer) clearTimeout(this.followBadgeRefreshTimer);
     this.followBadgeRefreshTimer = setTimeout(() => {
@@ -584,6 +610,10 @@ class TwitterReplyInjector {
   }
 
   updateFollowBadgesOnPage() {
+    if (!this.relationshipHintsEnabled) {
+      this.removeRelationshipBadgesFromDom();
+      return;
+    }
     const articles = document.querySelectorAll('article[data-testid="tweet"]');
     articles.forEach((article) => {
       const username = this.extractUsernameFromTweetSync(article);
@@ -3926,7 +3956,6 @@ class TwitterReplyInjector {
       clearTimeout(this.followBadgeRefreshTimer);
       this.followBadgeRefreshTimer = null;
     }
-
     // Remove beforeunload listener
     if (this.beforeUnloadHandler) {
       window.removeEventListener('beforeunload', this.beforeUnloadHandler);

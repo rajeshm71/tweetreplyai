@@ -315,6 +315,23 @@ afterEach(() => vi.unstubAllEnvs());
 
 ---
 
+## Chrome extension — manual QA (X)
+
+These checks are **not** automated in CI (live X is fragile). Run after changing `extension/content/follow-network-interceptor.js`, `extension/content/content.js`, or manifest content scripts.
+
+| Step | Action | Pass criteria |
+|------|--------|----------------|
+| Home cold | Open `https://x.com/home`, wait for the feed | With **Relationship hints** on, chips may appear for authors where the API exposes followed-by |
+| Home scroll | Scroll quickly | No obvious wrong flips; debounced updates stay stable |
+| Tweet detail | Open a tweet from the timeline | Hints still reasonable for OP / participants when data exists |
+| Navigation | Home → profile → home | No clearly stale wrong hint for the same `@handle` |
+| Hard refresh | Reload on home | Interceptor still runs early enough (MAIN `document_start`); hints repopulate |
+| Toggle | Popup → Settings → **Relationship hints** off/on | Off removes chips; on restores after observer / refresh |
+
+Build the extension before testing: `npm run build:extension` and `npm run build:extension:popup`, then reload the unpacked extension in `chrome://extensions`.
+
+---
+
 ## Common Pitfalls
 
 | Issue | Fix |

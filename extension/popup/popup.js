@@ -1,7 +1,7 @@
 import { AuthManager } from '../utils/auth.js';
 import { ApiClient } from '../utils/api.js';
 import { installConsoleGate } from '../utils/consoleGate.js';
-import { POLLING, DEFAULTS } from '../config/constants.js';
+import { POLLING, DEFAULTS, STORAGE } from '../config/constants.js';
 
 globalThis.__tweetreplyaiExtLoggingAllowed = false;
 installConsoleGate(() => globalThis.__tweetreplyaiExtLoggingAllowed === true);
@@ -290,6 +290,11 @@ class PopupManager {
     const saveTrackingSettingsBtn = document.getElementById('saveTrackingSettings');
     if (saveTrackingSettingsBtn) {
       saveTrackingSettingsBtn.addEventListener('click', () => this.saveTrackingSettings());
+    }
+
+    const relationshipHintsEl = document.getElementById('relationshipHintsEnabled');
+    if (relationshipHintsEl) {
+      relationshipHintsEl.addEventListener('change', () => this.saveRelationshipHintsSetting());
     }
     
     // Keyboard navigation
@@ -814,6 +819,7 @@ class PopupManager {
       this.settingsBtn?.setAttribute('aria-expanded', 'true');
       // Load tracking settings when settings panel is shown
       this.loadTrackingSettings();
+      this.loadRelationshipHintsSettings();
       // Focus first focusable element
       const firstInput = this.settingsPanel.querySelector('input, button');
       firstInput?.focus();
@@ -826,6 +832,26 @@ class PopupManager {
       this.settingsPanel.style.display = 'none';
       this.settingsPanel.setAttribute('aria-hidden', 'true');
       this.settingsBtn?.setAttribute('aria-expanded', 'false');
+    }
+  }
+
+  async loadRelationshipHintsSettings() {
+    try {
+      const r = await chrome.storage.sync.get([STORAGE.RELATIONSHIP_HINTS_ENABLED]);
+      const el = document.getElementById('relationshipHintsEnabled');
+      if (el) el.checked = r[STORAGE.RELATIONSHIP_HINTS_ENABLED] !== false;
+    } catch (error) {
+      console.error('Failed to load relationship hints setting:', error);
+    }
+  }
+
+  async saveRelationshipHintsSetting() {
+    try {
+      const el = document.getElementById('relationshipHintsEnabled');
+      if (!el) return;
+      await chrome.storage.sync.set({ [STORAGE.RELATIONSHIP_HINTS_ENABLED]: el.checked });
+    } catch (error) {
+      console.error('Failed to save relationship hints setting:', error);
     }
   }
 

@@ -140,6 +140,9 @@
     TOKEN_EXPIRY_MS: 7 * 24 * 60 * 60 * 1e3,
     ONE_DAY_MS: 24 * 60 * 60 * 1e3
   };
+  var STORAGE = {
+    RELATIONSHIP_HINTS_ENABLED: "relationshipHintsEnabled"
+  };
 
   // extension/utils/api.js
   var ApiClient = class {
@@ -527,6 +530,10 @@
       const saveTrackingSettingsBtn = document.getElementById("saveTrackingSettings");
       if (saveTrackingSettingsBtn) {
         saveTrackingSettingsBtn.addEventListener("click", () => this.saveTrackingSettings());
+      }
+      const relationshipHintsEl = document.getElementById("relationshipHintsEnabled");
+      if (relationshipHintsEl) {
+        relationshipHintsEl.addEventListener("change", () => this.saveRelationshipHintsSetting());
       }
       this.setupKeyboardNavigation();
       this.initializeDarkMode();
@@ -924,6 +931,7 @@
         this.settingsPanel.setAttribute("aria-hidden", "false");
         this.settingsBtn?.setAttribute("aria-expanded", "true");
         this.loadTrackingSettings();
+        this.loadRelationshipHintsSettings();
         const firstInput = this.settingsPanel.querySelector("input, button");
         firstInput?.focus();
       }
@@ -934,6 +942,24 @@
         this.settingsPanel.style.display = "none";
         this.settingsPanel.setAttribute("aria-hidden", "true");
         this.settingsBtn?.setAttribute("aria-expanded", "false");
+      }
+    }
+    async loadRelationshipHintsSettings() {
+      try {
+        const r = await chrome.storage.sync.get([STORAGE.RELATIONSHIP_HINTS_ENABLED]);
+        const el = document.getElementById("relationshipHintsEnabled");
+        if (el) el.checked = r[STORAGE.RELATIONSHIP_HINTS_ENABLED] !== false;
+      } catch (error) {
+        console.error("Failed to load relationship hints setting:", error);
+      }
+    }
+    async saveRelationshipHintsSetting() {
+      try {
+        const el = document.getElementById("relationshipHintsEnabled");
+        if (!el) return;
+        await chrome.storage.sync.set({ [STORAGE.RELATIONSHIP_HINTS_ENABLED]: el.checked });
+      } catch (error) {
+        console.error("Failed to save relationship hints setting:", error);
       }
     }
     // Load reply tracking settings

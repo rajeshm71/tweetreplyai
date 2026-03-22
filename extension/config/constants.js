@@ -42,3 +42,8 @@ export const AUTH = {
   TOKEN_EXPIRY_MS: 7 * 24 * 60 * 60 * 1000,
   ONE_DAY_MS: 24 * 60 * 60 * 1000,
 };
+
+/** chrome.storage.sync keys (cross-device when user syncs Chrome). */
+export const STORAGE = {
+  RELATIONSHIP_HINTS_ENABLED: 'relationshipHintsEnabled',
+};
