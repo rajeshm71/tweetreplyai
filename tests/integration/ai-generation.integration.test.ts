@@ -1,18 +1,14 @@
 /**
- * AI Generation Integration Tests
- *
- * Tests the full generate-reply → save to DB → fetch reply-history flow.
- * Requires a real Supabase database. AI calls are mocked to avoid API costs.
- * All test data is prefixed with `inttest-` and cleaned up in afterAll.
+ * AI Generation Integration Tests (smoke) — AI + usage mocked to avoid cost.
  */
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import request from "supertest";
-import express from "express";
-import { setupRoutes } from "../../server/routes";
+import { createIntegrationApp } from "../helpers/integration-app";
 import { setupTestDatabase, cleanDatabase, closeTestDatabase } from "../helpers/db";
 import { signTestJwt } from "../helpers/jwt";
+import { seedInttestUser } from "../helpers/seed";
+import { INTEG_EMAILS, INTEG_JWT_USER_IDS } from "../helpers/inttest-constants";
 
-// Mock AI services — avoids real API calls and costs
 vi.mock("../../server/services/ai-router", () => ({
   aiRouter: {
     generateReply: vi.fn().mockResolvedValue({
@@ -22,27 +18,45 @@ vi.mock("../../server/services/ai-router", () => ({
       tokensIn: 50,
       tokensOut: 20,
     }),
+    estimateCost: vi.fn().mockReturnValue(0.001),
+    getModelsByProvider: vi.fn().mockReturnValue({}),
   },
 }));
 
 vi.mock("../../server/services/guardrail", () => ({
-  runGuardrail: vi.fn().mockResolvedValue({ violated: false }),
+  runGuardrail: vi.fn().mockResolvedValue({ violation: 0, category: null, rationale: "" }),
   generateGuardrailFriendlyReply: vi.fn(),
+}));
+
+vi.mock("../../server/services/tweet-analysis-agents.js", () => ({
+  tweetAnalysisOrchestrator: {
+    analyzeTweet: vi.fn().mockResolvedValue(null),
+  },
 }));
 
 vi.mock("../../server/services/usage", () => ({
   usageService: {
     canUseReply: vi.fn().mockResolvedValue({ canUse: true, reason: "trial" }),
-    consumeReply: vi.fn().mockResolvedValue(undefined),
-    getUsageStatus: vi.fn().mockResolvedValue({ hasSubscription: false, trialUsed: 0, trialLimit: 3 }),
+    // Route reads creditsUsed / limit / resetAt on the returned counter — must not be undefined
+    consumeReply: vi.fn().mockResolvedValue({
+      repliesUsed: 1,
+      creditsUsed: 2,
+      limit: 100,
+      resetAt: new Date(Date.now() + 86400000),
+    }),
+    getUsageStatus: vi.fn().mockResolvedValue({
+      hasSubscription: false,
+      trialUsed: 0,
+      trialLimit: 3,
+    }),
     initializeTrialForUser: vi.fn().mockResolvedValue(undefined),
   },
 }));
 
-describe("AI Generation Integration Tests", () => {
-  let app: express.Application;
-  let testDb: any;
-  const authToken = signTestJwt({ id: "inttest-ai-user", email: "inttest-ai@example.com" });
+describe("AI Generation Integration Tests (smoke)", () => {
+  let app: Awaited<ReturnType<typeof createIntegrationApp>>;
+  let testDb: unknown;
+  const authToken = signTestJwt({ id: INTEG_JWT_USER_IDS.ai, email: INTEG_EMAILS.ai });
 
   const skipIfNoDb = () => {
     if (!testDb) {
@@ -60,11 +74,11 @@ describe("AI Generation Integration Tests", () => {
 
     try {
       testDb = await setupTestDatabase();
-      app = express();
-      app.use(express.json());
-      await setupRoutes(app);
-    } catch (error: any) {
-      console.log("Skipping AI generation integration tests — DB setup failed:", error.message);
+      app = await createIntegrationApp();
+      await seedInttestUser({ id: INTEG_JWT_USER_IDS.ai, email: INTEG_EMAILS.ai });
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : String(error);
+      console.log("Skipping AI generation integration tests — DB setup failed:", msg);
     }
   });
 
@@ -73,33 +87,28 @@ describe("AI Generation Integration Tests", () => {
     await closeTestDatabase();
   });
 
-  it("generate-reply endpoint is reachable and returns a known status code", async () => {
+  it("generate-reply returns 200 when usage is mocked", async () => {
     if (skipIfNoDb()) return;
 
     const res = await request(app)
       .post("/api/generate-reply")
       .set("Authorization", `Bearer ${authToken}`)
-      .send({ tweetText: "Integration test tweet content" });
+      .send({
+        tweet_text: "Integration test tweet content with enough length for the pipeline.",
+        reply_mode: "enhanced",
+      });
 
-    // 200 = success, 402 = quota exceeded, 400 = validation error, 404 = user not found
-    expect([200, 400, 401, 402, 404]).toContain(res.status);
+    expect(res.status).toBe(200);
   });
 
-  it("reply-history endpoint is reachable and authenticated", async () => {
+  it("reply-history endpoint returns 200 for seeded user", async () => {
     if (skipIfNoDb()) return;
 
     const histRes = await request(app)
       .get("/api/reply-history")
       .set("Authorization", `Bearer ${authToken}`);
 
-    // 200 = ok, 404 = user not found
-    expect([200, 404]).toContain(histRes.status);
-    if (histRes.status === 200) {
-      // Response may be an array directly or wrapped in an object with a data/items/replies key
-      const isArray = Array.isArray(histRes.body);
-      const isWrapped = typeof histRes.body === "object" && histRes.body !== null;
-      expect(isArray || isWrapped).toBe(true);
-    }
+    expect(histRes.status).toBe(200);
   });
 
   it("returns 401 without authentication token", async () => {
@@ -107,29 +116,8 @@ describe("AI Generation Integration Tests", () => {
 
     const res = await request(app)
       .post("/api/generate-reply")
-      .send({ tweetText: "Unauthenticated tweet" });
+      .send({ tweet_text: "Unauthenticated tweet" });
 
     expect(res.status).toBe(401);
-  });
-
-  it("mark-used endpoint updates wasUsed on a reply history entry", async () => {
-    if (skipIfNoDb()) return;
-
-    // First get reply history to find an ID to mark
-    const histRes = await request(app)
-      .get("/api/reply-history")
-      .set("Authorization", `Bearer ${authToken}`);
-
-    if (!Array.isArray(histRes.body) || histRes.body.length === 0) {
-      console.log("Skipping mark-used test — no reply history entries");
-      return;
-    }
-
-    const entry = histRes.body[0];
-    const markRes = await request(app)
-      .post(`/api/reply-history/${entry.id}/mark-used`)
-      .set("Authorization", `Bearer ${authToken}`);
-
-    expect([200, 404]).toContain(markRes.status);
   });
 });

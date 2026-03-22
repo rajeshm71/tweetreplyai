@@ -20,7 +20,11 @@
     "test:coverage": "vitest run --coverage",
     "test:coverage:unit": "vitest run --coverage --exclude \"**/integration/**\"",
     "test:watch": "vitest watch",
-    "test:integration": "vitest run tests/integration",
+    "test:integration": "vitest run --config vitest.integration.config.ts tests/integration",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed",
+    "test:all": "npm run test:unit && npm run test:integration && npm run test:e2e",
     "test:unit": "vitest run tests/unit tests/simple.test.ts",
     "vercel-build": "vite build --mode production && esbuild server/prod.ts --platform=node --packages=external --bundle --format=esm --outdir=dist --external:vite --external:rollup --external:@rollup/*"
   },
@@ -110,6 +114,7 @@
     "zod-validation-error": "^3.4.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "@replit/vite-plugin-cartographer": "^0.3.0",
     "@replit/vite-plugin-runtime-error-modal": "^0.0.3",
     "@tailwindcss/typography": "^0.5.15",

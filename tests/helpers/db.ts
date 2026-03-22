@@ -1,6 +1,7 @@
 // Database helper for tests - using Supabase JS client instead of raw PostgreSQL
 import { supabase } from "../../server/supabase.js";
 import type { UpsertUser } from "../../shared/types.js";
+import { STATIC_INTEST_USER_IDS } from "./inttest-constants";
 
 /**
  * Integration tests in this repository are best-effort.
@@ -11,16 +12,39 @@ export async function setupTestDatabase() {
   return supabase;
 }
 
+async function collectInttestUserIds(): Promise<string[]> {
+  const { data: emailUsers } = await supabase
+    .from("users")
+    .select("id")
+    .like("email", "inttest-%@example.com");
+
+  const fromEmails = (emailUsers ?? []).map((u: { id: string }) => u.id);
+  return [...new Set([...STATIC_INTEST_USER_IDS, ...fromEmails])];
+}
+
 export async function cleanDatabase() {
   // Only run against a real Supabase database; never run against production-looking URLs
-  if (!process.env.DATABASE_URL?.includes('supabase.co')) return;
+  if (!process.env.DATABASE_URL?.includes("supabase.co")) return;
 
-  // Delete in FK-safe order (children before parents) — only rows belonging to inttest- users
-  await supabase.from('usage_counters').delete().like('user_id', 'inttest-%');
-  await supabase.from('subscriptions').delete().like('user_id', 'inttest-%');
-  await supabase.from('reply_history').delete().like('user_id', 'inttest-%');
-  await supabase.from('feedback').delete().like('user_id', 'inttest-%');
-  await supabase.from('users').delete().like('email', 'inttest-%@example.com');
+  const userIds = await collectInttestUserIds();
+  if (userIds.length === 0) return;
+
+  // FK-safe order: children before parents
+  const { data: events } = await supabase.from("reply_events").select("id").in("user_id", userIds);
+  const eventIds = (events ?? []).map((e: { id: string | number }) => String(e.id));
+  if (eventIds.length > 0) {
+    await supabase.from("feedback").delete().in("reply_event_id", eventIds);
+  }
+
+  await supabase.from("reply_tokens").delete().in("user_id", userIds);
+  await supabase.from("reply_history").delete().in("user_id", userIds);
+  await supabase.from("reply_events").delete().in("user_id", userIds);
+  await supabase.from("usage_counters").delete().in("user_id", userIds);
+  await supabase.from("subscriptions").delete().in("user_id", userIds);
+  await supabase.from("user_preferences").delete().in("user_id", userIds);
+
+  await supabase.from("users").delete().like("email", "inttest-%@example.com");
+  await supabase.from("users").delete().in("id", STATIC_INTEST_USER_IDS);
 }
 
 export async function closeTestDatabase() {

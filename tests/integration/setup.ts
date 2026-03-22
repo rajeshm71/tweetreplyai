@@ -1,30 +1,26 @@
-import { beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
-import { setupTestDatabase, cleanDatabase, closeTestDatabase } from '../helpers/db';
+/**
+ * Vitest setup for integration tests only (merged via vitest.integration.config.ts).
+ * MSW uses `bypass` so real supertest HTTP traffic to the local app is not treated as unhandled.
+ */
+import "../env-setup";
+import { beforeAll, afterAll, afterEach, vi } from "vitest";
+import { setupServer } from "msw/node";
+import { handlers } from "../mocks/handlers";
 
-let testDb: any;
+const server = setupServer(...handlers);
 
-beforeAll(async () => {
-  // Setup test database connection
-  testDb = await setupTestDatabase();
-  console.log('Integration test database connected');
+beforeAll(() => {
+  server.listen({ onUnhandledRequest: "bypass" });
+  vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
-beforeEach(async () => {
-  // Clean database before each test
-  await cleanDatabase();
-  console.log('Database cleaned before test');
+afterEach(() => {
+  server.resetHandlers();
 });
 
-afterEach(async () => {
-  // Clean database after each test
-  await cleanDatabase();
-  console.log('Database cleaned after test');
+afterAll(() => {
+  server.close();
 });
 
-afterAll(async () => {
-  // Close database connection
-  await closeTestDatabase();
-  console.log('Integration test database disconnected');
-});
-
-export { testDb };
+export * from "../helpers/auth";
+export * from "../helpers/request";

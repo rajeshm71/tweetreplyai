@@ -29,6 +29,10 @@ class TwitterReplyInjector {
     this.usageData = null;
     this.injectedButtons = new Set();
     this.injectedContainers = new Set(); // Track injected container IDs
+    /** @type {Map<string, { followedBy: boolean, following: boolean, hasRelationshipData: boolean }>} */
+    this.followStatusByUser = new Map();
+    this.followBadgeRefreshTimer = null;
+    this.followStatusMessageHandler = null;
     this.currentReplyTargetArticle = null; // Tweet article when user clicked Reply (for scoped current-tweet extraction)
     this._replyTargetClearTimer = null;
     this.pendingReplyTarget = null; // { username, tweetId, setAt } — for counting reply only on Send click
@@ -470,6 +474,8 @@ class TwitterReplyInjector {
     
     // Start observing for reply composers
     this.startObserving();
+
+    this.setupFollowStatusFromNetwork();
     
     // Setup auto-like on Reply click (this also tracks replies for count display)
     this.setupAutoLikeOnReply();
@@ -547,6 +553,64 @@ class TwitterReplyInjector {
     }
   }
 
+  // ============================================================================
+  // FOLLOW STATUS — main-world interceptor → postMessage → cache → badge
+  // ============================================================================
+
+  setupFollowStatusFromNetwork() {
+    if (this.followStatusMessageHandler) return;
+    this.followStatusMessageHandler = (event) => {
+      if (event.source !== window) return;
+      const d = event.data;
+      if (!d || d.type !== 'TWEETREPLY_FOLLOW_STATUS') return;
+      if (!d.hasRelationshipData) return;
+      this.followStatusByUser.set(String(d.username).toLowerCase(), {
+        followedBy: !!d.followedBy,
+        following: !!d.following,
+        hasRelationshipData: true,
+      });
+      this.scheduleFollowBadgeRefresh();
+    };
+    window.addEventListener('message', this.followStatusMessageHandler);
+    window.postMessage({ type: 'TWEETREPLY_REQUEST_BUFFER_REPLAY' }, '*');
+  }
+
+  scheduleFollowBadgeRefresh() {
+    if (this.followBadgeRefreshTimer) clearTimeout(this.followBadgeRefreshTimer);
+    this.followBadgeRefreshTimer = setTimeout(() => {
+      this.followBadgeRefreshTimer = null;
+      this.updateFollowBadgesOnPage();
+    }, 150);
+  }
+
+  updateFollowBadgesOnPage() {
+    const articles = document.querySelectorAll('article[data-testid="tweet"]');
+    articles.forEach((article) => {
+      const username = this.extractUsernameFromTweetSync(article);
+      const existing = article.querySelector('.tweetreply-follow-badge');
+      if (existing) existing.remove();
+      if (!username || username === 'unknown') return;
+      const key = username.toLowerCase();
+      const entry = this.followStatusByUser.get(key);
+      if (!entry || !entry.hasRelationshipData) return;
+      const userNameElement = article.querySelector('[data-testid="User-Name"]');
+      if (!userNameElement || !userNameElement.isConnected) return;
+      const span = document.createElement('span');
+      span.className = entry.followedBy
+        ? 'tweetreply-follow-badge tweetreply-follow-badge--follows'
+        : 'tweetreply-follow-badge tweetreply-follow-badge--not';
+      span.setAttribute('data-tweetreply-follow-badge', '1');
+      span.textContent = entry.followedBy ? 'Follows you' : 'Not Follows you';
+      const timeEl = userNameElement.querySelector('time');
+      if (timeEl && timeEl.parentNode) {
+        timeEl.after(span);
+      } else {
+        userNameElement.appendChild(document.createTextNode(' '));
+        userNameElement.appendChild(span);
+      }
+    });
+  }
+
   startObserving() {
     // Don't create if already exists (prevent accumulation)
     if (this.mainObserver) return;
@@ -574,6 +638,8 @@ class TwitterReplyInjector {
           this.checkForReplyComposers(node);
         });
         addedNodes.clear();
+
+        this.scheduleFollowBadgeRefresh();
         
         // Also update reply counts for new tweets (if count display is initialized)
         if (this.countDisplayInitialized) {
@@ -3852,6 +3918,15 @@ class TwitterReplyInjector {
       this.mainObserverDebounceTimer = null;
     }
     
+    if (this.followStatusMessageHandler) {
+      window.removeEventListener('message', this.followStatusMessageHandler);
+      this.followStatusMessageHandler = null;
+    }
+    if (this.followBadgeRefreshTimer) {
+      clearTimeout(this.followBadgeRefreshTimer);
+      this.followBadgeRefreshTimer = null;
+    }
+
     // Remove beforeunload listener
     if (this.beforeUnloadHandler) {
       window.removeEventListener('beforeunload', this.beforeUnloadHandler);

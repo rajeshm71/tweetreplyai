@@ -1,0 +1,28 @@
+# Manual or main-branch integration tests against a real Supabase DB.
+# Configure TEST_DATABASE_URL, TEST_SESSION_SECRET, TEST_SUPABASE_URL, TEST_SUPABASE_SERVICE_ROLE_KEY in repo secrets.
+# When secrets are missing, tests no-op (see tests/helpers/db.ts).
+name: Integration tests
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: npm
+      - run: npm ci
+      - name: Run integration tests
+        run: npm run test:integration
+        env:
+          NODE_ENV: test
+          DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
+          SESSION_SECRET: ${{ secrets.TEST_SESSION_SECRET }}
+          SUPABASE_URL: ${{ secrets.TEST_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.TEST_SUPABASE_SERVICE_ROLE_KEY }}

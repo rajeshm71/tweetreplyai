@@ -1,19 +1,16 @@
 /**
- * Billing Integration Tests
- *
- * These tests require a real Supabase database and Dodo Payments test credentials.
- * They are skipped automatically when DATABASE_URL is not configured.
- *
- * All test data is prefixed with `inttest-` and cleaned up in afterAll.
+ * Billing Integration Tests — Dodo API mocked; asserts DB rows via Supabase.
  */
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import request from "supertest";
-import express from "express";
-import { setupRoutes } from "../../server/routes";
+import { createIntegrationApp } from "../helpers/integration-app";
 import { setupTestDatabase, cleanDatabase, closeTestDatabase } from "../helpers/db";
 import { signTestJwt } from "../helpers/jwt";
+import { seedInttestUser } from "../helpers/seed";
+import { INTEG_EMAILS, INTEG_JWT_USER_IDS } from "../helpers/inttest-constants";
+import { supabase } from "../../server/supabase";
+import { storage } from "../../server/storage.js";
 
-// Mock Dodo Payments API so tests do not make real network calls
 vi.mock("../../server/services/dodo-payments", () => ({
   PLANS: {
     weekly: {
@@ -42,23 +39,24 @@ vi.mock("../../server/services/dodo-payments", () => ({
       product_id: "price_weekly_test",
       customer_id: "cust-inttest-001",
       customer: { id: "cust-inttest-001", email: "inttest-billing@example.com" },
-      current_period_start: "2024-01-01T00:00:00Z",
-      current_period_end: "2024-01-08T00:00:00Z",
+      // Must be in the future or getActiveSubscription (gt current_period_end) returns no row
+      current_period_start: "2030-01-01T00:00:00Z",
+      current_period_end: "2030-01-15T00:00:00Z",
       amount_paid: 299,
       currency: "usd",
     }),
     planCodeFromPriceId: vi.fn().mockReturnValue("weekly"),
     cancelSubscription: vi.fn().mockResolvedValue({ status: "canceled" }),
-    createCheckoutSession: vi.fn(),
+    createCheckoutSession: vi.fn().mockResolvedValue({ url: "https://checkout.test/example" }),
     constructWebhookEvent: vi.fn(),
-    createCustomerPortalSession: vi.fn(),
+    createCustomerPortalSession: vi.fn().mockResolvedValue({ url: "https://portal.test/example" }),
   },
 }));
 
 describe("Billing Integration Tests", () => {
-  let app: express.Application;
-  let testDb: any;
-  const authToken = signTestJwt({ id: "inttest-billing-user", email: "inttest-billing@example.com" });
+  let app: Awaited<ReturnType<typeof createIntegrationApp>>;
+  let testDb: unknown;
+  const authToken = signTestJwt({ id: INTEG_JWT_USER_IDS.billing, email: INTEG_EMAILS.billing });
 
   const skipIfNoDb = () => {
     if (!testDb) {
@@ -76,11 +74,17 @@ describe("Billing Integration Tests", () => {
 
     try {
       testDb = await setupTestDatabase();
-      app = express();
-      app.use(express.json());
-      await setupRoutes(app);
-    } catch (error: any) {
-      console.log("Skipping billing integration tests — DB setup failed:", error.message);
+      app = await createIntegrationApp();
+      await seedInttestUser({
+        id: INTEG_JWT_USER_IDS.billing,
+        email: INTEG_EMAILS.billing,
+      });
+      await storage.updateUser(INTEG_JWT_USER_IDS.billing, {
+        dodoCustomerId: "cus_inttest_portal",
+      });
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : String(error);
+      console.log("Skipping billing integration tests — DB setup failed:", msg);
     }
   });
 
@@ -89,7 +93,30 @@ describe("Billing Integration Tests", () => {
     await closeTestDatabase();
   });
 
-  it("checkout success redirects (success or known error — never 5xx)", async () => {
+  it("POST /api/checkout returns checkout_url from Dodo mock", async () => {
+    if (skipIfNoDb()) return;
+
+    const res = await request(app)
+      .post("/api/checkout")
+      .set("Authorization", `Bearer ${authToken}`)
+      .send({ plan_code: "weekly" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.checkout_url).toBe("https://checkout.test/example");
+  });
+
+  it("POST /api/billing/portal returns portal_url when user has dodoCustomerId", async () => {
+    if (skipIfNoDb()) return;
+
+    const res = await request(app)
+      .post("/api/billing/portal")
+      .set("Authorization", `Bearer ${authToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.portal_url).toBe("https://portal.test/example");
+  });
+
+  it("checkout success redirects to subscription_activated and persists one subscription row", async () => {
     if (skipIfNoDb()) return;
 
     const res = await request(app)
@@ -97,21 +124,23 @@ describe("Billing Integration Tests", () => {
       .set("Authorization", `Bearer ${authToken}`)
       .redirects(0);
 
-    // Route always redirects — never throws 500
     expect([301, 302]).toContain(res.status);
-    expect(typeof res.headers.location).toBe("string");
-    // Location should contain a known outcome param (success or one of the error codes)
-    const knownOutcomes = [
-      "subscription_activated", "user_not_found", "subscription_not_found",
-      "checkout_failed", "unknown_plan", "no_subscription",
-    ];
-    expect(knownOutcomes.some((k) => res.headers.location.includes(k))).toBe(true);
+    expect(res.headers.location).toContain("subscription_activated");
+
+    const { data: rows, error } = await supabase
+      .from("subscriptions")
+      .select("id, user_id, plan_code, stripe_subscription_id")
+      .eq("user_id", INTEG_JWT_USER_IDS.billing)
+      .eq("stripe_subscription_id", "dodo-inttest-sub-001");
+
+    expect(error).toBeNull();
+    expect(rows?.length).toBe(1);
+    expect(rows![0].plan_code).toBe("weekly");
   });
 
-  it("idempotency — second checkout call does not duplicate subscription row", async () => {
+  it("idempotency — second checkout call updates same row (single dodo id per user)", async () => {
     if (skipIfNoDb()) return;
 
-    // Call checkout twice with the same subscription_id
     await request(app)
       .get("/api/checkout/success?subscription_id=dodo-inttest-sub-001")
       .set("Authorization", `Bearer ${authToken}`)
@@ -122,8 +151,15 @@ describe("Billing Integration Tests", () => {
       .set("Authorization", `Bearer ${authToken}`)
       .redirects(0);
 
-    // Second call should still succeed (update path, not create)
     expect([302, 301]).toContain(res2.status);
+
+    const { data: rows } = await supabase
+      .from("subscriptions")
+      .select("id")
+      .eq("user_id", INTEG_JWT_USER_IDS.billing)
+      .eq("stripe_subscription_id", "dodo-inttest-sub-001");
+
+    expect(rows?.length).toBe(1);
   });
 
   it("subscription status endpoint reflects DB state", async () => {
@@ -134,18 +170,27 @@ describe("Billing Integration Tests", () => {
       .set("Authorization", `Bearer ${authToken}`);
 
     expect(res.status).toBe(200);
-    // Either subscription exists or it doesn't — the endpoint should always respond
     expect(res.body).toHaveProperty("hasSubscription");
+    expect(res.body.hasSubscription).toBe(true);
+    expect(res.body.planCode).toBe("weekly");
   });
 
-  it("cancelling subscription updates status", async () => {
+  it("cancelling subscription updates row to canceled", async () => {
     if (skipIfNoDb()) return;
 
     const res = await request(app)
       .post("/api/subscription/cancel")
       .set("Authorization", `Bearer ${authToken}`);
 
-    // Either 200 (cancelled) or 404 (no active sub) — both are valid
-    expect([200, 404]).toContain(res.status);
+    expect(res.status).toBe(200);
+
+    const { data: sub } = await supabase
+      .from("subscriptions")
+      .select("status")
+      .eq("user_id", INTEG_JWT_USER_IDS.billing)
+      .eq("stripe_subscription_id", "dodo-inttest-sub-001")
+      .maybeSingle();
+
+    expect(sub?.status).toBe("canceled");
   });
 });

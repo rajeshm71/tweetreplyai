@@ -7,12 +7,46 @@ This directory contains all tests for the TweetReply AI backend.
 | Script | Scope |
 |--------|--------|
 | `npm run test:unit` | `tests/unit/**` + `tests/simple.test.ts` (path-based, not title-based) |
-| `npm run test:integration` | `tests/integration/**` only |
-| `npm test` | Full Vitest discovery of `*.test.ts` across the project |
+| `npm run test:integration` | `tests/integration/**` only (uses `vitest.integration.config.ts`: serial fork, `SKIP_AUTH_RATE_LIMIT=1`, MSW `bypass` for real HTTP) |
+| `npm run test:e2e` | Playwright in `e2e/` (Chromium): `chromium-public-api` + `chromium-authenticated`; starts `npm run dev` unless `E2E_BASE_URL` is set |
+| `npm run test:e2e:ui` | Playwright UI mode (debug) |
+| `npm run test:e2e:headed` | Playwright headed browser |
+| `npm run test:all` | **Full verification:** `test:unit` → `test:integration` → `test:e2e` (stops on first failure). See [Run everything (`test:all`)](#run-everything-testall) below. |
+| `npm test` | Vitest watch; default [vitest.config.ts](../vitest.config.ts) **excludes** `tests/integration/**` and `e2e/**` (use `test:integration` / `test:e2e`) |
 | `npm run test:watch` | Watch mode (re-runs on file change) |
-| `npm run test:coverage` | Coverage report: runs **all** Vitest tests (including integration) with v8 coverage. See thresholds and exclusions below. |
-| `npm run test:coverage:unit` | Same as coverage but **excludes** `tests/integration/**` — use for PR/CI when no Supabase DB is configured. |
+| `npm run test:coverage` | `vitest run --coverage` using default config (same excludes as `npm test` — not integration). See thresholds below. |
+| `npm run test:coverage:unit` | Explicit `--exclude **/integration/**` — redundant if default config already excludes integration; kept for CI clarity. |
 | `npm run test:ui` | Visual Vitest UI |
+
+### Run everything (`test:all`)
+
+`npm run test:all` runs, in order:
+
+1. **`npm run test:unit`** — fast unit suite.
+2. **`npm run test:integration`** — Supabase-backed tests (skip or pass depending on `DATABASE_URL` and secrets).
+3. **`npm run test:e2e`** — Playwright (needs `.env` with `SUPABASE_URL` + key so `npm run dev` can start; one-time `npx playwright install chromium`).
+
+**Prerequisites:** Same as running each command alone. **CI:** Fork PRs may lack DB/Supabase secrets; use separate jobs or optional workflows as today. **`test:all` is not** `npm test` (watch); use it when you want a full non-interactive check.
+
+### Playwright E2E layout and environment
+
+| Layout | Purpose |
+|--------|---------|
+| `e2e/public/**` | Unauthenticated UI + optional UI login (`login-flow`, `complete-profile`) |
+| `e2e/api/**` | `APIRequestContext` smoke (`/api/plans`, `/api/models`, …) |
+| `e2e/authenticated/**` | Tests using `storageState` from `e2e/global-setup.ts` |
+| `e2e/.auth/user.json` | Written by global setup (gitignored). Empty storage when no E2E user creds. |
+| `e2e/fixtures/auth.ts` | Shared `hasE2eUserCreds`, `loginViaUi`, optional no-handle user helpers |
+
+| Variable | Required for | Notes |
+|----------|----------------|-------|
+| `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` or `SUPABASE_ANON_KEY` | Dev server boot (`npm run dev` under Playwright) | Same as local `.env` |
+| `E2E_BASE_URL` | Point tests at staging / preview | When set, Playwright does **not** start `webServer` |
+| `E2E_USER_EMAIL` / `E2E_USER_PASSWORD` | Authenticated specs + `global-setup` UI login | User must have **`xUsername` set** in `users` or setup throws |
+| `E2E_USER_NO_X_EMAIL` / `E2E_USER_NO_X_PASSWORD` | Optional complete-profile flow | User **without** handle; second run may need DB reset |
+| `SKIP_AUTH_RATE_LIMIT` | Stable auth in E2E | Injected as `1` for the dev child process via `playwright.config.ts` `webServer.env` |
+
+**Fork PRs:** Authenticated tests **skip** when `E2E_USER_EMAIL` / `E2E_USER_PASSWORD` are unset (clear skip reason in HTML report). The dev server still needs Supabase env vars where CI runs E2E.
 
 ### Coverage thresholds and exclusions
 
@@ -26,10 +60,41 @@ Raising these numbers should be a deliberate effort (more unit tests and/or narr
 
 ### Coverage vs unit-only
 
-- **`npm run test:unit`** — Fast; does not run integration tests. Use for day-to-day development.
+- **`npm run test:unit`** — Fast; explicit unit paths. Same core scope as default Vitest `include` minus `tests/integration/**` and `e2e/**`.
+- **`npm test` / `npm run test:coverage`** — Use [vitest.config.ts](../vitest.config.ts); integration and Playwright specs are **excluded** from discovery.
 - **`npm run test:integration`** — Requires a real `DATABASE_URL` (e.g. Supabase); tests skip or run accordingly.
-- **`npm run test:coverage`** — Full suite; may **fail** if integration tests need a live DB or secrets.
-- **`npm run test:coverage:unit`** — Coverage for unit tests only; suitable for CI when integration is optional.
+
+### Integration tests (Supabase)
+
+| Requirement | Notes |
+|---------------|--------|
+| **Database** | Use a **Supabase branch** or **dedicated project** — never run destructive cleanup (`cleanDatabase`) against production. |
+| **Env** | `DATABASE_URL` must contain `supabase.co` (guard in `tests/helpers/db.ts`). Align `SESSION_SECRET` / JWT with `server/config/env.ts` (e.g. `.env.test`). `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` or anon key as used by `server/supabase.ts`. |
+| **Conventions** | User ids / emails use `inttest-*` patterns (`tests/helpers/inttest-constants.ts`) so `cleanDatabase` removes related rows in FK-safe order. |
+| **Harness** | `createIntegrationApp()` (`tests/helpers/integration-app.ts`) — `await setupRoutes`, JSON + `cookie-parser`, Dodo raw webhook body. |
+| **Seeding** | `seedInttestUser` / helpers in `tests/helpers/seed.ts` so JWT `id`/`email` match `users` rows. |
+| **CI** | Fork PRs often **cannot** read repo secrets — keep integration on `main` / manual workflow or optional job. Typical runtime: **1–3+ minutes** with a live DB (serial execution). |
+| **Scripts** | `npm run test:integration` runs `vitest run --config vitest.integration.config.ts tests/integration`. |
+| **Dodo mocks** | `getSubscription` mocks must use **future** `current_period_start` / `current_period_end` — `getActiveSubscription` filters with `current_period_end > now`. |
+| **Vitest `vi.mock`** | Do not reference imported symbols inside `vi.mock(...)` factories (hoisting). Use string literals (e.g. emails) in the factory. |
+| **Setup** | `tests/integration/setup.ts` loads MSW with `onUnhandledRequest: "bypass"` so supertest hits the real Express app (wired via `vitest.integration.config.ts`). |
+
+### Next wave (integration)
+
+Additional integration coverage (same `vitest.integration.config.ts`, `DATABASE_URL` guard where noted):
+
+| File | What it covers |
+|------|----------------|
+| `feedback.integration.test.ts` | `POST /api/feedback` with JWT + seeded `reply_event`; optional 400 when `reply_event_id` missing (route requires id). |
+| `billing.integration.test.ts` | Extends Dodo mocks: `POST /api/checkout` (`checkout_url`), `POST /api/billing/portal` (`portal_url`) after `storage.updateUser` sets `dodoCustomerId` (maps to `stripe_customer_id` in DB). |
+| `catalog.integration.test.ts` | **No DB** — `GET /api/plans`, `/api/models`, `/api/prompts` smoke (200 + minimal shape). |
+| `webhook-payment.integration.test.ts` | `payment.succeeded` mock + seeded user (`INTEG_*` `webhookPay`); asserts `stripe_customer_id` after webhook. |
+| `suggest-improvements.integration.test.ts` | `POST /api/suggest-improvements` with `ai-router` / `guardrail` / `usage` mocked (`INTEG_*` `suggest`). |
+
+No new secrets beyond existing `.env.test`; Dodo remains mocked with **literal** URLs/strings inside `vi.mock` factories.
+
+- **`npm run test:coverage`** — Default Vitest coverage (integration excluded by [vitest.config.ts](../vitest.config.ts)). For integration coverage, run a dedicated Vitest command with `vitest.integration.config.ts` if you add one later.
+- **`npm run test:coverage:unit`** — Explicit `--exclude **/integration/**`; kept for CI clarity when default config already excludes integration.
 
 ---
 

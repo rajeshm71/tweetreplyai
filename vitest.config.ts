@@ -1,4 +1,4 @@
-import { defineConfig } from 'vitest/config';
+import { defineConfig, configDefaults } from 'vitest/config';
 import { resolve } from 'path';
 
 export default defineConfig({
@@ -9,6 +9,11 @@ export default defineConfig({
     },
   },
   test: {
+    exclude: [
+      ...configDefaults.exclude,
+      'e2e/**',
+      'tests/integration/**',
+    ],
     globals: true,
     environment: 'node',
     setupFiles: ['./tests/setup.ts'],

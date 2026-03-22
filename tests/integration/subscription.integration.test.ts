@@ -1,16 +1,14 @@
 /**
- * Subscription Integration Tests
- *
- * Verifies that subscription DB rows are correctly read, created, and updated
- * through the API endpoints. Dodo API calls are mocked.
- * All test data is prefixed with `inttest-` and cleaned up in afterAll.
+ * Subscription Integration Tests — Dodo mocked; DB assertions on planCode and cancel.
  */
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import request from "supertest";
-import express from "express";
-import { setupRoutes } from "../../server/routes";
+import { createIntegrationApp } from "../helpers/integration-app";
 import { setupTestDatabase, cleanDatabase, closeTestDatabase } from "../helpers/db";
 import { signTestJwt } from "../helpers/jwt";
+import { seedInttestUser } from "../helpers/seed";
+import { INTEG_EMAILS, INTEG_JWT_USER_IDS } from "../helpers/inttest-constants";
+import { supabase } from "../../server/supabase";
 
 vi.mock("../../server/services/dodo-payments", () => ({
   PLANS: {
@@ -40,8 +38,8 @@ vi.mock("../../server/services/dodo-payments", () => ({
       product_id: "price_monthly_test",
       customer_id: "cust-inttest-002",
       customer: { id: "cust-inttest-002", email: "inttest-subscription@example.com" },
-      current_period_start: "2024-01-01T00:00:00Z",
-      current_period_end: "2024-02-01T00:00:00Z",
+      current_period_start: "2030-01-01T00:00:00Z",
+      current_period_end: "2030-03-01T00:00:00Z",
       amount_paid: 999,
       currency: "usd",
     }),
@@ -54,9 +52,12 @@ vi.mock("../../server/services/dodo-payments", () => ({
 }));
 
 describe("Subscription Integration Tests", () => {
-  let app: express.Application;
-  let testDb: any;
-  const authToken = signTestJwt({ id: "inttest-sub-user", email: "inttest-subscription@example.com" });
+  let app: Awaited<ReturnType<typeof createIntegrationApp>>;
+  let testDb: unknown;
+  const authToken = signTestJwt({
+    id: INTEG_JWT_USER_IDS.subscription,
+    email: INTEG_EMAILS.subscription,
+  });
 
   const skipIfNoDb = () => {
     if (!testDb) {
@@ -74,11 +75,14 @@ describe("Subscription Integration Tests", () => {
 
     try {
       testDb = await setupTestDatabase();
-      app = express();
-      app.use(express.json());
-      await setupRoutes(app);
-    } catch (error: any) {
-      console.log("Skipping subscription integration tests — DB setup failed:", error.message);
+      app = await createIntegrationApp();
+      await seedInttestUser({
+        id: INTEG_JWT_USER_IDS.subscription,
+        email: INTEG_EMAILS.subscription,
+      });
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : String(error);
+      console.log("Skipping subscription integration tests — DB setup failed:", msg);
     }
   });
 
@@ -87,7 +91,7 @@ describe("Subscription Integration Tests", () => {
     await closeTestDatabase();
   });
 
-  it("subscription status endpoint returns 200 with hasSubscription field", async () => {
+  it("subscription status before checkout: no subscription", async () => {
     if (skipIfNoDb()) return;
 
     const res = await request(app)
@@ -95,51 +99,55 @@ describe("Subscription Integration Tests", () => {
       .set("Authorization", `Bearer ${authToken}`);
 
     expect(res.status).toBe(200);
-    expect(res.body).toHaveProperty("hasSubscription");
-    expect(typeof res.body.hasSubscription).toBe("boolean");
+    expect(res.body.hasSubscription).toBe(false);
   });
 
-  it("no subscription returns correct empty state (hasSubscription: false)", async () => {
+  it("checkout success activates monthly plan in DB", async () => {
     if (skipIfNoDb()) return;
 
-    // inttest-sub-user has no subscription yet (before checkout)
-    const res = await request(app)
-      .get("/api/subscription/status")
-      .set("Authorization", `Bearer ${authToken}`);
-
-    expect(res.status).toBe(200);
-    // May or may not have a subscription depending on prior test execution order
-    expect(typeof res.body.hasSubscription).toBe("boolean");
-  });
-
-  it("checkout success redirects and subscription status is readable afterwards", async () => {
-    if (skipIfNoDb()) return;
-
-    // Attempt checkout — may redirect to error if user not in DB, which is acceptable
     const checkoutRes = await request(app)
       .get("/api/checkout/success?subscription_id=dodo-inttest-sub-002")
       .set("Authorization", `Bearer ${authToken}`)
       .redirects(0);
 
     expect([301, 302]).toContain(checkoutRes.status);
+    expect(checkoutRes.headers.location).toContain("subscription_activated");
 
-    // Check status — endpoint must always return 200 with a hasSubscription field
+    const { data: row } = await supabase
+      .from("subscriptions")
+      .select("plan_code, status")
+      .eq("user_id", INTEG_JWT_USER_IDS.subscription)
+      .eq("stripe_subscription_id", "dodo-inttest-sub-002")
+      .maybeSingle();
+
+    expect(row?.plan_code).toBe("monthly");
+    expect(row?.status).toBe("active");
+
     const statusRes = await request(app)
       .get("/api/subscription/status")
       .set("Authorization", `Bearer ${authToken}`);
 
     expect(statusRes.status).toBe(200);
-    expect(statusRes.body).toHaveProperty("hasSubscription");
+    expect(statusRes.body.hasSubscription).toBe(true);
+    expect(statusRes.body.planCode).toBe("monthly");
   });
 
-  it("cancel subscription changes status to cancelled", async () => {
+  it("cancel subscription updates row to canceled", async () => {
     if (skipIfNoDb()) return;
 
     const cancelRes = await request(app)
       .post("/api/subscription/cancel")
       .set("Authorization", `Bearer ${authToken}`);
 
-    // 200 = cancelled, 404 = no active subscription
-    expect([200, 404]).toContain(cancelRes.status);
+    expect(cancelRes.status).toBe(200);
+
+    const { data: row } = await supabase
+      .from("subscriptions")
+      .select("status")
+      .eq("user_id", INTEG_JWT_USER_IDS.subscription)
+      .eq("stripe_subscription_id", "dodo-inttest-sub-002")
+      .maybeSingle();
+
+    expect(row?.status).toBe("canceled");
   });
 });

@@ -312,7 +312,7 @@ export default function AuthPage() {
                 </div>
               </div>
 
-              <form onSubmit={handleLogin} className="space-y-4">
+              <form onSubmit={handleLogin} className="space-y-4" noValidate>
                 <div className="space-y-2">
                   <Label htmlFor="login-email">Email Address</Label>
                   <div className="relative">
@@ -399,7 +399,7 @@ export default function AuthPage() {
               </button>
             </div>
 
-            <form onSubmit={handleRegister} className="space-y-4">
+            <form onSubmit={handleRegister} className="space-y-4" noValidate>
               {registerError && (
                 <Alert variant="destructive" role="alert">
                   <AlertTitle>Registration failed</AlertTitle>

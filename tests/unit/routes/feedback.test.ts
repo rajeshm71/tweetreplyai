@@ -112,6 +112,7 @@ describe('Feedback Endpoints - Unit Tests', () => {
       const response = await app.raw()
         .post('/api/feedback')
         .send({
+          reply_event_id: 1,
           rating: 'invalid_rating',
         });
 
@@ -121,7 +122,7 @@ describe('Feedback Endpoints - Unit Tests', () => {
       expect(response.body.message.length).toBeGreaterThan(0);
     });
 
-    it('succeeds with only required rating field (reply_event_id and comment are optional)', async () => {
+    it('succeeds with required rating and reply_event_id (comment optional)', async () => {
       const mockUser = createMockUser();
       const { storage } = await import('../../../server/storage');
       vi.mocked(storage.createFeedback).mockResolvedValue({
@@ -129,13 +130,13 @@ describe('Feedback Endpoints - Unit Tests', () => {
         userId: mockUser.id,
         rating: 'up',
         comment: null,
-        replyEventId: null,
+        replyEventId: '1',
         createdAt: new Date(),
       } as any);
 
       const response = await app.authenticated(mockUser)
         .post('/api/feedback')
-        .send({ rating: 'up' });
+        .send({ rating: 'up', reply_event_id: 1 });
 
       expectJsonResponse(response, 200, { success: true });
     });
@@ -147,6 +148,7 @@ describe('Feedback Endpoints - Unit Tests', () => {
       const response = await app.raw()
         .post('/api/feedback')
         .send({
+          reply_event_id: 1,
           rating: 'up',
           comment: 'Great service!',
         });
@@ -160,6 +162,7 @@ describe('Feedback Endpoints - Unit Tests', () => {
       const response = await app.raw()
         .post('/api/feedback')
         .send({
+          reply_event_id: 1,
           comment: 'Great service!',
         });
 
@@ -184,6 +187,7 @@ describe('Feedback Endpoints - Unit Tests', () => {
       const upResponse = await app.authenticated(mockUser)
         .post('/api/feedback')
         .send({
+          reply_event_id: 1,
           rating: 'up',
           comment: 'Great!',
         });
@@ -199,6 +203,7 @@ describe('Feedback Endpoints - Unit Tests', () => {
       const downResponse = await app.authenticated(mockUser)
         .post('/api/feedback')
         .send({
+          reply_event_id: 1,
           rating: 'down',
           comment: 'Not great!',
         });
@@ -226,6 +231,7 @@ describe('Feedback Endpoints - Unit Tests', () => {
       const response = await app.authenticated(mockUser)
         .post('/api/feedback')
         .send({
+          reply_event_id: 1,
           rating: 'up',
           comment: longComment,
         });

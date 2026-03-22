@@ -289,7 +289,8 @@ export class SupabaseStorage implements IStorage {
     if (updates.authProviders !== undefined) dbUpdates.auth_providers = updates.authProviders;
     if (updates.hasUsedTrial !== undefined) dbUpdates.has_used_trial = updates.hasUsedTrial;
     if (updates.xUsername !== undefined) dbUpdates.handle = updates.xUsername;
-    
+    if (updates.dodoCustomerId !== undefined) dbUpdates.stripe_customer_id = updates.dodoCustomerId;
+
     const { data, error } = await supabase
       .from('users')
       .update(dbUpdates)
@@ -854,17 +855,34 @@ export class SupabaseStorage implements IStorage {
 
   // Feedback operations
   async createFeedback(feedback: InsertFeedback): Promise<Feedback> {
+    const replyEventIdNum = Number(feedback.replyEventId);
+
+    const dbRow: Record<string, unknown> = {
+      user_id: feedback.userId,
+      reply_event_id: replyEventIdNum,
+      rating: feedback.rating,
+      comment: feedback.comment ?? null,
+      created_at: feedback.createdAt ? feedback.createdAt.toISOString() : new Date().toISOString(),
+    };
+
     const { data, error } = await supabase
       .from('feedback')
-      .insert(feedback)
-      .select()
+      .insert(dbRow)
+      .select('id, user_id, reply_event_id, rating, comment, created_at')
       .single();
     
     if (error) {
       console.error('Supabase createFeedback error (line 373):', error);
       throw error;
     }
-    return data as Feedback;
+    return {
+      id: String(data.id),
+      userId: String(data.user_id),
+      replyEventId: String(data.reply_event_id),
+      rating: data.rating,
+      comment: data.comment ?? undefined,
+      createdAt: new Date(data.created_at),
+    } as Feedback;
   }
 
   // Reply history operations

@@ -121,6 +121,7 @@ export interface InsertReplyEvent {
 
 export interface Feedback {
   id: string;
+  userId: string;
   replyEventId: string;
   rating: 'up' | 'down';
   comment?: string;
@@ -128,7 +129,9 @@ export interface Feedback {
 }
 
 export interface InsertFeedback {
-  id: string;
+  /** DB may auto-generate bigint id when omitted */
+  id?: string;
+  userId: string;
   replyEventId: string;
   rating: 'up' | 'down';
   comment?: string;

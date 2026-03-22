@@ -137,6 +137,8 @@ export async function registerRoutes(app: Express): Promise<Express> {
     message: { message: 'Too many attempts. Try again later.' },
     standardHeaders: true,
     legacyHeaders: false,
+    // Integration tests (vitest.integration.config.ts) set SKIP_AUTH_RATE_LIMIT=1 to avoid flaky 429s
+    skip: () => process.env.SKIP_AUTH_RATE_LIMIT === '1',
   });
 
   // Global API rate limit (all /api/* except webhook)
@@ -349,9 +351,24 @@ export async function registerRoutes(app: Express): Promise<Express> {
         console.error('Logout error:', err);
         return res.status(500).json({ message: 'Logout failed' });
       }
-      console.log('Logout successful');
-      res.clearCookie('token'); // Clear JWT token
-      res.json({ success: true });
+      // Destroy session so the same Cookie header cannot keep /api/auth/user authenticated
+      const finish = () => {
+        // Must match options used in login/register `res.cookie('token', ...)` or the cookie may persist
+        res.clearCookie('token', { httpOnly: true, secure: true, sameSite: 'strict', path: '/' });
+        res.clearCookie('connect.sid', { path: '/' }); // default express-session name
+        console.log('Logout successful');
+        res.json({ success: true });
+      };
+      if (req.session) {
+        req.session.destroy((destroyErr) => {
+          if (destroyErr) {
+            console.error('Session destroy error:', destroyErr);
+          }
+          finish();
+        });
+      } else {
+        finish();
+      }
     });
   });
 
@@ -2244,7 +2261,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
       const userId = getUserId(req);
       
       const schema = z.object({
-        reply_event_id: z.number().optional(),
+        reply_event_id: z.coerce.number().int().positive('reply_event_id is required'),
         rating: z.enum(['up', 'down']),
         comment: z.string().optional(),
       });
@@ -2252,7 +2269,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
       const { reply_event_id, rating, comment } = schema.parse(req.body);
 
       await storage.createFeedback({
-        id: crypto.randomUUID(),
+        userId,
         replyEventId: String(reply_event_id),
         rating,
         comment,

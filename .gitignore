@@ -15,3 +15,11 @@ powerful-features-preview.html
 extension-popup-glass-preview.html
 .vercel
 MASTER_UNIT_TEST_PLAN.md
+
+# Local reference copy of third-party extension (e.g. XSight unpacked)
+zyx/
+
+/test-results/
+/playwright-report/
+/blob-report/
+/e2e/.auth/
