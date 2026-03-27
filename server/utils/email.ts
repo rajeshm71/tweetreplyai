@@ -1,4 +1,4 @@
-import { buildWelcomeEmail } from '../emailTemplates.js';
+import { renderPasswordResetEmail, renderWelcomeEmail } from '../emailTemplates.js';
 
 const resendApiKey = process.env.RESEND_API_KEY;
 const appBaseUrl = process.env.APP_URL || process.env.DOMAIN || 'http://localhost:5000';
@@ -18,11 +18,13 @@ export async function sendPasswordResetEmail(toEmail: string, token: string): Pr
   const resend = new Resend(resendApiKey);
   const resetUrl = `${appBaseUrl.replace(/\/$/, '')}/reset-password?token=${encodeURIComponent(token)}`;
   console.log('[reset-email] sending to:', toEmail, 'from:', fromEmail, 'baseUrl:', appBaseUrl);
+  const payload = await renderPasswordResetEmail({ resetUrl });
   const { data, error } = await resend.emails.send({
     from: fromEmail,
     to: toEmail,
-    subject: 'Reset your password',
-    html: `<!DOCTYPE html><html><body><p>You requested a password reset.</p><p><a href="${resetUrl}">Reset your password</a></p><p>This link expires in 1 hour. If you didn't request this, you can ignore this email.</p></body></html>`,
+    subject: payload.subject,
+    html: payload.html,
+    text: payload.text,
   });
   if (error) {
     console.error('[reset-email] Resend API error:', error);
@@ -41,13 +43,14 @@ export async function sendWelcomeEmail(toEmail: string, firstName?: string): Pro
   const { Resend } = await import('resend');
   const resend = new Resend(resendApiKey);
   const baseUrl = appBaseUrl.replace(/\/$/, '');
-  const { subject, html } = buildWelcomeEmail({ firstName, appUrl: baseUrl });
+  const payload = await renderWelcomeEmail({ firstName, appUrl: baseUrl });
 
   const { data, error } = await resend.emails.send({
     from: fromEmail,
     to: toEmail,
-    subject,
-    html,
+    subject: payload.subject,
+    html: payload.html,
+    text: payload.text,
   });
 
   if (error) {

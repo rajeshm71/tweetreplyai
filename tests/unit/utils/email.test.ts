@@ -10,10 +10,16 @@ vi.mock('resend', () => ({
 }));
 
 vi.mock('../../../server/emailTemplates', () => ({
-  buildWelcomeEmail: vi.fn().mockReturnValue({
-    subject: 'Welcome!',
+  renderWelcomeEmail: vi.fn().mockResolvedValue({
+    subject: 'Welcome to TweetReply',
     html: '<p>Welcome HTML</p>',
+    text: 'Welcome text',
   }),
+  renderPasswordResetEmail: vi.fn().mockImplementation(async ({ resetUrl }: { resetUrl: string }) => ({
+    subject: 'Reset your password',
+    html: `<html><body>${resetUrl}</body></html>`,
+    text: resetUrl,
+  })),
 }));
 
 const savedResendKey = process.env.RESEND_API_KEY;
@@ -56,7 +62,8 @@ describe('Email Utils - Unit Tests', () => {
       expect(mockEmailsSend).toHaveBeenCalledWith(
         expect.objectContaining({
           to: 'user@example.com',
-          subject: 'Welcome!',
+          subject: 'Welcome to TweetReply',
+          text: 'Welcome text',
         })
       );
     });
@@ -94,6 +101,7 @@ describe('Email Utils - Unit Tests', () => {
       const callArgs = mockEmailsSend.mock.calls[0]?.[0];
       expect(callArgs?.html).toContain('abc123token');
       expect(callArgs?.html).toContain('myapp.com');
+      expect(callArgs?.text).toContain('abc123token');
       expect(callArgs?.to).toBe('user@example.com');
     });
 
