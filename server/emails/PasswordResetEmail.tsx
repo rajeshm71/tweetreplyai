@@ -1,5 +1,6 @@
 import { Button, Section, Text } from '@react-email/components';
 import * as React from 'react';
+import { APP_DISPLAY_NAME } from '../../shared/constants.js';
 import { EmailLayout } from './EmailLayout.js';
 import { emailTheme } from './theme.js';
 
@@ -9,7 +10,7 @@ export interface PasswordResetEmailProps {
 }
 
 export default function PasswordResetEmail({ resetUrl }: PasswordResetEmailProps) {
-  const previewText = 'Reset your TweetReply password — link expires in 1 hour.';
+  const previewText = `Reset your ${APP_DISPLAY_NAME} password — link expires in 1 hour.`;
 
   return (
     <EmailLayout previewText={previewText} variant="transactional">
@@ -34,7 +35,7 @@ export default function PasswordResetEmail({ resetUrl }: PasswordResetEmailProps
       >
         You requested a password reset. Click the button below to choose a new password.
       </Text>
-      <Section style={{ margin: '0 0 24px', textAlign: 'left' as const }}>
+      <Section style={{ margin: '0 0 24px' }}>
         <Button
           href={resetUrl}
           style={{
@@ -52,16 +53,18 @@ export default function PasswordResetEmail({ resetUrl }: PasswordResetEmailProps
           Reset password
         </Button>
       </Section>
-      <Text
-        style={{
-          color: emailTheme.muted,
-          fontSize: '14px',
-          lineHeight: '22px',
-          margin: '0 0 12px',
-        }}
-      >
-        This link expires in 1 hour. If you didn&apos;t request this, you can ignore this email.
-      </Text>
+      <Section style={{ textAlign: 'left' as const }}>
+        <Text
+          style={{
+            color: emailTheme.muted,
+            fontSize: '14px',
+            lineHeight: '22px',
+            margin: '0 0 12px',
+          }}
+        >
+          This link expires in 1 hour. If you didn&apos;t request this, you can ignore this email.
+        </Text>
+      </Section>
     </EmailLayout>
   );
 }

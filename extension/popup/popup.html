@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TweetReply</title>
+  <!-- Product name: keep in sync with shared/constants APP_DISPLAY_NAME -->
+  <title>TweetReplyAI</title>
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
@@ -16,10 +17,10 @@
             <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zM7.5 18c-.83 0-1.5-.67-1.5-1.5S6.67 15 7.5 15s1.5.67 1.5 1.5S8.33 18 7.5 18zM12 18c-.83 0-1.5-.67-1.5-1.5S11.17 15 12 15s1.5.67 1.5 1.5S12.83 18 12 18zM16.5 18c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/>
           </svg>
         </div>
-        <span class="logo-text">TweetReply</span>
+        <span class="logo-text">TweetReplyAI</span>
       </div>
       <div class="header-actions">
-        <button id="logout-btn" class="logout-btn hidden" title="Logout" aria-label="Logout from TweetReply">
+        <button id="logout-btn" class="logout-btn hidden" title="Logout" aria-label="Logout from TweetReplyAI">
           <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" aria-hidden="true">
             <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.59L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/>
           </svg>
@@ -36,9 +37,9 @@
     <!-- Not Authenticated State -->
     <div id="not-authenticated" class="state hidden" role="region" aria-label="Authentication required">
       <div class="auth-content">
-        <h2>Welcome to TweetReply</h2>
+        <h2>Welcome to TweetReplyAI</h2>
         <p>Sign in to start generating authentic replies to X posts</p>
-        <button id="signin-btn" class="primary-btn" aria-label="Sign in to TweetReply">Sign In</button>
+        <button id="signin-btn" class="primary-btn" aria-label="Sign in to TweetReplyAI">Sign In</button>
       </div>
     </div>
 
@@ -51,7 +52,7 @@
     </div>
 
     <!-- Authenticated State -->
-    <div id="authenticated" class="state hidden" role="main" aria-label="TweetReply dashboard">
+    <div id="authenticated" class="state hidden" role="main" aria-label="TweetReplyAI dashboard">
       <!-- Quota Banner (shown when credits are used up) -->
       <div id="quota-banner" class="quota-banner hidden" role="alert">
         <div class="quota-banner-content">
@@ -193,7 +194,7 @@
           <div class="user-email" id="user-email">user@example.com</div>
         </div>
         <div class="settings-actions">
-          <button id="signout-btn" class="secondary-btn" aria-label="Sign out from TweetReply">Sign Out</button>
+          <button id="signout-btn" class="secondary-btn" aria-label="Sign out from TweetReplyAI">Sign Out</button>
         </div>
 
         <div class="settings-section">

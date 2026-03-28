@@ -19,6 +19,7 @@ import { useQuery } from '@tanstack/react-query';
 import { generateStats, initializeStats, type Stats } from '@/utils/stats-generator';
 import { APP_URLS, POLLING, UI, X_PLATFORM_LABEL } from "@/config/constants";
 import { getQuotaSummaryText } from "@/config/pricing";
+import { APP_DISPLAY_NAME } from "@shared/constants";
 
 export default function Landing() {
   const { isAuthenticated } = useAuth();
@@ -57,7 +58,7 @@ export default function Landing() {
     {
       username: "@ProductHunt",
       tweet: "What's the best productivity tool you've discovered this year?",
-      reply: "TweetReplyAI ironically! Saves me hours crafting authentic replies daily 🚀",
+      reply: `${APP_DISPLAY_NAME} ironically! Saves me hours crafting authentic replies daily 🚀`,
       icon: StatUp,
       iconGradient: "from-green-500 to-emerald-500",
       solidBg: "bg-green-500",
@@ -129,7 +130,7 @@ export default function Landing() {
 
   const testimonials = [
     {
-      quote: "TweetReplyAI completely transformed how I engage on X. I save hours every week and my engagement has skyrocketed. The AI responses feel completely natural!",
+      quote: `${APP_DISPLAY_NAME} completely transformed how I engage on X. I save hours every week and my engagement has skyrocketed. The AI responses feel completely natural!`,
       author: "Alex Thompson",
       role: "Marketing Director",
       rating: 5,
@@ -140,7 +141,7 @@ export default function Landing() {
       colorTheme: "blue"
     },
     {
-      quote: "As a solo founder, TweetReplyAI helps me maintain authentic connections without spending all day on social media. It's like having a social media manager in my pocket!",
+      quote: `As a solo founder, ${APP_DISPLAY_NAME} helps me maintain authentic connections without spending all day on social media. It's like having a social media manager in my pocket!`,
       author: "Arjun Patel",
       role: "Startup Founder",
       rating: 5,
@@ -302,7 +303,7 @@ export default function Landing() {
     {
       id: "install",
       stepLabel: "Step 1",
-      title: "Add TweetReplyAI to Chrome",
+      title: `Add ${APP_DISPLAY_NAME} to Chrome`,
       description:
         "Click Add to Chrome and connect once. AI suggested replies appear right inside X.",
       icon: GoogleChromeLogo,
@@ -313,7 +314,7 @@ export default function Landing() {
       stepLabel: "Step 2",
       title: "Pin it in your toolbar",
       description:
-        "Click the puzzle icon in Chrome's toolbar → find TweetReplyAI → tap Pin so it stays ready while you scroll X.",
+        `Click the puzzle icon in Chrome's toolbar → find ${APP_DISPLAY_NAME} → tap Pin so it stays ready while you scroll X.`,
       icon: PushPin,
       iconBg: "bg-purple-500",
     },
@@ -614,7 +615,7 @@ export default function Landing() {
               className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl border-0 font-medium shadow-md hidden sm:flex"
               data-testid="button-add-to-chrome"
               size="sm"
-              aria-label="Add TweetReplyAI to Chrome"
+              aria-label={`Add ${APP_DISPLAY_NAME} to Chrome`}
             >
               <GoogleChromeLogo className="w-4 h-4 mr-2" aria-hidden="true" />
               Add to Chrome
@@ -724,7 +725,7 @@ export default function Landing() {
               onClick={handleStartClick}
               className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl border-0 font-medium shadow-md hidden sm:flex"
               data-testid="button-signin"
-              aria-label="Start replying with TweetReplyAI"
+              aria-label={`Start replying with ${APP_DISPLAY_NAME}`}
               size="sm"
             >
               Start Replying
@@ -809,7 +810,7 @@ export default function Landing() {
             onClick={handleStartClick}
             className="w-full bg-primary text-white border-0 font-semibold transition-colors duration-150"
             size="lg"
-            aria-label="Start replying with TweetReplyAI"
+            aria-label={`Start replying with ${APP_DISPLAY_NAME}`}
           >
             <Sparks className="w-5 h-5 mr-2" />
             Start Free Trial
@@ -942,14 +943,14 @@ export default function Landing() {
                         <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent rounded-xl opacity-50" />
                         
                         <div className="relative z-10 flex items-start gap-3">
-                          {/* Enhanced TweetReplyAI icon */}
+                          {/* Brand icon */}
                           <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center flex-shrink-0">
                             <Sparks className="w-6 h-6 text-white" />
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-2">
                               <span className="text-base font-semibold text-primary">
-                                TweetReplyAI
+                                {APP_DISPLAY_NAME}
                               </span>
                               <Badge variant="secondary" className="text-xs bg-primary/20 text-primary border-primary/30 font-semibold">
                                 AI
@@ -980,7 +981,7 @@ export default function Landing() {
               How it works
             </Badge>
             <h2 className="text-3xl md:text-4xl font-display font-bold mb-4">
-              See TweetReplyAI in action in 3 quick steps
+              {`See ${APP_DISPLAY_NAME} in action in 3 quick steps`}
             </h2>
             <p className="text-base md:text-lg text-muted-foreground max-w-2xl mx-auto">
               Install once and let AI suggested replies keep your X conversations flowing, right inside your feed.
@@ -1009,7 +1010,7 @@ export default function Landing() {
                     </h3>
                     {step.id === "pin" ? (
                       <p className="text-[0.82rem] text-slate-500 leading-[1.6] flex-1 min-h-0">
-                        Click the <PuzzlePiece className="w-4 h-4 align-middle inline-block mr-0.5 text-[#9333ea] shrink-0" weight="fill" aria-hidden /> puzzle icon in Chrome's toolbar → find TweetReplyAI → tap <PushPin className="w-4 h-4 align-middle inline-block mr-0.5 text-[#9333ea] shrink-0" weight="fill" aria-hidden /> Pin so it stays ready while you scroll X.
+                        Click the <PuzzlePiece className="w-4 h-4 align-middle inline-block mr-0.5 text-[#9333ea] shrink-0" weight="fill" aria-hidden /> puzzle icon in Chrome&apos;s toolbar → find {APP_DISPLAY_NAME} → tap <PushPin className="w-4 h-4 align-middle inline-block mr-0.5 text-[#9333ea] shrink-0" weight="fill" aria-hidden /> Pin so it stays ready while you scroll X.
                       </p>
                     ) : (
                       <p className="text-[0.82rem] text-slate-500 leading-[1.6] flex-1 min-h-0">
@@ -1037,7 +1038,7 @@ export default function Landing() {
                         onClick={() => { window.location.href = "/login?returnUrl=" + encodeURIComponent("/app"); }}
                         data-testid="button-how-it-works-sign-in"
                       >
-                        Sign in to TweetReplyAI
+                        {`Sign in to ${APP_DISPLAY_NAME}`}
                       </Button>
                     )}
                     {step.id === "reply" && (
@@ -1201,7 +1202,7 @@ export default function Landing() {
               See <span className="text-primary">AI Magic</span> for X Replies
             </h2>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Type any X tweet below and watch TweetReplyAI generate a perfect response instantly. Generate authentic X replies automatically.
+              {`Type any X tweet below and watch ${APP_DISPLAY_NAME} generate a perfect response instantly. Generate authentic X replies automatically.`}
             </p>
           </div>
 
@@ -1232,7 +1233,7 @@ export default function Landing() {
                       </div>
                       <div className="flex-1">
                         <div className="flex items-center justify-between mb-2">
-                          <div className="text-xs text-primary font-semibold">TweetReplyAI Generated</div>
+                          <div className="text-xs text-primary font-semibold">{`${APP_DISPLAY_NAME} Generated`}</div>
                           <Button
                             onClick={handleCopyReply}
                             variant="ghost"
@@ -1556,7 +1557,7 @@ export default function Landing() {
               What Our Users Say
             </Badge>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              See how TweetReplyAI is transforming X engagement for creators, founders, and marketers worldwide.
+              {`See how ${APP_DISPLAY_NAME} is transforming X engagement for creators, founders, and marketers worldwide.`}
             </p>
           </div>
 
@@ -1754,7 +1755,7 @@ export default function Landing() {
               </h2>
               
               <p className="text-xl text-muted-foreground mb-10 max-w-2xl mx-auto leading-relaxed">
-                Creators trust TweetReplyAI to generate perfect X replies, helping them stay authentic while scaling their engagement. Your voice, amplified with AI.
+                {`Creators trust ${APP_DISPLAY_NAME} to generate perfect X replies, helping them stay authentic while scaling their engagement. Your voice, amplified with AI.`}
               </p>
               
               <div className="flex flex-col sm:flex-row gap-6 justify-center items-center mb-8">
@@ -1805,7 +1806,7 @@ export default function Landing() {
                 <div className="w-6 h-6 rounded-lg bg-primary flex items-center justify-center" aria-hidden="true">
                   <Sparks className="w-3 h-3 text-white" />
                 </div>
-                <span className="font-display font-bold text-lg">TweetReplyAI</span>
+                <span className="font-display font-bold text-lg">{APP_DISPLAY_NAME}</span>
               </div>
               <p className="text-muted-foreground text-sm max-w-md">
                 AI driven X reply generator that helps you create authentic, contextual replies in seconds. Generate perfect X replies automatically. Transform your social media engagement.
@@ -1853,7 +1854,7 @@ export default function Landing() {
           <div className="border-t border-border/50 pt-8">
             <div className="flex flex-col md:flex-row justify-between items-center gap-4">
               <p className="text-muted-foreground text-sm">
-                © {new Date().getFullYear()} TweetReplyAI. All rights reserved.
+                © {new Date().getFullYear()} {APP_DISPLAY_NAME}. All rights reserved.
               </p>
               <div className="flex items-center gap-4 text-sm text-muted-foreground">
                 <span className="flex items-center gap-1">

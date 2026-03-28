@@ -2,6 +2,9 @@
  * Extension-side constants for API URLs, polling, timeouts, and validation.
  */
 
+/** Public product label — keep in sync with shared/constants.ts `APP_DISPLAY_NAME`. */
+export const APP_DISPLAY_NAME = 'TweetReplyAI';
+
 export const API = {
   DEFAULT_DOMAIN: 'tweetreplyai.vercel.app',
   LOGIN_URL: 'https://tweetreplyai.vercel.app/login',

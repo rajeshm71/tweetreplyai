@@ -3,6 +3,10 @@
  * Plan limits (credits, replies) are the single source of truth for enforcement and display.
  * trial.credits is the trial limit for both server enforcement and client display.
  */
+
+/** User-facing product name (emails, UI, meta). Keep `client/index.html` JSON-LD in sync when changing. */
+export const APP_DISPLAY_NAME = 'TweetReplyAI';
+
 export const PLAN_LIMITS = {
   trial: { credits: 10, replies: 10 },
   weekly: { credits: 100, replies: 700 },

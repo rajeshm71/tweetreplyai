@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Button, Heading, Text } from '@react-email/components';
+import { Button, Heading, Section, Text } from '@react-email/components';
 import { EmailLayout } from './EmailLayout.js';
 import { emailTheme } from './theme.js';
 
@@ -37,15 +37,18 @@ export default function FeatureUpdateEmail({ headline, body, ctaLabel, ctaUrl, s
       <Heading style={{ color: emailTheme.text, fontSize: '22px', fontWeight: 700, margin: '0 0 16px' }}>
         {headline}
       </Heading>
-      <Text style={{ color: emailTheme.text, fontSize: '15px', lineHeight: '24px', margin: '0 0 24px' }}>
-        {body}
-      </Text>
+      <Section style={{ textAlign: 'left' as const, margin: '0 0 24px' }}>
+        <Text style={{ color: emailTheme.text, fontSize: '15px', lineHeight: '24px', margin: 0 }}>
+          {body}
+        </Text>
+      </Section>
       <Button
         href={ctaUrl}
         style={{
           backgroundColor: emailTheme.primary,
           borderRadius: '8px',
           color: emailTheme.primaryForeground,
+          display: 'inline-block',
           fontSize: '15px',
           fontWeight: 600,
           padding: '12px 28px',

@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { PLAN_LIMITS, PLAN_PERIODS_DAYS } from "../../../shared/constants";
+import { APP_DISPLAY_NAME, PLAN_LIMITS, PLAN_PERIODS_DAYS } from "../../../shared/constants";
 
 describe("Shared Constants - Unit Tests", () => {
+  it("APP_DISPLAY_NAME is the public product label", () => {
+    expect(APP_DISPLAY_NAME).toBe("TweetReplyAI");
+  });
+
   describe("PLAN_LIMITS — regression guard (update tests when limits change intentionally)", () => {
     it("trial plan: 10 credits, 10 replies", () => {
       expect(PLAN_LIMITS.trial.credits).toBe(10);

@@ -16,6 +16,7 @@ import { z } from "zod";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
+import { APP_DISPLAY_NAME } from "@shared/constants";
 
 const ALLOWED_RETURN_PATHS = ["/", "/app", "/app/pricing", "/profile", "/settings"];
 
@@ -226,7 +227,7 @@ export default function AuthPage() {
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="text-2xl font-semibold text-left">
-            Welcome to TweetReply
+            {`Welcome to ${APP_DISPLAY_NAME}`}
           </DialogTitle>
         </DialogHeader>
 

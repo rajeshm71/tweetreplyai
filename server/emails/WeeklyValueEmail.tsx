@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Button, Heading, Hr, Text } from '@react-email/components';
+import { Button, Heading, Hr, Section, Text } from '@react-email/components';
 import { EmailLayout } from './EmailLayout.js';
 import { emailTheme } from './theme.js';
 
@@ -29,23 +29,25 @@ export default function WeeklyValueEmail({ firstName, tips, appUrl, settingsUrl 
       <Text style={{ color: emailTheme.muted, fontSize: '14px', margin: '0 0 24px' }}>
         5 reply frameworks that actually work this week
       </Text>
-      <Text style={{ color: emailTheme.text, fontSize: '15px', lineHeight: '24px', margin: '0 0 24px' }}>
-        {greeting}
-      </Text>
-      {tips.map((tip, i) => (
-        <React.Fragment key={i}>
-          {i > 0 && <Hr style={{ borderColor: emailTheme.border, margin: '16px 0' }} />}
-          <Text style={{ color: emailTheme.primary, fontSize: '13px', fontWeight: 700, margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            Framework {i + 1}
-          </Text>
-          <Text style={{ color: emailTheme.text, fontSize: '16px', fontWeight: 700, margin: '0 0 6px' }}>
-            {tip.headline}
-          </Text>
-          <Text style={{ color: emailTheme.text, fontSize: '14px', lineHeight: '22px', margin: '0' }}>
-            {tip.body}
-          </Text>
-        </React.Fragment>
-      ))}
+      <Section style={{ textAlign: 'left' as const, margin: '0 0 8px' }}>
+        <Text style={{ color: emailTheme.text, fontSize: '15px', lineHeight: '24px', margin: '0 0 24px' }}>
+          {greeting}
+        </Text>
+        {tips.map((tip, i) => (
+          <React.Fragment key={i}>
+            {i > 0 && <Hr style={{ borderColor: emailTheme.border, margin: '16px 0' }} />}
+            <Text style={{ color: emailTheme.primary, fontSize: '13px', fontWeight: 700, margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Framework {i + 1}
+            </Text>
+            <Text style={{ color: emailTheme.text, fontSize: '16px', fontWeight: 700, margin: '0 0 6px' }}>
+              {tip.headline}
+            </Text>
+            <Text style={{ color: emailTheme.text, fontSize: '14px', lineHeight: '22px', margin: '0' }}>
+              {tip.body}
+            </Text>
+          </React.Fragment>
+        ))}
+      </Section>
       <Hr style={{ borderColor: emailTheme.border, margin: '24px 0' }} />
       <Button
         href={appUrl}
@@ -53,6 +55,7 @@ export default function WeeklyValueEmail({ firstName, tips, appUrl, settingsUrl 
           backgroundColor: emailTheme.primary,
           borderRadius: '8px',
           color: emailTheme.primaryForeground,
+          display: 'inline-block',
           fontSize: '15px',
           fontWeight: 600,
           padding: '12px 28px',

@@ -2,6 +2,7 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { getPlanQuotaBullets } from "@/config/pricing";
+import { APP_DISPLAY_NAME } from "@shared/constants";
 
 export default function TermsOfService() {
   return (
@@ -13,7 +14,7 @@ export default function TermsOfService() {
               Terms of Service
             </CardTitle>
             <Badge variant="outline" className="w-fit mx-auto">
-              TweetReply AI Chrome Extension
+              {`${APP_DISPLAY_NAME} Chrome Extension`}
             </Badge>
             <p className="text-gray-600 mt-2">
               Last Updated: January 27, 2025
@@ -25,14 +26,14 @@ export default function TermsOfService() {
               <section>
                 <h2 className="text-2xl font-semibold text-gray-800 mb-4">Agreement to Terms</h2>
                 <p className="text-gray-700 leading-relaxed">
-                  By accessing or using TweetReply AI ("we," "our," or "us"), you agree to be bound by these Terms of Service. If you do not agree to these terms, please do not use our service.
+                  {`By accessing or using ${APP_DISPLAY_NAME} ("we," "our," or "us"), you agree to be bound by these Terms of Service. If you do not agree to these terms, please do not use our service.`}
                 </p>
               </section>
 
               <section>
                 <h2 className="text-2xl font-semibold text-gray-800 mb-4">Description of Service</h2>
                 <p className="text-gray-700 leading-relaxed mb-4">
-                  TweetReply AI is a Chrome extension that provides AI driven reply generation for Twitter/X. Our service includes:
+                  {`${APP_DISPLAY_NAME} is a Chrome extension that provides AI driven reply generation for Twitter/X. Our service includes:`}
                 </p>
                 <ul className="list-disc list-inside text-gray-700 space-y-2">
                   <li>AI generated reply suggestions for Twitter/X posts</li>
@@ -247,7 +248,7 @@ export default function TermsOfService() {
 
               <div className="bg-blue-100 p-4 rounded-lg border-l-4 border-blue-500">
                 <p className="text-blue-800 font-medium">
-                  <strong>Note:</strong> By using TweetReply AI, you acknowledge that you have read, understood, and agree to be bound by these Terms of Service. 
+                  <strong>Note:</strong> {`By using ${APP_DISPLAY_NAME}, you acknowledge that you have read, understood, and agree to be bound by these Terms of Service.`} 
                   If you do not agree with any part of these terms, please do not use our service.
                 </p>
               </div>

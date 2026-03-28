@@ -1,4 +1,5 @@
 import { Sparkles } from "lucide-react";
+import { APP_DISPLAY_NAME } from "@shared/constants";
 import { useLocation } from "wouter";
 
 interface LogoProps {
@@ -35,7 +36,7 @@ export function Logo({
       </div>
       {showText && (
         <span className={`${textSize} font-display font-bold text-primary`}>
-          TweetReplyAI
+          {APP_DISPLAY_NAME}
         </span>
       )}
     </div>

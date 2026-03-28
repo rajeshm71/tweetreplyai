@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Envelope, Shield, Download, Check, GoogleChromeLogo, ChatCircle } from "@phosphor-icons/react";
 import { SiGoogle } from "react-icons/si";
+import { APP_DISPLAY_NAME } from "@shared/constants";
 
 export default function ProfilePage() {
   const { user, isLoading } = useAuth();
@@ -160,7 +161,7 @@ export default function ProfilePage() {
             <CardContent>
               <div className="space-y-4">
                 <p className="text-sm text-muted-foreground">
-                  Get instant AI generated reply suggestions while browsing Twitter/X. The extension integrates seamlessly with your TweetReply account.
+                  {`Get instant AI generated reply suggestions while browsing Twitter/X. The extension integrates seamlessly with your ${APP_DISPLAY_NAME} account.`}
                 </p>
                 <div className="flex items-center gap-3">
                   <Button

@@ -1,4 +1,4 @@
-# robots.txt for TweetReply (tweetreplyai.com)
+# robots.txt for TweetReplyAI (tweetreplyai.com) — keep in sync with shared/constants APP_DISPLAY_NAME
 # Allow all search engines to crawl the site
 
 User-agent: *

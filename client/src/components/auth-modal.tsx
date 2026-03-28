@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
+import { APP_DISPLAY_NAME } from "@shared/constants";
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -128,7 +129,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
             <ChatCircle className="w-6 h-6 text-primary-foreground" />
           </div>
           <DialogTitle className="text-2xl font-semibold">
-            Welcome to TweetReply
+            {`Welcome to ${APP_DISPLAY_NAME}`}
           </DialogTitle>
           <p className="text-muted-foreground">
             Sign in to start your free trial

@@ -1,5 +1,6 @@
 import * as React from 'react';
-import { Button, Heading, Hr, Text } from '@react-email/components';
+import { Button, Heading, Hr, Section, Text } from '@react-email/components';
+import { APP_DISPLAY_NAME } from '../../shared/constants.js';
 import { EmailLayout } from './EmailLayout.js';
 import { emailTheme } from './theme.js';
 
@@ -19,7 +20,7 @@ interface Props {
 export default function NewsletterEmail({ issueNumber, tips, ctaLabel, ctaUrl, settingsUrl }: Props) {
   return (
     <EmailLayout
-      previewText={`TweetReply Newsletter — Issue #${issueNumber}`}
+      previewText={`${APP_DISPLAY_NAME} Newsletter — Issue #${issueNumber}`}
       variant="engagement"
       settingsUrl={settingsUrl}
     >
@@ -27,22 +28,24 @@ export default function NewsletterEmail({ issueNumber, tips, ctaLabel, ctaUrl, s
         ISSUE #{issueNumber}
       </Text>
       <Heading style={{ color: emailTheme.text, fontSize: '22px', fontWeight: 700, margin: '0 0 24px' }}>
-        TweetReply Newsletter
+        {APP_DISPLAY_NAME} Newsletter
       </Heading>
-      {tips.map((tip, i) => (
-        <React.Fragment key={i}>
-          {i > 0 && <Hr style={{ borderColor: emailTheme.border, margin: '20px 0' }} />}
-          <Text style={{ color: emailTheme.primary, fontSize: '12px', fontWeight: 700, margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            #{i + 1}
-          </Text>
-          <Text style={{ color: emailTheme.text, fontSize: '16px', fontWeight: 700, margin: '0 0 6px' }}>
-            {tip.headline}
-          </Text>
-          <Text style={{ color: emailTheme.text, fontSize: '14px', lineHeight: '22px', margin: 0 }}>
-            {tip.body}
-          </Text>
-        </React.Fragment>
-      ))}
+      <Section style={{ textAlign: 'left' as const, margin: '0 0 8px' }}>
+        {tips.map((tip, i) => (
+          <React.Fragment key={i}>
+            {i > 0 && <Hr style={{ borderColor: emailTheme.border, margin: '20px 0' }} />}
+            <Text style={{ color: emailTheme.primary, fontSize: '12px', fontWeight: 700, margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              #{i + 1}
+            </Text>
+            <Text style={{ color: emailTheme.text, fontSize: '16px', fontWeight: 700, margin: '0 0 6px' }}>
+              {tip.headline}
+            </Text>
+            <Text style={{ color: emailTheme.text, fontSize: '14px', lineHeight: '22px', margin: 0 }}>
+              {tip.body}
+            </Text>
+          </React.Fragment>
+        ))}
+      </Section>
       <Hr style={{ borderColor: emailTheme.border, margin: '24px 0' }} />
       <Button
         href={ctaUrl}
@@ -50,6 +53,7 @@ export default function NewsletterEmail({ issueNumber, tips, ctaLabel, ctaUrl, s
           backgroundColor: emailTheme.primary,
           borderRadius: '8px',
           color: emailTheme.primaryForeground,
+          display: 'inline-block',
           fontSize: '15px',
           fontWeight: 600,
           padding: '12px 28px',

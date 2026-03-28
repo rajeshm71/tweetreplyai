@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "TweetReply AI Driven Twitter Replies",
+  "name": "TweetReplyAI — AI-Driven Twitter Replies",
   "version": "1.0.5",
   "description": "Generate authentic, human-like replies to Twitter posts with one click using AI.",
   
@@ -50,7 +50,7 @@
   
   "action": {
     "default_popup": "popup/popup.html",
-    "default_title": "TweetReply",
+    "default_title": "TweetReplyAI",
     "default_icon": {
       "16": "icons/icon16.png",
       "48": "icons/icon48.png",

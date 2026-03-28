@@ -70,6 +70,7 @@ export default function PromoDiscountEmail({
           backgroundColor: emailTheme.primary,
           borderRadius: '8px',
           color: emailTheme.primaryForeground,
+          display: 'inline-block',
           fontSize: '15px',
           fontWeight: 600,
           padding: '12px 28px',

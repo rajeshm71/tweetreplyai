@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Button, Heading, Text } from '@react-email/components';
+import { Button, Heading, Section, Text } from '@react-email/components';
 import { EmailLayout } from './EmailLayout.js';
 import { emailTheme } from './theme.js';
 
@@ -46,24 +46,27 @@ export default function UsageThresholdEmail({
       >
         {isLimit ? '🚫 Credit limit reached' : '⚠️ 80% of credits used'}
       </Heading>
-      <Text style={{ color: emailTheme.text, fontSize: '15px', lineHeight: '24px', margin: '0 0 12px' }}>
-        {greeting}
-      </Text>
-      <Text style={{ color: emailTheme.text, fontSize: '15px', lineHeight: '24px', margin: '0 0 12px' }}>
-        You've used <strong>{used}</strong> of your <strong>{limit}</strong> credits this period.
-        {isLimit
-          ? " You've reached your limit and can't generate new replies until your credits reset."
-          : ' You have a few replies left — plan accordingly.'}
-      </Text>
-      <Text style={{ color: emailTheme.text, fontSize: '15px', lineHeight: '24px', margin: '0 0 24px' }}>
-        Credits reset on <strong>{resetAt}</strong>.
-      </Text>
+      <Section style={{ textAlign: 'left' as const, margin: '0 0 24px' }}>
+        <Text style={{ color: emailTheme.text, fontSize: '15px', lineHeight: '24px', margin: '0 0 12px' }}>
+          {greeting}
+        </Text>
+        <Text style={{ color: emailTheme.text, fontSize: '15px', lineHeight: '24px', margin: '0 0 12px' }}>
+          You've used <strong>{used}</strong> of your <strong>{limit}</strong> credits this period.
+          {isLimit
+            ? " You've reached your limit and can't generate new replies until your credits reset."
+            : ' You have a few replies left — plan accordingly.'}
+        </Text>
+        <Text style={{ color: emailTheme.text, fontSize: '15px', lineHeight: '24px', margin: 0 }}>
+          Credits reset on <strong>{resetAt}</strong>.
+        </Text>
+      </Section>
       <Button
         href={isLimit ? upgradeUrl : appUrl}
         style={{
           backgroundColor: emailTheme.primary,
           borderRadius: '8px',
           color: emailTheme.primaryForeground,
+          display: 'inline-block',
           fontSize: '15px',
           fontWeight: 600,
           padding: '12px 28px',

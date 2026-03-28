@@ -1,6 +1,7 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { APP_DISPLAY_NAME } from '@shared/constants';
 
 export default function PrivacyPolicy() {
   return (
@@ -12,7 +13,7 @@ export default function PrivacyPolicy() {
               Privacy Policy
             </CardTitle>
             <Badge variant="outline" className="w-fit mx-auto">
-              TweetReply AI Chrome Extension
+              {`${APP_DISPLAY_NAME} Chrome Extension`}
             </Badge>
             <p className="text-gray-600 mt-2">
               Last Updated: October 27, 2025
@@ -24,7 +25,7 @@ export default function PrivacyPolicy() {
               <section>
                 <h2 className="text-2xl font-semibold text-gray-800 mb-4">Introduction</h2>
                 <p className="text-gray-700 leading-relaxed">
-                  TweetReply ("we," "our," or "us") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, and safeguard your information when you use our Chrome extension and related services.
+                  {`${APP_DISPLAY_NAME} ("we," "our," or "us") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, and safeguard your information when you use our Chrome extension and related services.`}
                 </p>
               </section>
 
@@ -210,7 +211,7 @@ export default function PrivacyPolicy() {
 
               <div className="bg-blue-100 p-4 rounded-lg border-l-4 border-blue-500">
                 <p className="text-blue-800 font-medium">
-                  <strong>Note:</strong> By using TweetReply AI, you agree to the terms outlined in this Privacy Policy. 
+                  <strong>Note:</strong> {`By using ${APP_DISPLAY_NAME}, you agree to the terms outlined in this Privacy Policy.`} 
                   If you do not agree with any part of this policy, please do not use our extension.
                 </p>
               </div>

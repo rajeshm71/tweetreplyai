@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { APP_DISPLAY_NAME } from '../../../shared/constants';
 
 // ---------------------------------------------------------------------------
 // Storage mock
@@ -34,7 +35,11 @@ vi.mock('../../../server/utils/emailTransport', () => ({
 // emailTemplates mock
 // ---------------------------------------------------------------------------
 vi.mock('../../../server/emailTemplates', () => ({
-  renderWelcomeEmail: vi.fn().mockResolvedValue({ subject: 'Welcome to TweetReply', html: '<p>Welcome</p>', text: 'Welcome' }),
+  renderWelcomeEmail: vi.fn().mockResolvedValue({
+    subject: `Welcome to ${APP_DISPLAY_NAME}`,
+    html: '<p>Welcome</p>',
+    text: 'Welcome',
+  }),
   renderPasswordResetEmail: vi.fn().mockResolvedValue({ subject: 'Reset your password', html: '<p>Reset</p>', text: 'Reset' }),
   renderSubscriptionActiveEmail: vi.fn().mockResolvedValue({ subject: 'Sub active', html: '<p>Sub active</p>', text: 'Sub active' }),
   renderSubscriptionCanceledEmail: vi.fn().mockResolvedValue({ subject: 'Canceled', html: '<p>Canceled</p>', text: 'Canceled' }),
@@ -80,7 +85,7 @@ describe('emailService', () => {
       expect(mockSendEmail).toHaveBeenCalledWith(
         expect.objectContaining({
           to: 'test@example.com',
-          subject: 'Welcome to TweetReply',
+          subject: `Welcome to ${APP_DISPLAY_NAME}`,
           idempotencyKey: 'welcome:user-abc',
         })
       );

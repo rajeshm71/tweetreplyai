@@ -118,6 +118,7 @@
   };
 
   // extension/config/constants.js
+  var APP_DISPLAY_NAME = "TweetReplyAI";
   var API = {
     DEFAULT_DOMAIN: "tweetreplyai.vercel.app",
     LOGIN_URL: "https://tweetreplyai.vercel.app/login",
@@ -432,7 +433,7 @@
     }
     // Find closest text area to a button element (based on inject.js)
     findClosestTextArea(buttonElement) {
-      console.log("[TweetReply] \u{1F50D} Finding closest text area to button...");
+      console.log("[TweetReplyAI] \u{1F50D} Finding closest text area to button...");
       const textAreaSelectors = [
         'div[data-testid="tweetTextarea_0"]',
         'div[data-testid="tweetTextarea_1"]',
@@ -458,9 +459,9 @@
         }
       }
       if (closestElement) {
-        console.log("[TweetReply] \u2705 Found closest text area:", closestElement.tagName, closestElement.className);
+        console.log("[TweetReplyAI] \u2705 Found closest text area:", closestElement.tagName, closestElement.className);
       } else {
-        console.warn("[TweetReply] \u274C No text area found");
+        console.warn("[TweetReplyAI] \u274C No text area found");
       }
       return closestElement;
     }
@@ -498,7 +499,7 @@
         const result = await chrome.storage.local.get(["tweetreply_auto_like"]);
         return result.tweetreply_auto_like !== false;
       } catch (error) {
-        console.warn("[TweetReply] Failed to check auto-like setting:", error);
+        console.warn("[TweetReplyAI] Failed to check auto-like setting:", error);
         return true;
       }
     }
@@ -574,7 +575,7 @@
         await new Promise((resolve) => setTimeout(resolve, TIMEOUTS.DOM_DEBOUNCE_MS));
         return true;
       } catch (error) {
-        console.warn("[TweetReply] Failed to auto-like:", error);
+        console.warn("[TweetReplyAI] Failed to auto-like:", error);
         try {
           const event = new MouseEvent("click", {
             bubbles: true,
@@ -585,7 +586,7 @@
           await new Promise((resolve) => setTimeout(resolve, TIMEOUTS.DOM_DEBOUNCE_MS));
           return true;
         } catch (e) {
-          console.warn("[TweetReply] MouseEvent simulation failed:", e);
+          console.warn("[TweetReplyAI] MouseEvent simulation failed:", e);
           return false;
         }
       }
@@ -604,7 +605,7 @@
             const maxAgeMs = 10 * 60 * 1e3;
             if (pending && pending.username && pending.username !== "unknown" && Date.now() - pending.setAt < maxAgeMs) {
               this.trackReply(pending.username).catch((err) => {
-                console.warn("[TweetReply] Reply tracking failed:", err);
+                console.warn("[TweetReplyAI] Reply tracking failed:", err);
               });
               setTimeout(() => this.updateReplyCountsOnTweets(), 600);
             }
@@ -628,7 +629,7 @@
             }
             if (usernameToTrack && usernameToTrack !== "unknown") {
               this.trackReply(usernameToTrack).catch((err) => {
-                console.warn("[TweetReply] Reply tracking failed:", err);
+                console.warn("[TweetReplyAI] Reply tracking failed:", err);
               });
               setTimeout(() => this.updateReplyCountsOnTweets(), 600);
             }
@@ -665,16 +666,16 @@
                   this.performAutoLike(likeButton).then(() => {
                     if (tweetId2 !== null) this.autoLikedTweetIds.add(tweetId2);
                   }).catch((err) => {
-                    console.warn("[TweetReply] Auto-like execution failed:", err);
+                    console.warn("[TweetReplyAI] Auto-like execution failed:", err);
                   });
                 }
               }, 50);
             }
           }).catch((err) => {
-            console.warn("[TweetReply] Failed to check auto-like setting:", err);
+            console.warn("[TweetReplyAI] Failed to check auto-like setting:", err);
           });
         } catch (error) {
-          console.error("[TweetReply] Auto-like handler error:", error);
+          console.error("[TweetReplyAI] Auto-like handler error:", error);
         }
       };
       document.addEventListener("click", this.autoLikeClickHandler, true);
@@ -743,7 +744,7 @@
       try {
         this.usageData = await this.apiClient.getUsage();
       } catch (error) {
-        console.error("[TweetReply] Failed to load usage data:", error);
+        console.error("[TweetReplyAI] Failed to load usage data:", error);
         this.usageData = null;
         throw error;
       }
@@ -842,7 +843,7 @@
               try {
                 await this.updateReplyCountsOnTweets();
               } catch (error) {
-                console.error("[TweetReply] Error updating reply counts:", error);
+                console.error("[TweetReplyAI] Error updating reply counts:", error);
               }
             }, TIMEOUTS.AUTH_SYNC_DELAY_MS);
           }
@@ -1296,7 +1297,7 @@
           return;
         }
         if (suggestButton.dataset.loadError === "true") {
-          console.log("[TweetReply] Retrying button initialization...");
+          console.log("[TweetReplyAI] Retrying button initialization...");
           delete suggestButton.dataset.loadError;
           suggestButton.dataset.authPending = "true";
           this.updateButtonState(suggestButton);
@@ -1304,8 +1305,8 @@
           return;
         }
         const actualComposer = composer.querySelector('[contenteditable="true"]') || composer.querySelector(".public-DraftEditor-content") || composer;
-        console.log("[TweetReply] Button click - Composer container:", composer.getAttribute("data-testid"));
-        console.log("[TweetReply] Button click - Actual composer:", actualComposer.contentEditable, actualComposer.className);
+        console.log("[TweetReplyAI] Button click - Composer container:", composer.getAttribute("data-testid"));
+        console.log("[TweetReplyAI] Button click - Actual composer:", actualComposer.contentEditable, actualComposer.className);
         this.handleSuggestReply(actualComposer, suggestButton, {
           modelKey: modelSelect ? modelSelect.value : "auto",
           replyMode: replyModeSelect.value,
@@ -1319,13 +1320,13 @@
     }
     async updateButtonStateAsync(button) {
       try {
-        console.log("[TweetReply] Initializing button state...");
+        console.log("[TweetReplyAI] Initializing button state...");
         if (!this.isAuthenticated) {
           this.isAuthenticated = await this.authManager.isAuthenticated(true);
-          console.log("[TweetReply] Auth status:", this.isAuthenticated);
+          console.log("[TweetReplyAI] Auth status:", this.isAuthenticated);
         }
         if (this.isAuthenticated && !this.usageData) {
-          console.log("[TweetReply] Loading usage data...");
+          console.log("[TweetReplyAI] Loading usage data...");
           try {
             await Promise.race([
               this.loadUsageData(),
@@ -1333,9 +1334,9 @@
                 (_, reject) => setTimeout(() => reject(new Error("Timeout after 10 seconds")), TIMEOUTS.USAGE_LOAD_MS)
               )
             ]);
-            console.log("[TweetReply] Usage data loaded:", this.usageData);
+            console.log("[TweetReplyAI] Usage data loaded:", this.usageData);
           } catch (error) {
-            console.warn("[TweetReply] Failed to load usage data, using fallback:", error);
+            console.warn("[TweetReplyAI] Failed to load usage data, using fallback:", error);
             this.usageData = {
               used: 0,
               limit: 999,
@@ -1347,7 +1348,7 @@
         delete button.dataset.loadError;
         this.updateButtonState(button);
       } catch (error) {
-        console.error("[TweetReply] Critical error initializing button:", error);
+        console.error("[TweetReplyAI] Critical error initializing button:", error);
         delete button.dataset.authPending;
         button.dataset.loadError = "true";
         this.updateButtonState(button);
@@ -1475,24 +1476,24 @@
             const savedMode = data.tweetreply_reply_mode;
             if (modes.some((m) => m.value === savedMode)) {
               select.value = savedMode;
-              console.log("[TweetReply] Restored reply mode from storage:", savedMode);
+              console.log("[TweetReplyAI] Restored reply mode from storage:", savedMode);
             } else {
               select.value = "enhanced";
               try {
                 chrome.storage?.local?.set({ tweetreply_reply_mode: "enhanced" });
               } catch (_) {
               }
-              console.log("[TweetReply] Saved reply mode not valid, using default");
+              console.log("[TweetReplyAI] Saved reply mode not valid, using default");
             }
           }
         });
       } catch (error) {
-        console.warn("[TweetReply] Failed to restore reply mode from storage:", error);
+        console.warn("[TweetReplyAI] Failed to restore reply mode from storage:", error);
       }
       select.addEventListener("change", () => {
         try {
           chrome.storage?.local?.set({ tweetreply_reply_mode: select.value });
-          console.log("[TweetReply] Reply mode changed to:", select.value);
+          console.log("[TweetReplyAI] Reply mode changed to:", select.value);
         } catch (_) {
         }
       });
@@ -1542,7 +1543,7 @@
           return;
         }
         if (button.dataset.loadError === "true") {
-          console.log("[TweetReply] Retrying improve button initialization...");
+          console.log("[TweetReplyAI] Retrying improve button initialization...");
           delete button.dataset.loadError;
           button.dataset.authPending = "true";
           this.updateButtonState(button);
@@ -1579,7 +1580,7 @@
         </svg>
         <span>\u{1F512} Sign in to use</span>
       `;
-        button.title = "Click to sign in to TweetReply";
+        button.title = `Click to sign in to ${APP_DISPLAY_NAME}`;
         button.style.opacity = "0.85";
         return;
       }
@@ -1675,18 +1676,18 @@
           url: loginUrl
         }, (response2) => {
           if (chrome.runtime.lastError) {
-            console.error("[TweetReply] Failed to open login page:", chrome.runtime.lastError.message);
+            console.error("[TweetReplyAI] Failed to open login page:", chrome.runtime.lastError.message);
           }
         });
       } catch (error) {
-        console.error("[TweetReply] Failed to get API domain, using fallback:", error);
+        console.error("[TweetReplyAI] Failed to get API domain, using fallback:", error);
         const loginUrl = API.LOGIN_URL;
         chrome.runtime.sendMessage({
           action: "openLoginPage",
           url: loginUrl
         }, (response) => {
           if (chrome.runtime.lastError) {
-            console.error("[TweetReply] Failed to open login page:", chrome.runtime.lastError.message);
+            console.error("[TweetReplyAI] Failed to open login page:", chrome.runtime.lastError.message);
           }
         });
       }
@@ -1720,7 +1721,7 @@
     }
     async handleSuggestReply(composer, button, options = {}) {
       if (!this.isAuthenticated) {
-        this.showMessage(composer, "Please sign in to use TweetReply", "error");
+        this.showMessage(composer, `Please sign in to use ${APP_DISPLAY_NAME}`, "error");
         return;
       }
       if (!this.usageData || this.usageData.used >= this.usageData.limit) {
@@ -1734,19 +1735,19 @@
       }
       const tweetId = this.extractTweetId();
       if (!tweetId) {
-        console.error("[TweetReply] Failed to extract tweet ID");
+        console.error("[TweetReplyAI] Failed to extract tweet ID");
         this.showMessage(composer, "Could not identify the tweet. Try refreshing the page.", "error");
         return;
       }
       if (DIAGNOSE_THREAD_SELECTION) {
         const statusIdFromUrl = this.getStatusIdFromDetailPageUrl();
-        console.log("[TweetReply] DIAG URL pathname:", window.location.pathname);
-        console.log("[TweetReply] DIAG lastNonComposePath:", this.lastNonComposePath);
-        console.log("[TweetReply] DIAG isTweetDetailPage:", this.isTweetDetailPage());
-        console.log("[TweetReply] DIAG URL statusId:", statusIdFromUrl ?? "null");
-        console.log("[TweetReply] DIAG reply-target tweetId (API):", tweetId);
+        console.log("[TweetReplyAI] DIAG URL pathname:", window.location.pathname);
+        console.log("[TweetReplyAI] DIAG lastNonComposePath:", this.lastNonComposePath);
+        console.log("[TweetReplyAI] DIAG isTweetDetailPage:", this.isTweetDetailPage());
+        console.log("[TweetReplyAI] DIAG URL statusId:", statusIdFromUrl ?? "null");
+        console.log("[TweetReplyAI] DIAG reply-target tweetId (API):", tweetId);
         if (statusIdFromUrl && tweetId) {
-          console.log("[TweetReply] DIAG statusId === tweetId?", statusIdFromUrl === tweetId);
+          console.log("[TweetReplyAI] DIAG statusId === tweetId?", statusIdFromUrl === tweetId);
         }
       }
       button.disabled = true;
@@ -1759,7 +1760,7 @@
         const authorInfo = this.extractAuthorInfo();
         const threadContext = this.extractThreadContext();
         const tweetMetadata = this.extractTweetMetadata();
-        console.log("[TweetReply] \u{1F4CA} Thread Context Summary:", {
+        console.log("[TweetReplyAI] \u{1F4CA} Thread Context Summary:", {
           isReply: threadContext?.isReply || false,
           hasOriginalTweet: !!threadContext?.originalTweet,
           originalTweetAuthor: threadContext?.originalTweetAuthor || "none",
@@ -1767,15 +1768,15 @@
           currentTweetIndex: threadContext?.currentTweetIndex || 0
         });
         if (threadContext?.isReply && threadContext?.originalTweet) {
-          console.log("[TweetReply] \u{1F4CB} QUICK THREAD PREVIEW:");
-          console.log("[TweetReply] Original:", threadContext.originalTweet.substring(0, 100) + (threadContext.originalTweet.length > 100 ? "..." : ""));
+          console.log("[TweetReplyAI] \u{1F4CB} QUICK THREAD PREVIEW:");
+          console.log("[TweetReplyAI] Original:", threadContext.originalTweet.substring(0, 100) + (threadContext.originalTweet.length > 100 ? "..." : ""));
           if (threadContext.threadChain && threadContext.threadChain.length > 0) {
-            console.log("[TweetReply] Thread chain:", threadContext.threadChain.map(
+            console.log("[TweetReplyAI] Thread chain:", threadContext.threadChain.map(
               (t) => (t.isOriginal ? "\u{1F535}" : t.isCurrent ? "\u{1F7E2}" : "\u26AA") + " " + t.text.substring(0, 60) + (t.text.length > 60 ? "..." : "")
             ));
           }
         }
-        console.log("[TweetReply] Generating reply with data:", {
+        console.log("[TweetReplyAI] Generating reply with data:", {
           tweet_id: tweetId,
           tweet_text_length: tweetText.length,
           author_info_username: authorInfo?.username || "unknown",
@@ -1784,7 +1785,7 @@
           is_reply: threadContext?.isReply || false,
           thread_length: threadContext?.threadLength || 0
         });
-        console.log("[TweetReply] \u{1F916} Starting AI-powered tweet analysis (server-side)...");
+        console.log("[TweetReplyAI] \u{1F916} Starting AI-powered tweet analysis (server-side)...");
         const sanitizedThreadContext = this.sanitizeThreadContextForApi(threadContext, 1e3);
         const conversationContext = sanitizedThreadContext?.threadChain?.map((t) => t.text) || null;
         const response = await this.apiClient.generateReply({
@@ -1804,14 +1805,14 @@
           tweet_metadata: tweetMetadata
         });
         if (response.analysis) {
-          console.log("[TweetReply] \u2705 Tweet analysis completed:", {
+          console.log("[TweetReplyAI] \u2705 Tweet analysis completed:", {
             tone: response.analysis.tone || "unknown",
             sentiment: response.analysis.sentiment || "unknown",
             style: response.analysis.style || "unknown",
             intention: response.analysis.intention ? response.analysis.intention.substring(0, 80) + "..." : "N/A"
           });
         } else {
-          console.log("[TweetReply] \u2139\uFE0F No analysis data in response (using basic context)");
+          console.log("[TweetReplyAI] \u2139\uFE0F No analysis data in response (using basic context)");
         }
         await this.insertReplyIntoComposer(composer, {
           reply: response.reply,
@@ -1869,7 +1870,7 @@
     }
     async handleImproveReply(composer, button) {
       if (!this.isAuthenticated) {
-        this.showMessage(composer, "Please sign in to use TweetReply", "error");
+        this.showMessage(composer, `Please sign in to use ${APP_DISPLAY_NAME}`, "error");
         return;
       }
       if (!this.usageData || this.usageData.used >= this.usageData.limit) {
@@ -1903,13 +1904,13 @@
     `;
       try {
         const originalTweetText = this.extractTweetText() || "";
-        console.log("[TweetReply] Improving draft:", {
+        console.log("[TweetReplyAI] Improving draft:", {
           draftLength: draftText.length,
           originalTweetLength: originalTweetText.length
         });
         const response = await this.apiClient.suggestImprovements(draftText, originalTweetText);
-        console.log("[TweetReply] API response received:", response);
-        console.log("[TweetReply] Response keys:", Object.keys(response || {}));
+        console.log("[TweetReplyAI] API response received:", response);
+        console.log("[TweetReplyAI] Response keys:", Object.keys(response || {}));
         let improvedDraft = "";
         if (response && response.improved) {
           improvedDraft = response.improved;
@@ -1926,7 +1927,7 @@
         } else {
           improvedDraft = Object.values(response).find((v) => typeof v === "string") || draftText;
         }
-        console.log("[TweetReply] Extracted improved draft:", improvedDraft);
+        console.log("[TweetReplyAI] Extracted improved draft:", improvedDraft);
         if (!improvedDraft || improvedDraft.trim().length === 0) {
           throw new Error("No improved draft received from API");
         }
@@ -1956,8 +1957,8 @@
         }
         this.updateAllButtonStates();
       } catch (error) {
-        console.error("[TweetReply] Failed to improve reply:", error);
-        console.error("[TweetReply] Error details:", {
+        console.error("[TweetReplyAI] Failed to improve reply:", error);
+        console.error("[TweetReplyAI] Error details:", {
           message: error.message,
           stack: error.stack,
           response: error.response
@@ -2041,7 +2042,7 @@
           if (text && text.length > 10) return text;
         }
       } catch (error) {
-        console.warn("[TweetReply] Draft.js span extraction failed:", error);
+        console.warn("[TweetReplyAI] Draft.js span extraction failed:", error);
       }
       try {
         const contentEditables = document.querySelectorAll('[contenteditable="true"]');
@@ -2051,24 +2052,24 @@
           }
           const text = element.textContent?.trim();
           if (text && text.length > VALIDATION.MIN_TWEET_LENGTH && text.length < VALIDATION.MAX_TWEET_LENGTH) {
-            console.log("[TweetReply] \u2705 Tweet text found via contentEditable");
+            console.log("[TweetReplyAI] \u2705 Tweet text found via contentEditable");
             return text;
           }
         }
       } catch (error) {
-        console.warn("[TweetReply] contentEditable extraction failed:", error);
+        console.warn("[TweetReplyAI] contentEditable extraction failed:", error);
       }
       try {
         const draftBlocks = document.querySelectorAll(".public-DraftStyleDefault-block");
         if (draftBlocks.length > 0) {
           const text = Array.from(draftBlocks).map((block) => block.textContent || "").join("\n").trim();
           if (text && text.length > 10) {
-            console.log("[TweetReply] \u2705 Tweet text found via Draft.js blocks");
+            console.log("[TweetReplyAI] \u2705 Tweet text found via Draft.js blocks");
             return text;
           }
         }
       } catch (error) {
-        console.warn("[TweetReply] Draft.js block extraction failed:", error);
+        console.warn("[TweetReplyAI] Draft.js block extraction failed:", error);
       }
       try {
         const tweetElements = document.querySelectorAll('[data-testid="tweet"]');
@@ -2079,7 +2080,7 @@
             if (spans.length > 0) {
               const text = Array.from(spans).map((span) => span.textContent || "").join(" ").trim();
               if (text && text.length > 10) {
-                console.log("[TweetReply] \u2705 Tweet text found via parent traversal");
+                console.log("[TweetReplyAI] \u2705 Tweet text found via parent traversal");
                 return text;
               }
             }
@@ -2087,19 +2088,19 @@
           }
         }
       } catch (error) {
-        console.warn("[TweetReply] Parent traversal extraction failed:", error);
+        console.warn("[TweetReplyAI] Parent traversal extraction failed:", error);
       }
       try {
         const allText = document.body.textContent;
         const sentences = allText.split(/[.!?]+/).filter((s) => s.trim().length > VALIDATION.MIN_TWEET_LENGTH);
         if (sentences.length > 0) {
-          console.log("[TweetReply] \u2705 Tweet text found via sentence detection");
+          console.log("[TweetReplyAI] \u2705 Tweet text found via sentence detection");
           return sentences[0]?.trim() || null;
         }
       } catch (error) {
-        console.warn("[TweetReply] Sentence detection failed:", error);
+        console.warn("[TweetReplyAI] Sentence detection failed:", error);
       }
-      console.warn("[TweetReply] \u274C Failed to extract tweet text from any method");
+      console.warn("[TweetReplyAI] \u274C Failed to extract tweet text from any method");
       return null;
     }
     extractTweetId() {
@@ -2108,28 +2109,28 @@
         if (dialogArticle) {
           const ownId = this.getOwnStatusIdFromArticle(dialogArticle);
           if (ownId) {
-            console.log("[TweetReply] Tweet ID extracted from composer dialog:", ownId);
+            console.log("[TweetReplyAI] Tweet ID extracted from composer dialog:", ownId);
             return ownId;
           }
         }
       }
       const urlMatch = window.location.href.match(/status\/(\d+)/);
       if (urlMatch) {
-        console.log("[TweetReply] Tweet ID extracted from URL:", urlMatch[1]);
+        console.log("[TweetReplyAI] Tweet ID extracted from URL:", urlMatch[1]);
         return urlMatch[1];
       }
       const tweetElements = document.querySelectorAll('[data-testid="tweet"]');
       for (const tweet of tweetElements) {
         const tweetId = tweet.getAttribute("data-tweet-id");
         if (tweetId) {
-          console.log("[TweetReply] Tweet ID extracted from data-tweet-id:", tweetId);
+          console.log("[TweetReplyAI] Tweet ID extracted from data-tweet-id:", tweetId);
           return tweetId;
         }
         const ariaLabel = tweet.getAttribute("aria-labelledby");
         if (ariaLabel) {
           const match = ariaLabel.match(/(\d{15,})/);
           if (match) {
-            console.log("[TweetReply] Tweet ID extracted from aria-labelledby:", match[1]);
+            console.log("[TweetReplyAI] Tweet ID extracted from aria-labelledby:", match[1]);
             return match[1];
           }
         }
@@ -2137,7 +2138,7 @@
         if (tweetLink) {
           const linkMatch = tweetLink.href.match(/status\/(\d+)/);
           if (linkMatch) {
-            console.log("[TweetReply] Tweet ID extracted from tweet link:", linkMatch[1]);
+            console.log("[TweetReplyAI] Tweet ID extracted from tweet link:", linkMatch[1]);
             return linkMatch[1];
           }
         }
@@ -2146,11 +2147,11 @@
       for (const link of statusLinks) {
         const linkMatch = link.href.match(/status\/(\d+)/);
         if (linkMatch) {
-          console.log("[TweetReply] Tweet ID extracted from status link:", linkMatch[1]);
+          console.log("[TweetReplyAI] Tweet ID extracted from status link:", linkMatch[1]);
           return linkMatch[1];
         }
       }
-      console.warn("[TweetReply] Failed to extract tweet ID from any source");
+      console.warn("[TweetReplyAI] Failed to extract tweet ID from any source");
       return null;
     }
     parseFollowerCount(countStr) {
@@ -2166,7 +2167,7 @@
       try {
         const authorElement = document.querySelector('[data-testid="User-Name"]');
         if (!authorElement) {
-          console.log("[TweetReply] No author element found, using defaults");
+          console.log("[TweetReplyAI] No author element found, using defaults");
           return {
             username: "unknown",
             verified: false,
@@ -2202,7 +2203,7 @@
           const followerMatch = tweetArticle.textContent?.match(/(\d+(?:\.\d+)?[KMB]?)\s*followers?/i);
           if (followerMatch) {
             followerCount = this.parseFollowerCount(followerMatch[1]);
-            console.log("[TweetReply] Follower count extracted from tweet article:", followerCount);
+            console.log("[TweetReplyAI] Follower count extracted from tweet article:", followerCount);
           }
         }
         if (followerCount === 0) {
@@ -2211,7 +2212,7 @@
             const followerMatch = bioElement.textContent?.match(/(\d+(?:\.\d+)?[KMB]?)\s*followers?/i);
             if (followerMatch) {
               followerCount = this.parseFollowerCount(followerMatch[1]);
-              console.log("[TweetReply] Follower count extracted from bio:", followerCount);
+              console.log("[TweetReplyAI] Follower count extracted from bio:", followerCount);
             }
           }
         }
@@ -2221,11 +2222,11 @@
             const followerMatch = hoverCard.textContent?.match(/(\d+(?:\.\d+)?[KMB]?)\s*followers?/i);
             if (followerMatch) {
               followerCount = this.parseFollowerCount(followerMatch[1]);
-              console.log("[TweetReply] Follower count extracted from hover card:", followerCount);
+              console.log("[TweetReplyAI] Follower count extracted from hover card:", followerCount);
             }
           }
         }
-        console.log("[TweetReply] Author info extracted:", {
+        console.log("[TweetReplyAI] Author info extracted:", {
           username,
           display_name: displayName,
           posted_time: postedTime,
@@ -2239,7 +2240,7 @@
           // Always returns a number
         };
       } catch (error) {
-        console.error("[TweetReply] Failed to extract author info:", error);
+        console.error("[TweetReplyAI] Failed to extract author info:", error);
         return {
           username: "unknown",
           verified: false,
@@ -2261,7 +2262,7 @@
           trackingPeriodDays: Math.max(DEFAULTS.TRACKING_DAYS_MIN, Math.min(DEFAULTS.TRACKING_DAYS_MAX, parseInt(settings.trackingPeriodDays) || DEFAULTS.TRACKING_DAYS))
         };
       } catch (error) {
-        console.warn("[TweetReply] Failed to get tracking settings:", error);
+        console.warn("[TweetReplyAI] Failed to get tracking settings:", error);
         return { trackingPeriodDays: DEFAULTS.TRACKING_DAYS };
       }
     }
@@ -2270,7 +2271,7 @@
       try {
         await chrome.storage.local.set({ replyTrackingSettings: settings });
       } catch (error) {
-        console.error("[TweetReply] Failed to save tracking settings:", error);
+        console.error("[TweetReplyAI] Failed to save tracking settings:", error);
       }
     }
     // Get reply history
@@ -2279,7 +2280,7 @@
         const result = await chrome.storage.local.get(["replyHistory"]);
         return result.replyHistory || {};
       } catch (error) {
-        console.warn("[TweetReply] Failed to get reply history:", error);
+        console.warn("[TweetReplyAI] Failed to get reply history:", error);
         return {};
       }
     }
@@ -2318,7 +2319,7 @@
         await chrome.storage.local.set({ replyHistory: history });
         await this.updateReplyCountsOnTweets();
       } catch (error) {
-        console.error("[TweetReply] Error tracking reply:", error);
+        console.error("[TweetReplyAI] Error tracking reply:", error);
       } finally {
         delete this[lockKey];
       }
@@ -2375,7 +2376,7 @@
         }
         return null;
       } catch (error) {
-        console.warn("[TweetReply] Failed to extract username from tweet:", error);
+        console.warn("[TweetReplyAI] Failed to extract username from tweet:", error);
         return null;
       }
     }
@@ -2419,7 +2420,7 @@
         const count = userData.replies.filter((r) => r.timestamp > cutoff).length;
         return count;
       } catch (error) {
-        console.error("[TweetReply] Error getting reply count:", error);
+        console.error("[TweetReplyAI] Error getting reply count:", error);
         return 0;
       }
     }
@@ -2600,7 +2601,7 @@
             }
           }
         } catch (e) {
-          console.warn("[TweetReply] Could not insert reply count indicator:", e);
+          console.warn("[TweetReplyAI] Could not insert reply count indicator:", e);
         }
       }
     }
@@ -2630,7 +2631,7 @@
           }
         }
       } catch (error) {
-        console.error("[TweetReply] Error updating reply counts:", error);
+        console.error("[TweetReplyAI] Error updating reply counts:", error);
       } finally {
         this.checkingTweets = false;
       }
@@ -2676,13 +2677,13 @@
       const DEBUG_THREAD_CONTEXT = false;
       try {
         if (DEBUG_THREAD_CONTEXT) {
-          console.log("[TweetReply] \u{1F50D} ========== EXTRACTING THREAD CONTEXT ==========");
-          console.log("[TweetReply] \u{1F50D} Starting thread context extraction...");
+          console.log("[TweetReplyAI] \u{1F50D} ========== EXTRACTING THREAD CONTEXT ==========");
+          console.log("[TweetReplyAI] \u{1F50D} Starting thread context extraction...");
         }
         const currentTweetText = this.extractTweetText();
-        if (DEBUG_THREAD_CONTEXT) console.log("[TweetReply] \u{1F50D} Current tweet text length:", currentTweetText?.length || 0);
+        if (DEBUG_THREAD_CONTEXT) console.log("[TweetReplyAI] \u{1F50D} Current tweet text length:", currentTweetText?.length || 0);
         if (!currentTweetText) {
-          console.warn("[TweetReply] \u26A0\uFE0F No current tweet found, returning standalone context");
+          console.warn("[TweetReplyAI] \u26A0\uFE0F No current tweet found, returning standalone context");
           return {
             isReply: false,
             originalTweet: null,
@@ -2697,13 +2698,13 @@
           const currentPath = window.location.pathname;
           const effectivePath = /\/compose\//.test(currentPath) ? this.lastNonComposePath : currentPath;
           const statusIdHere = this.getStatusIdFromDetailPageUrl();
-          console.log("[TweetReply] DIAG extractThreadContext path:", currentPath, "| lastNonComposePath:", this.lastNonComposePath, "| effectivePath:", effectivePath);
-          console.log("[TweetReply] DIAG statusId:", statusIdHere ?? "null");
-          console.log("[TweetReply] DIAG currentTweetText preview:", (currentTweetText || "").substring(0, 80) + (currentTweetText && currentTweetText.length > 80 ? "..." : ""));
-          console.log("[TweetReply] DIAG currentReplyTargetArticle set?", !!this.currentReplyTargetArticle);
+          console.log("[TweetReplyAI] DIAG extractThreadContext path:", currentPath, "| lastNonComposePath:", this.lastNonComposePath, "| effectivePath:", effectivePath);
+          console.log("[TweetReplyAI] DIAG statusId:", statusIdHere ?? "null");
+          console.log("[TweetReplyAI] DIAG currentTweetText preview:", (currentTweetText || "").substring(0, 80) + (currentTweetText && currentTweetText.length > 80 ? "..." : ""));
+          console.log("[TweetReplyAI] DIAG currentReplyTargetArticle set?", !!this.currentReplyTargetArticle);
         }
         if (!isDetailPage) {
-          if (DEBUG_THREAD_CONTEXT) console.log("[TweetReply] Not on detail page, using single-tweet context only");
+          if (DEBUG_THREAD_CONTEXT) console.log("[TweetReplyAI] Not on detail page, using single-tweet context only");
           const authorInfo = this.extractAuthorInfo();
           return {
             isReply: true,
@@ -2720,7 +2721,7 @@
           };
         }
         const isReply = this.detectReplyContext();
-        if (DEBUG_THREAD_CONTEXT) console.log("[TweetReply] Reply context detected:", isReply);
+        if (DEBUG_THREAD_CONTEXT) console.log("[TweetReplyAI] Reply context detected:", isReply);
         if (!isReply) {
           return {
             isReply: false,
@@ -2739,20 +2740,20 @@
         const threadContainer = this.findThreadContainer();
         if (DIAGNOSE_THREAD_SELECTION) {
           if (!threadContainer) {
-            console.log("[TweetReply] DIAG findThreadContainer: null");
+            console.log("[TweetReplyAI] DIAG findThreadContainer: null");
           } else {
             const articles = threadContainer.querySelectorAll('article[data-testid="tweet"]');
             const desc = threadContainer.tagName.toLowerCase() + (threadContainer.className ? "." + (typeof threadContainer.className === "string" ? threadContainer.className.split(/\s+/)[0] : "") : "") + (threadContainer.getAttribute?.("data-testid") ? '[data-testid="' + threadContainer.getAttribute("data-testid") + '"]' : "");
-            console.log("[TweetReply] DIAG findThreadContainer: element=", desc, "| tweet count=", articles.length);
+            console.log("[TweetReplyAI] DIAG findThreadContainer: element=", desc, "| tweet count=", articles.length);
             if (articles.length >= 1) {
               const firstAuthor = (articles[0].querySelector('[data-testid="User-Name"]')?.textContent || "").match(/@([A-Za-z0-9_]+)/);
               const lastAuthor = articles.length > 1 ? (articles[articles.length - 1].querySelector('[data-testid="User-Name"]')?.textContent || "").match(/@([A-Za-z0-9_]+)/) : null;
-              console.log("[TweetReply] DIAG container first author:", firstAuthor ? "@" + firstAuthor[1] : "unknown", "| last author:", lastAuthor ? "@" + lastAuthor[1] : "n/a");
+              console.log("[TweetReplyAI] DIAG container first author:", firstAuthor ? "@" + firstAuthor[1] : "unknown", "| last author:", lastAuthor ? "@" + lastAuthor[1] : "n/a");
             }
           }
         }
         if (!threadContainer) {
-          console.log("[TweetReply] \u26A0\uFE0F Thread container not found, using current tweet only");
+          console.log("[TweetReplyAI] \u26A0\uFE0F Thread container not found, using current tweet only");
           return {
             isReply: true,
             originalTweet: null,
@@ -2768,11 +2769,11 @@
           };
         }
         const threadTweets = this.extractTweetsFromContainer(threadContainer);
-        if (DEBUG_THREAD_CONTEXT) console.log("[TweetReply] Found", threadTweets.length, "tweets in thread");
+        if (DEBUG_THREAD_CONTEXT) console.log("[TweetReplyAI] Found", threadTweets.length, "tweets in thread");
         if (DIAGNOSE_THREAD_SELECTION && threadTweets.length > 0) {
           threadTweets.forEach((t, i) => {
             const preview = (t.text || "").substring(0, 50) + (t.text && t.text.length > 50 ? "..." : "");
-            console.log("[TweetReply] DIAG threadTweets[" + i + "]: author=@" + (t.author || "unknown") + " statusId=" + (t.statusId ?? "null") + ' text="' + preview + '"');
+            console.log("[TweetReplyAI] DIAG threadTweets[" + i + "]: author=@" + (t.author || "unknown") + " statusId=" + (t.statusId ?? "null") + ' text="' + preview + '"');
           });
         }
         if (threadTweets.length === 0) {
@@ -2849,20 +2850,20 @@
         }
         if (DIAGNOSE_THREAD_SELECTION && tierUsed) {
           const otPreview = (originalTweet?.text || "").substring(0, 60) + (originalTweet?.text && originalTweet.text.length > 60 ? "..." : "");
-          console.log("[TweetReply] DIAG originalTweet from:", tierUsed, "| author=@" + (originalTweet?.author || "unknown"), '| text="' + otPreview + '"');
+          console.log("[TweetReplyAI] DIAG originalTweet from:", tierUsed, "| author=@" + (originalTweet?.author || "unknown"), '| text="' + otPreview + '"');
           if (originalWasOverridden) {
-            console.log("[TweetReply] DIAG same-tweet override: new author=@" + (originalTweet?.author || "unknown"), '| text="' + otPreview + '"');
+            console.log("[TweetReplyAI] DIAG same-tweet override: new author=@" + (originalTweet?.author || "unknown"), '| text="' + otPreview + '"');
           }
         }
         let currentTweetIndex = this.findCurrentTweetIndex(threadTweets, currentTweetText);
         if (currentTweetIndex < 0) {
           currentTweetIndex = threadTweets.length - 1;
-          console.warn("[TweetReply] \u26A0\uFE0F Current tweet not found in thread, defaulting to last tweet");
+          console.warn("[TweetReplyAI] \u26A0\uFE0F Current tweet not found in thread, defaulting to last tweet");
         }
         if (DIAGNOSE_THREAD_SELECTION) {
           const ct = threadTweets[currentTweetIndex];
           const ctPreview = ct ? (ct.text || "").substring(0, 50) + (ct.text && ct.text.length > 50 ? "..." : "") : "n/a";
-          console.log("[TweetReply] DIAG currentTweetIndex:", currentTweetIndex, "| author=", ct ? "@" + (ct.author || "unknown") : "n/a", '| text="' + ctPreview + '"');
+          console.log("[TweetReplyAI] DIAG currentTweetIndex:", currentTweetIndex, "| author=", ct ? "@" + (ct.author || "unknown") : "n/a", '| text="' + ctPreview + '"');
         }
         const threadChain = threadTweets.map((tweet, index) => ({
           text: tweet.text,
@@ -2894,7 +2895,7 @@
         }
         if (recalculatedCurrentIndex < 0) {
           recalculatedCurrentIndex = limitedChain.length - 1;
-          console.warn("[TweetReply] \u26A0\uFE0F Could not find current tweet in limited chain, using last tweet");
+          console.warn("[TweetReplyAI] \u26A0\uFE0F Could not find current tweet in limited chain, using last tweet");
         }
         const result = {
           isReply: true,
@@ -2907,38 +2908,38 @@
         };
         if (DIAGNOSE_THREAD_SELECTION) {
           const origPreview = (result.originalTweet || "").substring(0, 80) + (result.originalTweet && result.originalTweet.length > 80 ? "..." : "");
-          console.log("[TweetReply] DIAG final chain: originalTweetAuthor=@" + (result.originalTweetAuthor || "none") + ' | originalTweet="' + origPreview + '" | currentTweetIndex=' + result.currentTweetIndex + " | threadLength=" + result.threadLength);
+          console.log("[TweetReplyAI] DIAG final chain: originalTweetAuthor=@" + (result.originalTweetAuthor || "none") + ' | originalTweet="' + origPreview + '" | currentTweetIndex=' + result.currentTweetIndex + " | threadLength=" + result.threadLength);
           result.threadChain.forEach((t, i) => {
             const preview = (t.text || "").substring(0, 50) + (t.text && t.text.length > 50 ? "..." : "");
-            console.log("[TweetReply] DIAG final chain[" + i + "]: author=@" + (t.author || "unknown") + " isOriginal=" + t.isOriginal + " isCurrent=" + t.isCurrent + ' text="' + preview + '"');
+            console.log("[TweetReplyAI] DIAG final chain[" + i + "]: author=@" + (t.author || "unknown") + " isOriginal=" + t.isOriginal + " isCurrent=" + t.isCurrent + ' text="' + preview + '"');
           });
         }
         if (DEBUG_THREAD_CONTEXT) {
-          console.log("[TweetReply] \u2705 Thread context extracted:", {
+          console.log("[TweetReplyAI] \u2705 Thread context extracted:", {
             isReply: result.isReply,
             originalTweetLength: result.originalTweet?.length || 0,
             threadLength: result.threadLength,
             currentIndex: result.currentTweetIndex
           });
           if (result.isReply && result.originalTweet) {
-            console.log("[TweetReply] \u{1F4CB} ORIGINAL TWEET & THREAD CHAIN:");
-            console.log("[TweetReply] \u250C\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510");
-            console.log("[TweetReply] \u2502 ORIGINAL TWEET:", result.originalTweetAuthor ? `@${result.originalTweetAuthor}` : "unknown author");
-            console.log("[TweetReply] \u2502", result.originalTweet);
-            console.log("[TweetReply] \u251C\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2524");
-            console.log("[TweetReply] \u2502 FULL THREAD CHAIN (" + result.threadLength + " tweets):");
+            console.log("[TweetReplyAI] \u{1F4CB} ORIGINAL TWEET & THREAD CHAIN:");
+            console.log("[TweetReplyAI] \u250C\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510");
+            console.log("[TweetReplyAI] \u2502 ORIGINAL TWEET:", result.originalTweetAuthor ? `@${result.originalTweetAuthor}` : "unknown author");
+            console.log("[TweetReplyAI] \u2502", result.originalTweet);
+            console.log("[TweetReplyAI] \u251C\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2524");
+            console.log("[TweetReplyAI] \u2502 FULL THREAD CHAIN (" + result.threadLength + " tweets):");
             result.threadChain.forEach((tweet, idx) => {
               const marker = tweet.isOriginal ? "\u{1F535} ORIGINAL" : tweet.isCurrent ? "\u{1F7E2} CURRENT (replying to)" : `\u26AA Reply ${idx}`;
               const author = tweet.author !== "unknown" ? `@${tweet.author}` : "unknown";
-              console.log("[TweetReply] \u2502 [" + marker + "] " + author + ":");
-              console.log('[TweetReply] \u2502   "' + tweet.text.substring(0, 100) + (tweet.text.length > 100 ? "..." : "") + '"');
+              console.log("[TweetReplyAI] \u2502 [" + marker + "] " + author + ":");
+              console.log('[TweetReplyAI] \u2502   "' + tweet.text.substring(0, 100) + (tweet.text.length > 100 ? "..." : "") + '"');
             });
-            console.log("[TweetReply] \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518");
+            console.log("[TweetReplyAI] \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518");
           }
         }
         return result;
       } catch (error) {
-        console.error("[TweetReply] \u274C Failed to extract thread context:", error);
+        console.error("[TweetReplyAI] \u274C Failed to extract thread context:", error);
         const currentTweetText = this.extractTweetText();
         return {
           isReply: false,
@@ -2988,7 +2989,7 @@
         }
         return false;
       } catch (error) {
-        console.warn("[TweetReply] Error detecting reply context:", error);
+        console.warn("[TweetReplyAI] Error detecting reply context:", error);
         return false;
       }
     }
@@ -3039,7 +3040,7 @@
         }
         return null;
       } catch (error) {
-        console.warn("[TweetReply] Error finding thread container:", error);
+        console.warn("[TweetReplyAI] Error finding thread container:", error);
         return null;
       }
     }
@@ -3090,7 +3091,7 @@
         }
         return extractedTweets;
       } catch (error) {
-        console.warn("[TweetReply] Error extracting tweets from container:", error);
+        console.warn("[TweetReplyAI] Error extracting tweets from container:", error);
         return [];
       }
     }
@@ -3139,9 +3140,9 @@
     // Handles multiple Twitter input types with comprehensive fallbacks
     async insertReplyIntoComposer(composer, replyData) {
       try {
-        console.log("[TweetReply] \u{1F680} Starting Twitter text insertion method");
+        console.log("[TweetReplyAI] \u{1F680} Starting Twitter text insertion method");
         if (!composer || !replyData) {
-          console.log("[TweetReply] \u274C Invalid parameters");
+          console.log("[TweetReplyAI] \u274C Invalid parameters");
           return;
         }
         const replyText = typeof replyData === "string" ? replyData : replyData.reply;
@@ -3161,7 +3162,7 @@
               }
             }
           } catch (error) {
-            console.warn("[TweetReply] Twitter method failed:", error);
+            console.warn("[TweetReplyAI] Twitter method failed:", error);
           }
         }
         if (composer.classList && composer.classList.contains("ql-editor")) {
@@ -3186,7 +3187,7 @@
             composer.dispatchEvent(new Event("input", { bubbles: true }));
             return;
           } catch (error) {
-            console.warn("[TweetReply] Quill editor method failed:", error);
+            console.warn("[TweetReplyAI] Quill editor method failed:", error);
           }
         }
         if (composer.getAttribute("data-testid") === "dmComposerTextInput" || composer.classList.contains("public-DraftEditor-content") || composer.classList.contains("DraftEditor-editorContainer")) {
@@ -3194,7 +3195,7 @@
             document.execCommand("insertText", false, cleanText);
             return;
           } catch (error) {
-            console.warn("[TweetReply] execCommand failed:", error);
+            console.warn("[TweetReplyAI] execCommand failed:", error);
           }
           try {
             const contentDiv = composer.querySelector('[data-contents="true"]');
@@ -3213,7 +3214,7 @@
               }
             }
           } catch (error) {
-            console.warn("[TweetReply] Draft.js DOM manipulation failed:", error);
+            console.warn("[TweetReplyAI] Draft.js DOM manipulation failed:", error);
           }
           try {
             composer.dispatchEvent(new InputEvent("beforeinput", {
@@ -3228,7 +3229,7 @@
             }));
             return;
           } catch (error) {
-            console.warn("[TweetReply] Draft.js input events failed:", error);
+            console.warn("[TweetReplyAI] Draft.js input events failed:", error);
           }
         }
         if (composer.tagName === "TEXTAREA") {
@@ -3275,7 +3276,7 @@
           this.showQualityBadge(composer, qualityScore);
         }
       } catch (error) {
-        console.error("[TweetReply] \u274C Error during text insertion:", error);
+        console.error("[TweetReplyAI] \u274C Error during text insertion:", error);
       }
     }
     showQualityBadge(composer, score) {
@@ -3285,7 +3286,7 @@
           return;
         }
         if (!composer || !composer.parentElement) {
-          console.warn("[TweetReply] Cannot show quality badge: composer or parent not found");
+          console.warn("[TweetReplyAI] Cannot show quality badge: composer or parent not found");
           return;
         }
         const existingBadge = composer.parentElement.querySelector(".tweetreply-quality-badge");
@@ -3307,7 +3308,7 @@
           parent.insertBefore(badge, composer.nextSibling);
         }
       } catch (error) {
-        console.error("[TweetReply] Error showing quality badge:", error);
+        console.error("[TweetReplyAI] Error showing quality badge:", error);
       }
     }
     getQualityClass(score) {

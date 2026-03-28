@@ -1,3 +1,4 @@
+import { APP_DISPLAY_NAME } from '../../shared/constants.js';
 import { storage } from '../storage.js';
 import { supabase } from '../supabase.js';
 import { ANALYTICS, PERIODS, QUALITY } from "../config/constants.js";
@@ -476,7 +477,7 @@ class FeedbackAnalytics {
         ? `${stats.timeSavedHours} ${stats.timeSavedHours === 1 ? 'hour' : 'hours'}`
         : `${Math.round(stats.timeSavedHours * 60)} minutes`;
       insights.push({
-        text: `You've saved approximately ${timeStr} using TweetReply`,
+        text: `You've saved approximately ${timeStr} using ${APP_DISPLAY_NAME}`,
         type: 'info'
       });
     }
@@ -517,7 +518,7 @@ class FeedbackAnalytics {
     // If no insights, provide encouragement
     if (insights.length === 0) {
       insights.push({
-        text: "Keep using TweetReply to unlock insights about your reply patterns!",
+        text: `Keep using ${APP_DISPLAY_NAME} to unlock insights about your reply patterns!`,
         type: 'info'
       });
     }

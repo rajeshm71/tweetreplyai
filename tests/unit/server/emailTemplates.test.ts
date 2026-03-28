@@ -12,6 +12,7 @@ import {
   renderWinBackEmail,
   renderCampaignEmail,
 } from '../../../server/emailTemplates';
+import { APP_DISPLAY_NAME } from '../../../shared/constants';
 
 // ---------------------------------------------------------------------------
 // Welcome + Password Reset (existing)
@@ -23,7 +24,7 @@ describe('renderWelcomeEmail', () => {
       firstName: 'Alex',
       appUrl: 'https://example.com/',
     });
-    expect(subject).toBe('Welcome to TweetReply');
+    expect(subject).toBe(`Welcome to ${APP_DISPLAY_NAME}`);
     expect(html).toContain('https://example.com');
     expect(html).toContain('Alex');
     expect(text).toMatch(/Alex/);

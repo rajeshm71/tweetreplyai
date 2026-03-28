@@ -2,6 +2,7 @@ import { useState } from "react";
 import { GoogleChromeLogo, PushPin, ArrowRight, Rocket, Lightning, CaretDown } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { APP_URLS, X_PLATFORM_LABEL } from "@/config/constants";
+import { APP_DISPLAY_NAME } from "@shared/constants";
 
 interface ExtensionOnboardingProps {
   onComplete: () => void;
@@ -44,7 +45,7 @@ const steps = [
         Click the{" "}
         <span className="font-semibold text-foreground">puzzle piece icon</span>{" "}
         in Chrome's toolbar → find{" "}
-        <span className="font-semibold text-foreground">TweetReplyAI</span> →
+        <span className="font-semibold text-foreground">{APP_DISPLAY_NAME}</span> →
         click{" "}
         <span className="font-semibold text-foreground">Pin</span>. Now it's one
         click away, always visible.
@@ -89,8 +90,8 @@ const steps = [
     description: (
       <>
         Click{" "}
-        <span className="font-semibold text-foreground">Reply</span> on any post.
-        TweetReplyAI pops up with smart, on brand replies ready to send in one
+        <span className="font-semibold text-foreground">Reply</span> on any post.{' '}
+        {APP_DISPLAY_NAME} pops up with smart, on brand replies ready to send in one
         click.
       </>
     ),

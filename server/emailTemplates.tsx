@@ -1,5 +1,6 @@
 import * as React from 'react';
 import { render } from '@react-email/render';
+import { APP_DISPLAY_NAME } from '../shared/constants.js';
 import WelcomeEmail from './emails/WelcomeEmail.js';
 import PasswordResetEmail from './emails/PasswordResetEmail.js';
 import SubscriptionActiveEmail from './emails/SubscriptionActiveEmail.js';
@@ -42,7 +43,7 @@ export async function renderWelcomeEmail({
   const { html, text } = await renderBoth(
     <WelcomeEmail firstName={firstName} appUrl={appUrl.replace(/\/$/, '')} />
   );
-  return { subject: 'Welcome to TweetReply', html, text };
+  return { subject: `Welcome to ${APP_DISPLAY_NAME}`, html, text };
 }
 
 export async function renderPasswordResetEmail({
@@ -75,7 +76,7 @@ export async function renderSubscriptionCanceledEmail(params: {
   appUrl: string;
 }): Promise<TransactionalEmailPayload> {
   const { html, text } = await renderBoth(<SubscriptionCanceledEmail {...params} />);
-  return { subject: 'Your TweetReply subscription is canceled', html, text };
+  return { subject: `Your ${APP_DISPLAY_NAME} subscription is canceled`, html, text };
 }
 
 export async function renderPaymentFailedEmail(params: {
@@ -83,7 +84,7 @@ export async function renderPaymentFailedEmail(params: {
   portalUrl: string;
 }): Promise<TransactionalEmailPayload> {
   const { html, text } = await renderBoth(<PaymentFailedEmail {...params} />);
-  return { subject: 'Action required: your TweetReply payment failed', html, text };
+  return { subject: `Action required: your ${APP_DISPLAY_NAME} payment failed`, html, text };
 }
 
 // ---------------------------------------------------------------------------

@@ -10,14 +10,15 @@ import {
   Text,
 } from '@react-email/components';
 import * as React from 'react';
+import { APP_DISPLAY_NAME } from '../../shared/constants.js';
 import { emailTheme } from './theme.js';
 
 export type EmailLayoutVariant = 'welcome' | 'transactional' | 'billing' | 'alert' | 'engagement';
 
 const footerCopy: Record<EmailLayoutVariant, string> = {
-  welcome: "You're receiving this because you signed up for TweetReply.",
+  welcome: `You're receiving this because you signed up for ${APP_DISPLAY_NAME}.`,
   transactional: "You're receiving this because a password reset was requested for this email address.",
-  billing: "You're receiving this because it relates to your TweetReply billing or subscription.",
+  billing: `You're receiving this because it relates to your ${APP_DISPLAY_NAME} billing or subscription.`,
   alert: "You're receiving this because you have usage alerts enabled. Update preferences in your account settings.",
   engagement: "You're receiving this because you have product tips enabled. You can update your email preferences in your account settings.",
 };
@@ -65,20 +66,22 @@ export function EmailLayout({ previewText, variant, children, settingsUrl }: Ema
                 fontSize: '22px',
                 fontWeight: 700,
                 margin: 0,
+                textAlign: 'center' as const,
               }}
             >
-              TweetReply
+              {APP_DISPLAY_NAME}
             </Text>
           </Section>
-          <Section style={{ padding: '32px' }}>{children}</Section>
+          <Section style={{ padding: '32px', textAlign: 'center' as const }}>{children}</Section>
           <Hr style={{ borderColor: emailTheme.border, margin: 0 }} />
-          <Section style={{ padding: '20px 32px 28px' }}>
+          <Section style={{ padding: '20px 32px 28px', textAlign: 'left' as const }}>
             <Text
               style={{
                 color: emailTheme.muted,
                 fontSize: '12px',
                 lineHeight: '18px',
                 margin: 0,
+                textAlign: 'left' as const,
               }}
             >
               {footerCopy[variant]}
