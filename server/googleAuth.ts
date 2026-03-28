@@ -1,6 +1,7 @@
 import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import { authService } from './services/authService.js';
+import * as emailService from './services/emailService.js';
 
 export function setupGoogleAuth() {
   if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
@@ -42,7 +43,7 @@ export function setupGoogleAuth() {
         });
         
         const email = profile.emails?.[0]?.value;
-        const user = await authService.findOrCreateUser({
+        const { user, isNewRegistration } = await authService.findOrCreateUser({
           provider: 'google',
           providerId: profile.id,
           email,
@@ -50,6 +51,19 @@ export function setupGoogleAuth() {
           lastName: profile.name?.familyName,
           profileImageUrl: profile.photos?.[0]?.value,
         });
+
+        if (isNewRegistration) {
+          emailService.sendWelcome(user.id).catch((error) => {
+            console.error('[welcome-email] failed for userId:', user.id, 'error:', error);
+          });
+          emailService
+            .syncContactToResend({
+              email: user.email,
+              firstName: user.firstName,
+              lastName: user.lastName,
+            })
+            .catch(() => {});
+        }
 
         console.log('User created/found:', user.id);
         return done(null, user);

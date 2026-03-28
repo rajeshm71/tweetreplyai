@@ -34,7 +34,8 @@ describe('AuthService - Unit Tests', () => {
         email: mockUser.email,
       });
 
-      expect(result.id).toBe('user-1');
+      expect(result.user.id).toBe('user-1');
+      expect(result.isNewRegistration).toBe(false);
       expect(storage.getUserByGoogleSub).toHaveBeenCalledWith('google-sub-123');
     });
 
@@ -55,7 +56,8 @@ describe('AuthService - Unit Tests', () => {
       });
 
       expect(storage.addAuthProvider).toHaveBeenCalledWith('user-2', 'google');
-      expect(result).toBeDefined();
+      expect(result.user).toBeDefined();
+      expect(result.isNewRegistration).toBe(false);
     });
 
     it('creates new user when no matching Google sub or email', async () => {
@@ -84,7 +86,8 @@ describe('AuthService - Unit Tests', () => {
           lastName: 'User',
         })
       );
-      expect(result.id).toBe('user-3');
+      expect(result.user.id).toBe('user-3');
+      expect(result.isNewRegistration).toBe(true);
     });
 
     it('propagates storage errors', async () => {

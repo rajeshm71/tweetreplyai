@@ -1,5 +1,11 @@
 import { storage } from '../storage.js';
-import type { User } from '../../shared/types.js';
+import type { User, UpsertUser } from '../../shared/types.js';
+
+export interface FindOrCreateUserResult {
+  user: User;
+  /** True only when a brand-new user row was created (not link-by-email or existing Google sub). */
+  isNewRegistration: boolean;
+}
 
 export interface AuthProfile {
   provider: 'google' | 'password' | 'replit';
@@ -12,7 +18,7 @@ export interface AuthProfile {
 }
 
 export class AuthService {
-  async findOrCreateUser(profile: AuthProfile): Promise<User> {
+  async findOrCreateUser(profile: AuthProfile): Promise<FindOrCreateUserResult> {
     let user: User | undefined;
 
     switch (profile.provider) {
@@ -24,17 +30,19 @@ export class AuthService {
     if (user) {
       await this.ensureProviderLinked(user.id, profile.provider);
       await storage.updateUser(user.id, { lastLoginAt: new Date() });
-      return user;
+      return { user, isNewRegistration: false };
     }
 
     if (profile.email) {
       const existingUserByEmail = await storage.getUserByEmail(profile.email);
       if (existingUserByEmail) {
-        return await this.linkAccountToUser(existingUserByEmail.id, profile);
+        const linked = await this.linkAccountToUser(existingUserByEmail.id, profile);
+        return { user: linked, isNewRegistration: false };
       }
     }
 
-    return await this.createNewUser(profile);
+    const created = await this.createNewUser(profile);
+    return { user: created, isNewRegistration: true };
   }
 
   private async createNewUser(profile: AuthProfile): Promise<User> {
