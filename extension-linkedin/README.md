@@ -52,6 +52,8 @@ The extension icon should appear in the toolbar. No icon errors should appear on
 4. **Your own posts**  
    When you reply to a comment on your own post, the extension detects that you are the post author and the backend uses the matching “post author” reply style. **Limitation:** Original-author detection can be wrong if the post’s overflow menu was never opened (the extension uses Edit/Delete controls or a “You” fallback in the header).
 
+**LinkedIn page auto-refresh** is not part of this extension. If you want randomized feed reloads for LinkedIn (or X), use the separate **Impression Boost** extension in this repo (`extension-impression-boost/`). Opening the LinkedIn Reply AI popup removes any legacy `liAutoRefresh*` keys from storage from older installs.
+
 ## Manual verification checklist
 
 After loading the extension, you can confirm behaviour with this checklist:
@@ -64,7 +66,8 @@ After loading the extension, you can confirm behaviour with this checklist:
 - **Content script**  
   - On a feed post’s main comment box, “Generate Reply” appears; clicking it inserts a reply.  
   - Same for a reply-to-comment box; generation works and the server receives thread context.  
-  - On your own post, “Generate Reply” works and uses the post-author style.
+  - On your own post, “Generate Reply” works and uses the post-author style.  
+  - LinkedIn tabs do **not** auto-reload on a timer (no page auto-refresh in this extension).
 
 - **Errors**  
   - No auth: “Sign in required”.  

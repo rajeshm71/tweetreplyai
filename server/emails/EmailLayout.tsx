@@ -4,6 +4,7 @@ import {
   Head,
   Hr,
   Html,
+  Link,
   Preview,
   Section,
   Text,
@@ -11,21 +12,24 @@ import {
 import * as React from 'react';
 import { emailTheme } from './theme.js';
 
-export type EmailLayoutVariant = 'welcome' | 'transactional';
+export type EmailLayoutVariant = 'welcome' | 'transactional' | 'billing' | 'alert' | 'engagement';
 
 const footerCopy: Record<EmailLayoutVariant, string> = {
   welcome: "You're receiving this because you signed up for TweetReply.",
-  transactional:
-    "You're receiving this because a password reset was requested for this email address.",
+  transactional: "You're receiving this because a password reset was requested for this email address.",
+  billing: "You're receiving this because it relates to your TweetReply billing or subscription.",
+  alert: "You're receiving this because you have usage alerts enabled. Update preferences in your account settings.",
+  engagement: "You're receiving this because you have product tips enabled. You can update your email preferences in your account settings.",
 };
 
 export interface EmailLayoutProps {
   previewText: string;
   variant: EmailLayoutVariant;
   children: React.ReactNode;
+  settingsUrl?: string;
 }
 
-export function EmailLayout({ previewText, variant, children }: EmailLayoutProps) {
+export function EmailLayout({ previewText, variant, children, settingsUrl }: EmailLayoutProps) {
   return (
     <Html>
       <Head />
@@ -78,6 +82,14 @@ export function EmailLayout({ previewText, variant, children }: EmailLayoutProps
               }}
             >
               {footerCopy[variant]}
+              {settingsUrl && (variant === 'alert' || variant === 'engagement') && (
+                <>
+                  {' '}
+                  <Link href={settingsUrl} style={{ color: emailTheme.muted, textDecoration: 'underline' }}>
+                    Manage email preferences
+                  </Link>
+                </>
+              )}
             </Text>
           </Section>
         </Container>

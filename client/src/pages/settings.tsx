@@ -10,7 +10,7 @@ import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import type { UserPreferences } from "@shared/types";
+import type { UserPreferences, UserEmailPreferences } from "@shared/types";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -328,25 +328,45 @@ export default function SettingsPage() {
   const { user, isLoading } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [emailNotifications, setEmailNotifications] = useState(true);
-  const [usageAlerts, setUsageAlerts] = useState(true);
   const [promptStyleEnabled, setPromptStyleEnabled] = useState(false);
-  
-  // Fetch user preferences
+  const [emailPrefsState, setEmailPrefsState] = useState({
+    usageAlerts: true,
+    productTips: true,
+    marketing: false,
+  });
+
+  // Fetch user preferences (AI reply style)
   const { data: userPreferences, isLoading: preferencesLoading } = useQuery<UserPreferences>({
     queryKey: ["/api/user/preferences"],
     enabled: !!user,
     refetchOnWindowFocus: false,
   });
-  
-  // Update promptStyleEnabled when preferences are loaded
+
+  // Fetch email preferences
+  const { data: emailPrefs, isLoading: emailPrefsLoading } = useQuery<UserEmailPreferences>({
+    queryKey: ["/api/user/email-preferences"],
+    enabled: !!user,
+    refetchOnWindowFocus: false,
+  });
+
+  // Sync loaded data into local state
   useEffect(() => {
     if (userPreferences) {
       setPromptStyleEnabled(userPreferences.promptStyleEnabled ?? false);
     }
   }, [userPreferences]);
-  
-  // Mutation to update preferences
+
+  useEffect(() => {
+    if (emailPrefs) {
+      setEmailPrefsState({
+        usageAlerts: emailPrefs.usageAlerts ?? true,
+        productTips: emailPrefs.productTips ?? true,
+        marketing: emailPrefs.marketing ?? false,
+      });
+    }
+  }, [emailPrefs]);
+
+  // Mutation to update AI reply preferences
   const updatePreferencesMutation = useMutation({
     mutationFn: async (updates: { promptStyleEnabled: boolean }) => {
       const response = await apiRequest("PUT", "/api/user/preferences", updates);
@@ -357,29 +377,47 @@ export default function SettingsPage() {
       return response.json();
     },
     onSuccess: (data: UserPreferences) => {
-      // Fix: Update cache and invalidate queries to ensure all components refresh
       queryClient.setQueryData(["/api/user/preferences"], data);
       queryClient.invalidateQueries({ queryKey: ["/api/user/preferences"] });
-      toast({
-        title: "Settings Saved",
-        description: "Your preferences have been updated successfully.",
-      });
+      toast({ title: "Settings Saved", description: "Your preferences have been updated successfully." });
     },
     onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to update preferences",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: error.message || "Failed to update preferences", variant: "destructive" });
     },
   });
-  
+
+  // Mutation to update email preferences
+  const updateEmailPrefsMutation = useMutation({
+    mutationFn: async (updates: Partial<{ usageAlerts: boolean; productTips: boolean; marketing: boolean }>) => {
+      const response = await apiRequest("PATCH", "/api/user/email-preferences", updates);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: "Failed to update email preferences" }));
+        throw new Error(errorData.message || "Failed to update email preferences");
+      }
+      return response.json() as Promise<UserEmailPreferences>;
+    },
+    onSuccess: (data: UserEmailPreferences) => {
+      queryClient.setQueryData(["/api/user/email-preferences"], data);
+      queryClient.invalidateQueries({ queryKey: ["/api/user/email-preferences"] });
+      toast({ title: "Preferences Saved", description: "Your email preferences have been updated." });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message || "Failed to save email preferences", variant: "destructive" });
+    },
+  });
+
+  const handleEmailPrefToggle = (key: keyof typeof emailPrefsState, checked: boolean) => {
+    const next = { ...emailPrefsState, [key]: checked };
+    setEmailPrefsState(next);
+    updateEmailPrefsMutation.mutate({ [key]: checked });
+  };
+
   const handlePromptStyleToggle = (checked: boolean) => {
     setPromptStyleEnabled(checked);
     updatePreferencesMutation.mutate({ promptStyleEnabled: checked });
   };
 
-  if (isLoading || preferencesLoading) {
+  if (isLoading || preferencesLoading || emailPrefsLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" />
@@ -396,13 +434,6 @@ export default function SettingsPage() {
       title: "Account Deletion",
       description: "Account deletion is not yet available. Please contact support.",
       variant: "destructive",
-    });
-  };
-
-  const handleSaveNotifications = () => {
-    toast({
-      title: "Settings Saved",
-      description: "Your notification preferences have been updated.",
     });
   };
 
@@ -433,40 +464,51 @@ export default function SettingsPage() {
             <CardContent className="space-y-6">
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label htmlFor="email-notifications">Email Notifications</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Receive updates about your account via email
-                  </p>
-                </div>
-                <Switch
-                  id="email-notifications"
-                  checked={emailNotifications}
-                  onCheckedChange={setEmailNotifications}
-                  data-testid="switch-email-notifications"
-                />
-              </div>
-              
-              <Separator />
-              
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
                   <Label htmlFor="usage-alerts">Usage Alerts</Label>
                   <p className="text-sm text-muted-foreground">
-                    Get notified when approaching your quota limit
+                    Get notified when approaching your credit limit (80% and 100%)
                   </p>
                 </div>
                 <Switch
                   id="usage-alerts"
-                  checked={usageAlerts}
-                  onCheckedChange={setUsageAlerts}
+                  checked={emailPrefsState.usageAlerts}
+                  onCheckedChange={(checked) => handleEmailPrefToggle("usageAlerts", checked)}
                   data-testid="switch-usage-alerts"
                 />
               </div>
 
-              <div className="pt-4">
-                <Button onClick={handleSaveNotifications} data-testid="button-save-notifications">
-                  Save Preferences
-                </Button>
+              <Separator />
+
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="product-tips">Product Tips &amp; Updates</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Weekly reply frameworks, activation nudges, and win-back emails
+                  </p>
+                </div>
+                <Switch
+                  id="product-tips"
+                  checked={emailPrefsState.productTips}
+                  onCheckedChange={(checked) => handleEmailPrefToggle("productTips", checked)}
+                  data-testid="switch-product-tips"
+                />
+              </div>
+
+              <Separator />
+
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="marketing">Marketing &amp; Promotions</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Feature announcements, promotional discounts, and newsletters
+                  </p>
+                </div>
+                <Switch
+                  id="marketing"
+                  checked={emailPrefsState.marketing}
+                  onCheckedChange={(checked) => handleEmailPrefToggle("marketing", checked)}
+                  data-testid="switch-marketing"
+                />
               </div>
             </CardContent>
           </Card>

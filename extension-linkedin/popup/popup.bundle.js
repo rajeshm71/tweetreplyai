@@ -210,6 +210,19 @@
   };
 
   // extension-linkedin/popup/popup.js
+  var LEGACY_LI_AUTO_REFRESH_KEYS = [
+    "liAutoRefreshEnabled",
+    "liAutoRefreshUrlPrefix",
+    "liAutoRefreshShortDelayMinSec",
+    "liAutoRefreshShortDelayMaxSec",
+    "liAutoRefreshLongPauseMinSec",
+    "liAutoRefreshLongPauseMaxSec",
+    "liAutoRefreshReloadBurstMin",
+    "liAutoRefreshReloadBurstMax",
+    "liAutoRefreshReloadsDoneInBurst",
+    "liAutoRefreshCurrentBurstTargetN",
+    "liAutoRefreshConfigVersion"
+  ];
   var LinkedInPopupManager = class {
     constructor() {
       this.authManager = new AuthManager();
@@ -246,7 +259,7 @@
         return false;
       }
     }
-    /** True if the error indicates we should stop the refresh loop (context dead or unreachable). */
+    /** True if the error indicates we should stop the usage refresh loop (context dead or unreachable). */
     shouldStopRefreshLoop(error) {
       const msg = (error?.message || String(error)).toLowerCase();
       return msg.includes("extension context invalidated") || msg.includes("invalid") || msg.includes("could not establish connection") || msg.includes("receiving end does not exist") || msg.includes("err_failed") || msg.includes("failed to fetch");
@@ -334,6 +347,10 @@
     async initialize() {
       this.showState("loading");
       try {
+        try {
+          await chrome.storage.local.remove(LEGACY_LI_AUTO_REFRESH_KEYS);
+        } catch {
+        }
         this.authManager.setApiClient(this.apiClient);
         const isAuth = await this.authManager.isAuthenticated(true);
         if (!isAuth) {

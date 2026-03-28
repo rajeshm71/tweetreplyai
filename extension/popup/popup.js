@@ -265,6 +265,7 @@ class PopupManager {
     this.analyticsSummary = document.getElementById('analytics-summary');
     this.activityTrend = document.getElementById('activity-trend');
     this.insightsPanel = document.getElementById('insights-panel');
+
   }
 
   attachEventListeners() {
@@ -296,7 +297,7 @@ class PopupManager {
     if (relationshipHintsEl) {
       relationshipHintsEl.addEventListener('change', () => this.saveRelationshipHintsSetting());
     }
-    
+
     // Keyboard navigation
     this.setupKeyboardNavigation();
     
@@ -401,7 +402,7 @@ class PopupManager {
       this.updateUsageDisplay();
       // Fix: Update quick stats cards (Today card) after usage refresh
       this.updateQuickStats();
-      
+
     } catch (error) {
       console.error('Failed to initialize popup:', error);
       this.setState('not-authenticated');

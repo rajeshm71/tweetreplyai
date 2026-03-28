@@ -21,7 +21,13 @@ import session from "express-session";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import { hashPassword, verifyPassword, validatePasswordStrength } from "./utils/password.js";
-import { sendPasswordResetEmail, sendWelcomeEmail } from "./utils/email.js";
+// FIX: sendWelcomeEmail removed (unused after switching to emailService.sendWelcome in registration block below)
+import { sendPasswordResetEmail } from "./utils/email.js";
+import * as emailService from "./services/emailService.js";
+import {
+  getIdempotencyKeyFromResendWebhookData,
+  getRecipientEmailFromResendWebhookData,
+} from "./utils/resendWebhook.js";
 // Use crypto.randomUUID() instead of uuid package
 const generateId = () => {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -239,10 +245,15 @@ export async function registerRoutes(app: Express): Promise<Express> {
         if (err) {
           return res.status(500).json({ message: 'Login after registration failed' });
         }
-        // Fire-and-forget welcome email; errors are logged only
-        sendWelcomeEmail(user.email, user.firstName).catch((error) => {
+        // Fire-and-forget welcome email + Resend contact sync
+        emailService.sendWelcome(user.id).catch((error) => {
           console.error('[welcome-email] failed for userId:', user.id, 'error:', error);
         });
+        emailService.syncContactToResend({
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+        }).catch(() => {});
         // Generate JWT token for serverless environments
         const token = jwt.sign(
           { id: user.id, email: user.email },
@@ -703,6 +714,41 @@ export async function registerRoutes(app: Express): Promise<Express> {
     }
   });
 
+  // Email preferences routes
+  app.get('/api/user/email-preferences', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const prefs = await storage.getEmailPreferences(userId);
+      if (!prefs) {
+        return res.json({ usageAlerts: true, productTips: true, marketing: false });
+      }
+      res.json(prefs);
+    } catch (error) {
+      console.error('GET /api/user/email-preferences error:', error);
+      res.status(500).json({ message: 'Failed to get email preferences' });
+    }
+  });
+
+  app.patch('/api/user/email-preferences', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const schema = z.object({
+        usageAlerts: z.boolean().optional(),
+        productTips: z.boolean().optional(),
+        marketing: z.boolean().optional(),
+      });
+      const updates = schema.parse(req.body);
+      const prefs = await storage.upsertEmailPreferences({ userId, ...updates });
+      res.json(prefs);
+    } catch (error) {
+      if (error instanceof ZodError) {
+        return res.status(400).json(toValidationErrorResponse(error));
+      }
+      console.error('PATCH /api/user/email-preferences error:', error);
+      res.status(500).json({ message: 'Failed to update email preferences' });
+    }
+  });
+
   // Reply generation route
   app.post('/api/generate-reply', isAuthenticated, generateReplyLimiter, async (req: any, res) => {
     try {
@@ -888,6 +934,16 @@ export async function registerRoutes(app: Express): Promise<Express> {
         creditsUsed: updatedCounter.creditsUsed,
         limit: updatedCounter.limit
       });
+      // Fire usage threshold + conversion emails (idempotent — safe on every reply)
+      const creditPct = updatedCounter.limit > 0
+        ? Math.floor((updatedCounter.creditsUsed / updatedCounter.limit) * 100)
+        : 0;
+      if (creditPct >= 100) {
+        emailService.sendUsageThreshold(userId, 100, updatedCounter).catch(() => {});
+        emailService.sendConversionStage(userId, 1, updatedCounter).catch(() => {});
+      } else if (creditPct >= 80) {
+        emailService.sendUsageThreshold(userId, 80, updatedCounter).catch(() => {});
+      }
 
       // If guardrail detected a violation, generate a friendly refusal reply and return early
       if (guardrailViolation && guardrailResult) {
@@ -2100,6 +2156,14 @@ export async function registerRoutes(app: Express): Promise<Express> {
           });
 
           console.log(`[Webhook] Created subscription and usage counter for user: ${user.id}`);
+
+          // Send subscription active email
+          emailService.sendSubscriptionActive(
+            user.id,
+            subscriptionId,
+            planCode,
+            periodEnd.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+          ).catch((err: unknown) => console.error('[Webhook] sendSubscriptionActive error:', err));
         }
       }
 
@@ -2201,6 +2265,15 @@ export async function registerRoutes(app: Express): Promise<Express> {
             });
           }
         }
+
+        // FIX: Fire payment-failed email when status transitions to past_due or unpaid
+        if (
+          (status === 'past_due' || status === 'unpaid') &&
+          existingSubscription.status !== status
+        ) {
+          emailService.sendPaymentFailed(user.id, subscriptionId)
+            .catch((err: unknown) => console.error('[Webhook] sendPaymentFailed error:', err));
+        }
       }
 
       // Handle subscription.canceled or subscription.deleted
@@ -2240,6 +2313,22 @@ export async function registerRoutes(app: Express): Promise<Express> {
             cancelReason: 'customer_cancelled',
           });
           console.log(`[Webhook] Subscription canceled: ${subscriptionId}`);
+
+          // Find user to send cancellation email
+          const canceledUser = await storage.getUser(existingSubscription.userId);
+          if (canceledUser) {
+            const accessUntil = existingSubscription.currentPeriodEnd
+              ? new Date(existingSubscription.currentPeriodEnd).toLocaleDateString('en-US', {
+                  month: 'long', day: 'numeric', year: 'numeric',
+                })
+              : 'the end of your billing period';
+            emailService.sendSubscriptionCanceled(
+              canceledUser.id,
+              subscriptionId,
+              existingSubscription.planCode,
+              accessUntil
+            ).catch((err: unknown) => console.error('[Webhook] sendSubscriptionCanceled error:', err));
+          }
         } else {
           console.error(`[Webhook] Subscription not found for cancellation: ${subscriptionId}`);
         }
@@ -2687,6 +2776,403 @@ User draft reply: ${draft_reply}`;
     } catch (error) {
       console.error("Error fetching quality metrics:", error);
       res.status(500).json({ message: "Failed to fetch quality metrics" });
+    }
+  });
+
+  // ---------------------------------------------------------------------------
+  // FIX (fix7): Reusable cron auth middleware — extracted from duplicated inline blocks.
+  // CRON_SECRET is REQUIRED in production (returns 503 when unset).
+  // In development the check is advisory only (logs a warning and continues).
+  // ---------------------------------------------------------------------------
+  const requireCronAuth = (req: any, res: any, next: any) => {
+    const cronSecret = process.env.CRON_SECRET;
+    const isProd = process.env.NODE_ENV === 'production';
+
+    if (!cronSecret) {
+      if (isProd) {
+        return res.status(503).json({ message: 'Cron not configured: CRON_SECRET missing' });
+      }
+      console.warn('[cron] CRON_SECRET not set — running unauthenticated (dev only)');
+      return next();
+    }
+
+    const authHeader = req.headers['authorization'] ?? '';
+    const provided = String(authHeader).replace(/^Bearer\s+/i, '').trim();
+    if (provided !== cronSecret) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+    next();
+  };
+
+  // ---------------------------------------------------------------------------
+  // Cron: email nudges (Vercel Cron — fires every 30 min)
+  // ---------------------------------------------------------------------------
+  app.get('/api/cron/email-nudges', requireCronAuth, async (req: any, res) => {
+    try {
+
+      const { supabase } = await import('./supabase.js');
+
+      // FIX: Activation nudge — query users registered > 30 min ago who have ZERO reply history,
+      // not last_login_at which conflates "logged in but no replies" with "never came back".
+      const nudgeThresholdMs = 30 * 60 * 1000; // 30 min
+      const winbackThresholdMs = 7 * 24 * 60 * 60 * 1000; // 7 days
+      const conversionStage2DelayMs = 24 * 60 * 60 * 1000; // 24 h after limit hit
+      const conversionStage3DelayMs = 48 * 60 * 60 * 1000; // 48 h after limit hit
+      const now = Date.now();
+      const dayOfWeek = new Date().getDay(); // 0=Sun 1=Mon…
+
+      const { data: allUsers } = await supabase
+        .from('users')
+        .select('id, created_at, last_login_at');
+
+      let nudgeSent = 0;
+      let winbackSent = 0;
+      let weeklySent = 0;
+      let convStage2Sent = 0;
+      let convStage3Sent = 0;
+
+      for (const u of allUsers ?? []) {
+        const createdAt = new Date(u.created_at).getTime();
+        const lastLogin = u.last_login_at ? new Date(u.last_login_at).getTime() : createdAt;
+        const ageMs = now - createdAt;
+        const inactiveMs = now - lastLogin;
+
+        // FIX: Activation nudge — only send if account is > 30 min old AND user has 0 reply events.
+        // Using reply_history count (the user-facing history) as the "first reply" signal.
+        if (ageMs > nudgeThresholdMs) {
+          const { count: replyCount } = await supabase
+            .from('reply_history')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', u.id);
+          if ((replyCount ?? 0) === 0) {
+            emailService.sendActivationNudge(u.id).catch(() => {});
+            nudgeSent++;
+          }
+        }
+
+        // Win-back: last login > 7 days ago (login-based is correct here — user went cold)
+        if (inactiveMs > winbackThresholdMs) {
+          emailService.sendWinBack(u.id).catch(() => {});
+          winbackSent++;
+        }
+
+        // Weekly value: every Monday
+        if (dayOfWeek === 1) {
+          emailService.sendWeeklyValue(u.id).catch(() => {});
+          weeklySent++;
+        }
+      }
+
+      // Conversion stages 2 & 3 — delayed sends after a user hits their credit limit.
+      // We use email_send_log to find users who received stage-1 24h / 48h ago
+      // and have not yet received stage-2 / stage-3 for that period.
+      const stage1Cutoff24h = new Date(now - conversionStage2DelayMs).toISOString();
+      const stage1Cutoff48h = new Date(now - conversionStage3DelayMs).toISOString();
+      // FIX (fix5): Cap lookback at 7 days to prevent query growing unbounded as the user base scales.
+      // After 7 days with no conversion, stage-2/3 are no longer actionable.
+      const stage1LookbackFloor = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+      // Stage 2: users who got stage-1 in the window [now-7d, now-24h]
+      const { data: stage1Rows24h } = await supabase
+        .from('email_send_log')
+        .select('user_id, idempotency_key, created_at')
+        .like('template_key', 'conversion_stage_1')
+        .eq('status', 'sent')
+        .lte('created_at', stage1Cutoff24h)
+        .gte('created_at', stage1LookbackFloor); // FIX (fix5): lower bound
+
+      for (const row of stage1Rows24h ?? []) {
+        // Idempotency key format: conversion.up1:{userId}:{periodStartIso}
+        // split(':') → [0]='conversion.up1', [1]=userId, [2]=periodStartIso
+        const parts = (row.idempotency_key as string).split(':');
+        // FIX (fix1): was parts[3] which is always undefined — correct index is parts[2]
+        const periodStartIso = parts[2] ?? new Date().toISOString().slice(0, 10);
+        const counter = { periodStart: new Date(periodStartIso) };
+        emailService.sendConversionStage(row.user_id, 2, counter).catch(() => {});
+        convStage2Sent++;
+      }
+
+      // Stage 3: users who got stage-1 in the window [now-7d, now-48h]
+      const { data: stage1Rows48h } = await supabase
+        .from('email_send_log')
+        .select('user_id, idempotency_key, created_at')
+        .like('template_key', 'conversion_stage_1')
+        .eq('status', 'sent')
+        .lte('created_at', stage1Cutoff48h)
+        .gte('created_at', stage1LookbackFloor); // FIX (fix5): lower bound
+
+      for (const row of stage1Rows48h ?? []) {
+        const parts = (row.idempotency_key as string).split(':');
+        // FIX (fix1): was parts[3] which is always undefined — correct index is parts[2]
+        const periodStartIso = parts[2] ?? new Date().toISOString().slice(0, 10);
+        const counter = { periodStart: new Date(periodStartIso) };
+        emailService.sendConversionStage(row.user_id, 3, counter).catch(() => {});
+        convStage3Sent++;
+      }
+
+      res.json({ ok: true, nudgeSent, winbackSent, weeklySent, convStage2Sent, convStage3Sent });
+    } catch (error) {
+      console.error('[cron/email-nudges] error:', error);
+      res.status(500).json({ message: 'Cron job failed' });
+    }
+  });
+
+  // ---------------------------------------------------------------------------
+  // Resend webhook — delivery tracking + unsubscribe handling
+  // Dashboard: subscribe to email.delivered, email.bounced, email.complained,
+  // email.failed, email.delivery_delayed (optional), contact.updated — not contact.unsubscribed (removed by Resend).
+  // Payload shape: https://resend.com/docs/webhooks/emails/delivered
+  // ---------------------------------------------------------------------------
+  app.post('/api/webhooks/resend', express.raw({ type: 'application/json' }), async (req: any, res) => {
+    try {
+      const webhookSecret = process.env.RESEND_WEBHOOK_SECRET;
+      let payload: any;
+
+      if (webhookSecret) {
+        // Verify Resend signature (Resend uses svix under the hood)
+        try {
+          const { Webhook } = await import('svix');
+          const wh = new Webhook(webhookSecret);
+          payload = wh.verify(req.body, {
+            'svix-id': req.headers['svix-id'] as string,
+            'svix-timestamp': req.headers['svix-timestamp'] as string,
+            'svix-signature': req.headers['svix-signature'] as string,
+          });
+        } catch (err) {
+          console.error('[resend-webhook] signature verification failed:', err);
+          return res.status(400).json({ message: 'Invalid signature' });
+        }
+      } else {
+        payload = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+      }
+
+      const { type, data } = payload ?? {};
+
+      async function applyEmailSendLogStatus(status: string) {
+        const emailId = typeof data?.email_id === 'string' ? data.email_id : undefined;
+        if (emailId) {
+          await storage.updateEmailSendLogByResendMessageId(emailId, { status });
+          return;
+        }
+        const idem = getIdempotencyKeyFromResendWebhookData(data ?? {});
+        if (idem) {
+          await storage.updateEmailSendLog(idem, { status });
+        }
+      }
+
+      switch (type) {
+        case 'email.delivered':
+          await applyEmailSendLogStatus('delivered');
+          break;
+
+        case 'email.bounced':
+          await applyEmailSendLogStatus('bounced');
+          break;
+
+        case 'email.complained':
+          await applyEmailSendLogStatus('complained');
+          {
+            const recipient = getRecipientEmailFromResendWebhookData(data ?? {});
+            if (recipient) {
+              const complainedUser = await storage.getUserByEmail(recipient);
+              if (complainedUser) {
+                await storage.upsertEmailPreferences({
+                  userId: complainedUser.id,
+                  marketing: false,
+                  productTips: false,
+                });
+              }
+            }
+          }
+          break;
+
+        case 'email.failed':
+          await applyEmailSendLogStatus('failed');
+          break;
+
+        case 'email.delivery_delayed':
+          await applyEmailSendLogStatus('delivery_delayed');
+          break;
+
+        case 'email.sent':
+          // We already set status sent after successful API response; webhook is redundant.
+          break;
+
+        // Resend dashboard lists contact.updated (not contact.unsubscribed). Fires on any contact
+        // change; only sync when they globally unsubscribed.
+        case 'contact.updated':
+          if (data?.email && data?.unsubscribed === true) {
+            const unsubUser = await storage.getUserByEmail(data.email);
+            if (unsubUser) {
+              await storage.upsertEmailPreferences({ userId: unsubUser.id, marketing: false });
+            }
+            await emailService.unsubscribeContactInResend(data.email);
+          }
+          break;
+
+        // Legacy event name if an old webhook config still sends it
+        case 'contact.unsubscribed':
+          if (data?.email) {
+            const unsubUser = await storage.getUserByEmail(data.email);
+            if (unsubUser) {
+              await storage.upsertEmailPreferences({ userId: unsubUser.id, marketing: false });
+            }
+            await emailService.unsubscribeContactInResend(data.email);
+          }
+          break;
+
+        default:
+          console.log('[resend-webhook] unhandled event type:', type);
+      }
+
+      res.json({ received: true });
+    } catch (error) {
+      console.error('[resend-webhook] error:', error);
+      res.status(500).json({ message: 'Webhook handler failed' });
+    }
+  });
+
+  // ---------------------------------------------------------------------------
+  // Admin campaign routes (protected by ADMIN_SECRET bearer token)
+  // ---------------------------------------------------------------------------
+  const adminAuth = (req: any, res: any, next: any) => {
+    const adminSecret = process.env.ADMIN_SECRET;
+    if (!adminSecret) return res.status(503).json({ message: 'Admin API not configured' });
+    const provided = String(req.headers['authorization'] ?? '').replace(/^Bearer\s+/i, '').trim();
+    if (provided !== adminSecret) return res.status(401).json({ message: 'Unauthorized' });
+    next();
+  };
+
+  app.get('/api/admin/campaigns', adminAuth, async (_req, res) => {
+    try {
+      const campaigns = await storage.listEmailCampaigns();
+      res.json(campaigns);
+    } catch (error) {
+      console.error('GET /api/admin/campaigns error:', error);
+      res.status(500).json({ message: 'Failed to list campaigns' });
+    }
+  });
+
+  app.post('/api/admin/campaigns', adminAuth, async (req: any, res) => {
+    try {
+      const schema = z.object({
+        name: z.string().min(1),
+        subject: z.string().min(1),
+        previewText: z.string().optional(),
+        templateKey: z.enum(['feature_update', 'promo_discount', 'newsletter']),
+        contentJson: z.record(z.unknown()),
+        segment: z.enum(['all', 'paid', 'trial', 'inactive_7d']).optional(),
+        scheduledAt: z.string().datetime().optional(),
+        createdBy: z.string().optional(),
+      });
+      const body = schema.parse(req.body);
+      const campaign = await storage.createEmailCampaign({
+        ...body,
+        scheduledAt: body.scheduledAt ? new Date(body.scheduledAt) : undefined,
+      });
+      res.status(201).json(campaign);
+    } catch (error) {
+      if (error instanceof ZodError) return res.status(400).json(toValidationErrorResponse(error));
+      console.error('POST /api/admin/campaigns error:', error);
+      res.status(500).json({ message: 'Failed to create campaign' });
+    }
+  });
+
+  app.get('/api/admin/campaigns/:id', adminAuth, async (req: any, res) => {
+    try {
+      const campaign = await storage.getEmailCampaign(req.params.id);
+      if (!campaign) return res.status(404).json({ message: 'Campaign not found' });
+
+      // Also render a preview that matches what recipients will see (including the
+      // FIX (fix6): pass settingsUrl so the "Manage preferences" footer link is rendered
+      const { renderCampaignEmail } = await import('./emailTemplates.js');
+      const settingsUrl = `${(process.env.APP_URL || process.env.DOMAIN || '').replace(/\/$/, '')}/settings`;
+      const preview = await renderCampaignEmail(
+        campaign.templateKey as 'feature_update' | 'promo_discount' | 'newsletter',
+        campaign.subject,
+        campaign.previewText ?? '',
+        campaign.contentJson,
+        settingsUrl
+      );
+      res.json({ campaign, preview });
+    } catch (error) {
+      console.error('GET /api/admin/campaigns/:id error:', error);
+      res.status(500).json({ message: 'Failed to get campaign' });
+    }
+  });
+
+  app.patch('/api/admin/campaigns/:id', adminAuth, async (req: any, res) => {
+    try {
+      const schema = z.object({
+        name: z.string().optional(),
+        subject: z.string().optional(),
+        previewText: z.string().optional(),
+        contentJson: z.record(z.unknown()).optional(),
+        segment: z.enum(['all', 'paid', 'trial', 'inactive_7d']).optional(),
+        scheduledAt: z.string().datetime().optional(),
+      });
+      const body = schema.parse(req.body);
+      const updated = await storage.updateEmailCampaign(req.params.id, {
+        ...body,
+        scheduledAt: body.scheduledAt ? new Date(body.scheduledAt) : undefined,
+      });
+      res.json(updated);
+    } catch (error) {
+      if (error instanceof ZodError) return res.status(400).json(toValidationErrorResponse(error));
+      console.error('PATCH /api/admin/campaigns/:id error:', error);
+      res.status(500).json({ message: 'Failed to update campaign' });
+    }
+  });
+
+  app.post('/api/admin/campaigns/:id/send', adminAuth, async (req: any, res) => {
+    try {
+      const result = await emailService.sendCampaignBatch(req.params.id);
+      res.json(result);
+    } catch (error: any) {
+      console.error('POST /api/admin/campaigns/:id/send error:', error);
+      res.status(500).json({ message: error.message || 'Failed to send campaign' });
+    }
+  });
+
+  app.delete('/api/admin/campaigns/:id', adminAuth, async (req: any, res) => {
+    try {
+      const campaign = await storage.getEmailCampaign(req.params.id);
+      if (!campaign) return res.status(404).json({ message: 'Campaign not found' });
+      if (campaign.status !== 'draft') {
+        return res.status(400).json({ message: 'Only draft campaigns can be deleted' });
+      }
+      await storage.deleteEmailCampaign(req.params.id);
+      res.json({ deleted: true });
+    } catch (error) {
+      console.error('DELETE /api/admin/campaigns/:id error:', error);
+      res.status(500).json({ message: 'Failed to delete campaign' });
+    }
+  });
+
+  // Scheduled campaign dispatch — driven by Vercel Cron (see vercel.json)
+  app.get('/api/cron/dispatch-campaigns', requireCronAuth, async (_req, res) => {
+    try {
+      const campaigns = await storage.listEmailCampaigns();
+      const now = new Date();
+      let dispatched = 0;
+
+      for (const campaign of campaigns) {
+        if (
+          campaign.status === 'scheduled' &&
+          campaign.scheduledAt &&
+          campaign.scheduledAt <= now
+        ) {
+          emailService.sendCampaignBatch(campaign.id).catch((err: unknown) =>
+            console.error('[cron/dispatch-campaigns] error for campaign', campaign.id, err)
+          );
+          dispatched++;
+        }
+      }
+
+      res.json({ ok: true, dispatched });
+    } catch (error) {
+      console.error('[cron/dispatch-campaigns] error:', error);
+      res.status(500).json({ message: 'Dispatch cron failed' });
     }
   });
 

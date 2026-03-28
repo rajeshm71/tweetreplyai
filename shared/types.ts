@@ -231,6 +231,63 @@ export interface InsertUserPreferences {
   updatedAt?: Date;
 }
 
+export interface UserEmailPreferences {
+  userId: string;
+  usageAlerts: boolean;
+  productTips: boolean;
+  marketing: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface UpsertUserEmailPreferences {
+  userId: string;
+  usageAlerts?: boolean;
+  productTips?: boolean;
+  marketing?: boolean;
+}
+
+export interface EmailSendLog {
+  id: string;
+  userId: string;
+  templateKey: string;
+  idempotencyKey: string;
+  status: string;
+  resendMessageId?: string;
+  abVariant?: string;
+  metadata?: Record<string, unknown>;
+  createdAt: Date;
+}
+
+export interface EmailCampaign {
+  id: string;
+  name: string;
+  subject: string;
+  previewText?: string;
+  templateKey: string;
+  contentJson: Record<string, unknown>;
+  segment: 'all' | 'paid' | 'trial' | 'inactive_7d';
+  status: 'draft' | 'scheduled' | 'sending' | 'sent' | 'canceled';
+  resendBroadcastId?: string;
+  scheduledAt?: Date;
+  sentAt?: Date;
+  recipientCount?: number;
+  createdBy?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface InsertEmailCampaign {
+  name: string;
+  subject: string;
+  previewText?: string;
+  templateKey: string;
+  contentJson: Record<string, unknown>;
+  segment?: 'all' | 'paid' | 'trial' | 'inactive_7d';
+  scheduledAt?: Date;
+  createdBy?: string;
+}
+
 export interface SimpleAnalytics {
   summary: {
     avgQuality: number;

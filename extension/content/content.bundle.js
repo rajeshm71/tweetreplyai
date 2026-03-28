@@ -1698,6 +1698,26 @@
         toolbar.appendChild(button);
       }
     }
+    truncateToMaxChars(value, max = 1e3) {
+      if (typeof value !== "string") return value;
+      return value.length > max ? value.slice(0, max) : value;
+    }
+    sanitizeThreadContextForApi(threadContext, max = 1e3) {
+      if (!threadContext || typeof threadContext !== "object") return threadContext;
+      const safeOriginalTweet = threadContext.originalTweet === null || threadContext.originalTweet === void 0 ? null : this.truncateToMaxChars(threadContext.originalTweet, max);
+      const safeThreadChain = Array.isArray(threadContext.threadChain) ? threadContext.threadChain.map((item) => {
+        if (!item || typeof item !== "object") return item;
+        return {
+          ...item,
+          text: typeof item.text === "string" ? this.truncateToMaxChars(item.text, max) : item.text
+        };
+      }) : threadContext.threadChain;
+      return {
+        ...threadContext,
+        originalTweet: safeOriginalTweet,
+        threadChain: safeThreadChain
+      };
+    }
     async handleSuggestReply(composer, button, options = {}) {
       if (!this.isAuthenticated) {
         this.showMessage(composer, "Please sign in to use TweetReply", "error");
@@ -1765,7 +1785,8 @@
           thread_length: threadContext?.threadLength || 0
         });
         console.log("[TweetReply] \u{1F916} Starting AI-powered tweet analysis (server-side)...");
-        const conversationContext = threadContext?.threadChain?.map((t) => t.text) || null;
+        const sanitizedThreadContext = this.sanitizeThreadContextForApi(threadContext, 1e3);
+        const conversationContext = sanitizedThreadContext?.threadChain?.map((t) => t.text) || null;
         const response = await this.apiClient.generateReply({
           tweet_text: tweetText,
           tweet_id: tweetId,
@@ -1776,7 +1797,7 @@
           prompt_variation: options.promptVariation,
           author_info: authorInfo,
           // Now guaranteed to have follower_count as number
-          thread_context: threadContext,
+          thread_context: sanitizedThreadContext,
           // NEW: Structured thread data
           conversation_context: conversationContext,
           // Backward compatibility

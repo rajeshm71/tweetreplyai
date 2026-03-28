@@ -1,63 +1,19 @@
-import { renderPasswordResetEmail, renderWelcomeEmail } from '../emailTemplates.js';
-
-const resendApiKey = process.env.RESEND_API_KEY;
-const appBaseUrl = process.env.APP_URL || process.env.DOMAIN || 'http://localhost:5000';
-const fromEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
-
 /**
- * Send password reset email with link to /reset-password?token=<token>.
- * No-op if RESEND_API_KEY is not set (logs warning).
+ * Backward-compat re-exports — new code should import from emailService directly.
+ * These thin wrappers exist only so existing call sites in routes.ts continue
+ * to work during the transition.
  */
+export { sendWelcome as sendWelcomeEmail } from '../services/emailService.js';
+
+// sendPasswordResetEmail(toEmail, token) — legacy signature adapted to emailService
+import { sendPasswordReset } from '../services/emailService.js';
+import { storage } from '../storage.js';
+
 export async function sendPasswordResetEmail(toEmail: string, token: string): Promise<void> {
-  if (!resendApiKey) {
-    console.warn('[reset-email] RESEND_API_KEY not set; skipping password reset email to:', toEmail);
+  const user = await storage.getUserByEmail(toEmail);
+  if (!user) {
+    console.warn('[email] sendPasswordResetEmail: user not found for', toEmail);
     return;
   }
-  // Lazy-load to keep module import fast for unit tests.
-  const { Resend } = await import('resend');
-  const resend = new Resend(resendApiKey);
-  const resetUrl = `${appBaseUrl.replace(/\/$/, '')}/reset-password?token=${encodeURIComponent(token)}`;
-  console.log('[reset-email] sending to:', toEmail, 'from:', fromEmail, 'baseUrl:', appBaseUrl);
-  const payload = await renderPasswordResetEmail({ resetUrl });
-  const { data, error } = await resend.emails.send({
-    from: fromEmail,
-    to: toEmail,
-    subject: payload.subject,
-    html: payload.html,
-    text: payload.text,
-  });
-  if (error) {
-    console.error('[reset-email] Resend API error:', error);
-    throw error;
-  }
-  console.log('[reset-email] sent successfully, id:', data?.id ?? 'n/a');
+  await sendPasswordReset(user.id, token);
 }
-
-export async function sendWelcomeEmail(toEmail: string, firstName?: string): Promise<void> {
-  if (!resendApiKey) {
-    console.warn('[welcome-email] RESEND_API_KEY not set; skipping welcome email to:', toEmail);
-    return;
-  }
-
-  // Lazy-load to keep module import fast for unit tests.
-  const { Resend } = await import('resend');
-  const resend = new Resend(resendApiKey);
-  const baseUrl = appBaseUrl.replace(/\/$/, '');
-  const payload = await renderWelcomeEmail({ firstName, appUrl: baseUrl });
-
-  const { data, error } = await resend.emails.send({
-    from: fromEmail,
-    to: toEmail,
-    subject: payload.subject,
-    html: payload.html,
-    text: payload.text,
-  });
-
-  if (error) {
-    console.error('[welcome-email] Resend API error:', error);
-    return;
-  }
-
-  console.log('[welcome-email] sent successfully, id:', data?.id ?? 'n/a');
-}
-

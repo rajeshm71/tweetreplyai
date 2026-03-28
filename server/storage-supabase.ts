@@ -28,6 +28,11 @@ import type {
   ReplyTokensStageEntry,
   UserPreferences,
   InsertUserPreferences,
+  UserEmailPreferences,
+  UpsertUserEmailPreferences,
+  EmailSendLog,
+  EmailCampaign,
+  InsertEmailCampaign,
 } from "../shared/types.js";
 import type { IStorage } from "./storage.js";
 
@@ -1179,6 +1184,364 @@ export class SupabaseStorage implements IStorage {
       createdAt: new Date(data.created_at),
       updatedAt: new Date(data.updated_at),
     } as UserPreferences;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Email preferences
+  // ---------------------------------------------------------------------------
+
+  async getEmailPreferences(userId: string): Promise<UserEmailPreferences | null> {
+    const { data, error } = await supabase
+      .from('user_email_preferences')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+
+    if (error) {
+      if (error.code !== 'PGRST116') {
+        console.error('getEmailPreferences error:', error);
+      }
+      return null;
+    }
+
+    if (!data) return null;
+
+    return {
+      userId: data.user_id,
+      usageAlerts: data.usage_alerts,
+      productTips: data.product_tips,
+      marketing: data.marketing,
+      createdAt: new Date(data.created_at),
+      updatedAt: new Date(data.updated_at),
+    } as UserEmailPreferences;
+  }
+
+  async upsertEmailPreferences(data: UpsertUserEmailPreferences): Promise<UserEmailPreferences> {
+    const row: Record<string, unknown> = {
+      user_id: data.userId,
+      updated_at: new Date().toISOString(),
+    };
+    if (data.usageAlerts !== undefined) row.usage_alerts = data.usageAlerts;
+    if (data.productTips !== undefined) row.product_tips = data.productTips;
+    if (data.marketing !== undefined) row.marketing = data.marketing;
+
+    const { data: result, error } = await supabase
+      .from('user_email_preferences')
+      .upsert(row, { onConflict: 'user_id' })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('upsertEmailPreferences error:', error);
+      throw error;
+    }
+
+    return {
+      userId: result.user_id,
+      usageAlerts: result.usage_alerts,
+      productTips: result.product_tips,
+      marketing: result.marketing,
+      createdAt: new Date(result.created_at),
+      updatedAt: new Date(result.updated_at),
+    } as UserEmailPreferences;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Email send log (idempotency + tracking)
+  // ---------------------------------------------------------------------------
+
+  async logEmailSend(entry: Omit<EmailSendLog, 'id' | 'createdAt'>): Promise<boolean> {
+    const { error } = await supabase
+      .from('email_send_log')
+      .insert({
+        user_id: entry.userId,
+        template_key: entry.templateKey,
+        idempotency_key: entry.idempotencyKey,
+        status: entry.status ?? 'sent',
+        resend_message_id: entry.resendMessageId ?? null,
+        ab_variant: entry.abVariant ?? null,
+        metadata: entry.metadata ?? null,
+      });
+
+    if (error) {
+      // 23505 = unique_violation — already sent
+      if (error.code === '23505') return false;
+      console.error('logEmailSend error:', error);
+      throw error;
+    }
+
+    return true;
+  }
+
+  async updateEmailSendLog(
+    idempotencyKey: string,
+    updates: { status?: string; resendMessageId?: string }
+  ): Promise<void> {
+    const row: Record<string, unknown> = {};
+    if (updates.status !== undefined) row.status = updates.status;
+    if (updates.resendMessageId !== undefined) row.resend_message_id = updates.resendMessageId;
+
+    const { error } = await supabase
+      .from('email_send_log')
+      .update(row)
+      .eq('idempotency_key', idempotencyKey);
+
+    if (error) {
+      console.error('updateEmailSendLog error:', error);
+      throw error;
+    }
+  }
+
+  async updateEmailSendLogByResendMessageId(
+    resendMessageId: string,
+    updates: { status?: string }
+  ): Promise<void> {
+    if (!resendMessageId) return;
+    const row: Record<string, unknown> = {};
+    if (updates.status !== undefined) row.status = updates.status;
+
+    const { data: updated, error } = await supabase
+      .from('email_send_log')
+      .update(row)
+      .eq('resend_message_id', resendMessageId)
+      .select('id');
+
+    if (error) {
+      console.error('updateEmailSendLogByResendMessageId error:', error);
+      throw error;
+    }
+    if (!updated?.length) {
+      console.debug(
+        '[email_send_log] no row for resend_message_id (webhook or test email):',
+        resendMessageId.slice(0, 8) + '…'
+      );
+    }
+  }
+
+  async countRecentEmails(userId: string, withinHours: number): Promise<number> {
+    const since = new Date(Date.now() - withinHours * 60 * 60 * 1000).toISOString();
+    // FIX (fix2): Count only successfully delivered rows — 'sent' (accepted by Resend) and
+    // 'delivered' (confirmed by webhook). Skipped and failed rows must not count against rate
+    // limits, otherwise preference-gated emails would incorrectly block future eligible sends.
+    const { count, error } = await supabase
+      .from('email_send_log')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .in('status', ['sent', 'delivered'])
+      .gte('created_at', since);
+
+    if (error) {
+      console.error('countRecentEmails error:', error);
+      return 0;
+    }
+
+    return count ?? 0;
+  }
+
+  async countMonthlyEmails(userId: string): Promise<number> {
+    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    // FIX (fix2): Same rationale as countRecentEmails — only count rows that reached the user.
+    const { count, error } = await supabase
+      .from('email_send_log')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .in('status', ['sent', 'delivered'])
+      .gte('created_at', since);
+
+    if (error) {
+      console.error('countMonthlyEmails error:', error);
+      return 0;
+    }
+
+    return count ?? 0;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Email campaigns (broadcast / marketing)
+  // ---------------------------------------------------------------------------
+
+  private mapCampaignRow(row: Record<string, any>): EmailCampaign {
+    return {
+      id: row.id,
+      name: row.name,
+      subject: row.subject,
+      previewText: row.preview_text ?? undefined,
+      templateKey: row.template_key,
+      contentJson: row.content_json ?? {},
+      segment: row.segment,
+      status: row.status,
+      resendBroadcastId: row.resend_broadcast_id ?? undefined,
+      scheduledAt: row.scheduled_at ? new Date(row.scheduled_at) : undefined,
+      sentAt: row.sent_at ? new Date(row.sent_at) : undefined,
+      recipientCount: row.recipient_count ?? undefined,
+      createdBy: row.created_by ?? undefined,
+      createdAt: new Date(row.created_at),
+      updatedAt: new Date(row.updated_at),
+    } as EmailCampaign;
+  }
+
+  async createEmailCampaign(campaign: InsertEmailCampaign): Promise<EmailCampaign> {
+    const { data, error } = await supabase
+      .from('email_campaigns')
+      .insert({
+        name: campaign.name,
+        subject: campaign.subject,
+        preview_text: campaign.previewText ?? null,
+        template_key: campaign.templateKey,
+        content_json: campaign.contentJson,
+        segment: campaign.segment ?? 'all',
+        scheduled_at: campaign.scheduledAt?.toISOString() ?? null,
+        created_by: campaign.createdBy ?? null,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('createEmailCampaign error:', error);
+      throw error;
+    }
+
+    return this.mapCampaignRow(data);
+  }
+
+  async getEmailCampaign(id: string): Promise<EmailCampaign | null> {
+    const { data, error } = await supabase
+      .from('email_campaigns')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      if (error.code !== 'PGRST116') console.error('getEmailCampaign error:', error);
+      return null;
+    }
+
+    return data ? this.mapCampaignRow(data) : null;
+  }
+
+  async listEmailCampaigns(): Promise<EmailCampaign[]> {
+    const { data, error } = await supabase
+      .from('email_campaigns')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('listEmailCampaigns error:', error);
+      return [];
+    }
+
+    return (data ?? []).map((row) => this.mapCampaignRow(row));
+  }
+
+  async updateEmailCampaign(id: string, updates: Partial<EmailCampaign>): Promise<EmailCampaign> {
+    const row: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    if (updates.name !== undefined) row.name = updates.name;
+    if (updates.subject !== undefined) row.subject = updates.subject;
+    if (updates.previewText !== undefined) row.preview_text = updates.previewText;
+    if (updates.contentJson !== undefined) row.content_json = updates.contentJson;
+    if (updates.segment !== undefined) row.segment = updates.segment;
+    if (updates.status !== undefined) row.status = updates.status;
+    if (updates.resendBroadcastId !== undefined) row.resend_broadcast_id = updates.resendBroadcastId;
+    if (updates.scheduledAt !== undefined) row.scheduled_at = updates.scheduledAt.toISOString();
+    if (updates.sentAt !== undefined) row.sent_at = updates.sentAt.toISOString();
+    if (updates.recipientCount !== undefined) row.recipient_count = updates.recipientCount;
+
+    const { data, error } = await supabase
+      .from('email_campaigns')
+      .update(row)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('updateEmailCampaign error:', error);
+      throw error;
+    }
+
+    return this.mapCampaignRow(data);
+  }
+
+  async deleteEmailCampaign(id: string): Promise<void> {
+    const { error } = await supabase
+      .from('email_campaigns')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('deleteEmailCampaign error:', error);
+      throw error;
+    }
+  }
+
+  async getUsersForSegment(segment: EmailCampaign['segment']): Promise<User[]> {
+    const USER_COLS =
+      'id, email, first_name, last_name, profile_image_url, google_sub, password_hash, auth_providers, stripe_customer_id, has_used_trial, handle, created_at, updated_at';
+
+    const mapUser = (u: any): User => ({
+      id: u.id,
+      email: u.email,
+      password: u.password_hash,
+      googleSub: u.google_sub,
+      firstName: u.first_name || undefined,
+      lastName: u.last_name || undefined,
+      profileImageUrl: u.profile_image_url || undefined,
+      dodoCustomerId: u.stripe_customer_id,
+      authProviders: u.auth_providers || [],
+      hasUsedTrial: u.has_used_trial || false,
+      xUsername: u.handle ?? null,
+      createdAt: new Date(u.created_at),
+      updatedAt: new Date(u.updated_at),
+    });
+
+    // FIX (fix3): 'trial' segment previously queried trial_start/trial_end columns that do not
+    // exist on the users table, always returning an error or empty result set.
+    // New definition: users who activated a trial (has_used_trial=true) but are NOT on an
+    // active paid subscription — i.e., they tried the product but have not converted.
+    if (segment === 'trial') {
+      const { data: paidData } = await supabase
+        .from('subscriptions')
+        .select('user_id')
+        .eq('status', 'active');
+      const paidIds = new Set((paidData ?? []).map((s: any) => s.user_id as string));
+
+      const { data, error } = await supabase
+        .from('users')
+        .select(USER_COLS)
+        .eq('has_used_trial', true);
+
+      if (error) {
+        console.error('getUsersForSegment (trial) error:', error);
+        return [];
+      }
+
+      // Exclude any users who have since converted to a paid plan
+      return (data ?? []).filter((u: any) => !paidIds.has(u.id)).map(mapUser);
+    }
+
+    let query = supabase.from('users').select(USER_COLS);
+
+    if (segment === 'paid') {
+      const { data: subData } = await supabase
+        .from('subscriptions')
+        .select('user_id')
+        .eq('status', 'active');
+      const userIds = (subData ?? []).map((s: any) => s.user_id);
+      if (userIds.length === 0) return [];
+      query = query.in('id', userIds);
+    } else if (segment === 'inactive_7d') {
+      const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      query = query.lt('last_login_at', cutoff);
+    }
+    // 'all': no extra filter — gate by marketing pref in emailService
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('getUsersForSegment error:', error);
+      return [];
+    }
+
+    return (data ?? []).map(mapUser);
   }
 }
 

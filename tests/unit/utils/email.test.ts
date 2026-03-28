@@ -1,119 +1,65 @@
-import { describe, expect, it, vi, afterEach } from 'vitest';
+/**
+ * Tests for the backward-compat wrappers in server/utils/email.ts.
+ * The wrappers now delegate to emailService, which in turn uses emailTransport.
+ */
+import { describe, expect, it, vi, beforeEach } from 'vitest';
 
-const mockEmailsSend = vi.fn();
+// ---------------------------------------------------------------------------
+// Mock the emailService that email.ts now delegates to
+// ---------------------------------------------------------------------------
+const mockSendWelcome = vi.fn().mockResolvedValue(undefined);
+const mockSendPasswordReset = vi.fn().mockResolvedValue(undefined);
 
-vi.mock('resend', () => ({
-  Resend: class {
-    emails = { send: mockEmailsSend };
-    constructor(_key: string) {}
+vi.mock('../../../server/services/emailService', () => ({
+  sendWelcome: mockSendWelcome,
+  sendPasswordReset: mockSendPasswordReset,
+}));
+
+// ---------------------------------------------------------------------------
+// Mock storage so getUserByEmail can be resolved
+// ---------------------------------------------------------------------------
+const mockGetUserByEmail = vi.fn();
+
+vi.mock('../../../server/storage', () => ({
+  storage: {
+    getUserByEmail: mockGetUserByEmail,
   },
 }));
 
-vi.mock('../../../server/emailTemplates', () => ({
-  renderWelcomeEmail: vi.fn().mockResolvedValue({
-    subject: 'Welcome to TweetReply',
-    html: '<p>Welcome HTML</p>',
-    text: 'Welcome text',
-  }),
-  renderPasswordResetEmail: vi.fn().mockImplementation(async ({ resetUrl }: { resetUrl: string }) => ({
-    subject: 'Reset your password',
-    html: `<html><body>${resetUrl}</body></html>`,
-    text: resetUrl,
-  })),
-}));
+const MOCK_USER = {
+  id: 'user-xyz',
+  email: 'user@example.com',
+  firstName: 'Alice',
+};
 
-const savedResendKey = process.env.RESEND_API_KEY;
-const savedAppUrl = process.env.APP_URL;
+beforeEach(() => {
+  vi.clearAllMocks();
+  mockGetUserByEmail.mockResolvedValue(MOCK_USER);
+});
 
-describe('Email Utils - Unit Tests', () => {
-  afterEach(() => {
-    if (savedResendKey !== undefined) {
-      process.env.RESEND_API_KEY = savedResendKey;
-    } else {
-      delete process.env.RESEND_API_KEY;
-    }
-    if (savedAppUrl !== undefined) {
-      process.env.APP_URL = savedAppUrl;
-    } else {
-      delete process.env.APP_URL;
-    }
-    vi.clearAllMocks();
-  });
-
+describe('Email Utils — backward-compat wrappers', () => {
   describe('sendWelcomeEmail', () => {
-    it('is a no-op when RESEND_API_KEY is not set', async () => {
-      delete process.env.RESEND_API_KEY;
-      vi.resetModules();
+    it('delegates to emailService.sendWelcome with the provided userId', async () => {
       const { sendWelcomeEmail } = await import('../../../server/utils/email');
-
-      await expect(sendWelcomeEmail('user@example.com')).resolves.toBeUndefined();
-      expect(mockEmailsSend).not.toHaveBeenCalled();
-    });
-
-    it('calls resend.emails.send with correct to/from/subject when API key is set', async () => {
-      process.env.RESEND_API_KEY = 'test-resend-key';
-      vi.resetModules();
-      vi.mock('resend', () => ({ Resend: class { emails = { send: mockEmailsSend }; constructor(_k: string) {} } }));
-      mockEmailsSend.mockResolvedValue({ data: { id: 'msg-1' }, error: null });
-
-      const { sendWelcomeEmail } = await import('../../../server/utils/email');
-      await sendWelcomeEmail('user@example.com', 'Alice');
-
-      expect(mockEmailsSend).toHaveBeenCalledWith(
-        expect.objectContaining({
-          to: 'user@example.com',
-          subject: 'Welcome to TweetReply',
-          text: 'Welcome text',
-        })
-      );
-    });
-
-    it('does NOT throw when Resend API returns an error', async () => {
-      process.env.RESEND_API_KEY = 'test-resend-key';
-      vi.resetModules();
-      mockEmailsSend.mockResolvedValue({ data: null, error: new Error('Resend 500') });
-
-      const { sendWelcomeEmail } = await import('../../../server/utils/email');
-
-      await expect(sendWelcomeEmail('user@example.com')).resolves.toBeUndefined();
+      // sendWelcomeEmail is now emailService.sendWelcome (takes userId)
+      await sendWelcomeEmail('user-xyz');
+      expect(mockSendWelcome).toHaveBeenCalledWith('user-xyz');
     });
   });
 
   describe('sendPasswordResetEmail', () => {
-    it('is a no-op when RESEND_API_KEY is not set', async () => {
-      delete process.env.RESEND_API_KEY;
-      vi.resetModules();
+    it('looks up the user by email and delegates to emailService.sendPasswordReset', async () => {
       const { sendPasswordResetEmail } = await import('../../../server/utils/email');
-
-      await expect(sendPasswordResetEmail('user@example.com', 'tok123')).resolves.toBeUndefined();
-      expect(mockEmailsSend).not.toHaveBeenCalled();
+      await sendPasswordResetEmail('user@example.com', 'tok123');
+      expect(mockGetUserByEmail).toHaveBeenCalledWith('user@example.com');
+      expect(mockSendPasswordReset).toHaveBeenCalledWith('user-xyz', 'tok123');
     });
 
-    it('calls resend.emails.send with reset URL containing token', async () => {
-      process.env.RESEND_API_KEY = 'test-resend-key';
-      process.env.APP_URL = 'https://myapp.com';
-      vi.resetModules();
-      mockEmailsSend.mockResolvedValue({ data: { id: 'msg-2' }, error: null });
-
+    it('is a no-op when user is not found', async () => {
+      mockGetUserByEmail.mockResolvedValue(undefined);
       const { sendPasswordResetEmail } = await import('../../../server/utils/email');
-      await sendPasswordResetEmail('user@example.com', 'abc123token');
-
-      const callArgs = mockEmailsSend.mock.calls[0]?.[0];
-      expect(callArgs?.html).toContain('abc123token');
-      expect(callArgs?.html).toContain('myapp.com');
-      expect(callArgs?.text).toContain('abc123token');
-      expect(callArgs?.to).toBe('user@example.com');
-    });
-
-    it('THROWS when Resend API returns an error (asymmetric behavior vs sendWelcomeEmail)', async () => {
-      process.env.RESEND_API_KEY = 'test-resend-key';
-      vi.resetModules();
-      const apiError = new Error('Resend error');
-      mockEmailsSend.mockResolvedValue({ data: null, error: apiError });
-
-      const { sendPasswordResetEmail } = await import('../../../server/utils/email');
-
-      await expect(sendPasswordResetEmail('user@example.com', 'tok')).rejects.toThrow();
+      await sendPasswordResetEmail('unknown@example.com', 'tok');
+      expect(mockSendPasswordReset).not.toHaveBeenCalled();
     });
   });
 });

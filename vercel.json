@@ -12,6 +12,16 @@
       "destination": "/index.html"
     }
   ],
+  "crons": [
+    {
+      "path": "/api/cron/email-nudges",
+      "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/cron/dispatch-campaigns",
+      "schedule": "*/30 * * * *"
+    }
+  ],
   "env": {
     "NODE_ENV": "production"
   }

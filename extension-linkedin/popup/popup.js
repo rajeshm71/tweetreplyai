@@ -1,6 +1,21 @@
 import { AuthManager } from '../utils/auth.js';
 import { ApiClient } from '../utils/api.js';
-import { POLLING, DEFAULTS } from '../config/constants.js';
+import { POLLING } from '../config/constants.js';
+
+/** Legacy `liAutoRefresh*` keys — removed from UI; strip on popup load for clean storage. */
+const LEGACY_LI_AUTO_REFRESH_KEYS = [
+  'liAutoRefreshEnabled',
+  'liAutoRefreshUrlPrefix',
+  'liAutoRefreshShortDelayMinSec',
+  'liAutoRefreshShortDelayMaxSec',
+  'liAutoRefreshLongPauseMinSec',
+  'liAutoRefreshLongPauseMaxSec',
+  'liAutoRefreshReloadBurstMin',
+  'liAutoRefreshReloadBurstMax',
+  'liAutoRefreshReloadsDoneInBurst',
+  'liAutoRefreshCurrentBurstTargetN',
+  'liAutoRefreshConfigVersion',
+];
 
 class LinkedInPopupManager {
   constructor() {
@@ -43,7 +58,7 @@ class LinkedInPopupManager {
     }
   }
 
-  /** True if the error indicates we should stop the refresh loop (context dead or unreachable). */
+  /** True if the error indicates we should stop the usage refresh loop (context dead or unreachable). */
   shouldStopRefreshLoop(error) {
     const msg = (error?.message || String(error)).toLowerCase();
     return (
@@ -147,6 +162,12 @@ class LinkedInPopupManager {
     this.showState('loading');
 
     try {
+      try {
+        await chrome.storage.local.remove(LEGACY_LI_AUTO_REFRESH_KEYS);
+      } catch {
+        /* ignore */
+      }
+
       this.authManager.setApiClient(this.apiClient);
       const isAuth = await this.authManager.isAuthenticated(true);
 

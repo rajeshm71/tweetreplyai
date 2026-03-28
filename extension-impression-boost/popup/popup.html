@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Impression Boost</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <div id="app">
+
+    <!-- Header -->
+    <div class="ib-header">
+      <div class="ib-logo">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true">
+          <path d="M7 2v11h3v9l7-12h-4l4-8z"/>
+        </svg>
+        <span class="ib-logo-text">Impression Boost</span>
+      </div>
+    </div>
+
+    <!-- Settings -->
+    <div class="ib-content">
+
+      <!-- Enable row -->
+      <div class="ib-row ib-enable-row">
+        <label class="ib-label" for="ib-enabled">Enable auto-refresh</label>
+        <input type="checkbox" id="ib-enabled" class="ib-checkbox" aria-label="Enable page auto-refresh" />
+      </div>
+
+      <!-- URL prefix -->
+      <div class="ib-field">
+        <label for="ib-url" class="ib-label">
+          URL prefix <span class="ib-hint">(must match address bar)</span>
+        </label>
+        <input type="url" id="ib-url" class="ib-input"
+               placeholder="https://x.com/home" autocomplete="off"
+               aria-describedby="ib-url-hint" />
+        <small id="ib-url-hint" class="ib-small">
+          X: <code>https://x.com/home</code> · LinkedIn: <code>https://www.linkedin.com/feed/</code>
+        </small>
+      </div>
+
+      <!-- Short delay -->
+      <div class="ib-group-label">Short delay between reloads (seconds)</div>
+      <div class="ib-grid-2">
+        <div class="ib-field">
+          <label for="ib-short-min" class="ib-label">Min</label>
+          <input type="number" id="ib-short-min" class="ib-input" min="1" step="1" />
+        </div>
+        <div class="ib-field">
+          <label for="ib-short-max" class="ib-label">Max</label>
+          <input type="number" id="ib-short-max" class="ib-input" min="1" step="1" />
+        </div>
+      </div>
+
+      <!-- Long pause -->
+      <div class="ib-group-label">Long pause after burst (seconds)</div>
+      <div class="ib-grid-2">
+        <div class="ib-field">
+          <label for="ib-long-min" class="ib-label">Min</label>
+          <input type="number" id="ib-long-min" class="ib-input" min="1" step="1" />
+        </div>
+        <div class="ib-field">
+          <label for="ib-long-max" class="ib-label">Max</label>
+          <input type="number" id="ib-long-max" class="ib-input" min="1" step="1" />
+        </div>
+      </div>
+
+      <!-- Burst count -->
+      <div class="ib-group-label">Reloads before pause</div>
+      <div class="ib-grid-2">
+        <div class="ib-field">
+          <label for="ib-burst-min" class="ib-label">Min</label>
+          <input type="number" id="ib-burst-min" class="ib-input" min="1" step="1" />
+        </div>
+        <div class="ib-field">
+          <label for="ib-burst-max" class="ib-label">Max</label>
+          <input type="number" id="ib-burst-max" class="ib-input" min="1" step="1" />
+        </div>
+      </div>
+
+      <!-- Reading simulation -->
+      <div class="ib-row ib-reading-enable-row">
+        <label class="ib-label" for="ib-reading-enabled">
+          Simulate reading (scroll) before some reloads
+        </label>
+        <input type="checkbox" id="ib-reading-enabled" class="ib-checkbox"
+               aria-label="Simulate reading with scroll before some reloads" />
+      </div>
+      <div class="ib-group-label">Run scroll simulation every N reloads</div>
+      <div class="ib-grid-2">
+        <div class="ib-field">
+          <label for="ib-reading-interval-min" class="ib-label">Min</label>
+          <input type="number" id="ib-reading-interval-min" class="ib-input" min="1" step="1"
+                 aria-describedby="ib-reading-interval-hint" />
+        </div>
+        <div class="ib-field">
+          <label for="ib-reading-interval-max" class="ib-label">Max</label>
+          <input type="number" id="ib-reading-interval-max" class="ib-input" min="1" step="1" />
+        </div>
+      </div>
+      <small id="ib-reading-interval-hint" class="ib-small">
+        If min &lt; max, N is picked at random in that range after each simulation.
+      </small>
+
+      <!-- Status + Save -->
+      <p id="ib-status" class="ib-status" role="status" aria-live="polite"></p>
+      <button type="button" id="ib-save" class="ib-save-btn" aria-label="Save auto-refresh settings">
+        Save settings
+      </button>
+
+      <!-- Disclaimer -->
+      <p class="ib-disclaimer">
+        Reloads are visible to X and LinkedIn as normal page loads. Randomization
+        does not hide automation. You may hit rate limits or challenges. Reloads
+        discard unsaved drafts. Multiple tabs matching the same prefix each run
+        their own scheduler; the scroll-simulation counter is shared across those
+        tabs. You are responsible for compliant use.
+      </p>
+
+    </div>
+  </div>
+
+  <script src="popup.bundle.js"></script>
+</body>
+</html>

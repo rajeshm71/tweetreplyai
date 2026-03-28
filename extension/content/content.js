@@ -1774,6 +1774,39 @@ class TwitterReplyInjector {
     }
   }
 
+  truncateToMaxChars(value, max = 1000) {
+    if (typeof value !== 'string') return value;
+    return value.length > max ? value.slice(0, max) : value;
+  }
+
+  sanitizeThreadContextForApi(threadContext, max = 1000) {
+    if (!threadContext || typeof threadContext !== 'object') return threadContext;
+
+    const safeOriginalTweet =
+      threadContext.originalTweet === null || threadContext.originalTweet === undefined
+        ? null
+        : this.truncateToMaxChars(threadContext.originalTweet, max);
+
+    const safeThreadChain = Array.isArray(threadContext.threadChain)
+      ? threadContext.threadChain.map((item) => {
+          if (!item || typeof item !== 'object') return item;
+          return {
+            ...item,
+            text:
+              typeof item.text === 'string'
+                ? this.truncateToMaxChars(item.text, max)
+                : item.text,
+          };
+        })
+      : threadContext.threadChain;
+
+    return {
+      ...threadContext,
+      originalTweet: safeOriginalTweet,
+      threadChain: safeThreadChain,
+    };
+  }
+
   async handleSuggestReply(composer, button, options = {}) {
     if (!this.isAuthenticated) {
       this.showMessage(composer, 'Please sign in to use TweetReply', 'error');
@@ -1860,7 +1893,8 @@ class TwitterReplyInjector {
       console.log('[TweetReply] 🤖 Starting AI-powered tweet analysis (server-side)...');
 
       // Maintain backward compatibility with conversation_context
-      const conversationContext = threadContext?.threadChain?.map(t => t.text) || null;
+      const sanitizedThreadContext = this.sanitizeThreadContextForApi(threadContext, 1000);
+      const conversationContext = sanitizedThreadContext?.threadChain?.map(t => t.text) || null;
 
       const response = await this.apiClient.generateReply({
         tweet_text: tweetText,
@@ -1869,7 +1903,7 @@ class TwitterReplyInjector {
         reply_mode: options.replyMode, // Reply generation mode
         prompt_variation: options.promptVariation,
         author_info: authorInfo, // Now guaranteed to have follower_count as number
-        thread_context: threadContext, // NEW: Structured thread data
+        thread_context: sanitizedThreadContext, // NEW: Structured thread data
         conversation_context: conversationContext, // Backward compatibility
         tweet_metadata: tweetMetadata
       });
@@ -3967,7 +4001,7 @@ class TwitterReplyInjector {
       chrome.storage.onChanged.removeListener(this.storageChangeHandler);
       this.storageChangeHandler = null;
     }
-    
+
     // Clear flags
     this.countDisplayInitialized = false;
     

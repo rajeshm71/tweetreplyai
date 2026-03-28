@@ -15,6 +15,11 @@ import type {
   InsertReplyTokens,
   UserPreferences,
   InsertUserPreferences,
+  UserEmailPreferences,
+  UpsertUserEmailPreferences,
+  EmailSendLog,
+  EmailCampaign,
+  InsertEmailCampaign,
 } from "../shared/types.js";
 
 export interface IStorage {
@@ -59,6 +64,29 @@ export interface IStorage {
   // User preferences operations
   getUserPreferences(userId: string): Promise<UserPreferences | undefined>;
   upsertUserPreferences(preferences: InsertUserPreferences): Promise<UserPreferences>;
+
+  // Email preferences operations
+  getEmailPreferences(userId: string): Promise<UserEmailPreferences | null>;
+  upsertEmailPreferences(data: UpsertUserEmailPreferences): Promise<UserEmailPreferences>;
+
+  // Email send log (idempotency)
+  logEmailSend(entry: Omit<EmailSendLog, 'id' | 'createdAt'>): Promise<boolean>;
+  updateEmailSendLog(idempotencyKey: string, updates: { status?: string; resendMessageId?: string }): Promise<void>;
+  /** Update by Resend email id from webhooks; no-op if no row matches (do not throw). */
+  updateEmailSendLogByResendMessageId(
+    resendMessageId: string,
+    updates: { status?: string }
+  ): Promise<void>;
+  countRecentEmails(userId: string, withinHours: number): Promise<number>;
+  countMonthlyEmails(userId: string): Promise<number>;
+
+  // Email campaigns
+  createEmailCampaign(campaign: InsertEmailCampaign): Promise<EmailCampaign>;
+  getEmailCampaign(id: string): Promise<EmailCampaign | null>;
+  listEmailCampaigns(): Promise<EmailCampaign[]>;
+  updateEmailCampaign(id: string, updates: Partial<EmailCampaign>): Promise<EmailCampaign>;
+  deleteEmailCampaign(id: string): Promise<void>;
+  getUsersForSegment(segment: EmailCampaign['segment']): Promise<User[]>;
 }
 
 // DatabaseStorage class removed - we now use Supabase JS client
