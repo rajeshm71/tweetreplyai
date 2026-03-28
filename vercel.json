@@ -15,11 +15,11 @@
   "crons": [
     {
       "path": "/api/cron/email-nudges",
-      "schedule": "*/30 * * * *"
+      "schedule": "0 8 * * *"
     },
     {
       "path": "/api/cron/dispatch-campaigns",
-      "schedule": "*/30 * * * *"
+      "schedule": "30 9 * * *"
     }
   ],
   "env": {

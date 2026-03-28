@@ -2805,7 +2805,7 @@ User draft reply: ${draft_reply}`;
   };
 
   // ---------------------------------------------------------------------------
-  // Cron: email nudges (Vercel Cron — fires every 30 min)
+  // Cron: email nudges (Vercel Cron — Hobby: once daily; see vercel.json schedule)
   // ---------------------------------------------------------------------------
   app.get('/api/cron/email-nudges', requireCronAuth, async (req: any, res) => {
     try {
@@ -3149,7 +3149,7 @@ User draft reply: ${draft_reply}`;
     }
   });
 
-  // Scheduled campaign dispatch — driven by Vercel Cron (see vercel.json)
+  // Scheduled campaign dispatch — Vercel Cron (Hobby: once daily; see vercel.json)
   app.get('/api/cron/dispatch-campaigns', requireCronAuth, async (_req, res) => {
     try {
       const campaigns = await storage.listEmailCampaigns();
