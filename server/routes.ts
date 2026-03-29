@@ -1655,12 +1655,33 @@ export async function registerRoutes(app: Express): Promise<Express> {
         return end;
       })());
 
-      // Validate subscription status
+      // Validate subscription status — never default to 'active' to avoid false activation
       const validStatuses = ['active', 'canceled', 'past_due', 'unpaid'] as const;
-      const rawStatus = subData.status || 'active';
-      const status = (validStatuses.includes(rawStatus as typeof validStatuses[number]) 
-        ? rawStatus 
-        : 'active') as typeof validStatuses[number];
+      const rawStatus = subData.status ?? 'past_due';
+      const status = (validStatuses.includes(rawStatus as typeof validStatuses[number])
+        ? rawStatus
+        : 'past_due') as typeof validStatuses[number];
+
+      // Always log what Dodo returned so we can correlate with their dashboard
+      console.log('[Checkout Success] Dodo subscription status resolved', {
+        subscriptionId,
+        resolvedStatus: status,
+        rawStatus: subData.status,
+        userId: user.id,
+        planCode,
+        periodStart: periodStart.toISOString(),
+        periodEnd: periodEnd.toISOString(),
+      });
+
+      if (status !== 'active') {
+        console.warn('[Checkout Success] Non-active subscription status — NOT activating subscription', {
+          subscriptionId,
+          status,
+          rawStatus: subData.status,
+          userId: user.id,
+          planCode,
+        });
+      }
 
       // Extract currency from response or use plan default
       const currency = subData.currency || subData.amount_currency || 'usd';
@@ -1687,12 +1708,16 @@ export async function registerRoutes(app: Express): Promise<Express> {
             currency,
           });
           console.log('[Checkout Success] Subscription updated successfully');
+          // Note: if existingSubscription was past_due and is now active (e.g. bank approved
+          // immediately after the webhook created the row), the usage counter will be created
+          // by the subsequent subscription.updated webhook from Dodo. We intentionally do not
+          // create it here to avoid duplicate counters.
         } catch (updateError: any) {
           console.error('[Checkout Success] Failed to update subscription:', updateError);
           throw updateError;
         }
       } else {
-        // Create new subscription
+        // Create new subscription record regardless of status so we have a DB record to update later
         console.log('[Checkout Success] Creating new subscription:', {
           userId: user.id,
           planCode,
@@ -1715,51 +1740,54 @@ export async function registerRoutes(app: Express): Promise<Express> {
             currency,
           });
 
-          // Cancel any existing active subscriptions for this user
-          const existingSubscriptions = await storage.getUserSubscriptions(userId);
-          for (const oldSub of existingSubscriptions) {
-            if (oldSub.id !== newSubscription.id && oldSub.status === 'active') {
-              try {
-                await dodoPaymentsService.cancelSubscription(oldSub.dodoSubscriptionId);
-                await storage.updateSubscription(oldSub.id, {
-                  status: 'canceled',
-                  cancelAt: new Date(),
-                  cancelReason: 'upgraded_to_new_plan',
-                });
-                console.log(`[Checkout Success] Canceled old subscription: ${oldSub.id}`);
-              } catch (error) {
-                console.error(`[Checkout Success] Failed to cancel old subscription ${oldSub.id}:`, error);
+          // Only activate credits and notify the user when payment actually succeeded
+          if (status === 'active') {
+            // Cancel any existing active subscriptions for this user
+            const existingSubscriptions = await storage.getUserSubscriptions(userId);
+            for (const oldSub of existingSubscriptions) {
+              if (oldSub.id !== newSubscription.id && oldSub.status === 'active') {
+                try {
+                  await dodoPaymentsService.cancelSubscription(oldSub.dodoSubscriptionId);
+                  await storage.updateSubscription(oldSub.id, {
+                    status: 'canceled',
+                    cancelAt: new Date(),
+                    cancelReason: 'upgraded_to_new_plan',
+                  });
+                  console.log(`[Checkout Success] Canceled old subscription: ${oldSub.id}`);
+                } catch (error) {
+                  console.error(`[Checkout Success] Failed to cancel old subscription ${oldSub.id}:`, error);
+                }
               }
             }
-          }
 
-          // Create usage counter for new subscription period
-          try {
-            await storage.createUsageCounter({
-              id: crypto.randomUUID(),
-              userId: user.id,
-              planCode,
-              periodStart,
-              periodEnd,
-              repliesUsed: 0,
-              creditsUsed: 0,
-              limit: plan.credits,
-              resetAt: periodEnd,
-            });
-          } catch (counterError: any) {
-            console.error('[Checkout Success] Failed to create usage counter:', counterError);
-          }
+            // Create usage counter for new subscription period
+            try {
+              await storage.createUsageCounter({
+                id: crypto.randomUUID(),
+                userId: user.id,
+                planCode,
+                periodStart,
+                periodEnd,
+                repliesUsed: 0,
+                creditsUsed: 0,
+                limit: plan.credits,
+                resetAt: periodEnd,
+              });
+            } catch (counterError: any) {
+              console.error('[Checkout Success] Failed to create usage counter:', counterError);
+            }
 
-          // Subscription active email: checkout redirect usually runs before webhook, so DB row exists
-          // when subscription.created fires and the webhook skips sendSubscriptionActive (update-only path).
-          emailService
-            .sendSubscriptionActive(
-              user.id,
-              subscriptionId,
-              planCode,
-              periodEnd.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
-            )
-            .catch((err: unknown) => console.error('[Checkout Success] sendSubscriptionActive error:', err));
+            // Subscription active email: checkout redirect usually runs before webhook, so DB row exists
+            // when subscription.created fires and the webhook skips sendSubscriptionActive (update-only path).
+            emailService
+              .sendSubscriptionActive(
+                user.id,
+                subscriptionId,
+                planCode,
+                periodEnd.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+              )
+              .catch((err: unknown) => console.error('[Checkout Success] sendSubscriptionActive error:', err));
+          }
         } catch (createError: any) {
           console.error('[Checkout Success] Failed to create subscription:', createError);
           console.error('[Checkout Success] Error details:', {
@@ -1771,8 +1799,13 @@ export async function registerRoutes(app: Express): Promise<Express> {
         }
       }
 
-      console.log('[Checkout Success] Subscription processed successfully');
-      res.redirect('/?success=subscription_activated');
+      if (status === 'active') {
+        console.log('[Checkout Success] Subscription activated successfully');
+        res.redirect('/?success=subscription_activated');
+      } else {
+        console.log('[Checkout Success] Subscription not activated — redirecting to payment failed page');
+        res.redirect('/?error=payment_failed');
+      }
 
     } catch (error: any) {
       console.error('[Checkout Success] Error:', error);
@@ -2114,12 +2147,12 @@ export async function registerRoutes(app: Express): Promise<Express> {
           })()
         );
 
-        // Validate subscription status
+        // Validate subscription status — never default to 'active' to avoid false activation
         const validStatuses = ['active', 'canceled', 'past_due', 'unpaid'] as const;
-        const rawStatus = eventData.status || eventData.data?.object?.status || 'active';
-        const status = (validStatuses.includes(rawStatus as typeof validStatuses[number]) 
-          ? rawStatus 
-          : 'active') as typeof validStatuses[number];
+        const rawStatus = eventData.status ?? eventData.data?.object?.status ?? 'past_due';
+        const status = (validStatuses.includes(rawStatus as typeof validStatuses[number])
+          ? rawStatus
+          : 'past_due') as typeof validStatuses[number];
 
         // Extract currency from response
         const currency = eventData.currency 
@@ -2129,6 +2162,29 @@ export async function registerRoutes(app: Express): Promise<Express> {
 
         // Check if subscription already exists (idempotency check)
         const existingSubscription = await storage.getSubscriptionByDodoId(subscriptionId);
+
+        // Always log key details so the full lifecycle is visible in server logs
+        console.log('[Webhook] subscription.created received', {
+          subscriptionId,
+          resolvedStatus: status,
+          rawStatus,
+          planCode,
+          userId: user.id,
+          customerEmail,
+          periodStart: periodStart.toISOString(),
+          periodEnd: periodEnd.toISOString(),
+          isExistingSubscription: !!existingSubscription,
+        });
+
+        if (status !== 'active') {
+          console.warn('[Webhook] subscription.created — non-active status, NOT activating credits or sending active email', {
+            subscriptionId,
+            status,
+            rawStatus,
+            userId: user.id,
+            rawEventData: JSON.stringify(eventData).substring(0, 2000),
+          });
+        }
         
         if (existingSubscription) {
           // Update existing subscription (idempotent operation)
@@ -2139,8 +2195,8 @@ export async function registerRoutes(app: Express): Promise<Express> {
             currentPeriodEnd: periodEnd,
           });
         } else {
-          // Create new subscription
-          const newSubscription = await storage.createSubscription({
+          // Create new subscription record regardless of status so we have a row to update later
+          await storage.createSubscription({
             id: crypto.randomUUID(),
             userId: user.id,
             planCode,
@@ -2152,46 +2208,49 @@ export async function registerRoutes(app: Express): Promise<Express> {
             currency,
           });
 
-          // Cancel any existing active subscriptions for this user
-          const existingSubscriptions = await storage.getUserSubscriptions(user.id);
-          for (const oldSub of existingSubscriptions) {
-            if (oldSub.dodoSubscriptionId !== subscriptionId && oldSub.status === 'active') {
-              try {
-                await dodoPaymentsService.cancelSubscription(oldSub.dodoSubscriptionId);
-                await storage.updateSubscription(oldSub.id, {
-                  status: 'canceled',
-                  cancelAt: new Date(),
-                  cancelReason: 'upgraded_to_new_plan',
-                });
-                console.log(`[Webhook] Canceled old subscription: ${oldSub.id}`);
-              } catch (error) {
-                console.error(`[Webhook] Failed to cancel old subscription ${oldSub.id}:`, error);
+          // Only activate credits and send email when payment actually succeeded
+          if (status === 'active') {
+            // Cancel any existing active subscriptions for this user
+            const existingSubscriptions = await storage.getUserSubscriptions(user.id);
+            for (const oldSub of existingSubscriptions) {
+              if (oldSub.dodoSubscriptionId !== subscriptionId && oldSub.status === 'active') {
+                try {
+                  await dodoPaymentsService.cancelSubscription(oldSub.dodoSubscriptionId);
+                  await storage.updateSubscription(oldSub.id, {
+                    status: 'canceled',
+                    cancelAt: new Date(),
+                    cancelReason: 'upgraded_to_new_plan',
+                  });
+                  console.log(`[Webhook] Canceled old subscription: ${oldSub.id}`);
+                } catch (error) {
+                  console.error(`[Webhook] Failed to cancel old subscription ${oldSub.id}:`, error);
+                }
               }
             }
+
+            // Create usage counter for new subscription period
+            await storage.createUsageCounter({
+              id: crypto.randomUUID(),
+              userId: user.id,
+              planCode,
+              periodStart,
+              periodEnd,
+              repliesUsed: 0,
+              creditsUsed: 0,
+              limit: plan.credits,
+              resetAt: periodEnd,
+            });
+
+            console.log(`[Webhook] Created subscription and usage counter for user: ${user.id}`);
+
+            // Send subscription active email
+            emailService.sendSubscriptionActive(
+              user.id,
+              subscriptionId,
+              planCode,
+              periodEnd.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+            ).catch((err: unknown) => console.error('[Webhook] sendSubscriptionActive error:', err));
           }
-
-          // Create usage counter for new subscription period
-          await storage.createUsageCounter({
-            id: crypto.randomUUID(),
-            userId: user.id,
-            planCode,
-            periodStart,
-            periodEnd,
-            repliesUsed: 0,
-            creditsUsed: 0,
-            limit: plan.credits,
-            resetAt: periodEnd,
-          });
-
-          console.log(`[Webhook] Created subscription and usage counter for user: ${user.id}`);
-
-          // Send subscription active email
-          emailService.sendSubscriptionActive(
-            user.id,
-            subscriptionId,
-            planCode,
-            periodEnd.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
-          ).catch((err: unknown) => console.error('[Webhook] sendSubscriptionActive error:', err));
         }
       }
 
@@ -2275,6 +2334,17 @@ export async function registerRoutes(app: Express): Promise<Express> {
 
         await storage.updateSubscription(existingSubscription.id, updates);
 
+        // Log after the DB write so the entry only appears when the update actually succeeded
+        console.log('[Webhook] subscription.updated processed', {
+          subscriptionId,
+          previousStatus: existingSubscription.status,
+          newStatus: status,
+          rawStatus,
+          userId: user.id,
+          customerEmail,
+          updates,
+        });
+
         // Canceled via subscription.updated (some providers omit dedicated subscription.canceled)
         if (status === 'canceled' && existingSubscription.status !== 'canceled') {
           const periodEndForAccess = updates.currentPeriodEnd ?? existingSubscription.currentPeriodEnd;
@@ -2350,6 +2420,14 @@ export async function registerRoutes(app: Express): Promise<Express> {
         // Get existing subscription
         const existingSubscription = await storage.getSubscriptionByDodoId(subscriptionId);
         if (existingSubscription) {
+          console.log('[Webhook] subscription.canceled received', {
+            subscriptionId,
+            userId: existingSubscription.userId,
+            customerEmail,
+            previousStatus: existingSubscription.status,
+            planCode: existingSubscription.planCode,
+          });
+
           await storage.updateSubscription(existingSubscription.id, {
             status: 'canceled',
             cancelAt: new Date(),

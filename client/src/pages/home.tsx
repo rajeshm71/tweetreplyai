@@ -128,6 +128,7 @@ export default function Home() {
         unknown_plan: "Unknown subscription plan. Please contact support.",
         plan_not_found: "Subscription plan not found. Please contact support.",
         checkout_failed: "Failed to process checkout. Please try again.",
+        payment_failed: "Your payment could not be processed. Please check your payment details and try again.",
         subscription_not_found: "Subscription not found. Please contact support.",
         unauthorized: "Unauthorized. Please log in again.",
       };
