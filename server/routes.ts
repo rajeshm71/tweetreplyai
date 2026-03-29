@@ -1656,7 +1656,9 @@ export async function registerRoutes(app: Express): Promise<Express> {
       })());
 
       // Validate subscription status — never default to 'active' to avoid false activation
-      const validStatuses = ['active', 'canceled', 'past_due', 'unpaid'] as const;
+      // 'failed' = hard payment rejection (card declined); Dodo will NOT retry — distinct from
+      // 'past_due' which is overdue but may recover via dunning retries.
+      const validStatuses = ['active', 'canceled', 'past_due', 'unpaid', 'failed'] as const;
       const rawStatus = subData.status ?? 'past_due';
       const status = (validStatuses.includes(rawStatus as typeof validStatuses[number])
         ? rawStatus
@@ -1681,6 +1683,19 @@ export async function registerRoutes(app: Express): Promise<Express> {
           userId: user.id,
           planCode,
         });
+      }
+
+      // Hard payment failure — Dodo will not retry; user must start a new checkout.
+      // Skip all DB writes to avoid orphaned records, redirect immediately.
+      if (status === 'failed') {
+        console.warn('[Checkout Success] Payment definitively failed — skipping DB write', {
+          subscriptionId,
+          status,
+          rawStatus: subData.status,
+          userId: user.id,
+          planCode,
+        });
+        return res.redirect('/?error=payment_failed');
       }
 
       // Extract currency from response or use plan default
@@ -2148,7 +2163,9 @@ export async function registerRoutes(app: Express): Promise<Express> {
         );
 
         // Validate subscription status — never default to 'active' to avoid false activation
-        const validStatuses = ['active', 'canceled', 'past_due', 'unpaid'] as const;
+        // 'failed' = hard payment rejection (card declined); Dodo will NOT retry — distinct from
+        // 'past_due' which is overdue but may recover via dunning retries.
+        const validStatuses = ['active', 'canceled', 'past_due', 'unpaid', 'failed'] as const;
         const rawStatus = eventData.status ?? eventData.data?.object?.status ?? 'past_due';
         const status = (validStatuses.includes(rawStatus as typeof validStatuses[number])
           ? rawStatus
@@ -2184,6 +2201,16 @@ export async function registerRoutes(app: Express): Promise<Express> {
             userId: user.id,
             rawEventData: JSON.stringify(eventData).substring(0, 2000),
           });
+        }
+
+        // Hard payment failure — Dodo will not retry this subscription.
+        // Skip DB write entirely; user must start a new checkout (new subscription_id).
+        if (status === 'failed') {
+          console.warn('[Webhook] subscription.created with failed status — skipping DB write', {
+            subscriptionId,
+            userId: user.id,
+          });
+          return res.json({ received: true });
         }
         
         if (existingSubscription) {
