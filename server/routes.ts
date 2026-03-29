@@ -1722,6 +1722,17 @@ export async function registerRoutes(app: Express): Promise<Express> {
           status,
           rawStatus: subData.status,
         });
+        console.log('[payment-email]', {
+          action: 'sendPaymentFailed_invoked',
+          source: 'checkout_success_failed',
+          userId: user.id,
+          subscriptionId,
+          status,
+          rawStatus: subData.status,
+        });
+        emailService
+          .sendPaymentFailed(user.id, subscriptionId)
+          .catch((err: unknown) => console.error('[Checkout Success] sendPaymentFailed error:', err));
         return res.status(402).json({ success: false, error: 'payment_failed' });
       }
 
@@ -1845,6 +1856,19 @@ export async function registerRoutes(app: Express): Promise<Express> {
         console.log('[Checkout Success] Subscription activated successfully');
         return res.json({ success: true });
       } else {
+        if (status === 'past_due' || status === 'unpaid') {
+          console.log('[payment-email]', {
+            action: 'sendPaymentFailed_invoked',
+            source: 'checkout_success_non_active',
+            userId: user.id,
+            subscriptionId,
+            status,
+            rawStatus: subData.status,
+          });
+          emailService
+            .sendPaymentFailed(user.id, subscriptionId)
+            .catch((err: unknown) => console.error('[Checkout Success] sendPaymentFailed error:', err));
+        }
         console.log('[Checkout Success] Subscription not activated — returning payment failed');
         return res.status(402).json({ success: false, error: 'payment_failed' });
       }

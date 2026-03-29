@@ -1,17 +1,18 @@
 /**
  * Tests for GET /api/checkout/success
  *
- * This route is redirect-only — it never calls res.json().
- * All assertions use `res.status === 302` and `res.headers.location`.
- *
- * Supertest follows redirects by default; set .redirects(0) to capture
- * the 302 and Location header before any redirect is followed.
+ * The route returns JSON (client fetch); use .query() for query params to avoid malformed URLs.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import express from "express";
 import request from "supertest";
 import { setupRoutes } from "../../../server/routes";
 import { signTestJwt } from "../../helpers/jwt";
+
+const emailMocks = vi.hoisted(() => ({
+  sendPaymentFailed: vi.fn().mockResolvedValue(undefined),
+  sendSubscriptionActive: vi.fn().mockResolvedValue(undefined),
+}));
 
 vi.mock("../../../server/replitAuth", () => ({
   setupAuth: vi.fn(),
@@ -67,8 +68,22 @@ vi.mock("../../../server/services/dodo-payments", () => ({
 vi.mock("../../../server/services/usage", () => ({
   usageService: { getUsageStatus: vi.fn(), canUseReply: vi.fn(), consumeReply: vi.fn(), initializeTrialForUser: vi.fn() },
 }));
+vi.mock("../../../server/services/emailService", () => ({
+  sendPaymentFailed: emailMocks.sendPaymentFailed,
+  sendSubscriptionActive: emailMocks.sendSubscriptionActive,
+  sendWelcome: vi.fn(),
+  syncContactToResend: vi.fn(),
+  sendUsageThreshold: vi.fn(),
+  sendConversionStage: vi.fn(),
+  sendActivationNudge: vi.fn(),
+  sendWeeklyValue: vi.fn(),
+  sendWinBack: vi.fn(),
+  sendPasswordReset: vi.fn(),
+  sendSubscriptionCanceled: vi.fn(),
+  sendCampaignBatch: vi.fn(),
+  unsubscribeContactInResend: vi.fn(),
+}));
 
-// A valid Dodo subscription object returned from the API
 const mockDodoSubscription = {
   id: "dodo-sub-123",
   status: "active",
@@ -94,16 +109,17 @@ describe("Checkout Success Route - Unit Tests", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    emailMocks.sendPaymentFailed.mockResolvedValue(undefined);
+    emailMocks.sendSubscriptionActive.mockResolvedValue(undefined);
     app = express();
     app.use(express.json());
     await setupRoutes(app);
 
-    // Default happy-path mocks
     const { storage } = await import("../../../server/storage");
     const { dodoPaymentsService } = await import("../../../server/services/dodo-payments");
 
     vi.mocked(storage.getUser).mockResolvedValue(mockStorageUser as any);
-    vi.mocked(storage.getSubscriptionByDodoId).mockResolvedValue(null); // new subscription
+    vi.mocked(storage.getSubscriptionByDodoId).mockResolvedValue(null);
     vi.mocked(storage.createSubscription).mockResolvedValue({ id: "sub-local-1" } as any);
     vi.mocked(storage.createUsageCounter).mockResolvedValue({} as any);
 
@@ -111,90 +127,89 @@ describe("Checkout Success Route - Unit Tests", () => {
     vi.mocked(dodoPaymentsService.planCodeFromPriceId).mockReturnValue("weekly");
   });
 
-  it("redirects to /?success=subscription_activated on new subscription", async () => {
+  it("returns 200 JSON on new active subscription", async () => {
     const res = await request(app)
-      .get("/api/checkout/success?subscription_id=dodo-sub-123")
-      .set("Authorization", `Bearer ${authToken}`)
-      .redirects(0);
+      .get("/api/checkout/success")
+      .query({ subscription_id: "dodo-sub-123" })
+      .set("Authorization", `Bearer ${authToken}`);
 
-    expect(res.status).toBe(302);
-    expect(res.headers.location).toContain("subscription_activated");
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ success: true });
   });
 
-  it("creates subscription and usage counter for a new subscription", async () => {
+  it("creates subscription and usage counter for a new active subscription", async () => {
     const { storage } = await import("../../../server/storage");
 
     await request(app)
-      .get("/api/checkout/success?subscription_id=dodo-sub-123")
-      .set("Authorization", `Bearer ${authToken}`)
-      .redirects(0);
+      .get("/api/checkout/success")
+      .query({ subscription_id: "dodo-sub-123" })
+      .set("Authorization", `Bearer ${authToken}`);
 
     expect(storage.createSubscription).toHaveBeenCalled();
     expect(storage.createUsageCounter).toHaveBeenCalled();
   });
 
-  it("redirects to /?error=no_subscription when subscription_id is missing", async () => {
+  it("returns 400 JSON when subscription_id is missing", async () => {
     const res = await request(app)
       .get("/api/checkout/success")
-      .set("Authorization", `Bearer ${authToken}`)
-      .redirects(0);
+      .set("Authorization", `Bearer ${authToken}`);
 
-    expect(res.status).toBe(302);
-    expect(res.headers.location).toContain("error=no_subscription");
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ success: false, error: "no_subscription" });
   });
 
-  it("redirects to /?error=user_not_found when user is not in DB", async () => {
+  it("returns 404 JSON when user is not in DB", async () => {
     const { storage } = await import("../../../server/storage");
     vi.mocked(storage.getUser).mockResolvedValue(null);
 
     const res = await request(app)
-      .get("/api/checkout/success?subscription_id=dodo-sub-123")
-      .set("Authorization", `Bearer ${authToken}`)
-      .redirects(0);
+      .get("/api/checkout/success")
+      .query({ subscription_id: "dodo-sub-123" })
+      .set("Authorization", `Bearer ${authToken}`);
 
-    expect(res.status).toBe(302);
-    expect(res.headers.location).toContain("error=user_not_found");
+    expect(res.status).toBe(404);
+    expect(res.body).toMatchObject({ success: false, error: "user_not_found" });
   });
 
-  it("redirects to /?error=subscription_not_found when Dodo API returns 404", async () => {
+  it("returns 404 JSON when Dodo API returns 404 for subscription", async () => {
     const { dodoPaymentsService } = await import("../../../server/services/dodo-payments");
     const err: any = new Error("Not found");
     err.status = 404;
     vi.mocked(dodoPaymentsService.getSubscription).mockRejectedValue(err);
 
     const res = await request(app)
-      .get("/api/checkout/success?subscription_id=dodo-sub-123")
-      .set("Authorization", `Bearer ${authToken}`)
-      .redirects(0);
+      .get("/api/checkout/success")
+      .query({ subscription_id: "dodo-sub-123" })
+      .set("Authorization", `Bearer ${authToken}`);
 
-    expect(res.status).toBe(302);
-    expect(res.headers.location).toContain("error=subscription_not_found");
+    expect(res.status).toBe(404);
+    expect(res.body).toMatchObject({ success: false, error: "subscription_not_found" });
   });
 
-  it("redirects to /?error=checkout_failed when Dodo API throws a generic error", async () => {
+  it("returns 500 JSON when Dodo API throws a generic error", async () => {
     const { dodoPaymentsService } = await import("../../../server/services/dodo-payments");
     vi.mocked(dodoPaymentsService.getSubscription).mockRejectedValue(new Error("Network error"));
 
     const res = await request(app)
-      .get("/api/checkout/success?subscription_id=dodo-sub-123")
-      .set("Authorization", `Bearer ${authToken}`)
-      .redirects(0);
+      .get("/api/checkout/success")
+      .query({ subscription_id: "dodo-sub-123" })
+      .set("Authorization", `Bearer ${authToken}`);
 
-    expect(res.status).toBe(302);
-    expect(res.headers.location).toContain("error=checkout_failed");
+    expect(res.status).toBe(500);
+    expect(res.body).toMatchObject({ success: false, error: "checkout_failed" });
   });
 
-  it("redirects to /?error=unknown_plan when planCodeFromPriceId returns null", async () => {
+  it("returns 400 JSON when planCodeFromPriceId returns null", async () => {
     const { dodoPaymentsService } = await import("../../../server/services/dodo-payments");
     vi.mocked(dodoPaymentsService.planCodeFromPriceId).mockReturnValue(null);
 
     const res = await request(app)
-      .get("/api/checkout/success?subscription_id=dodo-sub-123")
-      .set("Authorization", `Bearer ${authToken}`)
-      .redirects(0);
+      .get("/api/checkout/success")
+      .query({ subscription_id: "dodo-sub-123" })
+      .set("Authorization", `Bearer ${authToken}`);
 
-    expect(res.status).toBe(302);
-    expect(res.headers.location).toContain("error=unknown_plan");
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ success: false, error: "unknown_plan" });
   });
 
   it("updates existing subscription instead of creating new one (idempotency)", async () => {
@@ -207,19 +222,18 @@ describe("Checkout Success Route - Unit Tests", () => {
     } as any);
 
     await request(app)
-      .get("/api/checkout/success?subscription_id=dodo-sub-123")
-      .set("Authorization", `Bearer ${authToken}`)
-      .redirects(0);
+      .get("/api/checkout/success")
+      .query({ subscription_id: "dodo-sub-123" })
+      .set("Authorization", `Bearer ${authToken}`);
 
     expect(storage.updateSubscription).toHaveBeenCalledWith(
       "sub-local-existing",
-      expect.objectContaining({ status: "active" })
+      expect.objectContaining({ status: "active" }),
     );
     expect(storage.createSubscription).not.toHaveBeenCalled();
   });
 
   it("returns 401 when not authenticated", async () => {
-    // Override isAuthenticated to reject
     const unauthApp = express();
     unauthApp.use(express.json());
     unauthApp.use((req: any, res: any, next: any) => {
@@ -231,9 +245,45 @@ describe("Checkout Success Route - Unit Tests", () => {
     await setupRoutes(unauthApp);
 
     const res = await request(unauthApp)
-      .get("/api/checkout/success?subscription_id=dodo-sub-123")
-      .redirects(0);
+      .get("/api/checkout/success")
+      .query({ subscription_id: "dodo-sub-123" });
 
     expect(res.status).toBe(401);
+  });
+
+  it("returns 402 and invokes sendPaymentFailed once when Dodo subscription status is failed", async () => {
+    const { dodoPaymentsService } = await import("../../../server/services/dodo-payments");
+    vi.mocked(dodoPaymentsService.getSubscription).mockResolvedValue({
+      ...mockDodoSubscription,
+      status: "failed",
+    } as any);
+
+    const res = await request(app)
+      .get("/api/checkout/success")
+      .query({ subscription_id: "dodo-sub-failed" })
+      .set("Authorization", `Bearer ${authToken}`);
+
+    expect(res.status).toBe(402);
+    expect(res.body).toMatchObject({ success: false, error: "payment_failed" });
+    expect(emailMocks.sendPaymentFailed).toHaveBeenCalledTimes(1);
+    expect(emailMocks.sendPaymentFailed).toHaveBeenCalledWith("test-user", "dodo-sub-failed");
+  });
+
+  it("returns 402 and invokes sendPaymentFailed for past_due new subscription", async () => {
+    const { dodoPaymentsService } = await import("../../../server/services/dodo-payments");
+    vi.mocked(dodoPaymentsService.getSubscription).mockResolvedValue({
+      ...mockDodoSubscription,
+      status: "past_due",
+    } as any);
+
+    const res = await request(app)
+      .get("/api/checkout/success")
+      .query({ subscription_id: "dodo-sub-pastdue" })
+      .set("Authorization", `Bearer ${authToken}`);
+
+    expect(res.status).toBe(402);
+    expect(res.body).toMatchObject({ success: false, error: "payment_failed" });
+    expect(emailMocks.sendPaymentFailed).toHaveBeenCalledTimes(1);
+    expect(emailMocks.sendPaymentFailed).toHaveBeenCalledWith("test-user", "dodo-sub-pastdue");
   });
 });
