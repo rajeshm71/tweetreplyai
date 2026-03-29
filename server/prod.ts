@@ -12,9 +12,10 @@ const app = express();
 // Trust first proxy (e.g. Vercel) so X-Forwarded-For is used and express-rate-limit can identify clients
 app.set('trust proxy', 1);
 
-// Apply raw body parser for webhook route BEFORE json parser
-// This is critical for webhook signature verification
+// Apply raw body parser for webhook routes BEFORE json parser
+// This is critical for webhook signature verification (Dodo, Resend/Svix)
 app.use('/api/dodo/webhook', express.raw({ type: 'application/json' }));
+app.use('/api/webhooks/resend', express.raw({ type: 'application/json' }));
 
 // Apply JSON parser for all other routes
 app.use(express.json());

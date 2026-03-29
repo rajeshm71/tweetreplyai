@@ -3222,7 +3222,8 @@ User draft reply: ${draft_reply}`;
   // email.failed, email.delivery_delayed (optional), contact.updated — not contact.unsubscribed (removed by Resend).
   // Payload shape: https://resend.com/docs/webhooks/emails/delivered
   // ---------------------------------------------------------------------------
-  app.post('/api/webhooks/resend', express.raw({ type: 'application/json' }), async (req: any, res) => {
+  // Raw JSON body is applied in index.ts / prod.ts before express.json() (same pattern as Dodo webhook).
+  app.post('/api/webhooks/resend', async (req: any, res) => {
     try {
       const webhookSecret = process.env.RESEND_WEBHOOK_SECRET;
       let payload: any;
@@ -3242,7 +3243,14 @@ User draft reply: ${draft_reply}`;
           return res.status(400).json({ message: 'Invalid signature' });
         }
       } else {
-        payload = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+        const raw = req.body;
+        if (Buffer.isBuffer(raw)) {
+          payload = JSON.parse(raw.toString('utf8'));
+        } else if (typeof raw === 'string') {
+          payload = JSON.parse(raw);
+        } else {
+          payload = raw;
+        }
       }
 
       const { type, data } = payload ?? {};
