@@ -1543,6 +1543,8 @@ export async function registerRoutes(app: Express): Promise<Express> {
 
   // Checkout success callback route
   // Dodo Payments redirects to root URL with subscription_id and status as query params
+  // This route is always called via client-side fetch() — never by direct browser navigation.
+  // All responses are JSON so the client can read outcomes without redirect-following issues.
   app.get('/api/checkout/success', isAuthenticated, async (req: any, res) => {
     try {
       const userId = getUserId(req);
@@ -1552,7 +1554,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
       
       if (!subscriptionId) {
         console.error('[Checkout Success] No subscription_id in query params');
-        return res.redirect('/?error=no_subscription');
+        return res.status(400).json({ success: false, error: 'no_subscription' });
       }
 
       console.log('[Checkout Success] Processing subscription:', subscriptionId, 'query status:', queryStatus);
@@ -1561,7 +1563,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
       const user = await storage.getUser(userId);
       if (!user) {
         console.error('[Checkout Success] User not found:', userId);
-        return res.redirect('/?error=user_not_found');
+        return res.status(404).json({ success: false, error: 'user_not_found' });
       }
 
       // Get subscription details from Dodo Payments
@@ -1574,14 +1576,13 @@ export async function registerRoutes(app: Express): Promise<Express> {
           error: error.message,
           status: error.status,
         });
-        // If subscription retrieval fails, redirect to root with error
         if (error.status === 404) {
-          return res.redirect('/?error=subscription_not_found');
+          return res.status(404).json({ success: false, error: 'subscription_not_found' });
         }
         if (error.status === 401 || error.status === 403) {
-          return res.redirect('/?error=unauthorized');
+          return res.status(error.status).json({ success: false, error: 'unauthorized' });
         }
-        return res.redirect('/?error=checkout_failed');
+        return res.status(500).json({ success: false, error: 'checkout_failed' });
       }
       const subData = subscription as any;
 
@@ -1617,7 +1618,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
       if (!planCode) {
         console.error('[Checkout Success] Unknown product ID:', productId);
         console.error('[Checkout Success] Full subscription data:', JSON.stringify(subData, null, 2));
-        return res.redirect('/?error=unknown_plan');
+        return res.status(400).json({ success: false, error: 'unknown_plan' });
       }
 
       console.log('[Checkout Success] Mapped to plan code:', planCode);
@@ -1625,7 +1626,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
       const plan = PLANS[planCode];
       if (!plan) {
         console.error('[Checkout Success] Plan not found:', planCode);
-        return res.redirect('/?error=plan_not_found');
+        return res.status(400).json({ success: false, error: 'plan_not_found' });
       }
 
       // Helper function to parse Dodo Payments date (handles seconds, milliseconds, or ISO strings)
@@ -1686,7 +1687,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
       }
 
       // Hard payment failure — Dodo will not retry; user must start a new checkout.
-      // Skip all DB writes to avoid orphaned records, redirect immediately.
+      // Skip all DB writes to avoid orphaned records, return error JSON immediately.
       if (status === 'failed') {
         console.warn('[Checkout Success] Payment definitively failed — skipping DB write', {
           subscriptionId,
@@ -1695,7 +1696,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
           userId: user.id,
           planCode,
         });
-        return res.redirect('/?error=payment_failed');
+        return res.status(402).json({ success: false, error: 'payment_failed' });
       }
 
       // Extract currency from response or use plan default
@@ -1816,17 +1817,17 @@ export async function registerRoutes(app: Express): Promise<Express> {
 
       if (status === 'active') {
         console.log('[Checkout Success] Subscription activated successfully');
-        res.redirect('/?success=subscription_activated');
+        return res.json({ success: true });
       } else {
-        console.log('[Checkout Success] Subscription not activated — redirecting to payment failed page');
-        res.redirect('/?error=payment_failed');
+        console.log('[Checkout Success] Subscription not activated — returning payment failed');
+        return res.status(402).json({ success: false, error: 'payment_failed' });
       }
 
     } catch (error: any) {
       console.error('[Checkout Success] Error:', error);
       const errorCode = error.status === 404 ? 'subscription_not_found' : 
                        error.status === 401 || error.status === 403 ? 'unauthorized' : 'checkout_failed';
-      res.redirect(`/?error=${errorCode}`);
+      return res.status(error.status || 500).json({ success: false, error: errorCode });
     }
   });
 

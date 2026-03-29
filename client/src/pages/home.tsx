@@ -76,25 +76,36 @@ export default function Home() {
     // Handle subscription_id from Dodo Payments redirect
     if (subscriptionId) {
       processedRef.current = true;
-      // Call checkout success endpoint to process the subscription
+      // Call checkout success endpoint to process the subscription.
+      // The server always returns JSON — never a redirect — so we read data.success
+      // instead of response.ok (which would be true even after a followed redirect).
       fetch(`/api/checkout/success?subscription_id=${subscriptionId}${status ? `&status=${status}` : ''}`, {
         method: 'GET',
         credentials: 'include',
       })
-        .then((response) => {
-          // Remove query parameters from URL immediately
+        .then(async (response) => {
           window.history.replaceState({}, '', '/app/pricing');
-          
-          if (response.ok) {
+          const data = await response.json();
+          if (data.success) {
             toast({
               title: "Subscription Activated",
               description: "Your subscription has been successfully activated!",
               variant: "default",
             });
           } else {
+            const errorMessages: Record<string, string> = {
+              payment_failed: "Your payment could not be processed. Please check your payment details and try again.",
+              no_subscription: "No subscription found. Please contact support.",
+              user_not_found: "User not found. Please log in again.",
+              unknown_plan: "Unknown subscription plan. Please contact support.",
+              plan_not_found: "Subscription plan not found. Please contact support.",
+              checkout_failed: "Failed to process checkout. Please try again.",
+              subscription_not_found: "Subscription not found. Please contact support.",
+              unauthorized: "Unauthorized. Please log in again.",
+            };
             toast({
-              title: "Error",
-              description: "Failed to activate subscription. Please contact support.",
+              title: "Payment Failed",
+              description: errorMessages[data.error] || "An error occurred. Please try again.",
               variant: "destructive",
             });
           }
