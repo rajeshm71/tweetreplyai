@@ -548,7 +548,8 @@ class PopupManager {
   updateUsageDisplay() {
     if (!this.usageData) return;
 
-    const { used, limit, resetAt, status, planCode, upgradeRequired } = this.usageData;
+    const { used, limit, resetAt, status, planCode, upgradeRequired, subscriptionCanceled } = this.usageData;
+    const subCanceled = !!subscriptionCanceled;
     const percentage = Math.min((used / limit) * 100, 100);
     const isExceeded = used >= limit || !!upgradeRequired;
 
@@ -581,14 +582,15 @@ class PopupManager {
       this.statusText.textContent = isExceeded ? 'Limit reached' : 'Active';
     }
     
-    // Reset / exhausted line: match web app (only show trial exhausted copy when quota is actually hit)
+    // Reset / end line: match web app (canceled paid sub → "Ends"; trial exhausted only when quota hit)
     const resetDistance = this.formatTimeDistance(new Date(resetAt));
     const isTrial = planCode === 'trial' || status === 'trial';
+    const timeVerb = subCanceled ? 'Ends' : 'Resets';
     const resetLine = !isExceeded
-      ? `Resets ${resetDistance}`
+      ? `${timeVerb} ${resetDistance}`
       : isTrial
         ? "You've used all your trial credits: upgrade to keep replying."
-        : `You've used all your credits. Resets ${resetDistance}`;
+        : `You've used all your credits. ${timeVerb} ${resetDistance}`;
     if (this.resetText) {
       this.resetText.textContent = resetLine;
     }
@@ -601,7 +603,7 @@ class PopupManager {
       if (isExceeded) {
         this.statusMessage.textContent = isTrial
           ? "You've used all your trial credits: upgrade to keep replying."
-          : `You've used all your credits. Resets ${resetDistance}`;
+          : `You've used all your credits. ${timeVerb} ${resetDistance}`;
       } else {
         this.statusMessage.textContent = 'Click "Reply" on any X post to generate suggestions';
       }

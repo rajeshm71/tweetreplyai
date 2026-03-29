@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Clock, Warning, Crown, CaretDown, CaretUp } from "@phosphor-icons/react";
 import { formatDistanceToNow } from "date-fns";
 import { useLocation } from "wouter";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { POLLING } from "@/config/constants";
 
 interface UsageStatus {
@@ -14,6 +14,8 @@ interface UsageStatus {
   limit: number;
   resetAt: string;
   status: 'active' | 'trial' | 'no_access';
+  /** Canceled sub still in paid period — show "Ends" instead of "Resets". */
+  subscriptionCanceled?: boolean;
   isWhitelisted?: boolean;
   upgradeRequired?: boolean;
   upgradeMessage?: string;
@@ -35,6 +37,15 @@ export function UsageBadge({ showDetails = false }: UsageBadgeProps) {
     queryKey: ["/api/usage"],
     refetchInterval: POLLING.USAGE_REFETCH_INTERVAL_MS,
   });
+
+  useEffect(() => {
+    if (!import.meta.env.DEV || !usage) return;
+    console.debug("[UsageDiag] badge /api/usage payload", {
+      subscriptionCanceled: usage.subscriptionCanceled,
+      planCode: usage.planCode,
+      resetAt: usage.resetAt,
+    });
+  }, [usage]);
 
   if (isLoading) {
     return (
@@ -58,11 +69,12 @@ export function UsageBadge({ showDetails = false }: UsageBadgeProps) {
   const usageQuotaExhausted = isQuotaExceeded || !!usage.upgradeRequired;
   const isTrialUser = usage.planCode === 'trial';
   const resetDistance = formatDistanceToNow(new Date(usage.resetAt), { addSuffix: true });
+  const timeVerb = usage.subscriptionCanceled ? 'Ends' : 'Resets';
   const resetLine = usageQuotaExhausted
     ? isTrialUser
       ? "You've used all your trial credits: upgrade to keep replying."
-      : `You've used all your credits. Resets ${resetDistance}.`
-    : `Resets ${resetDistance}`;
+      : `You've used all your credits. ${timeVerb} ${resetDistance}.`
+    : `${timeVerb} ${resetDistance}`;
   const showUpgrade = usage.upgradeRequired && !usage.isWhitelisted;
 
   if (showDetails) {
@@ -167,7 +179,7 @@ export function UsageBadge({ showDetails = false }: UsageBadgeProps) {
         {usage.used} / {usage.limit} •{' '}
         {usageQuotaExhausted && isTrialUser
           ? 'upgrade to keep replying'
-          : `resets ${resetDistance}`}
+          : `${usage.subscriptionCanceled ? 'ends' : 'resets'} ${resetDistance}`}
       </span>
     </div>
   );

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { UsageService } from '../../../server/services/usage';
 import { createMockUser } from '../../factories/user.factory';
+import { PLAN_LIMITS } from '../../../shared/constants';
 
 // Mock the storage module used by UsageService
 vi.mock('../../../server/storage-supabase', () => ({
@@ -81,6 +82,93 @@ describe('Usage Service - Unit Tests', () => {
       const result = await usageService.getUsageStatus('non-existent-user');
 
       expect(result).toBeNull();
+    });
+
+    it('sets subscriptionCanceled true when paid subscription is canceled but period has not ended', async () => {
+      const mockUser = createMockUser({ hasUsedTrial: true } as any);
+      const currentPeriodStart = new Date(Date.now() - 5 * 86400000);
+      const currentPeriodEnd = new Date(Date.now() + 25 * 86400000);
+
+      const mockSubscription = {
+        id: 'sub-1',
+        userId: mockUser.id,
+        dodoSubscriptionId: 'dodo_sub',
+        planCode: 'monthly',
+        status: 'canceled' as const,
+        currentPeriodStart,
+        currentPeriodEnd,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      const mockCounter = {
+        id: 'cnt-1',
+        userId: mockUser.id,
+        planCode: 'monthly',
+        periodStart: currentPeriodStart,
+        periodEnd: currentPeriodEnd,
+        repliesUsed: 0,
+        creditsUsed: 10,
+        limit: PLAN_LIMITS.monthly.credits,
+        resetAt: currentPeriodEnd,
+        modeBreakdown: {},
+      };
+
+      const { storage } = await import('../../../server/storage-supabase');
+      vi.mocked(storage.getUser).mockResolvedValue(mockUser);
+      vi.mocked(storage.getActiveSubscription).mockResolvedValue(mockSubscription);
+      vi.mocked(storage.getActiveTrialCounter).mockResolvedValue(null);
+      vi.mocked(storage.getUsageCounter).mockResolvedValue(mockCounter as any);
+
+      const result = await usageService.getUsageStatus(mockUser.id);
+
+      expect(result).toMatchObject({
+        planCode: 'monthly',
+        subscriptionCanceled: true,
+        used: 10,
+        limit: PLAN_LIMITS.monthly.credits,
+      });
+    });
+
+    it('sets subscriptionCanceled false when paid subscription is active', async () => {
+      const mockUser = createMockUser({ hasUsedTrial: true } as any);
+      const currentPeriodStart = new Date(Date.now() - 5 * 86400000);
+      const currentPeriodEnd = new Date(Date.now() + 25 * 86400000);
+
+      const mockSubscription = {
+        id: 'sub-2',
+        userId: mockUser.id,
+        dodoSubscriptionId: 'dodo_sub',
+        planCode: 'monthly',
+        status: 'active' as const,
+        currentPeriodStart,
+        currentPeriodEnd,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      const mockCounter = {
+        id: 'cnt-2',
+        userId: mockUser.id,
+        planCode: 'monthly',
+        periodStart: currentPeriodStart,
+        periodEnd: currentPeriodEnd,
+        repliesUsed: 0,
+        creditsUsed: 0,
+        limit: PLAN_LIMITS.monthly.credits,
+        resetAt: currentPeriodEnd,
+        modeBreakdown: {},
+      };
+
+      const { storage } = await import('../../../server/storage-supabase');
+      vi.mocked(storage.getUser).mockResolvedValue(mockUser);
+      vi.mocked(storage.getActiveSubscription).mockResolvedValue(mockSubscription);
+      vi.mocked(storage.getActiveTrialCounter).mockResolvedValue(null);
+      vi.mocked(storage.getUsageCounter).mockResolvedValue(mockCounter as any);
+
+      const result = await usageService.getUsageStatus(mockUser.id);
+
+      expect(result?.subscriptionCanceled).toBe(false);
     });
   });
 

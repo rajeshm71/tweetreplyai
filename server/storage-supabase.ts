@@ -375,6 +375,15 @@ export class SupabaseStorage implements IStorage {
     if (!data) {
       return undefined;
     }
+
+    if (process.env.USAGE_DIAG_LOGS === '1') {
+      console.log('[UsageDiag] getActiveSubscription raw row', {
+        userId,
+        statusJson: JSON.stringify(data.status),
+        current_period_end: data.current_period_end,
+        plan_code: data.plan_code,
+      });
+    }
     
     // Map database fields to interface
     return {

@@ -623,11 +623,21 @@ export async function registerRoutes(app: Express): Promise<Express> {
         return res.status(404).json({ message: "User not found" });
       }
 
+      const resetAtIso =
+        status.resetAt instanceof Date ? status.resetAt.toISOString() : String(status.resetAt);
       console.log('[API-DEBUG] /api/usage - Returning status:', {
         planCode: status.planCode,
         used: status.used,
         limit: status.limit,
-        status: status.status
+        status: status.status,
+        subscriptionCanceled: status.subscriptionCanceled,
+        resetAt: resetAtIso,
+      });
+      console.log('[UsageDiag] GET /api/usage response fields', {
+        userId,
+        subscriptionCanceled: status.subscriptionCanceled,
+        planCode: status.planCode,
+        resetAt: resetAtIso,
       });
       console.log('[API-DEBUG] ========== GET /api/usage END ==========');
 
@@ -1915,6 +1925,17 @@ export async function registerRoutes(app: Express): Promise<Express> {
         updatedAt: subscription.updatedAt instanceof Date ? subscription.updatedAt.toISOString() : subscription.updatedAt,
       } : null;
 
+      const subStatusJson = subscription ? JSON.stringify(subscription.status) : null;
+      const subPlanCode = subscription?.planCode ?? null;
+      console.log('[UsageDiag] GET /api/subscription billing + usage correlation', {
+        userId,
+        hasSubscriptionRow: !!subscription,
+        subscriptionStatusJson: subStatusJson,
+        subscriptionPlanCode: subPlanCode,
+        usageSubscriptionCanceled: usageStatus.subscriptionCanceled,
+        usagePlanCode: usageStatus.planCode,
+      });
+
       res.json({
         subscription: serializedSubscription,
         planDetails,
@@ -2346,7 +2367,13 @@ export async function registerRoutes(app: Express): Promise<Express> {
         
         // Update subscription
         const updates: any = {};
-        if (status && status !== existingSubscription.status) {
+        // Never revert from 'canceled' back to 'active' via subscription.updated.
+        // When cancel_at_period_end=true is set, Dodo fires subscription.updated with
+        // status='active' (the sub is still running until period end). We already
+        // recorded 'canceled' in the API call; the subscription.canceled event will
+        // confirm it when the period actually ends.
+        if (status && status !== existingSubscription.status &&
+            !(existingSubscription.status === 'canceled' && status === 'active')) {
           updates.status = status;
         }
 

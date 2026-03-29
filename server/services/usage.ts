@@ -13,6 +13,8 @@ interface UsageWindow {
   periodEnd: Date;
   limit: number;
   resetAt: Date;
+  /** True when access is from a canceled sub still inside current_period_end (UI: "Ends" not "Resets"). */
+  subscriptionCanceled?: boolean;
 }
 
 export interface UsageStatus {
@@ -26,6 +28,8 @@ export interface UsageStatus {
   showModelSelect?: boolean;
   upgradeRequired?: boolean;
   upgradeMessage?: string;
+  /** Paid access from canceled subscription until period end; clients show "Ends in …" instead of "Resets …". */
+  subscriptionCanceled?: boolean;
   modeBreakdown?: {
     'single-sentence'?: { replies: number; credits: number };
     'enhanced'?: { replies: number; credits: number };
@@ -87,8 +91,25 @@ export class UsageService {
     const activeSubscription = await storage.getActiveSubscription(user.id);
     
     if (activeSubscription) {
+      const subStatus = activeSubscription.status;
+      const statusJson = JSON.stringify(subStatus);
+      const statusLen = typeof subStatus === 'string' ? subStatus.length : null;
+      console.log('[UsageDiag] resolveActiveWindow subscription row', {
+        userId: user.id,
+        subscriptionId: activeSubscription.id,
+        planCode: activeSubscription.planCode,
+        statusJson,
+        statusLen,
+        currentPeriodEndISO: activeSubscription.currentPeriodEnd.toISOString(),
+        periodEndAfterNow: activeSubscription.currentPeriodEnd > now,
+        strictEqualsCanceled: subStatus === 'canceled',
+      });
+
       // If subscription is canceled and period has ended, user loses access (no trial fallback)
       if (activeSubscription.status === 'canceled' && activeSubscription.currentPeriodEnd <= now) {
+        console.log('[UsageDiag] resolveActiveWindow branch canceled_period_expired_return_null', {
+          userId: user.id,
+        });
         return null;
       }
       
@@ -102,10 +123,29 @@ export class UsageService {
             periodEnd: activeSubscription.currentPeriodEnd,
             limit: plan.credits, // CHANGED: Use credits instead of replies
             resetAt: activeSubscription.currentPeriodEnd,
+            subscriptionCanceled: activeSubscription.status === 'canceled',
           };
+          console.log('[UsageDiag] resolveActiveWindow return paid_window', {
+            userId: user.id,
+            planCode: result.planCode,
+            subscriptionCanceled: result.subscriptionCanceled,
+            resetAtISO: result.resetAt.toISOString(),
+          });
           return result;
         }
+        console.log('[UsageDiag] resolveActiveWindow branch unknown_plan_code_falling_through', {
+          userId: user.id,
+          planCode: activeSubscription.planCode,
+        });
+      } else {
+        console.log('[UsageDiag] resolveActiveWindow branch subscription_period_end_not_after_now_falling_through', {
+          userId: user.id,
+          subscriptionId: activeSubscription.id,
+        });
       }
+      console.log('[UsageDiag] resolveActiveWindow falling_through_after_subscription_row', {
+        userId: user.id,
+      });
     }
 
     // FIRST: Check for active trial counter (before checking hasUsedTrial flag)
@@ -282,8 +322,16 @@ export class UsageService {
       showModelSelect: WHITELIST.SHOW_MODEL_SELECT_FOR_WHITELIST && isWhitelisted,
       upgradeRequired,
       upgradeMessage,
+      subscriptionCanceled: window.subscriptionCanceled === true,
       modeBreakdown: counter.modeBreakdown || undefined, // Include mode breakdown in response
     };
+
+    console.log('[UsageDiag] getUsageStatus returning active', {
+      userId,
+      planCode: result.planCode,
+      subscriptionCanceled: result.subscriptionCanceled,
+      windowSubscriptionCanceled: window.subscriptionCanceled === true,
+    });
     
     return result;
   }

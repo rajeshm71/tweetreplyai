@@ -726,7 +726,8 @@
     }
     updateUsageDisplay() {
       if (!this.usageData) return;
-      const { used, limit, resetAt, status, planCode, upgradeRequired } = this.usageData;
+      const { used, limit, resetAt, status, planCode, upgradeRequired, subscriptionCanceled } = this.usageData;
+      const subCanceled = !!subscriptionCanceled;
       const percentage = Math.min(used / limit * 100, 100);
       const isExceeded = used >= limit || !!upgradeRequired;
       if (this.progressFill) {
@@ -750,7 +751,8 @@
       }
       const resetDistance = this.formatTimeDistance(new Date(resetAt));
       const isTrial = planCode === "trial" || status === "trial";
-      const resetLine = !isExceeded ? `Resets ${resetDistance}` : isTrial ? "You've used all your trial credits: upgrade to keep replying." : `You've used all your credits. Resets ${resetDistance}`;
+      const timeVerb = subCanceled ? "Ends" : "Resets";
+      const resetLine = !isExceeded ? `${timeVerb} ${resetDistance}` : isTrial ? "You've used all your trial credits: upgrade to keep replying." : `You've used all your credits. ${timeVerb} ${resetDistance}`;
       if (this.resetText) {
         this.resetText.textContent = resetLine;
       }
@@ -759,7 +761,7 @@
       }
       if (this.statusMessage) {
         if (isExceeded) {
-          this.statusMessage.textContent = isTrial ? "You've used all your trial credits: upgrade to keep replying." : `You've used all your credits. Resets ${resetDistance}`;
+          this.statusMessage.textContent = isTrial ? "You've used all your trial credits: upgrade to keep replying." : `You've used all your credits. ${timeVerb} ${resetDistance}`;
         } else {
           this.statusMessage.textContent = 'Click "Reply" on any X post to generate suggestions';
         }

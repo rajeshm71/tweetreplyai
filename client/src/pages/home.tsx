@@ -31,6 +31,7 @@ type UsageStatus = {
   limit: number;
   resetAt: string;
   status: 'active' | 'trial' | 'no_access';
+  subscriptionCanceled?: boolean;
   isWhitelisted?: boolean;
   upgradeRequired?: boolean;
   upgradeMessage?: string;
@@ -287,15 +288,19 @@ export default function Home() {
                       </div>
                     </div>
 
-                    {/* Reset / exhausted copy (trial exhausted only when quota actually hit) */}
+                    {/* Reset / end copy (canceled paid: "Ends"; trial exhausted only when quota hit) */}
                     <div className="flex items-center gap-2 p-3 bg-muted/30 rounded-lg border border-border/50">
                       <IconClock className="w-4 h-4 text-primary flex-shrink-0" />
                       <span className="text-sm text-muted-foreground">
-                        {usageQuotaExhausted
-                          ? usageStatus.planCode === 'trial'
-                            ? "You've used all your trial credits: upgrade to keep replying."
-                            : `You've used all your credits. Resets ${formatDistanceToNow(new Date(usageStatus.resetAt), { addSuffix: true })}.`
-                          : `Resets ${formatDistanceToNow(new Date(usageStatus.resetAt), { addSuffix: true })}`}
+                        {(() => {
+                          const dist = formatDistanceToNow(new Date(usageStatus.resetAt), { addSuffix: true });
+                          const verb = usageStatus.subscriptionCanceled ? 'Ends' : 'Resets';
+                          return usageQuotaExhausted
+                            ? usageStatus.planCode === 'trial'
+                              ? "You've used all your trial credits: upgrade to keep replying."
+                              : `You've used all your credits. ${verb} ${dist}.`
+                            : `${verb} ${dist}`;
+                        })()}
                       </span>
                     </div>
 
