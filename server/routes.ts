@@ -1749,6 +1749,17 @@ export async function registerRoutes(app: Express): Promise<Express> {
           } catch (counterError: any) {
             console.error('[Checkout Success] Failed to create usage counter:', counterError);
           }
+
+          // Subscription active email: checkout redirect usually runs before webhook, so DB row exists
+          // when subscription.created fires and the webhook skips sendSubscriptionActive (update-only path).
+          emailService
+            .sendSubscriptionActive(
+              user.id,
+              subscriptionId,
+              planCode,
+              periodEnd.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+            )
+            .catch((err: unknown) => console.error('[Checkout Success] sendSubscriptionActive error:', err));
         } catch (createError: any) {
           console.error('[Checkout Success] Failed to create subscription:', createError);
           console.error('[Checkout Success] Error details:', {
@@ -1885,6 +1896,14 @@ export async function registerRoutes(app: Express): Promise<Express> {
         return res.status(400).json({ message: "Subscription is already canceled" });
       }
 
+      const accessUntil = subscription.currentPeriodEnd
+        ? subscription.currentPeriodEnd.toLocaleDateString('en-US', {
+            month: 'long',
+            day: 'numeric',
+            year: 'numeric',
+          })
+        : 'the end of your billing period';
+
       // Cancel subscription via Dodo Payments
       await dodoPaymentsService.cancelSubscription(subscription.dodoSubscriptionId);
 
@@ -1893,6 +1912,15 @@ export async function registerRoutes(app: Express): Promise<Express> {
         status: 'canceled',
         cancelAt: new Date(),
       });
+
+      emailService
+        .sendSubscriptionCanceled(
+          userId,
+          subscription.dodoSubscriptionId,
+          subscription.planCode,
+          accessUntil,
+        )
+        .catch((err: unknown) => console.error('[API subscription/cancel] sendSubscriptionCanceled error:', err));
 
       // Fetch updated subscription to return complete data
       const updatedSubscription = await storage.getActiveSubscription(userId);
@@ -2246,6 +2274,21 @@ export async function registerRoutes(app: Express): Promise<Express> {
         }
 
         await storage.updateSubscription(existingSubscription.id, updates);
+
+        // Canceled via subscription.updated (some providers omit dedicated subscription.canceled)
+        if (status === 'canceled' && existingSubscription.status !== 'canceled') {
+          const periodEndForAccess = updates.currentPeriodEnd ?? existingSubscription.currentPeriodEnd;
+          const accessUntil = periodEndForAccess
+            ? new Date(periodEndForAccess).toLocaleDateString('en-US', {
+                month: 'long',
+                day: 'numeric',
+                year: 'numeric',
+              })
+            : 'the end of your billing period';
+          emailService
+            .sendSubscriptionCanceled(user.id, subscriptionId, existingSubscription.planCode, accessUntil)
+            .catch((err: unknown) => console.error('[Webhook] sendSubscriptionCanceled (updated) error:', err));
+        }
 
         // If status changed to active, reset usage counter
         if (status === 'active' && existingSubscription.status !== 'active') {

@@ -55,10 +55,13 @@ export function UsageBadge({ showDetails = false }: UsageBadgeProps) {
   }
 
   const isQuotaExceeded = usage.used >= usage.limit;
+  const usageQuotaExhausted = isQuotaExceeded || !!usage.upgradeRequired;
   const isTrialUser = usage.planCode === 'trial';
   const resetDistance = formatDistanceToNow(new Date(usage.resetAt), { addSuffix: true });
-  const resetLine = isTrialUser
-    ? "You've used all your trial credits: upgrade to keep replying."
+  const resetLine = usageQuotaExhausted
+    ? isTrialUser
+      ? "You've used all your trial credits: upgrade to keep replying."
+      : `You've used all your credits. Resets ${resetDistance}.`
     : `Resets ${resetDistance}`;
   const showUpgrade = usage.upgradeRequired && !usage.isWhitelisted;
 
@@ -71,7 +74,7 @@ export function UsageBadge({ showDetails = false }: UsageBadgeProps) {
               <span className="text-sm font-medium">
                 {isTrialUser ? 'Free Trial' : `${usage.planCode.charAt(0).toUpperCase() + usage.planCode.slice(1)} Plan`}
               </span>
-              <Badge variant={isQuotaExceeded ? "destructive" : "default"}>
+              <Badge variant={usageQuotaExhausted ? "destructive" : "default"}>
                 {usage.used} / {usage.limit}
               </Badge>
             </div>
@@ -79,7 +82,7 @@ export function UsageBadge({ showDetails = false }: UsageBadgeProps) {
             <div className="w-full bg-secondary rounded-full h-2">
               <div 
                 className={`h-2 rounded-full transition-all ${
-                  isQuotaExceeded ? 'bg-destructive' : 'bg-primary'
+                  usageQuotaExhausted ? 'bg-destructive' : 'bg-primary'
                 }`}
                 style={{ width: `${Math.min((usage.used / usage.limit) * 100, 100)}%` }}
               />
@@ -158,10 +161,13 @@ export function UsageBadge({ showDetails = false }: UsageBadgeProps) {
   return (
     <div className="flex items-center space-x-2 text-sm" data-testid="usage-badge">
       <div className={`w-2 h-2 rounded-full ${
-        isQuotaExceeded ? 'bg-destructive' : 'bg-primary'
+        usageQuotaExhausted ? 'bg-destructive' : 'bg-primary'
       }`} />
       <span className="text-muted-foreground">
-        {usage.used} / {usage.limit} • {isTrialUser ? "upgrade to keep replying" : `resets ${resetDistance}`}
+        {usage.used} / {usage.limit} •{' '}
+        {usageQuotaExhausted && isTrialUser
+          ? 'upgrade to keep replying'
+          : `resets ${resetDistance}`}
       </span>
     </div>
   );

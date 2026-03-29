@@ -384,7 +384,7 @@ class PopupManager {
           this.setState('authenticated');
         } else if (this.usageData.status === 'trial' || this.usageData.status === 'active') {
           // User has trial or active subscription access
-          if (this.usageData.used >= this.usageData.limit) {
+          if (this.usageData.used >= this.usageData.limit || this.usageData.upgradeRequired) {
             this.setState('authenticated');
           } else {
             // User has access and quota available
@@ -548,9 +548,9 @@ class PopupManager {
   updateUsageDisplay() {
     if (!this.usageData) return;
 
-    const { used, limit, resetAt, status, planCode } = this.usageData;
+    const { used, limit, resetAt, status, planCode, upgradeRequired } = this.usageData;
     const percentage = Math.min((used / limit) * 100, 100);
-    const isExceeded = used >= limit;
+    const isExceeded = used >= limit || !!upgradeRequired;
 
     // Update progress bar
     if (this.progressFill) {
@@ -581,12 +581,14 @@ class PopupManager {
       this.statusText.textContent = isExceeded ? 'Limit reached' : 'Active';
     }
     
-    // Update reset time (trial: no "Resets in X days", show upgrade message instead)
+    // Reset / exhausted line: match web app (only show trial exhausted copy when quota is actually hit)
     const resetDistance = this.formatTimeDistance(new Date(resetAt));
     const isTrial = planCode === 'trial' || status === 'trial';
-    const resetLine = isTrial
-      ? "You've used all your trial credits: upgrade to keep replying."
-      : `Resets ${resetDistance}`;
+    const resetLine = !isExceeded
+      ? `Resets ${resetDistance}`
+      : isTrial
+        ? "You've used all your trial credits: upgrade to keep replying."
+        : `You've used all your credits. Resets ${resetDistance}`;
     if (this.resetText) {
       this.resetText.textContent = resetLine;
     }

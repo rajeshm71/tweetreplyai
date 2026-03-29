@@ -175,6 +175,11 @@ export default function Home() {
 
   const showGuide = showOnboarding || showExtensionGuide;
 
+  /** True when quota is exhausted (matches /api/usage upgradeRequired + numeric cap). */
+  const usageQuotaExhausted =
+    usageStatus != null &&
+    (usageStatus.used >= usageStatus.limit || !!usageStatus.upgradeRequired);
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -260,22 +265,24 @@ export default function Home() {
                         <div
                           style={{ width: `${Math.min((usageStatus.used / usageStatus.limit) * 100, 100)}%` }}
                           className={`h-full rounded-full relative overflow-hidden ${
-                            usageStatus.used >= usageStatus.limit 
-                              ? 'bg-gradient-to-r from-destructive to-red-600' 
-                              : usageStatus.used / usageStatus.limit >= 0.8 
-                              ? 'bg-gradient-to-r from-yellow-500 to-orange-500' 
-                              : 'bg-gradient-to-r from-primary via-purple-600 to-primary'
+                            usageQuotaExhausted
+                              ? 'bg-gradient-to-r from-destructive to-red-600'
+                              : usageStatus.used / usageStatus.limit >= 0.8
+                                ? 'bg-gradient-to-r from-yellow-500 to-orange-500'
+                                : 'bg-gradient-to-r from-primary via-purple-600 to-primary'
                           }`}
                         />
                       </div>
                     </div>
 
-                    {/* Reset Time (trial: no "Resets in X days", show upgrade message) */}
+                    {/* Reset / exhausted copy (trial exhausted only when quota actually hit) */}
                     <div className="flex items-center gap-2 p-3 bg-muted/30 rounded-lg border border-border/50">
                       <IconClock className="w-4 h-4 text-primary flex-shrink-0" />
                       <span className="text-sm text-muted-foreground">
-                        {usageStatus.planCode === 'trial'
-                          ? "You've used all your trial credits: upgrade to keep replying."
+                        {usageQuotaExhausted
+                          ? usageStatus.planCode === 'trial'
+                            ? "You've used all your trial credits: upgrade to keep replying."
+                            : `You've used all your credits. Resets ${formatDistanceToNow(new Date(usageStatus.resetAt), { addSuffix: true })}.`
                           : `Resets ${formatDistanceToNow(new Date(usageStatus.resetAt), { addSuffix: true })}`}
                       </span>
                     </div>

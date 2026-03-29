@@ -590,7 +590,7 @@
           if (this.usageData.status === "no_access") {
             this.setState("authenticated");
           } else if (this.usageData.status === "trial" || this.usageData.status === "active") {
-            if (this.usageData.used >= this.usageData.limit) {
+            if (this.usageData.used >= this.usageData.limit || this.usageData.upgradeRequired) {
               this.setState("authenticated");
             } else {
               this.setState("authenticated");
@@ -726,9 +726,9 @@
     }
     updateUsageDisplay() {
       if (!this.usageData) return;
-      const { used, limit, resetAt, status, planCode } = this.usageData;
+      const { used, limit, resetAt, status, planCode, upgradeRequired } = this.usageData;
       const percentage = Math.min(used / limit * 100, 100);
-      const isExceeded = used >= limit;
+      const isExceeded = used >= limit || !!upgradeRequired;
       if (this.progressFill) {
         this.progressFill.style.width = `${percentage}%`;
         this.progressFill.classList.toggle("exceeded", isExceeded);
@@ -750,7 +750,7 @@
       }
       const resetDistance = this.formatTimeDistance(new Date(resetAt));
       const isTrial = planCode === "trial" || status === "trial";
-      const resetLine = isTrial ? "You've used all your trial credits: upgrade to keep replying." : `Resets ${resetDistance}`;
+      const resetLine = !isExceeded ? `Resets ${resetDistance}` : isTrial ? "You've used all your trial credits: upgrade to keep replying." : `You've used all your credits. Resets ${resetDistance}`;
       if (this.resetText) {
         this.resetText.textContent = resetLine;
       }
