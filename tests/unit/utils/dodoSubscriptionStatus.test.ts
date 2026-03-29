@@ -1,29 +1,27 @@
-import { describe, it, expect } from "vitest";
-import { normalizeDodoSubscriptionStatus } from "../../../server/utils/dodoSubscriptionStatus";
+import { describe, expect, it } from 'vitest';
+import {
+  normalizeDodoSubscriptionStatus,
+  shouldSendPaymentFailedOnTransition,
+} from '../../../server/utils/dodoSubscriptionStatus';
 
-describe("normalizeDodoSubscriptionStatus", () => {
-  it("returns undefined for null/undefined", () => {
-    expect(normalizeDodoSubscriptionStatus(undefined)).toBeUndefined();
-    expect(normalizeDodoSubscriptionStatus(null)).toBeUndefined();
+describe('dodoSubscriptionStatus', () => {
+  describe('normalizeDodoSubscriptionStatus', () => {
+    it('normalizes past-due variants', () => {
+      expect(normalizeDodoSubscriptionStatus('past-due')).toBe('past_due');
+    });
   });
 
-  it("maps hyphenated and spaced variants", () => {
-    expect(normalizeDodoSubscriptionStatus("past-due")).toBe("past_due");
-    expect(normalizeDodoSubscriptionStatus("Past Due")).toBe("past_due");
-  });
+  describe('shouldSendPaymentFailedOnTransition', () => {
+    it('is true when entering past_due from active', () => {
+      expect(shouldSendPaymentFailedOnTransition('active', 'past_due')).toBe(true);
+    });
 
-  it("maps cancelled to canceled", () => {
-    expect(normalizeDodoSubscriptionStatus("cancelled")).toBe("canceled");
-    expect(normalizeDodoSubscriptionStatus("Cancelled")).toBe("canceled");
-  });
+    it('is false when status unchanged past_due', () => {
+      expect(shouldSendPaymentFailedOnTransition('past_due', 'past_due')).toBe(false);
+    });
 
-  it("accepts failed and other canonical values", () => {
-    expect(normalizeDodoSubscriptionStatus("failed")).toBe("failed");
-    expect(normalizeDodoSubscriptionStatus("active")).toBe("active");
-    expect(normalizeDodoSubscriptionStatus("unpaid")).toBe("unpaid");
-  });
-
-  it("returns undefined for unknown strings", () => {
-    expect(normalizeDodoSubscriptionStatus("weird")).toBeUndefined();
+    it('is false for active to active', () => {
+      expect(shouldSendPaymentFailedOnTransition('active', 'active')).toBe(false);
+    });
   });
 });

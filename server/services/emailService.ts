@@ -46,6 +46,15 @@ function hashToken(token: string): string {
   return crypto.createHash('sha256').update(token).digest('hex').slice(0, 16);
 }
 
+function idempotencyKeyForLog(key: string): string {
+  return key.length > 80 ? `${key.slice(0, 80)}…` : key;
+}
+
+function emailRecipientForLog(email: string): string {
+  const at = email.indexOf('@');
+  return at === -1 ? '(invalid)' : `***@${email.slice(at + 1)}`;
+}
+
 /**
  * FIX: Handle non-hex user IDs (varchar) that make parseInt(...,16) yield NaN.
  * Fall back to a djb2-style hash of the full string so the split is always 50/50.
@@ -77,8 +86,8 @@ async function dispatch({
   render: () => Promise<{ subject: string; html: string; text: string }>;
   abVariantValue?: 'A' | 'B';
 }): Promise<void> {
-  // 1. Idempotency — attempt to insert log row first; DB unique constraint rejects duplicates
-  const inserted = await storage.logEmailSend({
+  // 1. Idempotency — insert log row first; duplicate + prior `failed` reclaims slot for Resend retry
+  const slot = await storage.logEmailSend({
     userId,
     templateKey,
     idempotencyKey,
@@ -86,9 +95,21 @@ async function dispatch({
     abVariant: abVariantValue,
   });
 
-  if (!inserted) {
-    console.log(`[emailService] skipped duplicate send: ${idempotencyKey}`);
+  if (slot === 'duplicate') {
+    console.log('[emailService] dispatch skipped: duplicate idempotency', {
+      templateKey,
+      idempotencyKey: idempotencyKeyForLog(idempotencyKey),
+      userId,
+    });
     return;
+  }
+
+  if (slot === 'claimed_failed_retry') {
+    console.log('[emailService] dispatch: retry after prior Resend failure', {
+      templateKey,
+      idempotencyKey: idempotencyKeyForLog(idempotencyKey),
+      userId,
+    });
   }
 
   // 2. Preference gate (non-critical categories only)
@@ -141,6 +162,11 @@ async function dispatch({
 
   // 6. Send — Resend Idempotency-Key header + email_id on webhooks correlate to resend_message_id (no custom tags; tag values disallow colons)
   let messageId: string | null = null;
+  console.log('[emailService] dispatch sending', {
+    templateKey,
+    idempotencyKey: idempotencyKeyForLog(idempotencyKey),
+    to: emailRecipientForLog(toEmail),
+  });
   try {
     messageId = await sendEmail({
       to: toEmail,
@@ -150,6 +176,11 @@ async function dispatch({
       idempotencyKey,
     });
   } catch (err) {
+    console.error('[emailService] dispatch resend_failed', {
+      templateKey,
+      idempotencyKey: idempotencyKeyForLog(idempotencyKey),
+      error: err instanceof Error ? err.message : String(err),
+    });
     await storage.updateEmailSendLog(idempotencyKey, { status: 'failed' });
     throw err;
   }
@@ -158,6 +189,11 @@ async function dispatch({
   await storage.updateEmailSendLog(idempotencyKey, {
     status: 'sent',
     resendMessageId: messageId ?? undefined,
+  });
+
+  console.log('[emailService] dispatch sent', {
+    templateKey,
+    resendMessageId: messageId ?? null,
   });
 }
 
@@ -447,15 +483,14 @@ export async function sendCampaignBatch(
         // FIX (fix4): Per-recipient idempotency key prevents duplicate sends if the admin
         // clicks send twice or the cron fires before the campaign status transitions to 'sent'.
         const recipientKey = `campaign:${campaignId}:${user.id}`;
-        const inserted = await storage.logEmailSend({
+        const slot = await storage.logEmailSend({
           userId: user.id,
           templateKey: `campaign_${campaign.templateKey}`,
           idempotencyKey: recipientKey,
           status: 'pending',
         });
 
-        if (!inserted) {
-          // Already sent or in-flight — skip silently
+        if (slot === 'duplicate') {
           return 'skipped';
         }
 

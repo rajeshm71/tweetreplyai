@@ -18,3 +18,13 @@ export function normalizeDodoSubscriptionStatus(
   if (s === 'cancelled') s = 'canceled';
   return (ALLOWED as readonly string[]).includes(s) ? (s as DodoSubscriptionCanonicalStatus) : undefined;
 }
+
+/** True when we should notify the user that billing needs attention (first transition into problem state). */
+export function shouldSendPaymentFailedOnTransition(
+  previousStatus: string,
+  nextStatus: string,
+): boolean {
+  const billingProblem =
+    nextStatus === 'past_due' || nextStatus === 'unpaid' || nextStatus === 'failed';
+  return billingProblem && previousStatus !== nextStatus;
+}

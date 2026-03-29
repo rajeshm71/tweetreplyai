@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import express from "express";
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import type { UsageCounter } from "../shared/types.js";
 import { storage } from "./storage.js";
 import { setupLocalAuth } from "./localAuth.js";
@@ -21,7 +21,10 @@ import session from "express-session";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import { hashPassword, verifyPassword, validatePasswordStrength } from "./utils/password.js";
-import { normalizeDodoSubscriptionStatus } from "./utils/dodoSubscriptionStatus.js";
+import {
+  normalizeDodoSubscriptionStatus,
+  shouldSendPaymentFailedOnTransition,
+} from "./utils/dodoSubscriptionStatus.js";
 // FIX: sendWelcomeEmail removed (unused after switching to emailService.sendWelcome in registration block below)
 import { sendPasswordResetEmail } from "./utils/email.js";
 import * as emailService from "./services/emailService.js";
@@ -168,7 +171,12 @@ export async function registerRoutes(app: Express): Promise<Express> {
     message: { message: 'Too many requests. Try again later.' },
     standardHeaders: true,
     legacyHeaders: false,
-    keyGenerator: (req) => (req as any).user?.id ?? req.ip ?? 'anonymous',
+    keyGenerator: (req) => {
+      const userId = (req as any).user?.id;
+      if (userId != null && userId !== "") return String(userId);
+      if (req.ip) return ipKeyGenerator(req.ip);
+      return "anonymous";
+    },
   });
 
   // Auth routes
@@ -1707,6 +1715,13 @@ export async function registerRoutes(app: Express): Promise<Express> {
           userId: user.id,
           planCode,
         });
+        console.log('[payment-email]', {
+          action: 'checkout_payment_failed_response',
+          userId: user.id,
+          subscriptionId,
+          status,
+          rawStatus: subData.status,
+        });
         return res.status(402).json({ success: false, error: 'payment_failed' });
       }
 
@@ -2228,21 +2243,52 @@ export async function registerRoutes(app: Express): Promise<Express> {
         // Hard payment failure — Dodo will not retry this subscription.
         // Skip DB write entirely; user must start a new checkout (new subscription_id).
         if (status === 'failed') {
+          console.log('[payment-email][Webhook]', {
+            action: 'sendPaymentFailed_invoked',
+            source: 'subscription.created_failed',
+            eventType,
+            subscriptionId,
+            userId: user.id,
+            previousStatus: '(none)',
+            resolvedStatus: status,
+            rawStatusFromEvent: rawStatusInput,
+          });
+          emailService
+            .sendPaymentFailed(user.id, subscriptionId)
+            .catch((err: unknown) => console.error('[Webhook] sendPaymentFailed (created_failed) error:', err));
           console.warn('[Webhook] subscription.created with failed status — skipping DB write', {
             subscriptionId,
             userId: user.id,
           });
           return res.json({ received: true });
         }
-        
+
         if (existingSubscription) {
           // Update existing subscription (idempotent operation)
+          const previousStatus = existingSubscription.status;
           console.log(`[Webhook] Subscription already exists, updating: ${subscriptionId}`);
           await storage.updateSubscription(existingSubscription.id, {
             status,
             currentPeriodStart: periodStart,
             currentPeriodEnd: periodEnd,
           });
+          if (shouldSendPaymentFailedOnTransition(previousStatus, status)) {
+            console.log('[payment-email][Webhook]', {
+              action: 'sendPaymentFailed_invoked',
+              source: 'subscription.created_existing_row',
+              eventType,
+              subscriptionId,
+              userId: user.id,
+              previousStatus,
+              resolvedStatus: status,
+              rawStatusFromEvent: rawStatusInput,
+            });
+            emailService
+              .sendPaymentFailed(user.id, subscriptionId)
+              .catch((err: unknown) =>
+                console.error('[Webhook] sendPaymentFailed (created_existing) error:', err),
+              );
+          }
         } else {
           // Create new subscription record regardless of status so we have a row to update later
           await storage.createSubscription({
@@ -2256,6 +2302,32 @@ export async function registerRoutes(app: Express): Promise<Express> {
             amountPaid: eventData.amount_paid || plan.price,
             currency,
           });
+
+          if (status === 'past_due' || status === 'unpaid') {
+            console.log('[payment-email][Webhook]', {
+              action: 'subscription_created_non_active',
+              eventType,
+              subscriptionId,
+              userId: user.id,
+              status,
+              rawStatusFromEvent: rawStatusInput,
+            });
+            console.log('[payment-email][Webhook]', {
+              action: 'sendPaymentFailed_invoked',
+              source: 'subscription.created_new_row',
+              eventType,
+              subscriptionId,
+              userId: user.id,
+              previousStatus: '(none)',
+              resolvedStatus: status,
+              rawStatusFromEvent: rawStatusInput,
+            });
+            emailService
+              .sendPaymentFailed(user.id, subscriptionId)
+              .catch((err: unknown) =>
+                console.error('[Webhook] sendPaymentFailed (created_new_non_active) error:', err),
+              );
+          }
 
           // Only activate credits and send email when payment actually succeeded
           if (status === 'active') {
@@ -2435,12 +2507,39 @@ export async function registerRoutes(app: Express): Promise<Express> {
         }
 
         // Fire payment-failed email when status transitions to past_due, unpaid, or failed (hard decline)
-        if (
-          (status === 'past_due' || status === 'unpaid' || status === 'failed') &&
-          existingSubscription.status !== status
-        ) {
-          emailService.sendPaymentFailed(user.id, subscriptionId)
+        const prevForPaymentEmail = existingSubscription.status;
+        const billingProblem =
+          status === 'past_due' || status === 'unpaid' || status === 'failed';
+        const sendPaymentFailedHere = shouldSendPaymentFailedOnTransition(prevForPaymentEmail, status);
+
+        if (sendPaymentFailedHere) {
+          console.log('[payment-email][Webhook]', {
+            action: 'sendPaymentFailed_invoked',
+            source: 'subscription.updated',
+            eventType,
+            subscriptionId,
+            userId: user.id,
+            previousStatus: prevForPaymentEmail,
+            resolvedStatus: status,
+            rawStatusFromEvent: rawStatus,
+          });
+          emailService
+            .sendPaymentFailed(user.id, subscriptionId)
             .catch((err: unknown) => console.error('[Webhook] sendPaymentFailed error:', err));
+        } else {
+          const skipReason = !billingProblem
+            ? 'status_not_billing_problem'
+            : 'no_status_change';
+          console.log('[payment-email][Webhook]', {
+            action: 'sendPaymentFailed_skipped',
+            reason: skipReason,
+            eventType,
+            subscriptionId,
+            userId: user.id,
+            previousStatus: prevForPaymentEmail,
+            resolvedStatus: status,
+            rawStatusFromEvent: rawStatus,
+          });
         }
       }
 

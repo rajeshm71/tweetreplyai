@@ -1259,7 +1259,9 @@ export class SupabaseStorage implements IStorage {
   // Email send log (idempotency + tracking)
   // ---------------------------------------------------------------------------
 
-  async logEmailSend(entry: Omit<EmailSendLog, 'id' | 'createdAt'>): Promise<boolean> {
+  async logEmailSend(
+    entry: Omit<EmailSendLog, 'id' | 'createdAt'>,
+  ): Promise<'inserted' | 'claimed_failed_retry' | 'duplicate'> {
     const { error } = await supabase
       .from('email_send_log')
       .insert({
@@ -1272,14 +1274,52 @@ export class SupabaseStorage implements IStorage {
         metadata: entry.metadata ?? null,
       });
 
-    if (error) {
-      // 23505 = unique_violation — already sent
-      if (error.code === '23505') return false;
-      console.error('logEmailSend error:', error);
-      throw error;
+    if (!error) {
+      return 'inserted';
     }
 
-    return true;
+    if (error.code === '23505') {
+      const { data: row, error: selErr } = await supabase
+        .from('email_send_log')
+        .select('status')
+        .eq('idempotency_key', entry.idempotencyKey)
+        .maybeSingle();
+
+      if (selErr) {
+        console.error('logEmailSend duplicate lookup error:', selErr);
+        return 'duplicate';
+      }
+
+      if (row?.status === 'failed') {
+        const { data: updated, error: upErr } = await supabase
+          .from('email_send_log')
+          .update({ status: 'pending', resend_message_id: null })
+          .eq('idempotency_key', entry.idempotencyKey)
+          .eq('status', 'failed')
+          .select('id');
+
+        if (!upErr && updated && updated.length > 0) {
+          console.log(
+            '[email_send_log] reclaimed failed idempotency slot for retry:',
+            entry.idempotencyKey.length > 64
+              ? `${entry.idempotencyKey.slice(0, 64)}…`
+              : entry.idempotencyKey,
+          );
+          return 'claimed_failed_retry';
+        }
+      }
+
+      console.debug(
+        '[email_send_log] idempotency duplicate (non-retryable):',
+        entry.idempotencyKey.length > 64
+          ? `${entry.idempotencyKey.slice(0, 64)}…`
+          : entry.idempotencyKey,
+      );
+      return 'duplicate';
+    }
+
+    console.error('logEmailSend error:', error);
+    throw error;
   }
 
   async updateEmailSendLog(

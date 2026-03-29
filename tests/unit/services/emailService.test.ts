@@ -66,7 +66,7 @@ beforeEach(() => {
   mockGetUser.mockResolvedValue(MOCK_USER);
   // null → service uses defaults: usageAlerts=true, productTips=true, marketing=false
   mockGetEmailPreferences.mockResolvedValue(null);
-  mockLogEmailSend.mockResolvedValue(true);
+  mockLogEmailSend.mockResolvedValue('inserted');
   mockUpdateEmailSendLog.mockResolvedValue(undefined);
   mockCountRecentEmails.mockResolvedValue(0);
   mockCountMonthlyEmails.mockResolvedValue(0);
@@ -91,11 +91,30 @@ describe('emailService', () => {
       );
     });
 
-    it('skips send if idempotency log returns false (duplicate)', async () => {
-      mockLogEmailSend.mockResolvedValue(false);
+    it('skips send if idempotency log returns duplicate', async () => {
+      mockLogEmailSend.mockResolvedValue('duplicate');
       const { sendWelcome } = await import('../../../server/services/emailService');
       await sendWelcome('user-abc');
       expect(mockSendEmail).not.toHaveBeenCalled();
+    });
+
+    it('retries send after a failed row is reclaimed (claimed_failed_retry)', async () => {
+      mockLogEmailSend
+        .mockResolvedValueOnce('inserted')
+        .mockResolvedValueOnce('claimed_failed_retry');
+      mockSendEmail
+        .mockRejectedValueOnce(new Error('resend down'))
+        .mockResolvedValueOnce('msg-retry-1');
+
+      const { sendWelcome } = await import('../../../server/services/emailService');
+      await expect(sendWelcome('user-abc')).rejects.toThrow('resend down');
+      await sendWelcome('user-abc');
+
+      expect(mockSendEmail).toHaveBeenCalledTimes(2);
+      expect(mockUpdateEmailSendLog).toHaveBeenCalledWith(
+        'welcome:user-abc',
+        expect.objectContaining({ status: 'failed' }),
+      );
     });
 
     it('returns early when user not found', async () => {
@@ -214,12 +233,12 @@ describe('emailService', () => {
     it('does not send twice for the same idempotency key', async () => {
       const { sendWelcome } = await import('../../../server/services/emailService');
 
-      mockLogEmailSend.mockResolvedValueOnce(true);
+      mockLogEmailSend.mockResolvedValueOnce('inserted');
       await sendWelcome('user-abc');
       expect(mockSendEmail).toHaveBeenCalledTimes(1);
 
-      // Second call: duplicate — DB unique constraint returns false
-      mockLogEmailSend.mockResolvedValueOnce(false);
+      // Second call: duplicate — DB unique constraint
+      mockLogEmailSend.mockResolvedValueOnce('duplicate');
       await sendWelcome('user-abc');
       expect(mockSendEmail).toHaveBeenCalledTimes(1);
     });

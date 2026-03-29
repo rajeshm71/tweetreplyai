@@ -10,7 +10,17 @@ vi.mock("../../../server/replitAuth", () => ({
 }));
 vi.mock("../../../server/localAuth", () => ({ setupLocalAuth: vi.fn() }));
 vi.mock("../../../server/services/dodo-payments", () => ({
-  PLANS: {},
+  PLANS: {
+    weekly: {
+      code: "weekly",
+      name: "Weekly",
+      price: 299,
+      replies: 100,
+      credits: 100,
+      interval: "week",
+      dodoPriceId: "price_weekly_test",
+    },
+  },
   dodoPaymentsService: {
     constructWebhookEvent: vi.fn(),
     planCodeFromPriceId: vi.fn(() => "weekly"),
@@ -23,8 +33,9 @@ vi.mock("../../../server/storage", () => ({
     updateUser: vi.fn(),
     upsertUser: vi.fn(),
     getSubscriptionByDodoId: vi.fn(),
-    createSubscription: vi.fn(),
+    createSubscription: vi.fn().mockResolvedValue({ id: "sub-row-1" }),
     updateSubscription: vi.fn(),
+    getUserSubscriptions: vi.fn().mockResolvedValue([]),
   },
 }));
 vi.mock("../../../server/services/emailService", () => ({
@@ -138,6 +149,125 @@ describe("Dodo Webhook Route - Unit Tests", () => {
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ received: true });
     expect(emailService.sendPaymentFailed).toHaveBeenCalledWith("user-payfail", "sub_dodo_failed_1");
+  });
+
+  it("subscription.created with failed status calls sendPaymentFailed and does not create subscription", async () => {
+    const { dodoPaymentsService } = await import("../../../server/services/dodo-payments");
+    const { storage } = await import("../../../server/storage");
+    const emailService = await import("../../../server/services/emailService");
+
+    vi.mocked(dodoPaymentsService.constructWebhookEvent).mockResolvedValue({
+      type: "subscription.created",
+      data: {
+        customer_email: "failedcreate@example.com",
+        customer: { email: "failedcreate@example.com" },
+        subscription_id: "sub_created_failed_1",
+        id: "sub_created_failed_1",
+        status: "failed",
+        product_id: "price_x",
+        metadata: { product_id: "price_x" },
+      },
+    } as any);
+
+    vi.mocked(storage.getUserByEmail).mockResolvedValue({
+      id: "user-failed-create",
+      email: "failedcreate@example.com",
+    } as any);
+    vi.mocked(storage.getSubscriptionByDodoId).mockResolvedValue(undefined);
+
+    const res = await request(app)
+      .post("/api/dodo/webhook")
+      .set("webhook-id", "wid")
+      .set("webhook-signature", "valid-sig")
+      .set("webhook-timestamp", "ts")
+      .send(Buffer.from(JSON.stringify({ type: "subscription.created" })));
+
+    expect(res.status).toBe(200);
+    expect(emailService.sendPaymentFailed).toHaveBeenCalledWith("user-failed-create", "sub_created_failed_1");
+    expect(storage.createSubscription).not.toHaveBeenCalled();
+  });
+
+  it("subscription.created with past_due creates subscription and calls sendPaymentFailed", async () => {
+    const { dodoPaymentsService } = await import("../../../server/services/dodo-payments");
+    const { storage } = await import("../../../server/storage");
+    const emailService = await import("../../../server/services/emailService");
+
+    vi.mocked(dodoPaymentsService.constructWebhookEvent).mockResolvedValue({
+      type: "subscription.created",
+      data: {
+        customer_email: "pastdue@example.com",
+        customer: { email: "pastdue@example.com" },
+        subscription_id: "sub_pastdue_new",
+        id: "sub_pastdue_new",
+        status: "past_due",
+        product_id: "price_x",
+        metadata: { product_id: "price_x" },
+      },
+    } as any);
+
+    vi.mocked(storage.getUserByEmail).mockResolvedValue({
+      id: "user-pastdue",
+      email: "pastdue@example.com",
+    } as any);
+    vi.mocked(storage.getSubscriptionByDodoId).mockResolvedValue(undefined);
+
+    const res = await request(app)
+      .post("/api/dodo/webhook")
+      .set("webhook-id", "wid")
+      .set("webhook-signature", "valid-sig")
+      .set("webhook-timestamp", "ts")
+      .send(Buffer.from(JSON.stringify({ type: "subscription.created" })));
+
+    expect(res.status).toBe(200);
+    expect(storage.createSubscription).toHaveBeenCalled();
+    expect(emailService.sendPaymentFailed).toHaveBeenCalledWith("user-pastdue", "sub_pastdue_new");
+  });
+
+  it("subscription.created updates existing sub and calls sendPaymentFailed on transition to past_due", async () => {
+    const { dodoPaymentsService } = await import("../../../server/services/dodo-payments");
+    const { storage } = await import("../../../server/storage");
+    const emailService = await import("../../../server/services/emailService");
+
+    vi.mocked(dodoPaymentsService.constructWebhookEvent).mockResolvedValue({
+      type: "subscription.created",
+      data: {
+        customer_email: "existing@example.com",
+        customer: { email: "existing@example.com" },
+        subscription_id: "sub_existing_pd",
+        id: "sub_existing_pd",
+        status: "past_due",
+        product_id: "price_x",
+        metadata: { product_id: "price_x" },
+      },
+    } as any);
+
+    vi.mocked(storage.getUserByEmail).mockResolvedValue({
+      id: "user-existing",
+      email: "existing@example.com",
+    } as any);
+
+    vi.mocked(storage.getSubscriptionByDodoId).mockResolvedValue({
+      id: "row-existing",
+      userId: "user-existing",
+      dodoSubscriptionId: "sub_existing_pd",
+      planCode: "weekly",
+      status: "active",
+      currentPeriodStart: new Date(),
+      currentPeriodEnd: new Date(Date.now() + 86400000),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    } as any);
+
+    const res = await request(app)
+      .post("/api/dodo/webhook")
+      .set("webhook-id", "wid")
+      .set("webhook-signature", "valid-sig")
+      .set("webhook-timestamp", "ts")
+      .send(Buffer.from(JSON.stringify({ type: "subscription.created" })));
+
+    expect(res.status).toBe(200);
+    expect(storage.updateSubscription).toHaveBeenCalled();
+    expect(emailService.sendPaymentFailed).toHaveBeenCalledWith("user-existing", "sub_existing_pd");
   });
 });
 

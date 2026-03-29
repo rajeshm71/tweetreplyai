@@ -30,7 +30,11 @@ export async function sendEmail(params: SendEmailParams): Promise<string | null>
   const fromEmail = process.env.RESEND_FROM_EMAIL;
 
   if (!apiKey || !fromEmail) {
-    console.warn('[emailTransport] RESEND_API_KEY or RESEND_FROM_EMAIL not set — skipping send');
+    console.warn('[emailTransport]', {
+      action: 'resend_disabled_missing_env',
+      missingResendApiKey: !apiKey,
+      missingResendFromEmail: !fromEmail,
+    });
     return null;
   }
 
@@ -61,5 +65,10 @@ export async function sendEmail(params: SendEmailParams): Promise<string | null>
     throw error;
   }
 
-  return data?.id ?? null;
+  const id = data?.id ?? null;
+  if (!id) {
+    console.warn('[emailTransport]', { action: 'resend_accepted_no_message_id' });
+  }
+
+  return id;
 }

@@ -70,7 +70,9 @@ export interface IStorage {
   upsertEmailPreferences(data: UpsertUserEmailPreferences): Promise<UserEmailPreferences>;
 
   // Email send log (idempotency)
-  logEmailSend(entry: Omit<EmailSendLog, 'id' | 'createdAt'>): Promise<boolean>;
+  logEmailSend(
+    entry: Omit<EmailSendLog, 'id' | 'createdAt'>,
+  ): Promise<'inserted' | 'claimed_failed_retry' | 'duplicate'>;
   updateEmailSendLog(idempotencyKey: string, updates: { status?: string; resendMessageId?: string }): Promise<void>;
   /** Update by Resend email id from webhooks; no-op if no row matches (do not throw). */
   updateEmailSendLogByResendMessageId(
