@@ -29,7 +29,7 @@ interface SubscriptionData {
   subscription: {
     id: string;
     planCode: string;
-    status: 'active' | 'canceled' | 'past_due' | 'unpaid';
+    status: 'active' | 'canceled' | 'past_due' | 'unpaid' | 'failed';
     currentPeriodEnd: string;
     cancelAt?: string;
   } | null;

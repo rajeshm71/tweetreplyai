@@ -27,6 +27,10 @@ vi.mock("../../../server/storage", () => ({
     updateSubscription: vi.fn(),
   },
 }));
+vi.mock("../../../server/services/emailService", () => ({
+  sendPaymentFailed: vi.fn().mockResolvedValue(undefined),
+  sendSubscriptionCanceled: vi.fn().mockResolvedValue(undefined),
+}));
 
 describe("Dodo Webhook Route - Unit Tests", () => {
   let app: express.Express;
@@ -87,6 +91,53 @@ describe("Dodo Webhook Route - Unit Tests", () => {
 
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ received: true });
+  });
+
+  it("subscription.updated with failed status calls sendPaymentFailed when prior status was active", async () => {
+    const { dodoPaymentsService } = await import("../../../server/services/dodo-payments");
+    const { storage } = await import("../../../server/storage");
+    const emailService = await import("../../../server/services/emailService");
+
+    vi.mocked(dodoPaymentsService.constructWebhookEvent).mockResolvedValue({
+      type: "subscription.updated",
+      data: {
+        customer_email: "payfail@example.com",
+        customer: { email: "payfail@example.com" },
+        subscription_id: "sub_dodo_failed_1",
+        id: "sub_dodo_failed_1",
+        status: "failed",
+      },
+    } as any);
+
+    vi.mocked(storage.getUserByEmail).mockResolvedValue({
+      id: "user-payfail",
+      email: "payfail@example.com",
+    } as any);
+
+    vi.mocked(storage.getSubscriptionByDodoId).mockResolvedValue({
+      id: "row-1",
+      userId: "user-payfail",
+      dodoSubscriptionId: "sub_dodo_failed_1",
+      planCode: "weekly",
+      status: "active",
+      currentPeriodStart: new Date(),
+      currentPeriodEnd: new Date(Date.now() + 86400000),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    } as any);
+
+    vi.mocked(storage.updateSubscription).mockResolvedValue(undefined as any);
+
+    const res = await request(app)
+      .post("/api/dodo/webhook")
+      .set("webhook-id", "wid")
+      .set("webhook-signature", "valid-sig")
+      .set("webhook-timestamp", "ts")
+      .send(Buffer.from(JSON.stringify({ type: "subscription.updated" })));
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ received: true });
+    expect(emailService.sendPaymentFailed).toHaveBeenCalledWith("user-payfail", "sub_dodo_failed_1");
   });
 });
 

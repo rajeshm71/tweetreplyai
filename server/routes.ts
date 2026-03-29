@@ -21,6 +21,7 @@ import session from "express-session";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import { hashPassword, verifyPassword, validatePasswordStrength } from "./utils/password.js";
+import { normalizeDodoSubscriptionStatus } from "./utils/dodoSubscriptionStatus.js";
 // FIX: sendWelcomeEmail removed (unused after switching to emailService.sendWelcome in registration block below)
 import { sendPasswordResetEmail } from "./utils/email.js";
 import * as emailService from "./services/emailService.js";
@@ -2188,10 +2189,9 @@ export async function registerRoutes(app: Express): Promise<Express> {
         // 'failed' = hard payment rejection (card declined); Dodo will NOT retry — distinct from
         // 'past_due' which is overdue but may recover via dunning retries.
         const validStatuses = ['active', 'canceled', 'past_due', 'unpaid', 'failed'] as const;
-        const rawStatus = eventData.status ?? eventData.data?.object?.status ?? 'past_due';
-        const status = (validStatuses.includes(rawStatus as typeof validStatuses[number])
-          ? rawStatus
-          : 'past_due') as typeof validStatuses[number];
+        const rawStatusInput = eventData.status ?? eventData.data?.object?.status ?? 'past_due';
+        const normalizedCreated = normalizeDodoSubscriptionStatus(rawStatusInput);
+        const status = (normalizedCreated ?? 'past_due') as typeof validStatuses[number];
 
         // Extract currency from response
         const currency = eventData.currency 
@@ -2206,7 +2206,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
         console.log('[Webhook] subscription.created received', {
           subscriptionId,
           resolvedStatus: status,
-          rawStatus,
+          rawStatus: rawStatusInput,
           planCode,
           userId: user.id,
           customerEmail,
@@ -2219,7 +2219,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
           console.warn('[Webhook] subscription.created — non-active status, NOT activating credits or sending active email', {
             subscriptionId,
             status,
-            rawStatus,
+            rawStatus: rawStatusInput,
             userId: user.id,
             rawEventData: JSON.stringify(eventData).substring(0, 2000),
           });
@@ -2345,12 +2345,12 @@ export async function registerRoutes(app: Express): Promise<Express> {
           return res.json({ received: true });
         }
 
-        // Validate and extract status
-        const validStatuses = ['active', 'canceled', 'past_due', 'unpaid'] as const;
-        const rawStatus = eventData.status || eventData.data?.object?.status;
-        const status = rawStatus && validStatuses.includes(rawStatus as typeof validStatuses[number])
-          ? (rawStatus as typeof validStatuses[number])
-          : existingSubscription.status; // Keep existing status if invalid
+        // Validate and extract status (include 'failed' like subscription.created; normalize past-due etc.)
+        const validStatuses = ['active', 'canceled', 'past_due', 'unpaid', 'failed'] as const;
+        const rawFromEvent = eventData.status || eventData.data?.object?.status;
+        const normalizedUpdated = normalizeDodoSubscriptionStatus(rawFromEvent);
+        const status = (normalizedUpdated ?? existingSubscription.status) as typeof validStatuses[number];
+        const rawStatus = rawFromEvent;
         
         // Helper function to parse Dodo Payments date
         const parseDodoDate = (dateValue: any): Date | undefined => {
@@ -2434,9 +2434,9 @@ export async function registerRoutes(app: Express): Promise<Express> {
           }
         }
 
-        // FIX: Fire payment-failed email when status transitions to past_due or unpaid
+        // Fire payment-failed email when status transitions to past_due, unpaid, or failed (hard decline)
         if (
-          (status === 'past_due' || status === 'unpaid') &&
+          (status === 'past_due' || status === 'unpaid' || status === 'failed') &&
           existingSubscription.status !== status
         ) {
           emailService.sendPaymentFailed(user.id, subscriptionId)

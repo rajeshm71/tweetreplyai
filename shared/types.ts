@@ -36,7 +36,7 @@ export interface Subscription {
   userId: string;
   dodoSubscriptionId: string;
   planCode: string;
-  status: 'active' | 'canceled' | 'past_due' | 'unpaid';
+  status: 'active' | 'canceled' | 'past_due' | 'unpaid' | 'failed';
   currentPeriodStart: Date;
   currentPeriodEnd: Date;
   amountPaid?: number;
@@ -52,7 +52,7 @@ export interface InsertSubscription {
   userId: string;
   dodoSubscriptionId: string;
   planCode: string;
-  status: 'active' | 'canceled' | 'past_due' | 'unpaid';
+  status: 'active' | 'canceled' | 'past_due' | 'unpaid' | 'failed';
   currentPeriodStart: Date;
   currentPeriodEnd: Date;
   amountPaid?: number;
