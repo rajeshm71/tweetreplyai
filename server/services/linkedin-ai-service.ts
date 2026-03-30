@@ -141,7 +141,10 @@ export async function generateLinkedInReply(
     console.log(`[LinkedIn] Quality check failed (score: ${quality.totalScore}), retrying...`);
 
     try {
-      const retryVariation = options.promptVariation === "default" ? "direct" : "default";
+      const retryVariation =
+        options.promptVariation === "default" || options.promptVariation === "x_default"
+          ? "direct"
+          : "default";
       const retryConfig = options.viewerIsOriginalAuthor
         ? getLinkedInOriginalAuthorPromptConfig(retryVariation)
         : getLinkedInPromptConfig(retryVariation);

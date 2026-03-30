@@ -1,5 +1,10 @@
 import { LINKEDIN_REPLY_LIMITS } from "../config/constants.js";
-import { LINKEDIN_META_COMMENTARY_RULE, LINKEDIN_SIMPLE_LANGUAGE_RULE, type LinkedInPromptConfig } from "./prompts-linkedin.js";
+import {
+  LINKEDIN_META_COMMENTARY_RULE,
+  LINKEDIN_PROMPT_VARIATION_X_DEFAULT,
+  LINKEDIN_SIMPLE_LANGUAGE_RULE,
+  type LinkedInPromptConfig,
+} from "./prompts-linkedin.js";
 
 export const LINKEDIN_OA_PROMPT_VARIATIONS: Record<string, LinkedInPromptConfig> = {
   default: {
@@ -166,7 +171,10 @@ Give a direct, clear response to this comment on your post.`,
 };
 
 export function getLinkedInOriginalAuthorPromptConfig(promptName: string = "default"): LinkedInPromptConfig {
-  const config = LINKEDIN_OA_PROMPT_VARIATIONS[promptName] || LINKEDIN_OA_PROMPT_VARIATIONS.default;
+  const resolved =
+    promptName === LINKEDIN_PROMPT_VARIATION_X_DEFAULT ? "default" : promptName;
+  const config =
+    LINKEDIN_OA_PROMPT_VARIATIONS[resolved] || LINKEDIN_OA_PROMPT_VARIATIONS.default;
   return {
     ...config,
     systemPrompt: config.systemPrompt + LINKEDIN_META_COMMENTARY_RULE + LINKEDIN_SIMPLE_LANGUAGE_RULE,
