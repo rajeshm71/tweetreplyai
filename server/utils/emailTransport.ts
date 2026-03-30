@@ -7,6 +7,10 @@ export interface SendEmailParams {
   text: string;
   tags?: { name: string; value: string }[];
   /**
+   * Custom headers (e.g. RFC 2369 List-Unsubscribe + RFC 8058 one-click).
+   */
+  headers?: Record<string, string>;
+  /**
    * Sent as Resend `Idempotency-Key` header (max 256 chars per Resend docs).
    * Longer keys are hashed to SHA-256 hex (64 chars).
    */
@@ -51,6 +55,10 @@ export async function sendEmail(params: SendEmailParams): Promise<string | null>
 
   if (params.tags && params.tags.length > 0) {
     payload.tags = params.tags;
+  }
+
+  if (params.headers && Object.keys(params.headers).length > 0) {
+    payload.headers = params.headers;
   }
 
   const sendOptions =

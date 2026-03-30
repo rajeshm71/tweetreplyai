@@ -12,6 +12,7 @@ import { usageService } from "./services/usage.js";
 import { whitelistService } from "./services/whitelistService.js";
 import { runGuardrail, generateGuardrailFriendlyReply, type GuardrailResult } from "./services/guardrail.js";
 import { ANALYTICS, PERIODS, QUALITY, RATE_LIMIT, VALIDATION } from "./config/constants.js";
+import { APP_DISPLAY_NAME } from "../shared/constants.js";
 import { getSessionSecret, getClientErrorBody, isProduction } from "./config/env.js";
 // Static import: avoids per-request dynamic import; LinkedIn pipeline remains isolated from Twitter path.
 import { generateLinkedInReply } from "./services/linkedin-ai-service.js";
@@ -32,6 +33,10 @@ import {
   getIdempotencyKeyFromResendWebhookData,
   getRecipientEmailFromResendWebhookData,
 } from "./utils/resendWebhook.js";
+import {
+  verifyEmailUnsubscribeToken,
+  type EmailUnsubscribeScope,
+} from "./utils/emailUnsubscribeToken.js";
 // Use crypto.randomUUID() instead of uuid package
 const generateId = () => {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -139,6 +144,107 @@ export async function registerRoutes(app: Express): Promise<Express> {
   
   setupLocalAuth();
   setupGoogleAuth();
+
+  const appBaseUrl = (process.env.APP_URL || process.env.DOMAIN || "http://localhost:5000").replace(
+    /\/$/,
+    "",
+  );
+  const publicSettingsUrl = `${appBaseUrl}/settings`;
+
+  const escapeHtmlUnsubscribe = (s: string) =>
+    s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
+
+  const unsubscribeSuccessMessage = (scope: EmailUnsubscribeScope): string => {
+    switch (scope) {
+      case "marketing":
+        return `You've been unsubscribed from marketing and feature emails from ${APP_DISPLAY_NAME}.`;
+      case "product_tips":
+        return "You've been unsubscribed from product tips and engagement emails.";
+      case "usage_alerts":
+        return "You've turned off usage alert emails. You can re-enable them anytime in settings.";
+      default:
+        return "Your email preferences were updated.";
+    }
+  };
+
+  const applyEmailUnsubscribe = async (userId: string, scope: EmailUnsubscribeScope) => {
+    const row: { userId: string; marketing?: boolean; productTips?: boolean; usageAlerts?: boolean } = {
+      userId,
+    };
+    if (scope === "marketing") row.marketing = false;
+    if (scope === "product_tips") row.productTips = false;
+    if (scope === "usage_alerts") row.usageAlerts = false;
+    await storage.upsertEmailPreferences(row);
+    if (scope === "marketing") {
+      const u = await storage.getUser(userId);
+      if (u?.email) await emailService.unsubscribeContactInResend(u.email);
+    }
+  };
+
+  // Lightweight abuse protection for the public unsubscribe endpoints (signed token required).
+  // This avoids unnecessary DB writes if someone spams the URL.
+  const unsubscribeRateLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 30,
+    message: { message: "Too many requests. Try again later." },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
+  // Signed one-click unsubscribe (RFC 8058 POST + browser GET) — no session required
+  app.get("/email/unsubscribe", unsubscribeRateLimiter, async (req: any, res) => {
+    try {
+      const token = typeof req.query.token === "string" ? req.query.token : "";
+      if (!token) {
+        return res
+          .status(400)
+          .type("html")
+          .send(
+            `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Unsubscribe</title></head><body style="font-family:system-ui,sans-serif;margin:2rem">Invalid link.</body></html>`,
+          );
+      }
+      const parsed = verifyEmailUnsubscribeToken(token);
+      if (!parsed) {
+        return res
+          .status(400)
+          .type("html")
+          .send(
+            `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Unsubscribe</title></head><body style="font-family:system-ui,sans-serif;margin:2rem">This unsubscribe link is invalid or has expired.</body></html>`,
+          );
+      }
+      await applyEmailUnsubscribe(parsed.userId, parsed.scope);
+      const msg = unsubscribeSuccessMessage(parsed.scope);
+      res
+        .type("html")
+        .send(
+          `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Email preferences</title></head><body style="font-family:system-ui,sans-serif;max-width:28rem;margin:3rem auto;padding:0 1rem;line-height:1.5"><p>${escapeHtmlUnsubscribe(
+            msg,
+          )}</p><p><a href="${escapeHtmlUnsubscribe(publicSettingsUrl)}">Open settings</a></p></body></html>`,
+        );
+    } catch (error) {
+      console.error("GET /email/unsubscribe error:", error);
+      res
+        .status(500)
+        .type("html")
+        .send(
+          `<!DOCTYPE html><html><body style="font-family:system-ui,sans-serif;margin:2rem">Something went wrong.</body></html>`,
+        );
+    }
+  });
+
+  app.post("/email/unsubscribe", unsubscribeRateLimiter, async (req: any, res) => {
+    try {
+      const token = typeof req.query.token === "string" ? req.query.token : "";
+      if (token) {
+        const parsed = verifyEmailUnsubscribeToken(token);
+        if (parsed) await applyEmailUnsubscribe(parsed.userId, parsed.scope);
+      }
+      res.status(200).type("text/plain").send("");
+    } catch (error) {
+      console.error("POST /email/unsubscribe error:", error);
+      res.status(200).type("text/plain").send("");
+    }
+  });
 
   // Auth rate limiter: 15 min window, max 10 requests per IP (login, register, forgot-password)
   const authRateLimiter = rateLimit({
@@ -739,7 +845,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
       const userId = getUserId(req);
       const prefs = await storage.getEmailPreferences(userId);
       if (!prefs) {
-        return res.json({ usageAlerts: true, productTips: true, marketing: false });
+        return res.json({ usageAlerts: true, productTips: true, marketing: true });
       }
       res.json(prefs);
     } catch (error) {
@@ -3255,7 +3361,7 @@ User draft reply: ${draft_reply}`;
 
       const { type, data } = payload ?? {};
 
-      async function applyEmailSendLogStatus(status: string) {
+      const applyEmailSendLogStatus = async (status: string) => {
         const emailId = typeof data?.email_id === 'string' ? data.email_id : undefined;
         if (emailId) {
           await storage.updateEmailSendLogByResendMessageId(emailId, { status });
@@ -3265,7 +3371,7 @@ User draft reply: ${draft_reply}`;
         if (idem) {
           await storage.updateEmailSendLog(idem, { status });
         }
-      }
+      };
 
       switch (type) {
         case 'email.delivered':

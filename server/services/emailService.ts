@@ -2,6 +2,11 @@ import crypto from 'crypto';
 import { storage } from '../storage.js';
 import { sendEmail } from '../utils/emailTransport.js';
 import {
+  buildEmailUnsubscribeUrl,
+  listUnsubscribeHeaders,
+  type EmailUnsubscribeScope,
+} from '../utils/emailUnsubscribeToken.js';
+import {
   renderWelcomeEmail,
   renderPasswordResetEmail,
   renderSubscriptionActiveEmail,
@@ -68,6 +73,14 @@ function abVariant(userId: string): 'A' | 'B' {
   return bucket % 2 === 0 ? 'A' : 'B';
 }
 
+function unsubscribeScopeForCategory(category: string): EmailUnsubscribeScope | undefined {
+  if (category === 'usage_alerts' || category === 'conversion') return 'usage_alerts';
+  if (category === 'engagement') return 'product_tips';
+  return undefined;
+}
+
+type EmailRenderContext = { unsubscribeUrl?: string };
+
 /** Core send flow: dedup → pref check → rate limit → render → send → log */
 async function dispatch({
   userId,
@@ -83,7 +96,7 @@ async function dispatch({
   templateKey: string;
   idempotencyKey: string;
   category: string;
-  render: () => Promise<{ subject: string; html: string; text: string }>;
+  render: (ctx: EmailRenderContext) => Promise<{ subject: string; html: string; text: string }>;
   abVariantValue?: 'A' | 'B';
 }): Promise<void> {
   // 1. Idempotency — insert log row first; duplicate + prior `failed` reclaims slot for Resend retry
@@ -115,8 +128,13 @@ async function dispatch({
   // 2. Preference gate (non-critical categories only)
   if (!ALWAYS_SEND.has(category)) {
     const prefs = await storage.getEmailPreferences(userId);
-    const defaults = { usageAlerts: true, productTips: true, marketing: false };
-    const effective = prefs ?? defaults;
+    const defaults = { usageAlerts: true, productTips: true, marketing: true };
+    // Guard against partially-populated rows (e.g. NULL columns) by defaulting per-field.
+    const effective = {
+      usageAlerts: prefs?.usageAlerts ?? defaults.usageAlerts,
+      productTips: prefs?.productTips ?? defaults.productTips,
+      marketing: prefs?.marketing ?? defaults.marketing,
+    };
 
     if (
       (category === 'usage_alerts' || category === 'conversion') &&
@@ -157,8 +175,14 @@ async function dispatch({
     }
   }
 
+  const scope = unsubscribeScopeForCategory(category);
+  const unsubscribeUrl =
+    !ALWAYS_SEND.has(category) && scope
+      ? buildEmailUnsubscribeUrl(userId, scope, APP_URL)
+      : undefined;
+
   // 5. Render
-  const { subject, html, text } = await render();
+  const { subject, html, text } = await render({ unsubscribeUrl });
 
   // 6. Send — Resend Idempotency-Key header + email_id on webhooks correlate to resend_message_id (no custom tags; tag values disallow colons)
   let messageId: string | null = null;
@@ -174,6 +198,7 @@ async function dispatch({
       html,
       text,
       idempotencyKey,
+      headers: unsubscribeUrl ? listUnsubscribeHeaders(unsubscribeUrl) : undefined,
     });
   } catch (err) {
     console.error('[emailService] dispatch resend_failed', {
@@ -211,7 +236,7 @@ export async function sendWelcome(userId: string): Promise<void> {
     templateKey: 'welcome',
     idempotencyKey: `welcome:${userId}`,
     category: 'transactional',
-    render: () => renderWelcomeEmail({ firstName: user.firstName, appUrl: APP_URL }),
+    render: (_ctx) => renderWelcomeEmail({ firstName: user.firstName, appUrl: APP_URL }),
   });
 }
 
@@ -226,7 +251,7 @@ export async function sendPasswordReset(userId: string, token: string): Promise<
     templateKey: 'password_reset',
     idempotencyKey: `reset:${userId}:${hashToken(token)}`,
     category: 'security',
-    render: () => renderPasswordResetEmail({ resetUrl }),
+    render: (_ctx) => renderPasswordResetEmail({ resetUrl }),
   });
 }
 
@@ -245,7 +270,7 @@ export async function sendSubscriptionActive(
     templateKey: 'subscription_active',
     idempotencyKey: `subscription.created:${subId}`,
     category: 'transactional',
-    render: () =>
+    render: (_ctx) =>
       renderSubscriptionActiveEmail({
         firstName: user.firstName,
         planName: planCode,
@@ -270,7 +295,7 @@ export async function sendSubscriptionCanceled(
     templateKey: 'subscription_canceled',
     idempotencyKey: `subscription.canceled:${subId}`,
     category: 'billing',
-    render: () =>
+    render: (_ctx) =>
       renderSubscriptionCanceledEmail({
         firstName: user.firstName,
         planName: planCode,
@@ -292,7 +317,7 @@ export async function sendPaymentFailed(userId: string, subId: string): Promise<
     // Keyed by sub + date so only one email per day per subscription
     idempotencyKey: `payment.failed:${subId}:${dateIso}`,
     category: 'billing',
-    render: () =>
+    render: (_ctx) =>
       renderPaymentFailedEmail({ firstName: user.firstName, portalUrl: UPGRADE_URL }),
   });
 }
@@ -314,7 +339,7 @@ export async function sendUsageThreshold(
     templateKey: `usage_threshold_${pct}`,
     idempotencyKey: `usage.threshold:${pct}:${userId}:${periodStartIso}`,
     category: 'usage_alerts',
-    render: () =>
+    render: (ctx) =>
       renderUsageThresholdEmail({
         firstName: user.firstName,
         pct,
@@ -324,6 +349,7 @@ export async function sendUsageThreshold(
         upgradeUrl: UPGRADE_URL,
         appUrl: APP_URL,
         settingsUrl: SETTINGS_URL,
+        unsubscribeUrl: ctx.unsubscribeUrl,
       }),
   });
 }
@@ -345,12 +371,13 @@ export async function sendConversionStage(
     idempotencyKey: `conversion.up${stage}:${userId}:${periodStartIso}`,
     category: 'conversion',
     abVariantValue: variant,
-    render: () =>
+    render: (ctx) =>
       renderConversionEmail({
         firstName: user.firstName,
         stage,
         upgradeUrl: UPGRADE_URL,
         settingsUrl: SETTINGS_URL,
+        unsubscribeUrl: ctx.unsubscribeUrl,
       }),
   });
 }
@@ -366,8 +393,13 @@ export async function sendActivationNudge(userId: string): Promise<void> {
     templateKey: 'activation_nudge',
     idempotencyKey: `activation.nudge:${userId}:${dateIso}`,
     category: 'engagement',
-    render: () =>
-      renderActivationNudgeEmail({ firstName: user.firstName, appUrl: APP_URL, settingsUrl: SETTINGS_URL }),
+    render: (ctx) =>
+      renderActivationNudgeEmail({
+        firstName: user.firstName,
+        appUrl: APP_URL,
+        settingsUrl: SETTINGS_URL,
+        unsubscribeUrl: ctx.unsubscribeUrl,
+      }),
   });
 }
 
@@ -405,12 +437,13 @@ export async function sendWeeklyValue(userId: string): Promise<void> {
     templateKey: 'weekly_value',
     idempotencyKey: `weekly:${userId}:${weekIso}`,
     category: 'engagement',
-    render: () =>
+    render: (ctx) =>
       renderWeeklyValueEmail({
         firstName: user.firstName,
         tips: defaultTips,
         appUrl: APP_URL,
         settingsUrl: SETTINGS_URL,
+        unsubscribeUrl: ctx.unsubscribeUrl,
       }),
   });
 }
@@ -426,8 +459,13 @@ export async function sendWinBack(userId: string): Promise<void> {
     templateKey: 'win_back',
     idempotencyKey: `winback:${userId}:${weekIso}`,
     category: 'engagement',
-    render: () =>
-      renderWinBackEmail({ firstName: user.firstName, appUrl: APP_URL, settingsUrl: SETTINGS_URL }),
+    render: (ctx) =>
+      renderWinBackEmail({
+        firstName: user.firstName,
+        appUrl: APP_URL,
+        settingsUrl: SETTINGS_URL,
+        unsubscribeUrl: ctx.unsubscribeUrl,
+      }),
   });
 }
 
@@ -454,25 +492,28 @@ export async function sendCampaignBatch(
 
   const users = await storage.getUsersForSegment(campaign.segment);
 
-  // FIX: Gate ALL segments by marketing preference — only users who have opted in to marketing
-  // receive campaign/broadcast emails, regardless of the audience segment used.
   const filteredUsers: User[] = [];
   for (const user of users) {
     const prefs = await storage.getEmailPreferences(user.id);
-    if (!prefs?.marketing) continue;
+    const marketingOn = prefs?.marketing ?? true;
+    if (!marketingOn) continue;
     filteredUsers.push(user);
   }
 
-  const payload = await renderCampaignEmail(
+  let sent = 0;
+  let skipped = 0;
+
+  // Performance: avoid expensive React-email rendering per recipient by rendering once with a placeholder
+  // then swapping in the signed unsubscribe URL for each user.
+  const UNSUB_PLACEHOLDER = '[[UNSUBSCRIBE_URL]]';
+  const basePayload = await renderCampaignEmail(
     campaign.templateKey as 'feature_update' | 'promo_discount' | 'newsletter',
     campaign.subject,
     campaign.previewText ?? '',
     campaign.contentJson,
-    SETTINGS_URL
+    SETTINGS_URL,
+    UNSUB_PLACEHOLDER,
   );
-
-  let sent = 0;
-  let skipped = 0;
 
   // Batch send in chunks of 50 to avoid overwhelming Resend rate limits
   const CHUNK = 50;
@@ -494,6 +535,13 @@ export async function sendCampaignBatch(
           return 'skipped';
         }
 
+        const unsubscribeUrl = buildEmailUnsubscribeUrl(user.id, 'marketing', APP_URL);
+        const payload = {
+          subject: basePayload.subject,
+          html: basePayload.html.replaceAll(UNSUB_PLACEHOLDER, unsubscribeUrl),
+          text: basePayload.text.replaceAll(UNSUB_PLACEHOLDER, unsubscribeUrl),
+        };
+
         try {
           const messageId = await sendEmail({
             to: user.email,
@@ -501,6 +549,7 @@ export async function sendCampaignBatch(
             html: payload.html,
             text: payload.text,
             idempotencyKey: recipientKey,
+            headers: unsubscribeUrl ? listUnsubscribeHeaders(unsubscribeUrl) : undefined,
           });
           await storage.updateEmailSendLog(recipientKey, {
             status: 'sent',

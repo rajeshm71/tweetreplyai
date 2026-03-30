@@ -15,14 +15,23 @@ interface Props {
   ctaLabel: string;
   ctaUrl: string;
   settingsUrl?: string;
+  unsubscribeUrl?: string;
 }
 
-export default function NewsletterEmail({ issueNumber, tips, ctaLabel, ctaUrl, settingsUrl }: Props) {
+export default function NewsletterEmail({
+  issueNumber,
+  tips,
+  ctaLabel,
+  ctaUrl,
+  settingsUrl,
+  unsubscribeUrl,
+}: Props) {
   return (
     <EmailLayout
       previewText={`${APP_DISPLAY_NAME} Newsletter — Issue #${issueNumber}`}
       variant="engagement"
       settingsUrl={settingsUrl}
+      unsubscribeUrl={unsubscribeUrl}
     >
       <Text style={{ color: emailTheme.muted, fontSize: '13px', margin: '0 0 4px' }}>
         ISSUE #{issueNumber}

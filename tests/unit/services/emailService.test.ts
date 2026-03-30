@@ -64,7 +64,7 @@ const MOCK_USER = {
 beforeEach(() => {
   vi.clearAllMocks();
   mockGetUser.mockResolvedValue(MOCK_USER);
-  // null → service uses defaults: usageAlerts=true, productTips=true, marketing=false
+  // null → service uses defaults: usageAlerts=true, productTips=true, marketing=true
   mockGetEmailPreferences.mockResolvedValue(null);
   mockLogEmailSend.mockResolvedValue('inserted');
   mockUpdateEmailSendLog.mockResolvedValue(undefined);

@@ -8,15 +8,17 @@ interface Props {
   firstName?: string;
   appUrl: string;
   settingsUrl?: string;
+  unsubscribeUrl?: string;
 }
 
-export default function WinBackEmail({ firstName, appUrl, settingsUrl }: Props) {
+export default function WinBackEmail({ firstName, appUrl, settingsUrl, unsubscribeUrl }: Props) {
   const greeting = firstName ? `Hi ${firstName},` : 'Hi there,';
   return (
     <EmailLayout
       previewText="We saved some viral opportunities for you"
       variant="engagement"
       settingsUrl={settingsUrl}
+      unsubscribeUrl={unsubscribeUrl}
     >
       <Heading style={{ color: emailTheme.text, fontSize: '22px', fontWeight: 700, margin: '0 0 16px' }}>
         We missed you 👋

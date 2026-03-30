@@ -100,6 +100,7 @@ export async function renderUsageThresholdEmail(params: {
   upgradeUrl: string;
   appUrl: string;
   settingsUrl?: string;
+  unsubscribeUrl?: string;
 }): Promise<TransactionalEmailPayload> {
   const subject =
     params.pct >= 100
@@ -114,6 +115,7 @@ export async function renderConversionEmail(params: {
   stage: 1 | 2 | 3;
   upgradeUrl: string;
   settingsUrl?: string;
+  unsubscribeUrl?: string;
 }): Promise<TransactionalEmailPayload> {
   const subjects: Record<1 | 2 | 3, string> = {
     1: "You're replying like a pro 🎯",
@@ -132,6 +134,7 @@ export async function renderActivationNudgeEmail(params: {
   firstName?: string;
   appUrl: string;
   settingsUrl?: string;
+  unsubscribeUrl?: string;
 }): Promise<TransactionalEmailPayload> {
   const { html, text } = await renderBoth(<ActivationNudgeEmail {...params} />);
   return { subject: "You haven't generated your first reply yet...", html, text };
@@ -142,6 +145,7 @@ export async function renderWeeklyValueEmail(params: {
   tips: { headline: string; body: string }[];
   appUrl: string;
   settingsUrl?: string;
+  unsubscribeUrl?: string;
 }): Promise<TransactionalEmailPayload> {
   const { html, text } = await renderBoth(<WeeklyValueEmail {...params} />);
   return { subject: '5 reply frameworks that actually work this week', html, text };
@@ -151,6 +155,7 @@ export async function renderWinBackEmail(params: {
   firstName?: string;
   appUrl: string;
   settingsUrl?: string;
+  unsubscribeUrl?: string;
 }): Promise<TransactionalEmailPayload> {
   const { html, text } = await renderBoth(<WinBackEmail {...params} />);
   return { subject: 'We saved some viral opportunities for you', html, text };
@@ -165,7 +170,8 @@ export async function renderCampaignEmail(
   subject: string,
   previewText: string,
   contentJson: Record<string, unknown>,
-  settingsUrl?: string
+  settingsUrl?: string,
+  unsubscribeUrl?: string,
 ): Promise<TransactionalEmailPayload> {
   let element: React.ReactElement;
 
@@ -178,6 +184,7 @@ export async function renderCampaignEmail(
           ctaLabel={String(contentJson.cta_label ?? 'Learn More')}
           ctaUrl={String(contentJson.cta_url ?? '')}
           settingsUrl={settingsUrl}
+          unsubscribeUrl={unsubscribeUrl}
         />
       );
       break;
@@ -190,6 +197,7 @@ export async function renderCampaignEmail(
           ctaLabel={String(contentJson.cta_label ?? 'Claim Now')}
           ctaUrl={String(contentJson.cta_url ?? '')}
           settingsUrl={settingsUrl}
+          unsubscribeUrl={unsubscribeUrl}
         />
       );
       break;
@@ -202,6 +210,7 @@ export async function renderCampaignEmail(
           ctaLabel={String(contentJson.cta_label ?? 'Generate a Reply Now')}
           ctaUrl={String(contentJson.cta_url ?? '')}
           settingsUrl={settingsUrl}
+          unsubscribeUrl={unsubscribeUrl}
         />
       );
       break;

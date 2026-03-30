@@ -8,15 +8,17 @@ interface Props {
   firstName?: string;
   appUrl: string;
   settingsUrl?: string;
+  unsubscribeUrl?: string;
 }
 
-export default function ActivationNudgeEmail({ firstName, appUrl, settingsUrl }: Props) {
+export default function ActivationNudgeEmail({ firstName, appUrl, settingsUrl, unsubscribeUrl }: Props) {
   const greeting = firstName ? `Hi ${firstName},` : 'Hi there,';
   return (
     <EmailLayout
       previewText="You haven't generated your first reply yet..."
       variant="engagement"
       settingsUrl={settingsUrl}
+      unsubscribeUrl={unsubscribeUrl}
     >
       <Heading style={{ color: emailTheme.text, fontSize: '22px', fontWeight: 700, margin: '0 0 16px' }}>
         Your first viral reply is waiting 🚀

@@ -13,15 +13,17 @@ interface Props {
   tips: Tip[];
   appUrl: string;
   settingsUrl?: string;
+  unsubscribeUrl?: string;
 }
 
-export default function WeeklyValueEmail({ firstName, tips, appUrl, settingsUrl }: Props) {
+export default function WeeklyValueEmail({ firstName, tips, appUrl, settingsUrl, unsubscribeUrl }: Props) {
   const greeting = firstName ? `Hi ${firstName},` : 'Hi there,';
   return (
     <EmailLayout
       previewText="5 reply frameworks that actually work this week"
       variant="engagement"
       settingsUrl={settingsUrl}
+      unsubscribeUrl={unsubscribeUrl}
     >
       <Heading style={{ color: emailTheme.text, fontSize: '22px', fontWeight: 700, margin: '0 0 8px' }}>
         This week's reply frameworks 🧵

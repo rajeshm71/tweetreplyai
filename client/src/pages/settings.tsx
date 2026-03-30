@@ -332,7 +332,7 @@ export default function SettingsPage() {
   const [emailPrefsState, setEmailPrefsState] = useState({
     usageAlerts: true,
     productTips: true,
-    marketing: false,
+    marketing: true,
   });
 
   // Fetch user preferences (AI reply style)

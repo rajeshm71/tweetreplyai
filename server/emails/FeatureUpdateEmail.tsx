@@ -9,14 +9,23 @@ interface Props {
   ctaLabel: string;
   ctaUrl: string;
   settingsUrl?: string;
+  unsubscribeUrl?: string;
 }
 
-export default function FeatureUpdateEmail({ headline, body, ctaLabel, ctaUrl, settingsUrl }: Props) {
+export default function FeatureUpdateEmail({
+  headline,
+  body,
+  ctaLabel,
+  ctaUrl,
+  settingsUrl,
+  unsubscribeUrl,
+}: Props) {
   return (
     <EmailLayout
       previewText={headline}
       variant="engagement"
       settingsUrl={settingsUrl}
+      unsubscribeUrl={unsubscribeUrl}
     >
       <Text
         style={{

@@ -12,6 +12,7 @@ interface Props {
   upgradeUrl: string;
   appUrl: string;
   settingsUrl?: string;
+  unsubscribeUrl?: string;
 }
 
 export default function UsageThresholdEmail({
@@ -23,6 +24,7 @@ export default function UsageThresholdEmail({
   upgradeUrl,
   appUrl,
   settingsUrl,
+  unsubscribeUrl,
 }: Props) {
   const greeting = firstName ? `Hi ${firstName},` : 'Hi there,';
   const isLimit = pct >= 100;
@@ -35,6 +37,7 @@ export default function UsageThresholdEmail({
       previewText={headline}
       variant="alert"
       settingsUrl={settingsUrl}
+      unsubscribeUrl={unsubscribeUrl}
     >
       <Heading
         style={{

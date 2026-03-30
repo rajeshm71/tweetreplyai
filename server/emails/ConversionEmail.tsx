@@ -8,6 +8,7 @@ interface Props {
   stage: 1 | 2 | 3;
   upgradeUrl: string;
   settingsUrl?: string;
+  unsubscribeUrl?: string;
 }
 
 const stageConfig: Record<
@@ -34,7 +35,13 @@ const stageConfig: Record<
   },
 };
 
-export default function ConversionEmail({ firstName, stage, upgradeUrl, settingsUrl }: Props) {
+export default function ConversionEmail({
+  firstName,
+  stage,
+  upgradeUrl,
+  settingsUrl,
+  unsubscribeUrl,
+}: Props) {
   const greeting = firstName ? `Hi ${firstName},` : 'Hi there,';
   const config = stageConfig[stage];
   return (
@@ -42,6 +49,7 @@ export default function ConversionEmail({ firstName, stage, upgradeUrl, settings
       previewText={config.subject}
       variant="alert"
       settingsUrl={settingsUrl}
+      unsubscribeUrl={unsubscribeUrl}
     >
       <Heading style={{ color: emailTheme.text, fontSize: '22px', fontWeight: 700, margin: '0 0 16px' }}>
         {config.headline}

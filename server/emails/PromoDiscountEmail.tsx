@@ -10,6 +10,7 @@ interface Props {
   ctaLabel: string;
   ctaUrl: string;
   settingsUrl?: string;
+  unsubscribeUrl?: string;
 }
 
 export default function PromoDiscountEmail({
@@ -19,12 +20,14 @@ export default function PromoDiscountEmail({
   ctaLabel,
   ctaUrl,
   settingsUrl,
+  unsubscribeUrl,
 }: Props) {
   return (
     <EmailLayout
       previewText={headline}
       variant="engagement"
       settingsUrl={settingsUrl}
+      unsubscribeUrl={unsubscribeUrl}
     >
       <Text
         style={{

@@ -19,8 +19,12 @@ const footerCopy: Record<EmailLayoutVariant, string> = {
   welcome: `You're receiving this because you signed up for ${APP_DISPLAY_NAME}.`,
   transactional: "You're receiving this because a password reset was requested for this email address.",
   billing: `You're receiving this because it relates to your ${APP_DISPLAY_NAME} billing or subscription.`,
-  alert: "You're receiving this because you have usage alerts enabled. Update preferences in your account settings.",
-  engagement: "You're receiving this because you have product tips enabled. You can update your email preferences in your account settings.",
+  alert:
+    "You're receiving this because you have usage alerts enabled. You can manage preferences or unsubscribe using the links below.",
+  engagement:
+    // Neutral wording: engagement emails cover multiple underlying categories (product tips + marketing campaigns)
+    // and the one-click unsubscribe scope may differ per email type.
+    "You're receiving this because you have updates enabled. You can manage preferences or unsubscribe using the links below.",
 };
 
 export interface EmailLayoutProps {
@@ -28,9 +32,17 @@ export interface EmailLayoutProps {
   variant: EmailLayoutVariant;
   children: React.ReactNode;
   settingsUrl?: string;
+  /** Signed one-click URL; shown as “Unsubscribe” next to preferences (RFC 8058). */
+  unsubscribeUrl?: string;
 }
 
-export function EmailLayout({ previewText, variant, children, settingsUrl }: EmailLayoutProps) {
+export function EmailLayout({
+  previewText,
+  variant,
+  children,
+  settingsUrl,
+  unsubscribeUrl,
+}: EmailLayoutProps) {
   return (
     <Html>
       <Head />
@@ -90,6 +102,14 @@ export function EmailLayout({ previewText, variant, children, settingsUrl }: Ema
                   {' '}
                   <Link href={settingsUrl} style={{ color: emailTheme.muted, textDecoration: 'underline' }}>
                     Manage email preferences
+                  </Link>
+                </>
+              )}
+              {unsubscribeUrl && (variant === 'alert' || variant === 'engagement') && (
+                <>
+                  {' · '}
+                  <Link href={unsubscribeUrl} style={{ color: emailTheme.muted, textDecoration: 'underline' }}>
+                    Unsubscribe
                   </Link>
                 </>
               )}
