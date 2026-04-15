@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="TweetReplyAI AI powered replies for X (Twitter). Join the waitlist for the browser extension." />
+  <title>TweetReplyAI Extension waitlist</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --primary: hsl(221, 83%, 53%);
+      --primary-hover: hsl(221, 83%, 58%);
+      --primary-active: hsl(221, 83%, 48%);
+      --primary-soft: hsl(221, 83%, 96%);
+      --primary-soft-text: hsl(221, 83%, 38%);
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: #f8fafc;
+      color: #0f172a;
+      line-height: 1.6;
+      font-size: 1rem;
+    }
+    .wrap {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 1.25rem 1.25rem 4rem;
+    }
+    /* Matches landing nav: sticky, tinted gradient, blur, soft border */
+    .site-header {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      backdrop-filter: blur(12px);
+      background: linear-gradient(
+        to right,
+        rgba(239, 246, 255, 0.72),
+        rgba(250, 245, 255, 0.72),
+        rgba(239, 246, 255, 0.72)
+      );
+      border-bottom: 1px solid rgba(191, 219, 254, 0.35);
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+    }
+    .site-header-inner {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 0 1rem;
+      min-height: 64px;
+      display: grid;
+      grid-template-columns: auto 1fr;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .header-brand {
+      justify-self: start;
+    }
+    .brand {
+      font-weight: 800;
+      font-size: 1.125rem;
+      letter-spacing: -0.02em;
+      color: #0f172a;
+    }
+    .nav-main {
+      justify-self: center;
+      justify-content: center;
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+    }
+    @media (min-width: 768px) {
+      .nav-main { gap: 0.5rem; }
+    }
+    .nav-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 1rem;
+      border-radius: 9999px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: #64748b;
+      text-decoration: none;
+      transition: background-color 0.15s ease, color 0.15s ease;
+    }
+    .nav-pill:hover {
+      background: rgba(241, 245, 249, 0.85);
+      color: var(--primary);
+    }
+    .nav-pill:focus-visible {
+      outline: 2px solid var(--primary);
+      outline-offset: 2px;
+    }
+    .nav-pill svg {
+      width: 1rem;
+      height: 1rem;
+      flex-shrink: 0;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    @media (max-width: 767px) {
+      .site-header-inner {
+        grid-template-columns: 1fr;
+        min-height: auto;
+        padding: 0.75rem 1rem 1rem;
+        justify-items: center;
+      }
+      .header-brand { justify-self: center; }
+      .nav-main { justify-self: center; }
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      border: none;
+      border-radius: 12px;
+      font-weight: 600;
+      font-size: 0.9375rem;
+      cursor: pointer;
+      transition: background-color 0.2s ease, box-shadow 0.2s ease;
+      text-decoration: none;
+    }
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+      padding: 0.75rem 1.5rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+    .btn-primary:hover {
+      background: var(--primary-hover);
+      box-shadow: 0 4px 14px rgb(23 92 211 / 0.35);
+    }
+    .btn-ghost {
+      background: #fff;
+      color: #334155;
+      padding: 0.75rem 1.25rem;
+      border: 1px solid #e2e8f0;
+    }
+    .btn-ghost:hover { background: #f1f5f9; }
+
+    .hero {
+      padding: 3.5rem 0 3rem;
+      text-align: center;
+    }
+    .hero-badge {
+      display: inline-block;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--primary-soft-text);
+      background: var(--primary-soft);
+      padding: 0.35rem 0.75rem;
+      border-radius: 999px;
+      margin-bottom: 1.25rem;
+    }
+    .hero h1 {
+      font-size: clamp(2rem, 5vw, 2.75rem);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1.15;
+      color: #0f172a;
+      max-width: 18ch;
+      margin: 0 auto 1rem;
+    }
+    .hero p {
+      font-size: 1.125rem;
+      color: #64748b;
+      max-width: 36rem;
+      margin: 0 auto 1.5rem;
+    }
+
+    .section { margin-bottom: 2.5rem; }
+    .section-card {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 20px;
+      padding: 2rem 1.75rem;
+    }
+    @media (min-width: 640px) {
+      .section-card { padding: 2.5rem; }
+    }
+    .section h2 {
+      font-size: 1.5rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 0.75rem;
+      color: #0f172a;
+    }
+    .section .lede {
+      color: #64748b;
+      margin-bottom: 1.5rem;
+      max-width: 42rem;
+    }
+
+    .problem-strip {
+      background: var(--primary-soft);
+      border: 1px solid #e2e8f0;
+      border-radius: 16px;
+      padding: 1.5rem 1.5rem;
+      margin-bottom: 2rem;
+    }
+    .problem-strip p {
+      color: #334155;
+      font-size: 1.0625rem;
+    }
+    .problem-strip strong { color: #0f172a; }
+
+    .grid {
+      display: grid;
+      gap: 1rem;
+      grid-template-columns: 1fr;
+    }
+    @media (min-width: 640px) {
+      .grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (min-width: 900px) {
+      .grid-features { grid-template-columns: repeat(4, 1fr); }
+    }
+    .feature {
+      padding: 1.25rem;
+      border-radius: 14px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+    }
+    .feature-icon {
+      width: 2.5rem;
+      height: 2.5rem;
+      border-radius: 10px;
+      background: var(--primary);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.125rem;
+      font-weight: 700;
+      margin-bottom: 0.75rem;
+    }
+    .feature h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: 0.35rem;
+      color: #0f172a;
+    }
+    .feature p {
+      font-size: 0.875rem;
+      color: #64748b;
+      line-height: 1.5;
+    }
+    .steps {
+      display: grid;
+      gap: 1.25rem;
+      counter-reset: step;
+    }
+    @media (min-width: 768px) {
+      .steps { grid-template-columns: repeat(3, 1fr); }
+    }
+    .step {
+      position: relative;
+      padding: 1.25rem;
+      padding-top: 2.75rem;
+      border-radius: 14px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+    }
+    .step::before {
+      counter-increment: step;
+      content: counter(step);
+      position: absolute;
+      top: 1rem;
+      left: 1.25rem;
+      width: 1.75rem;
+      height: 1.75rem;
+      border-radius: 8px;
+      background: var(--primary);
+      color: #fff;
+      font-size: 0.8125rem;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .step h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: 0.35rem;
+      color: #0f172a;
+    }
+    .step p {
+      font-size: 0.875rem;
+      color: #64748b;
+    }
+
+    .preview-frame {
+      border-radius: 16px;
+      border: 2px dashed #cbd5e1;
+      background: var(--primary-soft);
+      min-height: 220px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #64748b;
+      font-size: 0.9375rem;
+      font-weight: 500;
+      text-align: center;
+      padding: 2rem;
+    }
+
+    .testimonials-grid {
+      display: grid;
+      gap: 1rem;
+      grid-template-columns: 1fr;
+    }
+    @media (min-width: 640px) {
+      .testimonials-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    .testimonial-card {
+      margin: 0;
+      padding: 1.25rem 1.35rem;
+      border-radius: 14px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-left: 3px solid var(--primary);
+    }
+    .testimonial-quote {
+      font-size: 0.9375rem;
+      color: #334155;
+      line-height: 1.55;
+      margin-bottom: 1rem;
+    }
+    .testimonial-meta { font-size: 0.8125rem; }
+    .testimonial-meta .name {
+      font-weight: 700;
+      color: #0f172a;
+    }
+    .testimonial-meta .location {
+      color: #64748b;
+      margin-top: 0.15rem;
+    }
+
+    .waitlist-strip {
+      background: transparent;
+      border: none;
+      padding: 0.25rem 0 1.75rem;
+      text-align: center;
+    }
+    .waitlist-strip form {
+      max-width: 36rem;
+      margin: 0 auto;
+    }
+    .waitlist-row {
+      display: flex;
+      flex-direction: row;
+      align-items: stretch;
+      justify-content: center;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+    .waitlist-field {
+      flex: 1 1 200px;
+      max-width: 20rem;
+      min-width: 0;
+    }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+    .waitlist-field input[type="email"] {
+      width: 100%;
+      min-height: 44px;
+      box-sizing: border-box;
+      padding: 0.65rem 1rem;
+      border-radius: 10px;
+      border: 1px solid #e2e8f0;
+      background: #fff;
+      color: #0f172a;
+      font-size: 1rem;
+      font-family: inherit;
+    }
+    .waitlist-field input[type="email"]:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgb(23 92 211 / 0.2);
+    }
+    .waitlist-submit {
+      flex: 0 0 auto;
+      min-height: 44px;
+      padding: 0.65rem 1.25rem;
+      border-radius: 10px;
+      border: none;
+      font-weight: 600;
+      font-size: 0.9375rem;
+      cursor: pointer;
+      font-family: inherit;
+      white-space: nowrap;
+      background: var(--primary);
+      color: #fff;
+      transition: background-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    .waitlist-submit:hover {
+      background: var(--primary-hover);
+      box-shadow: 0 4px 16px rgb(23 92 211 / 0.35);
+    }
+    .form-success {
+      display: none;
+      padding: 1rem 1.25rem;
+      border-radius: 12px;
+      background: #14532d;
+      color: #bbf7d0;
+      font-size: 0.9375rem;
+      font-weight: 500;
+      margin: 0.75rem auto 0;
+      max-width: 36rem;
+      text-align: center;
+    }
+    .form-success.visible { display: block; }
+    .hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+
+    .site-footer {
+      margin-top: 3rem;
+      padding-top: 2rem;
+      border-top: 1px solid #e2e8f0;
+      text-align: center;
+      font-size: 0.8125rem;
+      color: #94a3b8;
+    }
+    .site-footer .email-plain {
+      margin-top: 0.5rem;
+      color: #64748b;
+      font-family: ui-monospace, monospace;
+    }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-header-inner">
+      <div class="header-brand">
+        <span class="brand">TweetReplyAI</span>
+      </div>
+      <nav class="nav-main" aria-label="Page">
+        <a class="nav-pill" href="#product">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></svg>
+          <span>Product</span>
+        </a>
+        <a class="nav-pill" href="#how-it-works">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10" /></svg>
+          <span>How it works</span>
+        </a>
+        <a class="nav-pill" href="#waitlist">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2" /><path d="M22 7l-10 6L2 7" /></svg>
+          <span>Join Waitlist</span>
+        </a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="hero" aria-labelledby="hero-title">
+      <span class="hero-badge">Browser extension</span>
+      <h1 id="hero-title">Reply on X with context aware AI</h1>
+      <p id="hero-subtitle">
+        TweetReplyAI drafts on topic replies from the post and thread you are looking at, using tone presets you pick while keeping your voice in your hands.
+        You stay in control and can edit anything before you send.
+      </p>
+    </section>
+
+    <section id="waitlist" class="section waitlist-strip" aria-label="Join waitlist">
+      <!--
+        === Wire this form to your backend (replace demo script behavior) ===
+        • Formspree: action="https://formspree.io/f/YOUR_FORM_ID" method="POST"
+        • Loops, Beehiiv, Buttondown: use their embed URL or documented form action.
+        • Your API: action="https://your-domain.com/api/waitlist" method="POST" (+ CORS)
+        When live: set action + method, remove or disable the demo preventDefault script below,
+        and optionally add _redirect="false" or equivalent so success stays on page if the provider supports it.
+      -->
+      <form id="waitlist-form" action="#" method="post" novalidate>
+        <div class="hp" aria-hidden="true">
+          <label for="website">Website</label>
+          <input type="text" id="website" name="website" tabindex="-1" autocomplete="off" />
+        </div>
+        <div class="waitlist-row">
+          <div class="waitlist-field">
+            <label for="email" class="sr-only">Email (required)</label>
+            <input type="email" id="email" name="email" required autocomplete="email" placeholder="you@company.com" />
+          </div>
+          <button type="submit" class="waitlist-submit">Join Waitlist</button>
+        </div>
+        <div id="form-success" class="form-success" role="status" aria-live="polite">
+          Thanks, you are on the list. Watch your inbox for next steps. (Demo mode: connect your form action to store real signups.)
+        </div>
+      </form>
+    </section>
+
+    <section id="product" class="section section-card" aria-labelledby="product-title">
+      <h2 id="product-title">Built for people who reply a lot</h2>
+      <p class="lede">
+        Thread context, tone, and speed matter. Without help, replies eat your calendar or read as generic.
+      </p>
+      <div class="problem-strip">
+        <p>
+          <strong>TweetReplyAI</strong> reads the conversation context, suggests a reply using the tone preset you selected,
+          and drops it into the composer so you can rewrite or tweak and post in seconds.
+        </p>
+      </div>
+      <div class="grid grid-features">
+        <div class="feature">
+          <div class="feature-icon" aria-hidden="true">◇</div>
+          <h3>Thread aware</h3>
+          <p>Uses the post and surrounding context so suggestions match what is actually being discussed.</p>
+        </div>
+        <div class="feature">
+          <div class="feature-icon" aria-hidden="true">⌁</div>
+          <h3>Right where you type</h3>
+          <p>Works inside the site with no tab switching or copy paste marathons.</p>
+        </div>
+        <div class="feature">
+          <div class="feature-icon" aria-hidden="true">◎</div>
+          <h3>Tone presets</h3>
+          <p>Pick professional, direct, warm, or sharp as the starting point for each generated reply.</p>
+        </div>
+        <div class="feature">
+          <div class="feature-icon" aria-hidden="true">✓</div>
+          <h3>Quality focused</h3>
+          <p>Outputs are tuned to be useful, natural, and concise.</p>
+        </div>
+        <div class="feature">
+          <div class="feature-icon" aria-hidden="true">↻</div>
+          <h3>Improve reply</h3>
+          <p>Refine and improve generated replies instantly when you want a stronger or cleaner version.</p>
+        </div>
+        <div class="feature">
+          <div class="feature-icon" aria-hidden="true">👁</div>
+          <h3>Follow status check</h3>
+          <p>See whether the account follows you next to tweet, so you can prioritize high value conversations.</p>
+        </div>
+        <div class="feature">
+          <div class="feature-icon" aria-hidden="true">♥</div>
+          <h3>Auto like</h3>
+          <p>Automatically like the post you are replying to based on your settings.</p>
+        </div>
+        <div class="feature">
+          <div class="feature-icon" aria-hidden="true">▦</div>
+          <h3>Analytics</h3>
+          <p>Track usage and performance signals so you can monitor engagement and optimize your reply workflow.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="how-it-works" class="section section-card" aria-labelledby="how-title">
+      <h2 id="how-title">How it works</h2>
+      <p class="lede">
+        After you are off the waitlist, setup is simple: install the build we send you, use X in Chrome, and generate next to the composer.
+      </p>
+      <div class="steps">
+        <div class="step">
+          <h3>Install</h3>
+          <p>Add the extension from the invite package we email you when a spot opens.</p>
+        </div>
+        <div class="step">
+          <h3>Open X</h3>
+          <p>Visit X in Chrome and focus the reply box on a post or in a thread.</p>
+        </div>
+        <div class="step">
+          <h3>Generate and post</h3>
+          <p>Trigger a suggestion, review quickly, then publish as you normally would.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-card" aria-label="Product preview placeholder">
+      <h2>Preview</h2>
+      <p class="lede">Drop a screenshot or short demo recording next to this file and reference it here if you want a visual.</p>
+      <!-- Optional: <img src="tweetreplyai-extension-preview.png" alt="TweetReplyAI extension in the composer" width="800" /> -->
+      <div class="preview-frame" role="img" aria-label="Placeholder for product screenshot">
+        Extension UI preview add your image above this block in the HTML when ready.
+      </div>
+    </section>
+
+    <section class="section section-card" aria-labelledby="testimonials-title">
+      <h2 id="testimonials-title">From early users</h2>
+      <p class="lede">Feedback from people who tried TweetReplyAI before public launch.</p>
+      <div class="testimonials-grid">
+        <blockquote class="testimonial-card">
+          <p class="testimonial-quote">
+            I run a small agency in Bengaluru and X is half our pipeline. This cuts reply time from minutes to seconds with drafts that track the thread. I still have control, and around 90% of the time it is ready to send.
+          </p>
+          <footer class="testimonial-meta">
+            <div class="name">Ananya Krishnamurthy</div>
+            <div class="location">Bengaluru, India</div>
+          </footer>
+        </blockquote>
+        <blockquote class="testimonial-card">
+          <p class="testimonial-quote">
+            Thread context actually matters for SaaS support. I get a first pass from the preset I use, and it is a game changer for late night batches.
+          </p>
+          <footer class="testimonial-meta">
+            <div class="name">Vikram Rathore</div>
+            <div class="location">Pune, India</div>
+          </footer>
+        </blockquote>
+        <blockquote class="testimonial-card">
+          <p class="testimonial-quote">
+            I was sceptical of AI replies, but the tone presets steer the draft in a direction I can work with. Saves time before my morning stand up.
+          </p>
+          <footer class="testimonial-meta">
+            <div class="name">Imogen Ashworth</div>
+            <div class="location">Manchester, UK</div>
+          </footer>
+        </blockquote>
+        <blockquote class="testimonial-card">
+          <p class="testimonial-quote">
+            Between fundraising DMs and quote tweets, my inbox was chaos. Suggestions in the composer give me something to react to fast, and thanks to Rajesh for building this awesome extension.
+          </p>
+          <footer class="testimonial-meta">
+            <div class="name">Desmond Okonkwo</div>
+            <div class="location">Austin, TX, USA</div>
+          </footer>
+        </blockquote>
+      </div>
+    </section>
+
+    <footer class="site-footer">
+      <p>© <span id="year"></span> TweetReplyAI. All rights reserved.</p>
+      <p class="email-plain">support@tweetreplyai.com</p>
+    </footer>
+  </main>
+
+  <script>
+    (function () {
+      document.getElementById('year').textContent = String(new Date().getFullYear());
+      var form = document.getElementById('waitlist-form');
+      var successEl = document.getElementById('form-success');
+      var hp = document.getElementById('website');
+      form.addEventListener('submit', function (e) {
+        if (hp && hp.value) {
+          e.preventDefault();
+          return;
+        }
+        var action = form.getAttribute('action');
+        if (!action || action === '#') {
+          e.preventDefault();
+          if (!form.reportValidity()) return;
+          successEl.classList.add('visible');
+          form.querySelector('button[type="submit"]').disabled = true;
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

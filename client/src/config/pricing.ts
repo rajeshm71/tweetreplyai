@@ -14,8 +14,7 @@ export interface PricingTierConfig {
   billingCycle: 'trial' | 'weekly' | 'monthly';
   price: number; // USD per cycle (discounted price if offer active)
   originalPrice?: number; // USD per cycle (original price before discount)
-  repliesLimit: number; // Keep for analytics display
-  creditsLimit: number; // NEW - actual limit for enforcement
+  creditsLimit: number;
   features: string[];
   badge?: { text: string; colorClass: string };
   offer?: PricingOffer;
@@ -28,7 +27,6 @@ export const PRICING_CONFIG = {
     name: 'Free Trial',
     billingCycle: 'trial',
     price: 0,
-    repliesLimit: PLAN_LIMITS.trial.replies,
     creditsLimit: PLAN_LIMITS.trial.credits,
     features: [
       `${PLAN_LIMITS.trial.credits} credits during trial`,
@@ -44,7 +42,6 @@ export const PRICING_CONFIG = {
     billingCycle: 'weekly',
     price: 3.99,
     originalPrice: 7.99,
-    repliesLimit: PLAN_LIMITS.weekly.replies,
     creditsLimit: PLAN_LIMITS.weekly.credits,
     features: [
       'All trial features',
@@ -64,11 +61,10 @@ export const PRICING_CONFIG = {
     billingCycle: 'monthly',
     price: 9.99,
     originalPrice: 19.99,
-    repliesLimit: PLAN_LIMITS.monthly.replies,
     creditsLimit: PLAN_LIMITS.monthly.credits,
     features: [
       'All weekly features',
-      'Best value per reply',
+      'Best value per credit',
       'Priority support',
     ],
     offer: {
@@ -80,18 +76,8 @@ export const PRICING_CONFIG = {
   },
 } as const satisfies Record<string, PricingTierConfig>;
 
-export function formatRepliesLimit(n: number): string {
-  return `${n.toLocaleString()} replies`;
-}
-
 export function formatCreditsLimit(n: number): string {
   return `${n.toLocaleString()} credits`;
-}
-
-export function repliesPerCycleLabel(cfg: PricingTierConfig): string {
-  if (cfg.billingCycle === 'weekly') return `${formatRepliesLimit(cfg.repliesLimit)} per week`;
-  if (cfg.billingCycle === 'monthly') return `${formatRepliesLimit(cfg.repliesLimit)} per month`;
-  return `${formatRepliesLimit(cfg.repliesLimit)} per day for 7 days`;
 }
 
 export function creditsPerCycleLabel(cfg: PricingTierConfig): string {
@@ -100,13 +86,7 @@ export function creditsPerCycleLabel(cfg: PricingTierConfig): string {
   return `${formatCreditsLimit(cfg.creditsLimit)} for trial`;
 }
 
-export function repliesEveryPeriodBullet(cfg: PricingTierConfig): string {
-  if (cfg.billingCycle === 'weekly') return `${formatRepliesLimit(cfg.repliesLimit)} every ${PLAN_PERIODS_DAYS.weekly} days`;
-  if (cfg.billingCycle === 'monthly') return `${formatRepliesLimit(cfg.repliesLimit)} every ${PLAN_PERIODS_DAYS.monthly} days`;
-  return `${formatCreditsLimit(cfg.creditsLimit)} during trial`;
-}
-
-/** Credits-based period bullet (single source for quota display). Use instead of repliesEveryPeriodBullet for plan limits. */
+/** Credits-based period bullet (single source for quota display). */
 export function creditsEveryPeriodBullet(cfg: PricingTierConfig): string {
   if (cfg.billingCycle === 'weekly') return `${formatCreditsLimit(cfg.creditsLimit)} every ${PLAN_PERIODS_DAYS.weekly} days`;
   if (cfg.billingCycle === 'monthly') return `${formatCreditsLimit(cfg.creditsLimit)} every ${PLAN_PERIODS_DAYS.monthly} days`;

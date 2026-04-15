@@ -1,7 +1,22 @@
 import { AuthManager } from '../utils/auth.js';
 import { ApiClient } from '../utils/api.js';
 import { installConsoleGate } from '../utils/consoleGate.js';
-import { POLLING, DEFAULTS, STORAGE } from '../config/constants.js';
+import {
+  POLLING,
+  DEFAULTS,
+  STORAGE,
+  CTA_STORAGE,
+  SNIPPET_STORAGE,
+  FOLLOW_BADGE_ICON_STYLE_DEFAULT,
+  FOLLOW_BADGE_ICON_STYLE_VALUES,
+} from '../config/constants.js';
+import { emitTelemetry } from '../utils/telemetry.js';
+import { getUserFacingError } from '../utils/userFacingErrors.js';
+
+const SETTINGS_TAB_IDS = ['account', 'x', 'cta', 'billing', 'tracking'];
+const SETTINGS_ACTIVE_TAB_KEY = 'settingsActiveTab';
+const SNIPPET_FORM_AUTOSAVE_MS = 550;
+const TRACKING_DAYS_AUTOSAVE_MS = 350;
 
 globalThis.__tweetreplyaiExtLoggingAllowed = false;
 installConsoleGate(() => globalThis.__tweetreplyaiExtLoggingAllowed === true);
@@ -25,6 +40,7 @@ class PopupManager {
     this.beforeunloadHandler = null;
     
     this.initializeElements();
+    this.checkoutInProgress = false;
     this.attachEventListeners();
     this.setupAuthListener();
     this.setupDataRefresh();
@@ -287,19 +303,40 @@ class PopupManager {
     this.analyticsBackBtn?.addEventListener('click', () => this.hideAnalytics());
     this.analyticsRetryBtn?.addEventListener('click', () => this.loadAnalytics());
     
-    // Reply tracking settings
-    const saveTrackingSettingsBtn = document.getElementById('saveTrackingSettings');
-    if (saveTrackingSettingsBtn) {
-      saveTrackingSettingsBtn.addEventListener('click', () => this.saveTrackingSettings());
-    }
+    const snippetLabelInput = document.getElementById('snippetLabelInput');
+    const snippetTextInput = document.getElementById('snippetTextInput');
+    snippetLabelInput?.addEventListener('input', () => this.scheduleSnippetFormAutoSave());
+    snippetTextInput?.addEventListener('input', () => this.scheduleSnippetFormAutoSave());
+
+    const defaultSnippetSelect = document.getElementById('defaultSnippetSelect');
+    const autoAppendSnippetSelect = document.getElementById('autoAppendSnippetSelect');
+    defaultSnippetSelect?.addEventListener('change', () => this.saveSnippetPreferences());
+    autoAppendSnippetSelect?.addEventListener('change', () => this.saveSnippetPreferences());
+
+    const trackingPeriodInput = document.getElementById('trackingPeriodDays');
+    trackingPeriodInput?.addEventListener('input', () => this.scheduleTrackingDaysAutoSave());
+    trackingPeriodInput?.addEventListener('change', () => {
+      if (this._trackingDaysSaveTimer) {
+        clearTimeout(this._trackingDaysSaveTimer);
+        this._trackingDaysSaveTimer = null;
+      }
+      this.saveTrackingSettings();
+    });
 
     const relationshipHintsEl = document.getElementById('relationshipHintsEnabled');
     if (relationshipHintsEl) {
       relationshipHintsEl.addEventListener('change', () => this.saveRelationshipHintsSetting());
     }
 
+    const followBadgeIconStyleEl = document.getElementById('followBadgeIconStyle');
+    if (followBadgeIconStyleEl) {
+      followBadgeIconStyleEl.addEventListener('change', () => this.saveFollowBadgeIconStyleSetting());
+    }
+
     // Keyboard navigation
     this.setupKeyboardNavigation();
+
+    this.initSettingsTabs();
     
     // Dark mode initialization
     this.initializeDarkMode();
@@ -405,6 +442,7 @@ class PopupManager {
 
     } catch (error) {
       console.error('Failed to initialize popup:', error);
+      this.reportTelemetry('unknown_runtime_error', error, 'popup_initialize');
       this.setState('not-authenticated');
     }
   }
@@ -424,6 +462,7 @@ class PopupManager {
       }
     } catch (error) {
       console.error('Failed to sync auth:', error);
+      this.reportTelemetry('auth_sync_failed', error, 'popup_auth_sync');
     }
   }
 
@@ -441,6 +480,7 @@ class PopupManager {
       }
     } catch (error) {
       console.error('Failed to load user data:', error);
+      this.reportTelemetry('api_request_failed', error, '/api/auth/user');
     }
   }
 
@@ -449,6 +489,9 @@ class PopupManager {
       this.usageData = await this.apiClient.getUsage();
     } catch (error) {
       console.error('Failed to load usage data:', error);
+      this.reportTelemetry('api_request_failed', error, '/api/usage');
+      const userFacing = this.getUserFacingError(error, 'Something went wrong. Try again.');
+      this.showStatusMessage(userFacing.message, 'error');
       this.usageData = null;
     }
   }
@@ -467,6 +510,7 @@ class PopupManager {
     } catch (error) {
       console.error('[ERROR][Quality] loadQualityMetrics failed:', error);
       console.error('[ERROR][Quality] stack:', error?.stack);
+      this.reportTelemetry('api_request_failed', error, '/api/quality/metrics');
       this.processQualityMetricsResponse(null);
       return null;
     }
@@ -589,7 +633,7 @@ class PopupManager {
     const resetLine = !isExceeded
       ? `${timeVerb} ${resetDistance}`
       : isTrial
-        ? "You've used all your trial credits: upgrade to keep replying."
+        ? "You've used all your trial credits: upgrade to continue."
         : `You've used all your credits. ${timeVerb} ${resetDistance}`;
     if (this.resetText) {
       this.resetText.textContent = resetLine;
@@ -602,7 +646,7 @@ class PopupManager {
     if (this.statusMessage) {
       if (isExceeded) {
         this.statusMessage.textContent = isTrial
-          ? "You've used all your trial credits: upgrade to keep replying."
+          ? "You've used all your trial credits: upgrade to continue."
           : `You've used all your credits. ${timeVerb} ${resetDistance}`;
       } else {
         this.statusMessage.textContent = 'Click "Reply" on any X post to generate suggestions';
@@ -668,21 +712,18 @@ class PopupManager {
           { key: 'improve', label: 'Improve' }
         ];
         
-        let totalReplies = 0;
         let rows = '';
         
         for (const mode of modes) {
-          const data = breakdown[mode.key] || { replies: 0, credits: 0 };
+          const data = breakdown[mode.key] || { credits: 0 };
           // Fix: Ensure numeric values to prevent XSS
-          const replies = Number(data.replies) || 0;
           const credits = Number(data.credits) || 0;
-          totalReplies += replies;
           
           // Fix: Mode label is static, numeric values are safe
           rows += `
             <div class="breakdown-row">
               <span class="breakdown-label">${mode.label}:</span>
-              <span class="breakdown-value">${replies} replies, ${credits} credits</span>
+              <span class="breakdown-value">${credits} credits</span>
             </div>
           `;
         }
@@ -691,7 +732,7 @@ class PopupManager {
         content.innerHTML = `
           ${rows}
           <div class="breakdown-total">
-            Total: ${totalReplies} replies, ${totalCredits} credits
+            Total: ${totalCredits} credits
           </div>
         `;
         
@@ -774,7 +815,8 @@ class PopupManager {
       window.close();
     } catch (error) {
       console.error('Failed to open billing portal:', error);
-      this.showStatusMessage('Failed to open billing portal', 'error');
+      this.reportTelemetry('api_request_failed', error, '/api/billing/portal');
+      this.showStatusMessage(this.getUserFacingError(error, 'Something went wrong. Try again.').message, 'error');
     }
   }
 
@@ -816,37 +858,188 @@ class PopupManager {
     }
   }
 
-  showSettings() {
+  initSettingsTabs() {
+    if (this._settingsTabsInitialized) return;
+    const tabs = this.settingsPanel?.querySelectorAll('[role="tab"][data-settings-tab]');
+    tabs?.forEach((tab) => {
+      tab.addEventListener('click', () => this.setSettingsTab(tab.dataset.settingsTab));
+    });
+    this._settingsTabsInitialized = true;
+  }
+
+  getFirstFocusableIn(container) {
+    if (!container) return null;
+    const sel =
+      'button, [href], input:not([type="hidden"]), select, textarea, [tabindex]:not([tabindex="-1"])';
+    return container.querySelector(sel);
+  }
+
+  scheduleSnippetFormAutoSave() {
+    if (this._snippetFormSaveTimer) {
+      clearTimeout(this._snippetFormSaveTimer);
+    }
+    this._snippetFormSaveTimer = setTimeout(() => {
+      this._snippetFormSaveTimer = null;
+      this.tryAutoSaveSnippetForm();
+    }, SNIPPET_FORM_AUTOSAVE_MS);
+  }
+
+  scheduleTrackingDaysAutoSave() {
+    if (this._trackingDaysSaveTimer) {
+      clearTimeout(this._trackingDaysSaveTimer);
+    }
+    this._trackingDaysSaveTimer = setTimeout(() => {
+      this._trackingDaysSaveTimer = null;
+      this.saveTrackingSettings();
+    }, TRACKING_DAYS_AUTOSAVE_MS);
+  }
+
+  async tryAutoSaveSnippetForm() {
+    const labelEl = document.getElementById('snippetLabelInput');
+    const textEl = document.getElementById('snippetTextInput');
+    const label = (labelEl?.value || '').trim();
+    const text = (textEl?.value || '').trim();
+    if (!label || !text) return;
+
+    try {
+      const r = await chrome.storage.local.get([SNIPPET_STORAGE.LIBRARY]);
+      const library = Array.isArray(r[SNIPPET_STORAGE.LIBRARY]) ? r[SNIPPET_STORAGE.LIBRARY] : [];
+      if (library.length >= DEFAULTS.SNIPPET_LIBRARY_LIMIT) {
+        this.showStatusMessage(`Max ${DEFAULTS.SNIPPET_LIBRARY_LIMIT} snippets allowed.`, 'error');
+        return;
+      }
+      if (library.some((s) => String(s.label).toLowerCase() === label.toLowerCase())) {
+        this.showStatusMessage('Snippet label must be unique.', 'error');
+        return;
+      }
+      library.push({
+        id: `snippet_${Date.now()}`,
+        label: label.slice(0, 60),
+        text: text.slice(0, DEFAULTS.SNIPPET_MAX_LENGTH),
+        updatedAt: Date.now(),
+      });
+      await chrome.storage.local.set({ [SNIPPET_STORAGE.LIBRARY]: library, [SNIPPET_STORAGE.MIGRATED]: true });
+      if (labelEl) labelEl.value = '';
+      if (textEl) textEl.value = '';
+      const savedMsg = document.getElementById('cta-settings-saved');
+      if (savedMsg) {
+        savedMsg.textContent = 'CTA added.';
+        savedMsg.style.display = 'block';
+        setTimeout(() => {
+          savedMsg.style.display = 'none';
+        }, 1600);
+      }
+      await this.loadSnippetSettings();
+    } catch (error) {
+      this.reportTelemetry('storage_write_failed', error, 'save_snippet');
+      this.showStatusMessage('Something went wrong. Try again.', 'error');
+    }
+  }
+
+  setSettingsTab(key) {
+    const normalized = key === 'snippets' ? 'cta' : key;
+    const k = SETTINGS_TAB_IDS.includes(normalized) ? normalized : 'account';
+    SETTINGS_TAB_IDS.forEach((id) => {
+      const tab = document.getElementById(`settings-tab-${id}`);
+      const panel = document.getElementById(`settings-panel-${id}`);
+      const selected = id === k;
+      if (tab) {
+        tab.setAttribute('aria-selected', selected ? 'true' : 'false');
+        tab.tabIndex = selected ? 0 : -1;
+      }
+      if (panel) {
+        if (selected) {
+          panel.removeAttribute('hidden');
+          panel.setAttribute('aria-hidden', 'false');
+        } else {
+          panel.setAttribute('hidden', '');
+          panel.setAttribute('aria-hidden', 'true');
+        }
+      }
+    });
+    chrome.storage.local.set({ [SETTINGS_ACTIVE_TAB_KEY]: k }).catch(() => {});
+  }
+
+  async showSettings() {
     this.settingsPanel?.classList.remove('hidden');
     if (this.settingsPanel) {
       this.settingsPanel.style.display = '';
       this.settingsPanel.setAttribute('aria-hidden', 'false');
       this.settingsBtn?.setAttribute('aria-expanded', 'true');
-      // Load tracking settings when settings panel is shown
       this.loadTrackingSettings();
       this.loadRelationshipHintsSettings();
-      // Focus first focusable element
-      const firstInput = this.settingsPanel.querySelector('input, button');
-      firstInput?.focus();
+      this.loadSnippetSettings();
+      this.loadPlansSection();
+
+      let tab = 'account';
+      try {
+        const r = await chrome.storage.local.get(SETTINGS_ACTIVE_TAB_KEY);
+        let stored = r[SETTINGS_ACTIVE_TAB_KEY];
+        if (stored === 'snippets') stored = 'cta';
+        if (SETTINGS_TAB_IDS.includes(stored)) tab = stored;
+      } catch {
+        /* ignore */
+      }
+      this.setSettingsTab(tab);
+
+      requestAnimationFrame(() => {
+        const panel = document.getElementById(`settings-panel-${tab}`);
+        this.getFirstFocusableIn(panel)?.focus();
+      });
     }
   }
 
   hideSettings() {
+    if (this._snippetFormSaveTimer) {
+      clearTimeout(this._snippetFormSaveTimer);
+      this._snippetFormSaveTimer = null;
+    }
+    if (this._trackingDaysSaveTimer) {
+      clearTimeout(this._trackingDaysSaveTimer);
+      this._trackingDaysSaveTimer = null;
+    }
     this.settingsPanel?.classList.add('hidden');
     if (this.settingsPanel) {
       this.settingsPanel.style.display = 'none';
       this.settingsPanel.setAttribute('aria-hidden', 'true');
       this.settingsBtn?.setAttribute('aria-expanded', 'false');
     }
+    this.settingsBtn?.focus();
   }
 
   async loadRelationshipHintsSettings() {
     try {
-      const r = await chrome.storage.sync.get([STORAGE.RELATIONSHIP_HINTS_ENABLED]);
+      const r = await chrome.storage.sync.get([
+        STORAGE.RELATIONSHIP_HINTS_ENABLED,
+        STORAGE.FOLLOW_BADGE_ICON_STYLE,
+      ]);
       const el = document.getElementById('relationshipHintsEnabled');
       if (el) el.checked = r[STORAGE.RELATIONSHIP_HINTS_ENABLED] !== false;
+      const sel = document.getElementById('followBadgeIconStyle');
+      if (sel) {
+        const raw = r[STORAGE.FOLLOW_BADGE_ICON_STYLE];
+        const v =
+          typeof raw === 'string' && FOLLOW_BADGE_ICON_STYLE_VALUES.includes(raw)
+            ? raw
+            : FOLLOW_BADGE_ICON_STYLE_DEFAULT;
+        sel.value = v;
+      }
     } catch (error) {
       console.error('Failed to load relationship hints setting:', error);
+    }
+  }
+
+  async saveFollowBadgeIconStyleSetting() {
+    try {
+      const sel = document.getElementById('followBadgeIconStyle');
+      if (!sel) return;
+      const v = FOLLOW_BADGE_ICON_STYLE_VALUES.includes(sel.value)
+        ? sel.value
+        : FOLLOW_BADGE_ICON_STYLE_DEFAULT;
+      if (sel.value !== v) sel.value = v;
+      await chrome.storage.sync.set({ [STORAGE.FOLLOW_BADGE_ICON_STYLE]: v });
+    } catch (error) {
+      console.error('Failed to save follow badge icon style:', error);
     }
   }
 
@@ -878,44 +1071,265 @@ class PopupManager {
     }
   }
 
-  // Save reply tracking settings
+  reportTelemetry(eventType, error, route = '', context = {}) {
+    emitTelemetry({
+      event_type: eventType,
+      surface: 'popup',
+      route,
+      error_code: error?.message || eventType,
+      context,
+    });
+  }
+
+  // Snippet library + legacy CTA migration
+  async loadSnippetSettings() {
+    try {
+      const r = await chrome.storage.local.get([
+        SNIPPET_STORAGE.LIBRARY,
+        SNIPPET_STORAGE.DEFAULT_ID,
+        SNIPPET_STORAGE.AUTO_APPEND_ID,
+        SNIPPET_STORAGE.MIGRATED,
+        CTA_STORAGE.TEXT,
+        CTA_STORAGE.AUTO_APPEND,
+      ]);
+      let library = Array.isArray(r[SNIPPET_STORAGE.LIBRARY]) ? r[SNIPPET_STORAGE.LIBRARY] : [];
+      // Fix: after migration, `r` still has stale default/auto IDs — use the same values we just wrote.
+      let defaultId = r[SNIPPET_STORAGE.DEFAULT_ID] || '';
+      let autoAppendId = r[SNIPPET_STORAGE.AUTO_APPEND_ID] || '';
+      if (!r[SNIPPET_STORAGE.MIGRATED] && !library.length && typeof r[CTA_STORAGE.TEXT] === 'string' && r[CTA_STORAGE.TEXT].trim()) {
+        const migratedId = `snippet_${Date.now()}`;
+        library = [{ id: migratedId, label: 'My CTA', text: r[CTA_STORAGE.TEXT].trim(), updatedAt: Date.now() }];
+        defaultId = migratedId;
+        autoAppendId = r[CTA_STORAGE.AUTO_APPEND] ? migratedId : '';
+        await chrome.storage.local.set({
+          [SNIPPET_STORAGE.LIBRARY]: library,
+          [SNIPPET_STORAGE.DEFAULT_ID]: defaultId,
+          [SNIPPET_STORAGE.AUTO_APPEND_ID]: autoAppendId,
+          [SNIPPET_STORAGE.MIGRATED]: true,
+        });
+      }
+      this.renderSnippetLibrary(library, defaultId, autoAppendId);
+    } catch (error) {
+      this.reportTelemetry('storage_read_failed', error, 'snippet_settings');
+      console.error('Failed to load snippet settings:', error);
+    }
+  }
+
+  renderSnippetLibrary(library, defaultId, autoAppendId) {
+    const list = document.getElementById('snippetLibraryList');
+    const defaultSel = document.getElementById('defaultSnippetSelect');
+    const autoSel = document.getElementById('autoAppendSnippetSelect');
+    if (list) {
+      list.innerHTML = '';
+      if (!library.length) {
+        const hint = document.createElement('p');
+        hint.className = 'snippet-empty-hint';
+        hint.textContent = 'No CTAs yet. Add a label and text below.';
+        list.appendChild(hint);
+      }
+      library.forEach((snippet) => {
+        const row = document.createElement('div');
+        row.className = 'snippet-item';
+        row.innerHTML = `<div><strong>${this.escapeHtml(snippet.label)}</strong><div class="snippet-item-text">${this.escapeHtml(this.truncate(snippet.text, 90))}</div></div>`;
+        const del = document.createElement('button');
+        del.className = 'snippet-delete-btn';
+        del.textContent = 'Delete';
+        del.addEventListener('click', () => this.deleteSnippet(snippet.id));
+        row.appendChild(del);
+        list.appendChild(row);
+      });
+    }
+    if (defaultSel && autoSel) {
+      const makeOptions = (select, includeNone) => {
+        select.innerHTML = includeNone ? '<option value="">None</option>' : '';
+        library.forEach((s) => {
+          const option = document.createElement('option');
+          option.value = s.id;
+          option.textContent = s.label;
+          select.appendChild(option);
+        });
+      };
+      makeOptions(defaultSel, true);
+      makeOptions(autoSel, true);
+      defaultSel.value = defaultId || '';
+      autoSel.value = autoAppendId || '';
+    }
+  }
+
+  async deleteSnippet(snippetId) {
+    try {
+      const r = await chrome.storage.local.get([
+        SNIPPET_STORAGE.LIBRARY,
+        SNIPPET_STORAGE.DEFAULT_ID,
+        SNIPPET_STORAGE.AUTO_APPEND_ID,
+      ]);
+      // Fix: plan — confirm when snippet is default or auto-append target.
+      const inUse =
+        r[SNIPPET_STORAGE.DEFAULT_ID] === snippetId || r[SNIPPET_STORAGE.AUTO_APPEND_ID] === snippetId;
+      if (inUse) {
+        const ok = confirm(
+          'This snippet is set as your default or auto-append snippet. Delete it anyway?',
+        );
+        if (!ok) return;
+      }
+      const library = (Array.isArray(r[SNIPPET_STORAGE.LIBRARY]) ? r[SNIPPET_STORAGE.LIBRARY] : []).filter((s) => s.id !== snippetId);
+      const updates = { [SNIPPET_STORAGE.LIBRARY]: library };
+      if (r[SNIPPET_STORAGE.DEFAULT_ID] === snippetId) updates[SNIPPET_STORAGE.DEFAULT_ID] = '';
+      if (r[SNIPPET_STORAGE.AUTO_APPEND_ID] === snippetId) updates[SNIPPET_STORAGE.AUTO_APPEND_ID] = '';
+      await chrome.storage.local.set(updates);
+      await this.loadSnippetSettings();
+    } catch (error) {
+      this.reportTelemetry('storage_write_failed', error, 'delete_snippet');
+    }
+  }
+
+  async saveSnippetPreferences() {
+    try {
+      const defaultSel = document.getElementById('defaultSnippetSelect');
+      const autoSel = document.getElementById('autoAppendSnippetSelect');
+      await chrome.storage.local.set({
+        [SNIPPET_STORAGE.DEFAULT_ID]: defaultSel?.value || '',
+        [SNIPPET_STORAGE.AUTO_APPEND_ID]: autoSel?.value || '',
+        [SNIPPET_STORAGE.MIGRATED]: true,
+      });
+      const savedMsg = document.getElementById('cta-settings-saved');
+      if (savedMsg) {
+        savedMsg.textContent = 'Defaults saved.';
+        savedMsg.style.display = 'block';
+        setTimeout(() => {
+          savedMsg.style.display = 'none';
+        }, 1600);
+      }
+    } catch (error) {
+      this.reportTelemetry('storage_write_failed', error, 'save_snippet_preferences');
+    }
+  }
+
+  async loadPlansSection() {
+    const plansList = document.getElementById('plansList');
+    if (!plansList) return;
+    plansList.innerHTML = '<div class="snippet-item-text">Loading plans...</div>';
+    try {
+      const response = await this.apiClient.getPlans();
+      const plans = Array.isArray(response?.plans) ? response.plans : Array.isArray(response) ? response : [];
+      if (!plans.length) {
+        plansList.innerHTML = '';
+        const msg = document.createElement('div');
+        msg.className = 'snippet-item-text';
+        msg.textContent = 'Plans unavailable here.';
+        plansList.appendChild(msg);
+        const pricing = document.createElement('a');
+        pricing.className = 'settings-web-link';
+        pricing.textContent = 'View pricing on the web';
+        const domains = await this.getDomains();
+        const domain = domains[0] || 'tweetreplyai.vercel.app';
+        const protocol = domain.includes('localhost') ? 'http' : 'https';
+        pricing.href = `${protocol}://${domain}/pricing`;
+        pricing.target = '_blank';
+        pricing.rel = 'noopener noreferrer';
+        plansList.appendChild(pricing);
+        return;
+      }
+      plansList.innerHTML = '';
+      const currentPlan = (this.usageData?.planCode || 'trial').toString().toLowerCase();
+      const planLabels = {
+        trial: 'Free Trial',
+        weekly: 'Weekly Plan',
+        monthly: 'Monthly Plan',
+        bypass: 'Pro Plan',
+      };
+      const currentBanner = document.createElement('div');
+      currentBanner.className = 'plan-current-banner';
+      currentBanner.textContent = `Current plan: ${planLabels[currentPlan] || planLabels.trial}`;
+      plansList.appendChild(currentBanner);
+
+      plans.forEach((plan) => {
+        const item = document.createElement('div');
+        item.className = 'plan-item';
+        const label = document.createElement('span');
+        const code = (plan.code || plan.planCode || '').toString().toLowerCase();
+        const name = plan.name || plan.code || code;
+        label.textContent = name;
+        const btn = document.createElement('button');
+        btn.className = 'secondary-btn';
+        btn.textContent = code === currentPlan ? 'Current' : 'Choose';
+        btn.disabled = code === currentPlan;
+        if (code !== currentPlan) {
+          btn.addEventListener('click', () => this.startCheckout(plan.code || plan.planCode));
+        }
+        item.appendChild(label);
+        item.appendChild(btn);
+        plansList.appendChild(item);
+      });
+    } catch (error) {
+      this.reportTelemetry('api_request_failed', error, '/api/plans');
+      plansList.innerHTML = '';
+      const err = document.createElement('div');
+      err.className = 'snippet-item-text';
+      err.textContent = 'Unable to load plans right now.';
+      plansList.appendChild(err);
+      const pricing = document.createElement('a');
+      pricing.className = 'settings-web-link';
+      pricing.textContent = 'View pricing on the web';
+      pricing.target = '_blank';
+      pricing.rel = 'noopener noreferrer';
+      try {
+        const domains = await this.getDomains();
+        const domain = domains[0] || 'tweetreplyai.vercel.app';
+        const protocol = domain.includes('localhost') ? 'http' : 'https';
+        pricing.href = `${protocol}://${domain}/pricing`;
+      } catch {
+        pricing.href = 'https://tweetreplyai.vercel.app/pricing';
+      }
+      plansList.appendChild(pricing);
+    }
+  }
+
+  async startCheckout(planCode) {
+    if (!planCode || this.checkoutInProgress) return;
+    this.checkoutInProgress = true;
+    try {
+      const checkout = await this.apiClient.createCheckout(planCode);
+      const checkoutUrl = checkout?.checkout_url || checkout?.url;
+      if (!checkoutUrl) throw new Error('Missing checkout url');
+      chrome.tabs.create({ url: checkoutUrl });
+      this.showStatusMessage('Checkout started. Return after payment.', 'success');
+    } catch (error) {
+      this.reportTelemetry('api_request_failed', error, '/api/checkout', { action: 'create_checkout' });
+      const userFacing = this.getUserFacingError(error);
+      this.showStatusMessage(userFacing.message, 'error');
+    } finally {
+      this.checkoutInProgress = false;
+    }
+  }
+
   async saveTrackingSettings() {
     try {
       const trackingPeriodInput = document.getElementById('trackingPeriodDays');
-      const saveBtn = document.getElementById('saveTrackingSettings');
       const savedMsg = document.getElementById('tracking-settings-saved');
-      
+
       if (!trackingPeriodInput) return;
-      
-      const trackingPeriod = parseInt(trackingPeriodInput.value) || 7;
-      
-      // Clamp values to valid ranges
-      const clampedPeriod = Math.max(1, Math.min(30, trackingPeriod));
-      
+
+      const trackingPeriod = parseInt(trackingPeriodInput.value, 10) || 7;
+      const clampedPeriod = Math.max(
+        DEFAULTS.TRACKING_DAYS_MIN,
+        Math.min(DEFAULTS.TRACKING_DAYS_MAX, trackingPeriod),
+      );
+      if (String(trackingPeriodInput.value) !== '' && clampedPeriod !== trackingPeriod) {
+        trackingPeriodInput.value = String(clampedPeriod);
+      }
+
       await chrome.storage.local.set({
         replyTrackingSettings: {
-          trackingPeriodDays: clampedPeriod
-        }
+          trackingPeriodDays: clampedPeriod,
+        },
       });
-      
-      // Show success message
+
       if (savedMsg) {
         savedMsg.style.display = 'block';
         setTimeout(() => {
           savedMsg.style.display = 'none';
-        }, 2000);
-      }
-      
-      // Update button text temporarily
-      if (saveBtn) {
-        const originalText = saveBtn.textContent;
-        saveBtn.textContent = 'Saved!';
-        saveBtn.style.background = '#10b981';
-        
-        setTimeout(() => {
-          saveBtn.textContent = originalText;
-          saveBtn.style.background = '#1d9bf0';
-        }, 2000);
+        }, 1600);
       }
     } catch (error) {
       console.error('Failed to save tracking settings:', error);

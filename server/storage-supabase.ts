@@ -575,8 +575,8 @@ export class SupabaseStorage implements IStorage {
       planCode: data.plan_code,
       periodStart: new Date(data.period_start),
       periodEnd: new Date(data.period_end),
-      repliesUsed: data.replies_used,
-      creditsUsed: data.credits_used ?? (data.replies_used * 2), // FALLBACK: calculate if null
+      repliesUsed: data.replies_used ?? 0,
+      creditsUsed: data.credits_used ?? 0,
       limit: data.limit,
       resetAt: new Date(data.reset_at),
       modeBreakdown: data.mode_breakdown || undefined, // Map JSONB to TypeScript object
@@ -628,8 +628,8 @@ export class SupabaseStorage implements IStorage {
       planCode: data.plan_code,
       periodStart: new Date(data.period_start),
       periodEnd: new Date(data.period_end),
-      repliesUsed: data.replies_used,
-      creditsUsed: data.credits_used ?? (data.replies_used * 2),
+      repliesUsed: data.replies_used ?? 0,
+      creditsUsed: data.credits_used ?? 0,
       limit: data.limit,
       resetAt: new Date(data.reset_at),
       modeBreakdown: data.mode_breakdown || undefined,
@@ -679,8 +679,8 @@ export class SupabaseStorage implements IStorage {
       planCode: data.plan_code,
       periodStart: new Date(data.period_start),
       periodEnd: new Date(data.period_end),
-      repliesUsed: data.replies_used,
-      creditsUsed: data.credits_used ?? (data.replies_used * 2), // FALLBACK
+      repliesUsed: data.replies_used ?? 0,
+      creditsUsed: data.credits_used ?? 0,
       limit: data.limit,
       resetAt: new Date(data.reset_at),
       modeBreakdown: data.mode_breakdown || undefined, // Map JSONB to TypeScript object
@@ -730,7 +730,7 @@ export class SupabaseStorage implements IStorage {
       }
     }
 
-    const currentCredits = counter.creditsUsed ?? (counter.repliesUsed * 2);
+    const currentCredits = counter.creditsUsed ?? 0;
 
     // Update mode breakdown if replyMode is provided
     let updatedBreakdown = counter.modeBreakdown || {};
@@ -739,10 +739,9 @@ export class SupabaseStorage implements IStorage {
       if (validModes.includes(replyMode as any)) {
         const modeKey = replyMode as 'single-sentence' | 'enhanced' | 'improve';
         if (!updatedBreakdown[modeKey]) {
-          updatedBreakdown[modeKey] = { replies: 0, credits: 0 };
+          updatedBreakdown[modeKey] = { credits: 0 };
         }
         updatedBreakdown[modeKey] = {
-          replies: (updatedBreakdown[modeKey]?.replies || 0) + 1,
           credits: (updatedBreakdown[modeKey]?.credits || 0) + creditCost
         };
       } else {
@@ -752,7 +751,7 @@ export class SupabaseStorage implements IStorage {
 
     if (updatedBreakdown && typeof updatedBreakdown === 'object') {
       for (const [key, value] of Object.entries(updatedBreakdown)) {
-        if (value && (typeof value !== 'object' || typeof value.replies !== 'number' || typeof value.credits !== 'number')) {
+        if (value && (typeof value !== 'object' || typeof value.credits !== 'number')) {
           console.error(`[STORAGE-DEBUG] Invalid breakdown entry for ${key}:`, value);
           delete updatedBreakdown[key as keyof typeof updatedBreakdown];
         }
@@ -763,7 +762,6 @@ export class SupabaseStorage implements IStorage {
       id: counter.id,
       currentRepliesUsed: counter.repliesUsed,
       currentCreditsUsed: currentCredits,
-      willBecomeReplies: counter.repliesUsed + 1,
       willBecomeCredits: currentCredits + creditCost,
       modeBreakdown: updatedBreakdown
     });
@@ -816,8 +814,8 @@ export class SupabaseStorage implements IStorage {
       planCode: data.plan_code,
       periodStart: new Date(data.period_start),
       periodEnd: new Date(data.period_end),
-      repliesUsed: data.replies_used,
-      creditsUsed: data.credits_used ?? (data.replies_used * 2),
+      repliesUsed: data.replies_used ?? 0,
+      creditsUsed: data.credits_used ?? 0,
       limit: data.limit,
       resetAt: new Date(data.reset_at),
       modeBreakdown: data.mode_breakdown || undefined,
@@ -825,7 +823,7 @@ export class SupabaseStorage implements IStorage {
       updatedAt: new Date(data.updated_at)
     } as UsageCounter;
 
-    console.log('[STORAGE-DEBUG] incrementUsage - Returning counter with repliesUsed:', result.repliesUsed, 'creditsUsed:', result.creditsUsed);
+    console.log('[STORAGE-DEBUG] incrementUsage - Returning counter with creditsUsed:', result.creditsUsed);
     console.log('[STORAGE-DEBUG] ========== incrementUsage END ==========');
     return result;
   }

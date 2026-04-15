@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "TweetReply AI Driven Twitter Replies",
-  "version": "1.0.4",
+  "version": "1.0.2",
   "description": "Generate authentic, human-like replies to Twitter posts with one click using AI.",
   
   "permissions": [
@@ -13,8 +13,6 @@
   "host_permissions": [
     "https://twitter.com/*",
     "https://x.com/*",
-    "https://*.twitter.com/*",
-    "https://*.x.com/*",
     "https://tweetreplyai.vercel.app/*"
   ],
   
@@ -25,23 +23,7 @@
   
   "content_scripts": [
     {
-      "matches": [
-        "https://twitter.com/*",
-        "https://x.com/*",
-        "https://*.twitter.com/*",
-        "https://*.x.com/*"
-      ],
-      "js": ["content/follow-network-interceptor.js"],
-      "run_at": "document_start",
-      "world": "MAIN"
-    },
-    {
-      "matches": [
-        "https://twitter.com/*",
-        "https://x.com/*",
-        "https://*.twitter.com/*",
-        "https://*.x.com/*"
-      ],
+      "matches": ["https://twitter.com/*", "https://x.com/*"],
       "js": ["content/content.bundle.js"],
       "css": ["content/content.css"],
       "run_at": "document_end"
@@ -63,6 +45,13 @@
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
+  
+  "web_accessible_resources": [
+    {
+      "resources": ["content/content.css"],
+      "matches": ["https://twitter.com/*", "https://x.com/*"]
+    }
+  ],
   
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'"

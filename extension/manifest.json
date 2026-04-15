@@ -57,6 +57,26 @@
       "128": "icons/icon128.png"
     }
   },
+  "commands": {
+    "suggest_reply": {
+      "suggested_key": {
+        "default": "Alt+Shift+S"
+      },
+      "description": "Suggest reply in active composer"
+    },
+    "improve_draft": {
+      "suggested_key": {
+        "default": "Alt+Shift+I"
+      },
+      "description": "Improve draft in active composer"
+    },
+    "insert_default_snippet": {
+      "suggested_key": {
+        "default": "Alt+Shift+C"
+      },
+      "description": "Insert default snippet in active composer"
+    }
+  },
   
   "icons": {
     "16": "icons/icon16.png",

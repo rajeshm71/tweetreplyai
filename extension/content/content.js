@@ -1,7 +1,23 @@
 import { AuthManager } from '../utils/auth.js';
 import { ApiClient } from '../utils/api.js';
 import { installConsoleGate } from '../utils/consoleGate.js';
-import { APP_DISPLAY_NAME, API, POLLING, TIMEOUTS, DEFAULTS, VALIDATION, AUTH, STORAGE } from '../config/constants.js';
+import {
+  APP_DISPLAY_NAME,
+  API,
+  POLLING,
+  TIMEOUTS,
+  DEFAULTS,
+  VALIDATION,
+  AUTH,
+  STORAGE,
+  CTA_STORAGE,
+  SNIPPET_STORAGE,
+  FOLLOW_BADGE_ICON_STYLE,
+  FOLLOW_BADGE_ICON_STYLE_DEFAULT,
+  FOLLOW_BADGE_ICON_STYLE_VALUES,
+} from '../config/constants.js';
+import { emitTelemetry } from '../utils/telemetry.js';
+import { getUserFacingError } from '../utils/userFacingErrors.js';
 
 globalThis.__tweetreplyaiExtLoggingAllowed = false;
 installConsoleGate(() => globalThis.__tweetreplyaiExtLoggingAllowed === true);
@@ -35,6 +51,8 @@ class TwitterReplyInjector {
     this.followStatusMessageHandler = null;
     /** Follow chips on X; default on. Synced via chrome.storage.sync (see popup Settings). */
     this.relationshipHintsEnabled = true;
+    /** @type {string} One of FOLLOW_BADGE_ICON_STYLE */
+    this.followBadgeIconStyle = FOLLOW_BADGE_ICON_STYLE_DEFAULT;
     this.currentReplyTargetArticle = null; // Tweet article when user clicked Reply (for scoped current-tweet extraction)
     this._replyTargetClearTimer = null;
     this.pendingReplyTarget = null; // { username, tweetId, setAt } — for counting reply only on Send click
@@ -196,6 +214,74 @@ class TwitterReplyInjector {
         bubbles: true,
         cancelable: true
       }));
+    }
+  }
+
+  extractComposerPlainText(composer) {
+    if (!composer) return '';
+    const dataTextSpans = composer.querySelectorAll('[data-text="true"]');
+    if (dataTextSpans.length > 0) {
+      const joined = Array.from(dataTextSpans)
+        .map(span => span.textContent || span.innerText)
+        .join(' ')
+        .trim();
+      if (joined) return joined;
+    }
+    let draftText = (composer.textContent || composer.innerText || '').trim();
+    if (!draftText) {
+      const contentEditable = composer.querySelector('[contenteditable="true"]');
+      if (contentEditable) {
+        draftText = (contentEditable.textContent || contentEditable.innerText || '').trim();
+      }
+    }
+    return draftText;
+  }
+
+  async appendCtaSnippetToComposer(composer, snippet) {
+    const trimmed = String(snippet || '').trim();
+    if (!trimmed) {
+      this.showMessage(composer, 'Set your CTA in extension Settings', 'info');
+      return;
+    }
+    const existing = this.extractComposerPlainText(composer);
+    const combined = existing ? `${existing.trimEnd()}\n\n${trimmed}` : trimmed;
+    try {
+      await this.insertReplyIntoComposer(composer, combined);
+    } catch (error) {
+      emitTelemetry({
+        event_type: 'reply_insert_failed',
+        surface: 'content',
+        error_code: error?.message || 'append_snippet_failed',
+        context: { action: 'append_snippet' },
+      });
+      throw error;
+    }
+  }
+
+  async getSnippetLibraryState() {
+    const r = await chrome.storage.local.get([
+      SNIPPET_STORAGE.LIBRARY,
+      SNIPPET_STORAGE.DEFAULT_ID,
+      SNIPPET_STORAGE.AUTO_APPEND_ID,
+      CTA_STORAGE.TEXT,
+      CTA_STORAGE.AUTO_APPEND,
+    ]);
+    const library = Array.isArray(r[SNIPPET_STORAGE.LIBRARY]) ? r[SNIPPET_STORAGE.LIBRARY] : [];
+    const byId = new Map(library.map((s) => [s.id, s]));
+    const defaultSnippet = byId.get(r[SNIPPET_STORAGE.DEFAULT_ID] || '');
+    const autoSnippet = byId.get(r[SNIPPET_STORAGE.AUTO_APPEND_ID] || '');
+    const legacyText = typeof r[CTA_STORAGE.TEXT] === 'string' ? r[CTA_STORAGE.TEXT].trim() : '';
+    return { defaultSnippet, autoSnippet, legacyText, legacyAutoAppend: r[CTA_STORAGE.AUTO_APPEND] === true };
+  }
+
+  async maybeAutoAppendCtaAfterAiInsert(composer) {
+    const { autoSnippet, legacyText, legacyAutoAppend } = await this.getSnippetLibraryState();
+    if (autoSnippet?.text) {
+      await this.appendCtaSnippetToComposer(composer, String(autoSnippet.text));
+      return;
+    }
+    if (legacyAutoAppend && legacyText) {
+      await this.appendCtaSnippetToComposer(composer, legacyText);
     }
   }
 
@@ -495,6 +581,8 @@ class TwitterReplyInjector {
       this.runtimeMessageHandler = (message, sender, sendResponse) => {
       if (message.action === 'suggestReply') {
         this.handleSuggestReplyFromPopup();
+      } else if (message.action === 'shortcutCommand') {
+        this.handleShortcutCommand(message.command);
       } else if (message.action === 'authUpdated') {
         // Refresh auth state when background detects login
         this.refreshAuthState();
@@ -507,12 +595,20 @@ class TwitterReplyInjector {
     // Only add if not already added (prevent accumulation)
     if (!this.storageChangeHandler) {
       this.storageChangeHandler = (changes, areaName) => {
-        if (areaName === 'sync' && changes[STORAGE.RELATIONSHIP_HINTS_ENABLED]) {
-          const nv = changes[STORAGE.RELATIONSHIP_HINTS_ENABLED].newValue;
-          this.relationshipHintsEnabled = nv !== false;
-          if (!this.relationshipHintsEnabled) {
-            this.removeRelationshipBadgesFromDom();
-          } else {
+        if (areaName === 'sync') {
+          if (changes[STORAGE.RELATIONSHIP_HINTS_ENABLED]) {
+            const nv = changes[STORAGE.RELATIONSHIP_HINTS_ENABLED].newValue;
+            this.relationshipHintsEnabled = nv !== false;
+            if (!this.relationshipHintsEnabled) {
+              this.removeRelationshipBadgesFromDom();
+            } else {
+              this.scheduleFollowBadgeRefresh();
+            }
+          }
+          if (changes[STORAGE.FOLLOW_BADGE_ICON_STYLE]) {
+            this.followBadgeIconStyle = this.normalizeFollowBadgeIconStyle(
+              changes[STORAGE.FOLLOW_BADGE_ICON_STYLE].newValue,
+            );
             this.scheduleFollowBadgeRefresh();
           }
         }
@@ -566,12 +662,86 @@ class TwitterReplyInjector {
     }
   }
 
+  normalizeFollowBadgeIconStyle(value) {
+    if (typeof value === 'string' && FOLLOW_BADGE_ICON_STYLE_VALUES.includes(value)) {
+      return value;
+    }
+    return FOLLOW_BADGE_ICON_STYLE_DEFAULT;
+  }
+
+  /**
+   * @returns {{ iconChar: string | null, label: string, ariaLabel: string }}
+   */
+  getFollowBadgeParts(followedBy) {
+    const followsLabel = 'Follows you';
+    const notLabel = "Doesn't follow you";
+    const style = this.followBadgeIconStyle;
+
+    if (style === FOLLOW_BADGE_ICON_STYLE.EMOJI) {
+      const iconChar = followedBy ? '\u2713' : '\u2717';
+      const label = followedBy ? followsLabel : notLabel;
+      return {
+        iconChar,
+        label,
+        ariaLabel: `${iconChar} ${label}`,
+      };
+    }
+    if (style === FOLLOW_BADGE_ICON_STYLE.ICON_ONLY) {
+      const iconChar = followedBy ? '\u2713' : '\u2717';
+      return {
+        iconChar,
+        label: '',
+        ariaLabel: followedBy ? followsLabel : notLabel,
+      };
+    }
+    return {
+      iconChar: null,
+      label: followedBy ? followsLabel : notLabel,
+      ariaLabel: followedBy ? followsLabel : notLabel,
+    };
+  }
+
+  populateFollowBadgeElement(span, followedBy) {
+    const parts = this.getFollowBadgeParts(followedBy);
+    span.classList.toggle(
+      'tweetreply-follow-badge--icon-only',
+      this.followBadgeIconStyle === FOLLOW_BADGE_ICON_STYLE.ICON_ONLY,
+    );
+    span.setAttribute('title', parts.ariaLabel);
+    span.setAttribute('aria-label', parts.ariaLabel);
+    if (parts.iconChar) {
+      const iconSpan = document.createElement('span');
+      iconSpan.className = 'tweetreply-follow-badge__icon';
+      iconSpan.setAttribute('aria-hidden', 'true');
+      iconSpan.textContent = parts.iconChar;
+      span.appendChild(iconSpan);
+    }
+    if (parts.label) {
+      span.appendChild(document.createTextNode(parts.label));
+    }
+  }
+
+  findHandleAnchorElement(userNameElement) {
+    if (!userNameElement) return null;
+    const links = userNameElement.querySelectorAll('a[href^="/"]');
+    for (const link of links) {
+      const text = (link.textContent || '').trim();
+      if (text.startsWith('@')) return link;
+    }
+    return null;
+  }
+
   async loadRelationshipHintsSetting() {
     try {
-      const r = await chrome.storage.sync.get([STORAGE.RELATIONSHIP_HINTS_ENABLED]);
+      const r = await chrome.storage.sync.get([
+        STORAGE.RELATIONSHIP_HINTS_ENABLED,
+        STORAGE.FOLLOW_BADGE_ICON_STYLE,
+      ]);
       this.relationshipHintsEnabled = r[STORAGE.RELATIONSHIP_HINTS_ENABLED] !== false;
+      this.followBadgeIconStyle = this.normalizeFollowBadgeIconStyle(r[STORAGE.FOLLOW_BADGE_ICON_STYLE]);
     } catch {
       this.relationshipHintsEnabled = true;
+      this.followBadgeIconStyle = FOLLOW_BADGE_ICON_STYLE_DEFAULT;
     }
   }
 
@@ -599,6 +769,13 @@ class TwitterReplyInjector {
 
   removeRelationshipBadgesFromDom() {
     document.querySelectorAll('[data-tweetreply-follow-badge="1"]').forEach((n) => n.remove());
+    document.querySelectorAll('.tweetreply-firstline-badge-cluster').forEach((cluster) => {
+      if (cluster.querySelector('[data-tweetreply-follow-badge="1"]')) return;
+      const parent = cluster.parentNode;
+      if (!parent) return;
+      while (cluster.firstChild) parent.insertBefore(cluster.firstChild, cluster);
+      cluster.remove();
+    });
   }
 
   scheduleFollowBadgeRefresh() {
@@ -630,14 +807,19 @@ class TwitterReplyInjector {
         ? 'tweetreply-follow-badge tweetreply-follow-badge--follows'
         : 'tweetreply-follow-badge tweetreply-follow-badge--not';
       span.setAttribute('data-tweetreply-follow-badge', '1');
-      span.textContent = entry.followedBy ? 'Follows you' : 'Not Follows you';
+      this.populateFollowBadgeElement(span, entry.followedBy);
       const timeEl = userNameElement.querySelector('time');
       if (timeEl && timeEl.parentNode) {
-        timeEl.after(span);
-      } else {
-        userNameElement.appendChild(document.createTextNode(' '));
-        userNameElement.appendChild(span);
+        timeEl.after(document.createTextNode(' '), span);
+        return;
       }
+      const handleEl = this.findHandleAnchorElement(userNameElement);
+      if (handleEl && handleEl.parentNode) {
+        handleEl.after(document.createTextNode(' '), span);
+        return;
+      }
+      userNameElement.appendChild(document.createTextNode(' '));
+      userNameElement.appendChild(span);
     });
   }
 
@@ -1294,9 +1476,10 @@ class TwitterReplyInjector {
     // Create Improve Reply button
     const improveButton = this.createImproveButton(composer);
     
-    // Append Suggest then Improve directly to container so all controls are on one line
+    // Append Suggest then Improve then CTA directly to container so all controls are on one line
     container.appendChild(suggestButton);
     container.appendChild(improveButton);
+    container.appendChild(this.createCtaButton(composer));
     return container;
   }
 
@@ -1601,7 +1784,51 @@ class TwitterReplyInjector {
     return button;
   }
 
+  createCtaButton(composer) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'tweetreply-cta-btn';
+    button.setAttribute('aria-label', 'Append saved CTA to reply');
+    button.title = 'Append saved CTA to reply';
+    button.textContent = 'CTA';
+
+    button.addEventListener('click', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const actualComposer =
+        composer.querySelector('[contenteditable="true"]') ||
+        composer.querySelector('.public-DraftEditor-content') ||
+        composer;
+
+      try {
+        const { defaultSnippet, legacyText } = await this.getSnippetLibraryState();
+        const t = defaultSnippet?.text || legacyText;
+        if (!t || !String(t).trim()) {
+          this.showMessage(actualComposer, 'Set your CTA in extension Settings', 'info');
+          return;
+        }
+        await this.appendCtaSnippetToComposer(actualComposer, String(t));
+      } catch (err) {
+        console.error('[TweetReplyAI] CTA append failed:', err);
+        emitTelemetry({
+          event_type: 'storage_read_failed',
+          surface: 'content',
+          error_code: err?.message || 'cta_append_failed',
+          context: { action: 'cta_click' },
+        });
+        this.showMessage(actualComposer, 'Could not add CTA', 'error');
+      }
+    });
+
+    return button;
+  }
+
   updateButtonState(button) {
+    // Fix: keyboard shortcuts pass only real DOM buttons — plain objects would crash on .classList / .closest.
+    if (!button || typeof button.closest !== 'function' || typeof button.classList === 'undefined') {
+      return;
+    }
     // Don't update if still pending
     if (button.dataset.authPending === 'true') {
       return;
@@ -1926,6 +2153,12 @@ class TwitterReplyInjector {
         reply: response.reply,
         qualityScore: response.qualityScore
       });
+
+      try {
+        await this.maybeAutoAppendCtaAfterAiInsert(composer);
+      } catch (ctaErr) {
+        console.warn('[TweetReplyAI] Auto-append CTA failed:', ctaErr);
+      }
       
       // Update usage data
       this.usageData = {
@@ -1952,26 +2185,26 @@ class TwitterReplyInjector {
 
     } catch (error) {
       console.error('Failed to generate reply:', error);
-      
-      // Parse error message
-      let errorMessage = 'Failed to generate reply';
-      if (error.message.includes('400')) {
-        errorMessage = 'Invalid request. Please try again or refresh the page.';
-      } else if (error.message.includes('401')) {
-        // Auto-logout on 401 (unauthorized) - token is invalid or user logged out from web app
+      emitTelemetry({
+        event_type: 'api_request_failed',
+        surface: 'content',
+        route: '/api/generate-reply',
+        error_code: error?.message || 'generate_reply_failed',
+      });
+      if (error?.message?.includes('401')) {
         this.authManager.signOut().catch(err => {
           console.error('Failed to sign out on 401:', err);
         });
         this.isAuthenticated = false;
-        errorMessage = 'You have been logged out. Please sign in again.';
-      } else if (error.message.includes('402')) {
-        errorMessage = 'Credits used up: upgrade to continue!';
-      } else if (error.message.includes('Network error')) {
-        errorMessage = 'Network error - check your connection';
-      } else if (error.message) {
-        errorMessage = `Failed to generate reply: ${error.message}`;
       }
-      
+      const { message: baseMessage } = getUserFacingError(
+        error,
+        'Something went wrong. Try again.',
+      );
+      let errorMessage = baseMessage;
+      if (error?.message?.includes('400')) {
+        errorMessage = 'Invalid request. Please try again or refresh the page.';
+      }
       this.showMessage(composer, errorMessage, 'error');
     } finally {
       // Restore button
@@ -1993,6 +2226,116 @@ class TwitterReplyInjector {
           break;
         }
       }
+    }
+  }
+
+  /**
+   * Fix: prefer focused composer, then first visible reply box (plan: active composer, not random query).
+   */
+  findActiveReplyComposer() {
+    const candidates = document.querySelectorAll(
+      '[data-testid="tweetTextarea_0"], [data-testid="tweetTextarea_1"], [data-testid="tweetTextarea_2"]',
+    );
+    const active = document.activeElement;
+    for (const el of Array.from(candidates)) {
+      if (active && (el === active || el.contains(active))) {
+        return el;
+      }
+    }
+    for (const el of Array.from(candidates)) {
+      if (this.isComposerVisible(el)) return el;
+    }
+    return null;
+  }
+
+  /** Toolbar scope for locating injected TweetReply buttons (same as findButtonForComposer). */
+  findComposerButtonContainer(composer) {
+    return composer?.closest?.('[data-testid="tweetComposer"]') || composer?.parentElement || null;
+  }
+
+  findImproveButtonForComposer(composer) {
+    const container = this.findComposerButtonContainer(composer);
+    return container?.querySelector('.tweetreply-improve-btn') || null;
+  }
+
+  /**
+   * Fix: plan UX — minimal hint when no composer (cannot use showMessage without a composer parent).
+   */
+  showTransientPageMessage(message, type = 'info') {
+    const el = document.createElement('div');
+    el.className = `tweetreply-message tweetreply-message--${type}`;
+    el.setAttribute('role', 'status');
+    el.textContent = message;
+    el.style.cssText =
+      'position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:2147483646;max-width:90vw;padding:10px 14px;border-radius:8px;font-size:14px;box-shadow:0 4px 12px rgba(0,0,0,.25);';
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 4000);
+  }
+
+  async handleShortcutCommand(command) {
+    const composer = this.findActiveReplyComposer();
+    if (!composer) {
+      emitTelemetry({
+        event_type: 'composer_injection_failed',
+        surface: 'content',
+        error_code: 'shortcut_no_composer',
+        context: { action: command },
+      });
+      this.showTransientPageMessage('Open a reply composer on X first, then try the shortcut again.');
+      return;
+    }
+    const actualComposer =
+      composer.querySelector?.('[contenteditable="true"]') ||
+      composer.querySelector?.('.public-DraftEditor-content') ||
+      composer;
+
+    if (command === 'suggest_reply') {
+      const suggestBtn = this.findButtonForComposer(composer);
+      if (!suggestBtn) {
+        emitTelemetry({
+          event_type: 'composer_injection_failed',
+          surface: 'content',
+          error_code: 'shortcut_no_suggest_button',
+          context: { action: command },
+        });
+        this.showMessage(
+          actualComposer,
+          'Wait for TweetReply buttons to appear on this composer, then try again.',
+          'info',
+        );
+        return;
+      }
+      await this.handleSuggestReply(composer, suggestBtn);
+      return;
+    }
+    if (command === 'improve_draft') {
+      const improveBtn = this.findImproveButtonForComposer(composer);
+      if (!improveBtn) {
+        emitTelemetry({
+          event_type: 'composer_injection_failed',
+          surface: 'content',
+          error_code: 'shortcut_no_improve_button',
+          context: { action: command },
+        });
+        this.showMessage(
+          actualComposer,
+          'Wait for TweetReply buttons to appear on this composer, then try again.',
+          'info',
+        );
+        return;
+      }
+      await this.handleImproveReply(composer, improveBtn);
+      return;
+    }
+    if (command === 'insert_default_snippet') {
+      const { defaultSnippet, legacyText } = await this.getSnippetLibraryState();
+      const snippetText = defaultSnippet?.text || legacyText;
+      if (!snippetText) {
+        this.showMessage(actualComposer, 'No default snippet set in extension settings.', 'info');
+        return;
+      }
+      await this.appendCtaSnippetToComposer(actualComposer, snippetText);
+      this.showMessage(actualComposer, 'Snippet inserted', 'success');
     }
   }
 
@@ -2094,6 +2437,12 @@ class TwitterReplyInjector {
       
       // Insert improved text into composer
       await this.insertReplyIntoComposer(composer, improvedDraft);
+
+      try {
+        await this.maybeAutoAppendCtaAfterAiInsert(composer);
+      } catch (ctaErr) {
+        console.warn('[TweetReplyAI] Auto-append CTA failed:', ctaErr);
+      }
       
       // Show success message
       this.showMessage(composer, '✓ Reply improved', 'success');
@@ -2133,31 +2482,31 @@ class TwitterReplyInjector {
 
     } catch (error) {
       console.error('[TweetReplyAI] Failed to improve reply:', error);
-      console.error('[TweetReplyAI] Error details:', {
-        message: error.message,
-        stack: error.stack,
-        response: error.response
+      emitTelemetry({
+        event_type: 'api_request_failed',
+        surface: 'content',
+        route: '/api/suggest-improvements',
+        error_code: error?.message || 'improve_reply_failed',
       });
-      
-      // Parse error message
-      let errorMessage = 'Failed to improve reply';
-      if (error.message.includes('400')) {
-        errorMessage = 'Invalid request. Please try again or refresh the page.';
-      } else if (error.message.includes('401')) {
-        // Auto-logout on 401 (unauthorized) - token is invalid or user logged out from web app
+      console.error('[TweetReplyAI] Error details:', {
+        message: error?.message,
+        stack: error?.stack,
+        response: error?.response,
+      });
+      if (error?.message?.includes('401')) {
         this.authManager.signOut().catch(err => {
           console.error('Failed to sign out on 401:', err);
         });
         this.isAuthenticated = false;
-        errorMessage = 'You have been logged out. Please sign in again.';
-      } else if (error.message.includes('402')) {
-        errorMessage = 'Credits used up: upgrade to continue!';
-      } else if (error.message.includes('Network error')) {
-        errorMessage = 'Network error - check your connection';
-      } else if (error.message) {
-        errorMessage = `Failed to improve reply: ${error.message}`;
       }
-      
+      const { message: baseMessage } = getUserFacingError(
+        error,
+        'Something went wrong. Try again.',
+      );
+      let errorMessage = baseMessage;
+      if (error?.message?.includes('400')) {
+        errorMessage = 'Invalid request. Please try again or refresh the page.';
+      }
       this.showMessage(composer, errorMessage, 'error');
     } finally {
       // Restore button

@@ -5,9 +5,31 @@ import { TIMEOUTS, VALIDATION } from '../config/constants.js';
 const LOG_PREFIX = '[LinkedInReply]';
 const BUTTON_CLASS = 'li-ai-reply-btn';
 const BUTTON_WRAPPER_CLASS = 'li-ai-reply-btn-wrapper';
+const DEBUG_INJECTION = true;
 
 function log(...args) {
   console.log(LOG_PREFIX, ...args);
+}
+
+function injectLog(...args) {
+  if (DEBUG_INJECTION) console.log(LOG_PREFIX, '[inject]', ...args);
+}
+
+function describeEditorChain(editor, depth = 4) {
+  const parts = [];
+  let el = editor;
+  for (let i = 0; i < depth && el; i += 1) {
+    const cls = el.className
+      ? String(el.className)
+          .trim()
+          .split(/\s+/)
+          .slice(0, 4)
+          .join('.')
+      : '';
+    parts.push(`${el.tagName.toLowerCase()}${cls ? `.${cls}` : ''}`);
+    el = el.parentElement;
+  }
+  return parts.join(' <- ');
 }
 
 /**
@@ -60,6 +82,7 @@ class LinkedInReplyInjector {
       }
     });
 
+    injectLog('initialize: authenticated =', this.isAuthenticated);
     this.startObserving();
     this.scanForEditors();
   }
@@ -82,12 +105,51 @@ class LinkedInReplyInjector {
   scanForEditors() {
     // LinkedIn's comment boxes all use a Quill editor with this selector
     const editors = document.querySelectorAll('.ql-editor[contenteditable="true"]');
+    const qlAny = document.querySelectorAll('.ql-editor');
+    const textEditorWrappers = document.querySelectorAll(
+      '.comments-comment-box-comment__text-editor, [class*="comment-box-comment"][class*="text-editor"]',
+    );
+    let skippedNoForm = 0;
+    let skippedAlready = 0;
+    let injected = 0;
+    let firstNoFormEditor = null;
+
     for (const editor of editors) {
       const form = this.findCommentForm(editor);
-      if (!form) continue;
+      if (!form) {
+        skippedNoForm += 1;
+        if (!firstNoFormEditor) firstNoFormEditor = editor;
+        continue;
+      }
       // Skip forms that already have our button
-      if (form.querySelector(`.${BUTTON_CLASS}`)) continue;
+      if (form.querySelector(`.${BUTTON_CLASS}`)) {
+        skippedAlready += 1;
+        continue;
+      }
       this.injectButton(editor, form);
+      injected += 1;
+    }
+
+    injectLog(
+      'scan:',
+      `qlEditable=${editors.length} qlAny=${qlAny.length} wrappers=${textEditorWrappers.length} noForm=${skippedNoForm} already=${skippedAlready} injected=${injected}`,
+    );
+    if (editors.length === 0) {
+      injectLog(
+        'hint: no .ql-editor[contenteditable="true"] - open/focus a comment box; if qlAny>0, editor may not be editable yet',
+      );
+    }
+    if (qlAny.length > 0 && editors.length < qlAny.length) {
+      injectLog(
+        'hint: some .ql-editor exist but are not contenteditable=true yet:',
+        qlAny.length - editors.length,
+      );
+    }
+    if (skippedNoForm > 0 && firstNoFormEditor) {
+      injectLog('findCommentForm=null; first editor chain:', describeEditorChain(firstNoFormEditor));
+      injectLog(
+        'expected ancestor selector one of: .comments-comment-box__form | .comments-reply-box__form | form | [class*="comment-box"]',
+      );
     }
   }
 
@@ -132,8 +194,13 @@ class LinkedInReplyInjector {
 
     if (submitBtn?.parentElement) {
       submitBtn.parentElement.insertBefore(wrapper, submitBtn);
+      injectLog(
+        'placed before submit:',
+        submitBtn.className?.slice?.(0, 80) || submitBtn.getAttribute?.('data-test-id') || 'submit',
+      );
     } else {
       form.appendChild(wrapper);
+      injectLog('placed via form.appendChild (no submit anchor found)');
     }
 
     log('Button injected for editor placeholder:', editor.dataset.placeholder || 'comment box');

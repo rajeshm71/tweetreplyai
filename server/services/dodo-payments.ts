@@ -6,7 +6,6 @@ export interface PlanConfig {
   code: string;
   name: string;
   price: number;
-  replies: number;
   credits: number;
   interval: 'week' | 'month';
   dodoPriceId: string;
@@ -17,7 +16,6 @@ export const PLANS: Record<string, PlanConfig> = {
     code: 'weekly',
     name: 'Weekly Plan',
     price: 299,
-    replies: PLAN_LIMITS.weekly.replies,
     credits: PLAN_LIMITS.weekly.credits,
     interval: 'week',
     dodoPriceId: process.env.DODO_PRICE_WEEKLY || 'dodo_price_weekly_placeholder',
@@ -26,7 +24,6 @@ export const PLANS: Record<string, PlanConfig> = {
     code: 'monthly',
     name: 'Monthly Plan',
     price: 999,
-    replies: PLAN_LIMITS.monthly.replies,
     credits: PLAN_LIMITS.monthly.credits,
     interval: 'month',
     dodoPriceId: process.env.DODO_PRICE_MONTHLY || 'dodo_price_monthly_placeholder',

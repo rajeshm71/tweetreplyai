@@ -190,42 +190,93 @@
         <button id="close-settings" class="close-btn" aria-label="Close settings">×</button>
       </div>
       <div class="settings-content">
-        <div class="user-info">
-          <div class="user-email" id="user-email">user@example.com</div>
-        </div>
-        <div class="settings-actions">
-          <button id="signout-btn" class="secondary-btn" aria-label="Sign out from TweetReplyAI">Sign Out</button>
+        <p id="settings-intro" class="settings-intro">Choose a category below. Most settings save automatically as you change them.</p>
+
+        <div class="settings-tabs" role="tablist" aria-label="Settings sections">
+          <button type="button" class="settings-tab" role="tab" id="settings-tab-account" data-settings-tab="account" aria-controls="settings-panel-account" aria-selected="true" tabindex="0">Account</button>
+          <button type="button" class="settings-tab" role="tab" id="settings-tab-x" data-settings-tab="x" aria-controls="settings-panel-x" aria-selected="false" tabindex="-1">On X</button>
+          <button type="button" class="settings-tab" role="tab" id="settings-tab-cta" data-settings-tab="cta" aria-controls="settings-panel-cta" aria-selected="false" tabindex="-1">CTA</button>
+          <button type="button" class="settings-tab" role="tab" id="settings-tab-billing" data-settings-tab="billing" aria-controls="settings-panel-billing" aria-selected="false" tabindex="-1">Billing</button>
+          <button type="button" class="settings-tab" role="tab" id="settings-tab-tracking" data-settings-tab="tracking" aria-controls="settings-panel-tracking" aria-selected="false" tabindex="-1">Tracking</button>
         </div>
 
-        <div class="settings-section">
-          <a id="settings-web-link" href="https://tweetreplyai.vercel.app/settings" target="_blank" rel="noopener noreferrer" class="settings-web-link" aria-label="Open settings on web">Settings on web</a>
-        </div>
-
-        <div class="settings-section">
-          <h4>Display on X</h4>
-          <label class="settings-checkbox-row" for="relationshipHintsEnabled">
-            <input type="checkbox" id="relationshipHintsEnabled" checked aria-describedby="relationshipHintsHelp" />
-            <span>Relationship hints</span>
-          </label>
-          <small id="relationshipHintsHelp">Shows whether each author follows you. Uses data from X in your browser only.</small>
-        </div>
-        
-        <!-- Reply Tracking Settings -->
-        <div class="settings-section">
-          <h4>Reply Tracking</h4>
-          <div>
-            <label for="trackingPeriodDays">
-              <span>Tracking Period (days):</span>
-              <input type="number" id="trackingPeriodDays" min="1" max="30" value="7" aria-label="Tracking period in days">
-            </label>
-            <small>
-              Show reply count for tweets within this time period
-            </small>
+        <div class="settings-tabpanels">
+          <div class="settings-tabpanel" role="tabpanel" id="settings-panel-account" aria-labelledby="settings-tab-account">
+            <div class="settings-card">
+              <div class="user-info">
+                <div class="user-email" id="user-email">user@example.com</div>
+              </div>
+              <div class="settings-actions">
+                <button id="signout-btn" class="secondary-btn" aria-label="Sign out from TweetReplyAI">Sign Out</button>
+              </div>
+              <a id="settings-web-link" href="https://tweetreplyai.vercel.app/settings" target="_blank" rel="noopener noreferrer" class="settings-web-link" aria-label="Manage account on the web">Manage account on the web</a>
+            </div>
           </div>
-          <button id="saveTrackingSettings" class="primary-btn">Save Settings</button>
-          <div id="tracking-settings-saved" role="status" aria-live="polite">Settings saved!</div>
-        </div>
 
+          <div class="settings-tabpanel" role="tabpanel" id="settings-panel-x" aria-labelledby="settings-tab-x" hidden aria-hidden="true">
+            <div class="settings-card settings-section">
+              <h4 class="settings-card__title">Display on X</h4>
+              <label class="settings-checkbox-row" for="relationshipHintsEnabled">
+                <input type="checkbox" id="relationshipHintsEnabled" checked aria-describedby="relationshipHintsHelp" />
+                <span>Relationship hints</span>
+              </label>
+              <small id="relationshipHintsHelp">Shows whether each author follows you. Uses data from X in your browser only.</small>
+              <label for="followBadgeIconStyle" class="settings-select-label">Follow hint style</label>
+              <select id="followBadgeIconStyle" class="settings-select" aria-describedby="followBadgeIconStyleHelp">
+                <option value="text">Text only</option>
+                <option value="emoji">Icon + text (check / cross)</option>
+                <option value="icon_only">Icon only</option>
+              </select>
+              <small id="followBadgeIconStyleHelp">How the follows / doesn’t-follow pill appears next to author names.</small>
+            </div>
+          </div>
+
+          <div class="settings-tabpanel" role="tabpanel" id="settings-panel-cta" aria-labelledby="settings-tab-cta" hidden aria-hidden="true">
+            <div id="cta-settings-saved" role="status" aria-live="polite" class="settings-feedback-banner">Saved!</div>
+            <div class="settings-card settings-section">
+              <h4 class="settings-card__title">Saved CTAs</h4>
+              <div class="snippet-library-list" id="snippetLibraryList"></div>
+            </div>
+            <div class="settings-card settings-section">
+              <h4 class="settings-card__title">Add CTA</h4>
+              <label for="snippetLabelInput">Label</label>
+              <input type="text" id="snippetLabelInput" class="settings-input" maxlength="60" placeholder="e.g. Newsletter CTA" />
+              <label for="snippetTextInput">Text</label>
+              <textarea id="snippetTextInput" rows="3" maxlength="500" class="settings-textarea" aria-describedby="snippetHelp" placeholder="e.g. Check out my newsletter - link..."></textarea>
+              <small id="snippetHelp">New CTAs are added automatically a moment after you finish typing label and text.</small>
+            </div>
+            <div class="settings-card settings-section">
+              <h4 class="settings-card__title">Default &amp; auto-append</h4>
+              <p class="settings-card__hint">Choose which CTA the button inserts on X and which one (if any) is added after AI-generated replies. Changes apply immediately.</p>
+              <label for="defaultSnippetSelect" class="settings-select-label">Default (CTA button)</label>
+              <select id="defaultSnippetSelect" class="settings-select"></select>
+              <label for="autoAppendSnippetSelect" class="settings-select-label">Auto-append after AI</label>
+              <select id="autoAppendSnippetSelect" class="settings-select"></select>
+            </div>
+          </div>
+
+          <div class="settings-tabpanel" role="tabpanel" id="settings-panel-billing" aria-labelledby="settings-tab-billing" hidden aria-hidden="true">
+            <div class="settings-card settings-section">
+              <h4 class="settings-card__title">Plans &amp; billing</h4>
+              <div id="plansList" class="plans-list"></div>
+              <button id="billing-btn" class="secondary-btn" aria-label="Open billing portal">Manage Billing</button>
+            </div>
+          </div>
+
+          <div class="settings-tabpanel" role="tabpanel" id="settings-panel-tracking" aria-labelledby="settings-tab-tracking" hidden aria-hidden="true">
+            <div class="settings-card settings-section">
+              <h4 class="settings-card__title">Reply tracking</h4>
+              <div>
+                <label for="trackingPeriodDays">
+                  <span>Tracking period (days)</span>
+                  <input type="number" id="trackingPeriodDays" min="1" max="30" value="7" aria-label="Tracking period in days">
+                </label>
+                <small>Show reply count for tweets within this time period. Updates save automatically.</small>
+              </div>
+              <div id="tracking-settings-saved" role="status" aria-live="polite">Saved!</div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 

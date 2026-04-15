@@ -1,7 +1,16 @@
 import { AuthManager } from '../utils/auth.js';
 import { ApiClient } from '../utils/api.js';
 import { installConsoleGate } from '../utils/consoleGate.js';
-import { POLLING, DEFAULTS } from '../config/constants.js';
+import {
+  POLLING,
+  DEFAULTS,
+  STORAGE,
+  CTA_STORAGE,
+  SNIPPET_STORAGE,
+  FOLLOW_BADGE_ICON_STYLE_DEFAULT,
+  FOLLOW_BADGE_ICON_STYLE_VALUES,
+} from '../config/constants.js';
+import { emitTelemetry } from '../utils/telemetry.js';
 
 globalThis.__tweetreplyaiExtLoggingAllowed = false;
 installConsoleGate(() => globalThis.__tweetreplyaiExtLoggingAllowed === true);
@@ -25,6 +34,7 @@ class PopupManager {
     this.beforeunloadHandler = null;
     
     this.initializeElements();
+    this.checkoutInProgress = false;
     this.attachEventListeners();
     this.setupAuthListener();
     this.setupDataRefresh();
@@ -265,6 +275,7 @@ class PopupManager {
     this.analyticsSummary = document.getElementById('analytics-summary');
     this.activityTrend = document.getElementById('activity-trend');
     this.insightsPanel = document.getElementById('insights-panel');
+
   }
 
   attachEventListeners() {
@@ -291,7 +302,26 @@ class PopupManager {
     if (saveTrackingSettingsBtn) {
       saveTrackingSettingsBtn.addEventListener('click', () => this.saveTrackingSettings());
     }
-    
+
+    const saveSnippetBtn = document.getElementById('saveSnippetBtn');
+    if (saveSnippetBtn) {
+      saveSnippetBtn.addEventListener('click', () => this.saveSnippet());
+    }
+    const saveSnippetPrefsBtn = document.getElementById('saveSnippetPrefsBtn');
+    if (saveSnippetPrefsBtn) {
+      saveSnippetPrefsBtn.addEventListener('click', () => this.saveSnippetPreferences());
+    }
+
+    const relationshipHintsEl = document.getElementById('relationshipHintsEnabled');
+    if (relationshipHintsEl) {
+      relationshipHintsEl.addEventListener('change', () => this.saveRelationshipHintsSetting());
+    }
+
+    const followBadgeIconStyleEl = document.getElementById('followBadgeIconStyle');
+    if (followBadgeIconStyleEl) {
+      followBadgeIconStyleEl.addEventListener('change', () => this.saveFollowBadgeIconStyleSetting());
+    }
+
     // Keyboard navigation
     this.setupKeyboardNavigation();
     
@@ -378,7 +408,7 @@ class PopupManager {
           this.setState('authenticated');
         } else if (this.usageData.status === 'trial' || this.usageData.status === 'active') {
           // User has trial or active subscription access
-          if (this.usageData.used >= this.usageData.limit) {
+          if (this.usageData.used >= this.usageData.limit || this.usageData.upgradeRequired) {
             this.setState('authenticated');
           } else {
             // User has access and quota available
@@ -396,9 +426,10 @@ class PopupManager {
       this.updateUsageDisplay();
       // Fix: Update quick stats cards (Today card) after usage refresh
       this.updateQuickStats();
-      
+
     } catch (error) {
       console.error('Failed to initialize popup:', error);
+      this.reportTelemetry('unknown_runtime_error', error, 'popup_initialize');
       this.setState('not-authenticated');
     }
   }
@@ -418,6 +449,7 @@ class PopupManager {
       }
     } catch (error) {
       console.error('Failed to sync auth:', error);
+      this.reportTelemetry('auth_sync_failed', error, 'popup_auth_sync');
     }
   }
 
@@ -435,6 +467,7 @@ class PopupManager {
       }
     } catch (error) {
       console.error('Failed to load user data:', error);
+      this.reportTelemetry('api_request_failed', error, '/api/auth/user');
     }
   }
 
@@ -443,6 +476,9 @@ class PopupManager {
       this.usageData = await this.apiClient.getUsage();
     } catch (error) {
       console.error('Failed to load usage data:', error);
+      this.reportTelemetry('api_request_failed', error, '/api/usage');
+      const userFacing = this.getUserFacingError(error, 'Something went wrong. Try again.');
+      this.showStatusMessage(userFacing.message, 'error');
       this.usageData = null;
     }
   }
@@ -461,6 +497,7 @@ class PopupManager {
     } catch (error) {
       console.error('[ERROR][Quality] loadQualityMetrics failed:', error);
       console.error('[ERROR][Quality] stack:', error?.stack);
+      this.reportTelemetry('api_request_failed', error, '/api/quality/metrics');
       this.processQualityMetricsResponse(null);
       return null;
     }
@@ -542,9 +579,10 @@ class PopupManager {
   updateUsageDisplay() {
     if (!this.usageData) return;
 
-    const { used, limit, resetAt, status, planCode } = this.usageData;
+    const { used, limit, resetAt, status, planCode, upgradeRequired, subscriptionCanceled } = this.usageData;
+    const subCanceled = !!subscriptionCanceled;
     const percentage = Math.min((used / limit) * 100, 100);
-    const isExceeded = used >= limit;
+    const isExceeded = used >= limit || !!upgradeRequired;
 
     // Update progress bar
     if (this.progressFill) {
@@ -575,12 +613,15 @@ class PopupManager {
       this.statusText.textContent = isExceeded ? 'Limit reached' : 'Active';
     }
     
-    // Update reset time (trial: no "Resets in X days", show upgrade message instead)
+    // Reset / end line: match web app (canceled paid sub → "Ends"; trial exhausted only when quota hit)
     const resetDistance = this.formatTimeDistance(new Date(resetAt));
     const isTrial = planCode === 'trial' || status === 'trial';
-    const resetLine = isTrial
-      ? "You've used all your trial credits: upgrade to keep replying."
-      : `Resets ${resetDistance}`;
+    const timeVerb = subCanceled ? 'Ends' : 'Resets';
+    const resetLine = !isExceeded
+      ? `${timeVerb} ${resetDistance}`
+      : isTrial
+        ? "You've used all your trial credits: upgrade to continue."
+        : `You've used all your credits. ${timeVerb} ${resetDistance}`;
     if (this.resetText) {
       this.resetText.textContent = resetLine;
     }
@@ -592,8 +633,8 @@ class PopupManager {
     if (this.statusMessage) {
       if (isExceeded) {
         this.statusMessage.textContent = isTrial
-          ? "You've used all your trial credits: upgrade to keep replying."
-          : `You've used all your credits. Resets ${resetDistance}`;
+          ? "You've used all your trial credits: upgrade to continue."
+          : `You've used all your credits. ${timeVerb} ${resetDistance}`;
       } else {
         this.statusMessage.textContent = 'Click "Reply" on any X post to generate suggestions';
       }
@@ -658,21 +699,18 @@ class PopupManager {
           { key: 'improve', label: 'Improve' }
         ];
         
-        let totalReplies = 0;
         let rows = '';
         
         for (const mode of modes) {
-          const data = breakdown[mode.key] || { replies: 0, credits: 0 };
+          const data = breakdown[mode.key] || { credits: 0 };
           // Fix: Ensure numeric values to prevent XSS
-          const replies = Number(data.replies) || 0;
           const credits = Number(data.credits) || 0;
-          totalReplies += replies;
           
           // Fix: Mode label is static, numeric values are safe
           rows += `
             <div class="breakdown-row">
               <span class="breakdown-label">${mode.label}:</span>
-              <span class="breakdown-value">${replies} replies, ${credits} credits</span>
+              <span class="breakdown-value">${credits} credits</span>
             </div>
           `;
         }
@@ -681,7 +719,7 @@ class PopupManager {
         content.innerHTML = `
           ${rows}
           <div class="breakdown-total">
-            Total: ${totalReplies} replies, ${totalCredits} credits
+            Total: ${totalCredits} credits
           </div>
         `;
         
@@ -764,7 +802,8 @@ class PopupManager {
       window.close();
     } catch (error) {
       console.error('Failed to open billing portal:', error);
-      this.showStatusMessage('Failed to open billing portal', 'error');
+      this.reportTelemetry('api_request_failed', error, '/api/billing/portal');
+      this.showStatusMessage(this.getUserFacingError(error, 'Something went wrong. Try again.').message, 'error');
     }
   }
 
@@ -814,6 +853,9 @@ class PopupManager {
       this.settingsBtn?.setAttribute('aria-expanded', 'true');
       // Load tracking settings when settings panel is shown
       this.loadTrackingSettings();
+      this.loadRelationshipHintsSettings();
+      this.loadSnippetSettings();
+      this.loadPlansSection();
       // Focus first focusable element
       const firstInput = this.settingsPanel.querySelector('input, button');
       firstInput?.focus();
@@ -826,6 +868,52 @@ class PopupManager {
       this.settingsPanel.style.display = 'none';
       this.settingsPanel.setAttribute('aria-hidden', 'true');
       this.settingsBtn?.setAttribute('aria-expanded', 'false');
+    }
+  }
+
+  async loadRelationshipHintsSettings() {
+    try {
+      const r = await chrome.storage.sync.get([
+        STORAGE.RELATIONSHIP_HINTS_ENABLED,
+        STORAGE.FOLLOW_BADGE_ICON_STYLE,
+      ]);
+      const el = document.getElementById('relationshipHintsEnabled');
+      if (el) el.checked = r[STORAGE.RELATIONSHIP_HINTS_ENABLED] !== false;
+      const sel = document.getElementById('followBadgeIconStyle');
+      if (sel) {
+        const raw = r[STORAGE.FOLLOW_BADGE_ICON_STYLE];
+        const v =
+          typeof raw === 'string' && FOLLOW_BADGE_ICON_STYLE_VALUES.includes(raw)
+            ? raw
+            : FOLLOW_BADGE_ICON_STYLE_DEFAULT;
+        sel.value = v;
+      }
+    } catch (error) {
+      console.error('Failed to load relationship hints setting:', error);
+    }
+  }
+
+  async saveFollowBadgeIconStyleSetting() {
+    try {
+      const sel = document.getElementById('followBadgeIconStyle');
+      if (!sel) return;
+      const v = FOLLOW_BADGE_ICON_STYLE_VALUES.includes(sel.value)
+        ? sel.value
+        : FOLLOW_BADGE_ICON_STYLE_DEFAULT;
+      if (sel.value !== v) sel.value = v;
+      await chrome.storage.sync.set({ [STORAGE.FOLLOW_BADGE_ICON_STYLE]: v });
+    } catch (error) {
+      console.error('Failed to save follow badge icon style:', error);
+    }
+  }
+
+  async saveRelationshipHintsSetting() {
+    try {
+      const el = document.getElementById('relationshipHintsEnabled');
+      if (!el) return;
+      await chrome.storage.sync.set({ [STORAGE.RELATIONSHIP_HINTS_ENABLED]: el.checked });
+    } catch (error) {
+      console.error('Failed to save relationship hints setting:', error);
     }
   }
 
@@ -847,7 +935,268 @@ class PopupManager {
     }
   }
 
-  // Save reply tracking settings
+  getUserFacingError(error, fallback = 'Something went wrong. Try again.') {
+    const raw = String(error?.message || '').toLowerCase();
+    if (raw.includes('401') || raw.includes('unauthorized')) {
+      return { message: 'Session expired. Please sign in again.', action: 'signin' };
+    }
+    if (raw.includes('402') || raw.includes('quota') || raw.includes('credits')) {
+      return { message: 'Credits exhausted. Upgrade to continue.', action: 'upgrade' };
+    }
+    if (raw.includes('timeout') || raw.includes('network')) {
+      return { message: 'Network issue. Please retry.', action: 'retry' };
+    }
+    return { message: fallback, action: 'retry' };
+  }
+
+  reportTelemetry(eventType, error, route = '', context = {}) {
+    emitTelemetry({
+      event_type: eventType,
+      surface: 'popup',
+      route,
+      error_code: error?.message || eventType,
+      context,
+    });
+  }
+
+  // Snippet library + legacy CTA migration
+  async loadSnippetSettings() {
+    try {
+      const r = await chrome.storage.local.get([
+        SNIPPET_STORAGE.LIBRARY,
+        SNIPPET_STORAGE.DEFAULT_ID,
+        SNIPPET_STORAGE.AUTO_APPEND_ID,
+        SNIPPET_STORAGE.MIGRATED,
+        CTA_STORAGE.TEXT,
+        CTA_STORAGE.AUTO_APPEND,
+      ]);
+      let library = Array.isArray(r[SNIPPET_STORAGE.LIBRARY]) ? r[SNIPPET_STORAGE.LIBRARY] : [];
+      if (!r[SNIPPET_STORAGE.MIGRATED] && !library.length && typeof r[CTA_STORAGE.TEXT] === 'string' && r[CTA_STORAGE.TEXT].trim()) {
+        const migratedId = `snippet_${Date.now()}`;
+        library = [{ id: migratedId, label: 'My CTA', text: r[CTA_STORAGE.TEXT].trim(), updatedAt: Date.now() }];
+        await chrome.storage.local.set({
+          [SNIPPET_STORAGE.LIBRARY]: library,
+          [SNIPPET_STORAGE.DEFAULT_ID]: migratedId,
+          [SNIPPET_STORAGE.AUTO_APPEND_ID]: r[CTA_STORAGE.AUTO_APPEND] ? migratedId : '',
+          [SNIPPET_STORAGE.MIGRATED]: true,
+        });
+      }
+      this.renderSnippetLibrary(
+        library,
+        r[SNIPPET_STORAGE.DEFAULT_ID] || '',
+        r[SNIPPET_STORAGE.AUTO_APPEND_ID] || '',
+      );
+    } catch (error) {
+      this.reportTelemetry('storage_read_failed', error, 'snippet_settings');
+      console.error('Failed to load snippet settings:', error);
+    }
+  }
+
+  renderSnippetLibrary(library, defaultId, autoAppendId) {
+    const list = document.getElementById('snippetLibraryList');
+    const defaultSel = document.getElementById('defaultSnippetSelect');
+    const autoSel = document.getElementById('autoAppendSnippetSelect');
+    if (list) {
+      list.innerHTML = '';
+      library.forEach((snippet) => {
+        const row = document.createElement('div');
+        row.className = 'snippet-item';
+        row.innerHTML = `<div><strong>${this.escapeHtml(snippet.label)}</strong><div class="snippet-item-text">${this.escapeHtml(this.truncate(snippet.text, 90))}</div></div>`;
+        const del = document.createElement('button');
+        del.className = 'snippet-delete-btn';
+        del.textContent = 'Delete';
+        del.addEventListener('click', () => this.deleteSnippet(snippet.id));
+        row.appendChild(del);
+        list.appendChild(row);
+      });
+    }
+    if (defaultSel && autoSel) {
+      const makeOptions = (select, includeNone) => {
+        select.innerHTML = includeNone ? '<option value="">None</option>' : '';
+        library.forEach((s) => {
+          const option = document.createElement('option');
+          option.value = s.id;
+          option.textContent = s.label;
+          select.appendChild(option);
+        });
+      };
+      makeOptions(defaultSel, true);
+      makeOptions(autoSel, true);
+      defaultSel.value = defaultId || '';
+      autoSel.value = autoAppendId || '';
+    }
+  }
+
+  async saveSnippet() {
+    try {
+      const labelEl = document.getElementById('snippetLabelInput');
+      const textEl = document.getElementById('snippetTextInput');
+      const label = (labelEl?.value || '').trim();
+      const text = (textEl?.value || '').trim();
+      if (!label || !text) {
+        this.showStatusMessage('Please enter both snippet label and text.', 'error');
+        return;
+      }
+      const r = await chrome.storage.local.get([SNIPPET_STORAGE.LIBRARY]);
+      const library = Array.isArray(r[SNIPPET_STORAGE.LIBRARY]) ? r[SNIPPET_STORAGE.LIBRARY] : [];
+      if (library.length >= DEFAULTS.SNIPPET_LIBRARY_LIMIT) {
+        this.showStatusMessage(`Max ${DEFAULTS.SNIPPET_LIBRARY_LIMIT} snippets allowed.`, 'error');
+        return;
+      }
+      if (library.some((s) => String(s.label).toLowerCase() === label.toLowerCase())) {
+        this.showStatusMessage('Snippet label must be unique.', 'error');
+        return;
+      }
+      library.push({
+        id: `snippet_${Date.now()}`,
+        label: label.slice(0, 60),
+        text: text.slice(0, DEFAULTS.SNIPPET_MAX_LENGTH),
+        updatedAt: Date.now(),
+      });
+      await chrome.storage.local.set({ [SNIPPET_STORAGE.LIBRARY]: library, [SNIPPET_STORAGE.MIGRATED]: true });
+      if (labelEl) labelEl.value = '';
+      if (textEl) textEl.value = '';
+      this.showStatusMessage('Snippet saved.', 'success');
+      await this.loadSnippetSettings();
+    } catch (error) {
+      this.reportTelemetry('storage_write_failed', error, 'save_snippet');
+      this.showStatusMessage('Something went wrong. Try again.', 'error');
+    }
+  }
+
+  async deleteSnippet(snippetId) {
+    try {
+      const r = await chrome.storage.local.get([
+        SNIPPET_STORAGE.LIBRARY,
+        SNIPPET_STORAGE.DEFAULT_ID,
+        SNIPPET_STORAGE.AUTO_APPEND_ID,
+      ]);
+      const library = (Array.isArray(r[SNIPPET_STORAGE.LIBRARY]) ? r[SNIPPET_STORAGE.LIBRARY] : []).filter((s) => s.id !== snippetId);
+      const updates = { [SNIPPET_STORAGE.LIBRARY]: library };
+      if (r[SNIPPET_STORAGE.DEFAULT_ID] === snippetId) updates[SNIPPET_STORAGE.DEFAULT_ID] = '';
+      if (r[SNIPPET_STORAGE.AUTO_APPEND_ID] === snippetId) updates[SNIPPET_STORAGE.AUTO_APPEND_ID] = '';
+      await chrome.storage.local.set(updates);
+      await this.loadSnippetSettings();
+    } catch (error) {
+      this.reportTelemetry('storage_write_failed', error, 'delete_snippet');
+    }
+  }
+
+  async saveSnippetPreferences() {
+    try {
+      const defaultSel = document.getElementById('defaultSnippetSelect');
+      const autoSel = document.getElementById('autoAppendSnippetSelect');
+      await chrome.storage.local.set({
+        [SNIPPET_STORAGE.DEFAULT_ID]: defaultSel?.value || '',
+        [SNIPPET_STORAGE.AUTO_APPEND_ID]: autoSel?.value || '',
+        [SNIPPET_STORAGE.MIGRATED]: true,
+      });
+      const savedMsg = document.getElementById('cta-settings-saved');
+      if (savedMsg) {
+        savedMsg.style.display = 'block';
+        setTimeout(() => { savedMsg.style.display = 'none'; }, 1600);
+      }
+    } catch (error) {
+      this.reportTelemetry('storage_write_failed', error, 'save_snippet_preferences');
+    }
+  }
+
+  async loadPlansSection() {
+    const plansList = document.getElementById('plansList');
+    if (!plansList) return;
+    plansList.innerHTML = '<div class="snippet-item-text">Loading plans...</div>';
+    try {
+      const response = await this.apiClient.getPlans();
+      const plans = Array.isArray(response?.plans) ? response.plans : Array.isArray(response) ? response : [];
+      if (!plans.length) {
+        plansList.innerHTML = '';
+        const msg = document.createElement('div');
+        msg.className = 'snippet-item-text';
+        msg.textContent = 'Plans unavailable here.';
+        plansList.appendChild(msg);
+        const pricing = document.createElement('a');
+        pricing.className = 'settings-web-link';
+        pricing.textContent = 'View pricing on the web';
+        const domains = await this.getDomains();
+        const domain = domains[0] || 'tweetreplyai.vercel.app';
+        const protocol = domain.includes('localhost') ? 'http' : 'https';
+        pricing.href = `${protocol}://${domain}/pricing`;
+        pricing.target = '_blank';
+        pricing.rel = 'noopener noreferrer';
+        plansList.appendChild(pricing);
+        return;
+      }
+      plansList.innerHTML = '';
+      const currentPlan = (this.usageData?.planCode || 'trial').toString().toLowerCase();
+      const planLabels = {
+        trial: 'Free Trial',
+        weekly: 'Weekly Plan',
+        monthly: 'Monthly Plan',
+        bypass: 'Pro Plan',
+      };
+      const currentBanner = document.createElement('div');
+      currentBanner.className = 'plan-current-banner';
+      currentBanner.textContent = `Current plan: ${planLabels[currentPlan] || planLabels.trial}`;
+      plansList.appendChild(currentBanner);
+      plans.forEach((plan) => {
+        const item = document.createElement('div');
+        item.className = 'plan-item';
+        const label = document.createElement('span');
+        const code = (plan.code || plan.planCode || '').toString().toLowerCase();
+        label.textContent = `${plan.name || plan.code || code}`;
+        const btn = document.createElement('button');
+        btn.className = 'secondary-btn';
+        btn.textContent = code === currentPlan ? 'Current' : 'Choose';
+        btn.disabled = code === currentPlan;
+        if (code !== currentPlan) {
+          btn.addEventListener('click', () => this.startCheckout(plan.code || plan.planCode));
+        }
+        item.appendChild(label);
+        item.appendChild(btn);
+        plansList.appendChild(item);
+      });
+    } catch (error) {
+      this.reportTelemetry('api_request_failed', error, '/api/plans');
+      plansList.innerHTML = '';
+      const err = document.createElement('div');
+      err.className = 'snippet-item-text';
+      err.textContent = 'Unable to load plans right now.';
+      plansList.appendChild(err);
+      const pricing = document.createElement('a');
+      pricing.className = 'settings-web-link';
+      pricing.textContent = 'View pricing on the web';
+      pricing.target = '_blank';
+      pricing.rel = 'noopener noreferrer';
+      try {
+        const domains = await this.getDomains();
+        const domain = domains[0] || 'tweetreplyai.vercel.app';
+        const protocol = domain.includes('localhost') ? 'http' : 'https';
+        pricing.href = `${protocol}://${domain}/pricing`;
+      } catch {
+        pricing.href = 'https://tweetreplyai.vercel.app/pricing';
+      }
+      plansList.appendChild(pricing);
+    }
+  }
+
+  async startCheckout(planCode) {
+    if (!planCode || this.checkoutInProgress) return;
+    this.checkoutInProgress = true;
+    try {
+      const checkout = await this.apiClient.createCheckout(planCode);
+      const checkoutUrl = checkout?.checkout_url || checkout?.url;
+      if (!checkoutUrl) throw new Error('Missing checkout url');
+      chrome.tabs.create({ url: checkoutUrl });
+      this.showStatusMessage('Checkout started. Return after payment.', 'success');
+    } catch (error) {
+      this.reportTelemetry('api_request_failed', error, '/api/checkout', { action: 'create_checkout' });
+      const userFacing = this.getUserFacingError(error);
+      this.showStatusMessage(userFacing.message, 'error');
+    } finally {
+      this.checkoutInProgress = false;
+    }
+  }
+
   async saveTrackingSettings() {
     try {
       const trackingPeriodInput = document.getElementById('trackingPeriodDays');

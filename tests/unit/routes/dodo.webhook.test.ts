@@ -15,7 +15,6 @@ vi.mock("../../../server/services/dodo-payments", () => ({
       code: "weekly",
       name: "Weekly",
       price: 299,
-      replies: 100,
       credits: 100,
       interval: "week",
       dodoPriceId: "price_weekly_test",

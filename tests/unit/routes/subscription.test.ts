@@ -26,7 +26,7 @@ vi.mock('../../../server/services/usage', () => ({
 }));
 vi.mock('../../../server/services/dodo-payments', () => ({
   PLANS: {
-    weekly: { code: 'weekly', name: 'Weekly', price: 299, replies: 10, interval: 'week' },
+    weekly: { code: 'weekly', name: 'Weekly', price: 299, credits: 10, interval: 'week' },
   },
   dodoPaymentsService: { cancelSubscription: vi.fn() },
 }));

@@ -7,19 +7,16 @@ describe("Shared Constants - Unit Tests", () => {
   });
 
   describe("PLAN_LIMITS — regression guard (update tests when limits change intentionally)", () => {
-    it("trial plan: 10 credits, 10 replies", () => {
+    it("trial plan: 10 credits", () => {
       expect(PLAN_LIMITS.trial.credits).toBe(10);
-      expect(PLAN_LIMITS.trial.replies).toBe(10);
     });
 
-    it("weekly plan: 100 credits, 700 replies", () => {
+    it("weekly plan: 100 credits", () => {
       expect(PLAN_LIMITS.weekly.credits).toBe(100);
-      expect(PLAN_LIMITS.weekly.replies).toBe(700);
     });
 
-    it("monthly plan: 10000 credits, 3000 replies", () => {
+    it("monthly plan: 10000 credits", () => {
       expect(PLAN_LIMITS.monthly.credits).toBe(10000);
-      expect(PLAN_LIMITS.monthly.replies).toBe(3000);
     });
 
     it("all three plan tiers are defined", () => {

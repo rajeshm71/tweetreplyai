@@ -1,6 +1,6 @@
 /**
  * Shared constants used by both server and client.
- * Plan limits (credits, replies) are the single source of truth for enforcement and display.
+ * Plan limits (credits) are the single source of truth for enforcement and display.
  * trial.credits is the trial limit for both server enforcement and client display.
  */
 
@@ -8,9 +8,9 @@
 export const APP_DISPLAY_NAME = 'TweetReplyAI';
 
 export const PLAN_LIMITS = {
-  trial: { credits: 10, replies: 10 },
-  weekly: { credits: 100, replies: 700 },
-  monthly: { credits: 10000, replies: 3000 },
+  trial: { credits: 10 },
+  weekly: { credits: 100 },
+  monthly: { credits: 10000 },
 } as const;
 
 export const PLAN_PERIODS_DAYS = {

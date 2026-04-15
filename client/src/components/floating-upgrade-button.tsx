@@ -15,9 +15,9 @@ interface UsageStatus {
   upgradeRequired?: boolean;
   upgradeMessage?: string;
   modeBreakdown?: {
-    'single-sentence'?: { replies: number; credits: number };
-    'enhanced'?: { replies: number; credits: number };
-    'improve'?: { replies: number; credits: number };
+    'single-sentence'?: { credits: number };
+    'enhanced'?: { credits: number };
+    'improve'?: { credits: number };
   };
 }
 

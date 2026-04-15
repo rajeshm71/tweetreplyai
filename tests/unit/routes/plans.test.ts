@@ -19,7 +19,6 @@ vi.mock("../../../server/services/dodo-payments", () => ({
       code: "weekly",
       name: "Weekly Plan",
       price: 299,
-      replies: 700,
       credits: 100,
       interval: "week",
       dodoPriceId: "price_weekly_test",
@@ -28,7 +27,6 @@ vi.mock("../../../server/services/dodo-payments", () => ({
       code: "monthly",
       name: "Monthly Plan",
       price: 999,
-      replies: 3000,
       credits: 10000,
       interval: "month",
       dodoPriceId: "price_monthly_test",
@@ -75,16 +73,15 @@ describe("Plans Route - Unit Tests", () => {
       expect(plan).toHaveProperty("code");
       expect(plan).toHaveProperty("name");
       expect(plan).toHaveProperty("price");
-      expect(plan).toHaveProperty("replies");
+      expect(plan).toHaveProperty("credits");
       expect(plan).toHaveProperty("interval");
     }
   });
 
-  it("plan objects do NOT expose dodoPriceId or credits (sensitive fields stripped)", async () => {
+  it("plan objects do NOT expose dodoPriceId (sensitive field stripped)", async () => {
     const res = await app.raw().get("/api/plans");
     for (const plan of res.body.plans) {
       expect(plan).not.toHaveProperty("dodoPriceId");
-      expect(plan).not.toHaveProperty("credits");
     }
   });
 

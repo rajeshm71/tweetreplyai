@@ -6,8 +6,11 @@
   "scripts": {
     "dev": "cross-env NODE_ENV=development tsx server/index.ts",
     "build": "vite build --mode production && esbuild server/prod.ts --platform=node --packages=external --bundle --format=esm --outdir=dist --external:vite --external:rollup --external:@rollup/*",
-    "build:extension": "esbuild extension/content/content.js --bundle --outfile=extension/content/content.bundle.js --format=iife --external:chrome",
+    "build:extension:content": "esbuild extension/content/content.js --bundle --outfile=extension/content/content.bundle.js --format=iife --external:chrome",
     "build:extension:popup": "esbuild extension/popup/popup.js --bundle --outfile=extension/popup/popup.bundle.js --format=iife --external:chrome",
+    "build:extension": "npm run build:extension:content && npm run build:extension:popup",
+    "verify:extension": "node scripts/verify-extension-manifest.js",
+    "package:extension": "npm run verify:extension && npm run build:extension && node scripts/package-extension.js",
     "build:extension:linkedin": "esbuild extension-linkedin/content/linkedin-content.js --bundle --outfile=extension-linkedin/content/linkedin-content.bundle.js --format=iife --external:chrome",
     "build:extension:linkedin:popup": "esbuild extension-linkedin/popup/popup.js --bundle --outfile=extension-linkedin/popup/popup.bundle.js --format=iife --external:chrome",
     "build:extension:linkedin:background": "esbuild extension-linkedin/background/background.js --bundle --outfile=extension-linkedin/background/background.bundle.js --format=iife --external:chrome",

@@ -10,7 +10,7 @@ import { WHITELIST } from "../config/constants.js";
 import { PLAN_LIMITS } from "../../shared/constants.js";
 
 class WhitelistService {
-  private whitelistedEmails: Set<string>;
+  private whitelistedEmails!: Set<string>;
   private lastEmailReload: number = 0;
   private readonly EMAIL_RELOAD_INTERVAL = WHITELIST.EMAIL_RELOAD_INTERVAL_MS;
   
@@ -103,8 +103,7 @@ class WhitelistService {
     }
     
     if (used >= limit) {
-      // FIX: Updated message to say "credits" instead of "replies"
-      return 'You\'ve used all your credits. Upgrade to continue generating replies.';
+      return 'You\'ve used all your credits. Upgrade to continue.';
     }
     
     const remaining = limit - used;

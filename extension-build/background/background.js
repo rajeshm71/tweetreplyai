@@ -1,5 +1,6 @@
-import { API, TIMEOUTS } from '../config/constants.js';
+import { API, DEFAULTS, TIMEOUTS } from '../config/constants.js';
 import { installConsoleGate } from '../utils/consoleGate.js';
+import { normalizeTelemetryEvent, shouldDedupeEvent } from '../utils/telemetry.js';
 
 globalThis.__tweetreplyaiExtLoggingAllowed = false;
 installConsoleGate(() => globalThis.__tweetreplyaiExtLoggingAllowed === true);
@@ -10,8 +11,10 @@ class BackgroundManager {
     this.debugAllowed = false;
     this.setupInstallHandler();
     this.setupMessageHandlers();
+    this.setupCommandHandlers();
     this.setupAuthHandlers();
     this.refreshDebugAllowed();
+    this.telemetryFlushTimer = null;
   }
 
   log(message, ...args) {
@@ -69,6 +72,10 @@ class BackgroundManager {
         case 'openLoginPage':
           this.handleOpenLoginPage(message.url, sendResponse);
           return true;
+
+        case 'telemetryEvent':
+          this.handleTelemetryEvent(message.event, sendResponse);
+          return true;
           
         default:
           this.log('Unknown message action:', message.action);
@@ -82,7 +89,69 @@ class BackgroundManager {
       sendResponse({ success: true });
     } catch (error) {
       console.error('Failed to sync auth from tab:', error);
+      this.enqueueTelemetry({
+        event_type: 'auth_sync_failed',
+        surface: 'background',
+        error_code: 'sync_auth_from_tab_failed',
+      });
       sendResponse({ success: false });
+    }
+  }
+
+  async handleTelemetryEvent(event, sendResponse) {
+    try {
+      this.enqueueTelemetry({ ...event, surface: event?.surface || 'background' });
+      sendResponse({ success: true });
+    } catch {
+      sendResponse({ success: false });
+    }
+  }
+
+  async enqueueTelemetry(rawEvent) {
+    try {
+      const event = normalizeTelemetryEvent(rawEvent);
+      if (shouldDedupeEvent(event)) return;
+      const result = await chrome.storage.local.get(['extensionTelemetryQueue']);
+      const queue = Array.isArray(result.extensionTelemetryQueue) ? result.extensionTelemetryQueue : [];
+      queue.push(event);
+      while (queue.length > DEFAULTS.TELEMETRY_MAX_BUFFER) queue.shift();
+      await chrome.storage.local.set({ extensionTelemetryQueue: queue });
+      this.scheduleTelemetryFlush();
+    } catch {
+      // silent
+    }
+  }
+
+  scheduleTelemetryFlush() {
+    if (this.telemetryFlushTimer) clearTimeout(this.telemetryFlushTimer);
+    this.telemetryFlushTimer = setTimeout(() => {
+      this.telemetryFlushTimer = null;
+      this.flushTelemetryQueue().catch(() => {});
+    }, TIMEOUTS.TELEMETRY_FLUSH_DEBOUNCE_MS);
+  }
+
+  async flushTelemetryQueue() {
+    const result = await chrome.storage.local.get(['extensionTelemetryQueue', 'authToken']);
+    const queue = Array.isArray(result.extensionTelemetryQueue) ? result.extensionTelemetryQueue : [];
+    if (queue.length === 0) return;
+
+    const domain = await this.getApiDomain();
+    const protocol = domain.includes('localhost') ? 'http' : 'https';
+    const url = `${protocol}://${domain}/api/extension/telemetry`;
+    const headers = { 'Content-Type': 'application/json' };
+    if (result.authToken) headers['Authorization'] = `Bearer ${result.authToken}`;
+    try {
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers,
+        credentials: 'include',
+        body: JSON.stringify({ events: queue }),
+      });
+      if (resp.ok) {
+        await chrome.storage.local.set({ extensionTelemetryQueue: [] });
+      }
+    } catch {
+      // keep queue for retry
     }
   }
 
@@ -94,6 +163,25 @@ class BackgroundManager {
         if (tab.url.includes(API.DEFAULT_DOMAIN)) {
           this.checkForAuthCompletion(tab.url, tabId);
         }
+      }
+    });
+  }
+
+  setupCommandHandlers() {
+    chrome.commands?.onCommand?.addListener(async (command) => {
+      try {
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        const activeTab = tabs[0];
+        if (!activeTab?.id || !activeTab?.url) return;
+        if (!activeTab.url.includes('x.com') && !activeTab.url.includes('twitter.com')) return;
+        chrome.tabs.sendMessage(activeTab.id, { action: 'shortcutCommand', command }).catch(() => {});
+      } catch (error) {
+        this.enqueueTelemetry({
+          event_type: 'unknown_runtime_error',
+          surface: 'background',
+          error_code: error?.message || 'shortcut_dispatch_failed',
+          context: { action: command },
+        });
       }
     });
   }
@@ -141,6 +229,11 @@ class BackgroundManager {
         }
       } catch (error) {
         console.error('Failed to extract auth token:', error);
+        this.enqueueTelemetry({
+          event_type: 'auth_sync_failed',
+          surface: 'background',
+          error_code: 'extract_auth_failed',
+        });
       }
     }
   }
@@ -180,6 +273,11 @@ class BackgroundManager {
       }
     } catch (error) {
       console.error('Failed to request auth from web app:', error);
+      this.enqueueTelemetry({
+        event_type: 'auth_sync_failed',
+        surface: 'background',
+        error_code: 'request_auth_from_webapp_failed',
+      });
     }
   }
 
@@ -358,6 +456,17 @@ class BackgroundManager {
       
       if (!response.ok) {
         const errorText = await response.text();
+        this.enqueueTelemetry({
+          event_type: response.status === 429
+            ? 'rate_limited'
+            : response.status === 402
+              ? 'credits_exhausted'
+              : 'api_request_failed',
+          surface: 'background',
+          route: endpoint,
+          http_status: response.status,
+          error_code: response.statusText || 'http_error',
+        });
         sendResponse({
           success: false,
           status: response.status,
@@ -384,6 +493,14 @@ class BackgroundManager {
       if (this.debug) {
         console.error('Background API request failed:', error);
       }
+      this.enqueueTelemetry({
+        event_type: String(error?.message || '').toLowerCase().includes('timeout')
+          ? 'api_timeout'
+          : 'api_request_failed',
+        surface: 'background',
+        route: message?.endpoint || '',
+        error_code: error?.message || 'api_request_exception',
+      });
       sendResponse({
         success: false,
         error: error.message

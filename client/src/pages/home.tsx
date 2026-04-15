@@ -36,9 +36,9 @@ type UsageStatus = {
   upgradeRequired?: boolean;
   upgradeMessage?: string;
   modeBreakdown?: {
-    'single-sentence'?: { replies: number; credits: number };
-    'enhanced'?: { replies: number; credits: number };
-    'improve'?: { replies: number; credits: number };
+    'single-sentence'?: { credits: number };
+    'enhanced'?: { credits: number };
+    'improve'?: { credits: number };
   };
 };
 
@@ -297,7 +297,7 @@ export default function Home() {
                           const verb = usageStatus.subscriptionCanceled ? 'Ends' : 'Resets';
                           return usageQuotaExhausted
                             ? usageStatus.planCode === 'trial'
-                              ? "You've used all your trial credits: upgrade to keep replying."
+                              ? "You've used all your trial credits: upgrade to continue."
                               : `You've used all your credits. ${verb} ${dist}.`
                             : `${verb} ${dist}`;
                         })()}
@@ -325,7 +325,7 @@ export default function Home() {
                               <div className="flex justify-between text-xs">
                                 <span className="text-muted-foreground">Concise:</span>
                                 <span className="font-medium">
-                                  {usageStatus.modeBreakdown['single-sentence'].replies} replies, {usageStatus.modeBreakdown['single-sentence'].credits} credits
+                                  {usageStatus.modeBreakdown['single-sentence'].credits} credits
                                 </span>
                               </div>
                             )}
@@ -333,7 +333,7 @@ export default function Home() {
                               <div className="flex justify-between text-xs">
                                 <span className="text-muted-foreground">Enhanced:</span>
                                 <span className="font-medium">
-                                  {usageStatus.modeBreakdown['enhanced'].replies} replies, {usageStatus.modeBreakdown['enhanced'].credits} credits
+                                  {usageStatus.modeBreakdown['enhanced'].credits} credits
                                 </span>
                               </div>
                             )}
@@ -341,7 +341,7 @@ export default function Home() {
                               <div className="flex justify-between text-xs">
                                 <span className="text-muted-foreground">Improve:</span>
                                 <span className="font-medium">
-                                  {usageStatus.modeBreakdown['improve'].replies} replies, {usageStatus.modeBreakdown['improve'].credits} credits
+                                  {usageStatus.modeBreakdown['improve'].credits} credits
                                 </span>
                               </div>
                             )}

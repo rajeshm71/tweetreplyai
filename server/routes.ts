@@ -62,6 +62,21 @@ const handleZodError = (res: any, error: unknown) => {
   return null;
 };
 
+type ExtensionTelemetryEvent = {
+  event_type: string;
+  timestamp?: string;
+  extension_version?: string;
+  surface?: string;
+  route?: string;
+  http_status?: number | null;
+  error_code?: string;
+  context?: Record<string, string | undefined>;
+  userId?: string;
+  receivedAt: number;
+};
+
+const extensionTelemetryRing: ExtensionTelemetryEvent[] = [];
+
 // JWT-based authentication for serverless environments
 const jwtIsAuthenticated = (req: any, res: any, next: any) => {
   const token = req.headers.authorization?.replace('Bearer ', '') || req.cookies?.token;
@@ -680,6 +695,68 @@ export async function registerRoutes(app: Express): Promise<Express> {
     }
   });
 
+  // Extension telemetry endpoint (admin/internal observability, not user-facing)
+  app.post('/api/extension/telemetry', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const schema = z.object({
+        events: z.array(z.object({
+          event_type: z.string().max(64),
+          timestamp: z.string().max(64).optional(),
+          extension_version: z.string().max(32).optional(),
+          surface: z.string().max(32).optional(),
+          route: z.string().max(160).optional(),
+          http_status: z.number().nullable().optional(),
+          error_code: z.string().max(160).optional(),
+          context: z.object({
+            model_key: z.string().max(80).optional(),
+            reply_mode: z.string().max(80).optional(),
+            prompt_key: z.string().max(80).optional(),
+            action: z.string().max(80).optional(),
+            note: z.string().max(200).optional(),
+          }).optional(),
+        })).max(100),
+      });
+      const parsed = schema.parse(req.body || {});
+      parsed.events.forEach((event) => {
+        extensionTelemetryRing.push({ ...event, userId, receivedAt: Date.now() });
+      });
+      while (extensionTelemetryRing.length > 5000) extensionTelemetryRing.shift();
+      console.log('[ExtensionTelemetry]', {
+        userId,
+        count: parsed.events.length,
+        sample: parsed.events.slice(0, 3),
+      });
+      res.json({ ok: true, accepted: parsed.events.length });
+    } catch (error) {
+      const zodHandled = handleZodError(res, error);
+      if (zodHandled) return;
+      console.error('POST /api/extension/telemetry error:', error);
+      res.status(500).json(getClientErrorBody(error, 'Failed to store telemetry'));
+    }
+  });
+
+  app.get('/api/extension/telemetry/summary', isAuthenticated, async (req: any, res) => {
+    try {
+      // Fix: admin-only — same gate as extension debug / internal tooling (whitelist).
+      const userId = getUserId(req);
+      const user = await storage.getUser(userId);
+      if (!user?.email || !whitelistService.isWhitelisted(user.email)) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+      const since = Date.now() - 24 * 60 * 60 * 1000;
+      const recent = extensionTelemetryRing.filter((e) => e.receivedAt >= since);
+      const summary: Record<string, number> = {};
+      recent.forEach((event) => {
+        const key = `${event.event_type}:${event.surface || 'unknown'}:${event.extension_version || 'unknown'}`;
+        summary[key] = (summary[key] || 0) + 1;
+      });
+      res.json({ last24h: recent.length, buckets: summary });
+    } catch (error) {
+      res.status(500).json(getClientErrorBody(error, 'Failed to fetch telemetry summary'));
+    }
+  });
+
   // Subscription status route
   app.get('/api/subscription/status', isAuthenticated, async (req: any, res) => {
     try {
@@ -1142,7 +1219,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
         return res.json({
           reply: guardrailReply.reply,
           qualityScore: null,
-          used: updatedCounter.creditsUsed ?? (updatedCounter.repliesUsed * 2),
+          used: updatedCounter.creditsUsed,
           limit: updatedCounter.limit,
           resetAt: updatedCounter.resetAt,
           analysis: null,
@@ -1258,7 +1335,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
         return res.json({
           reply: linkedInResponse.reply,
           qualityScore: null,
-          used: updatedCounter.creditsUsed ?? (updatedCounter.repliesUsed * 2),
+          used: updatedCounter.creditsUsed,
           limit: updatedCounter.limit,
           resetAt: updatedCounter.resetAt,
           analysis: null,
@@ -1555,7 +1632,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
       res.json({
         reply: replyResponse.reply,
         qualityScore: finalQualityResult.totalScore,
-        used: updatedCounter.creditsUsed ?? (updatedCounter.repliesUsed * 2), // Credits
+        used: updatedCounter.creditsUsed, // Credits
         limit: updatedCounter.limit, // Credits
         resetAt: updatedCounter.resetAt,
         analysis: analysisData,
@@ -1612,7 +1689,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
       code: plan.code,
       name: plan.name,
       price: plan.price,
-      replies: plan.replies,
+      credits: plan.credits,
       interval: plan.interval,
     }));
     
@@ -3007,7 +3084,7 @@ User draft reply: ${draft_reply}`;
             hasEmojis: /[😀😁😂😃😄😅😆😇😈😉😊😋😌😍😎😏😐😑😒😓😔😕😖😗😘😙😚😛😜😝😞😟😠😡😢😣😤😥😦😧😨😩😪😫😬😭😮😯😰😱😲😳😴😵😶😷🙁🙂🙃🙄🙅🙆🙇🙈🙉🙊🙋🙌🙍🙎🙏]/.test(draft_reply),
           },
           usage: {
-            used: updatedCounter.creditsUsed ?? (updatedCounter.repliesUsed * 2),
+            used: updatedCounter.creditsUsed,
             limit: updatedCounter.limit,
             resetAt: updatedCounter.resetAt,
           },
@@ -3093,7 +3170,7 @@ User draft reply: ${draft_reply}`;
         },
         usage: {
           // FIX: Return credits instead of repliesUsed to match credits-based system
-          used: updatedCounter.creditsUsed ?? (updatedCounter.repliesUsed * 2),
+          used: updatedCounter.creditsUsed,
           limit: updatedCounter.limit,
           resetAt: updatedCounter.resetAt,
         }

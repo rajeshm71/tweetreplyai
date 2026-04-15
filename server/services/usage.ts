@@ -31,9 +31,9 @@ export interface UsageStatus {
   /** Paid access from canceled subscription until period end; clients show "Ends in …" instead of "Resets …". */
   subscriptionCanceled?: boolean;
   modeBreakdown?: {
-    'single-sentence'?: { replies: number; credits: number };
-    'enhanced'?: { replies: number; credits: number };
-    'improve'?: { replies: number; credits: number };
+    'single-sentence'?: { credits: number };
+    'enhanced'?: { credits: number };
+    'improve'?: { credits: number };
   };
 }
 
@@ -233,7 +233,6 @@ export class UsageService {
         planCode: window.planCode,
         periodStart: window.periodStart,
         periodEnd: window.periodEnd,
-        repliesUsed: 0,
         creditsUsed: 0,
         limit: window.limit,
         resetAt: window.resetAt,
@@ -265,15 +264,14 @@ export class UsageService {
 
     const isWhitelisted = whitelistService.isWhitelisted(user.email);
     
-    // Calculate current credits (with fallback for migration period)
-    const currentCredits = counter.creditsUsed ?? (counter.repliesUsed * 2);
+    const currentCredits = counter.creditsUsed ?? 0;
     
     // Set hasUsedTrial flag when trial period ends OR limit is reached
     if (counter.planCode === 'trial' && !user.hasUsedTrial) {
       const now = new Date();
       const trialExpired = counter.periodEnd <= now;
       const trialLimit = whitelistService.getTrialLimit();
-      const limitReached = (counter.creditsUsed ?? (counter.repliesUsed * 2)) >= trialLimit;
+      const limitReached = (counter.creditsUsed ?? 0) >= trialLimit;
       
       // Mark trial as "used" when period expires OR limit is reached
       if (trialExpired || limitReached) {
@@ -314,7 +312,7 @@ export class UsageService {
 
     const result: UsageStatus = {
       planCode: window.planCode,
-      used: counter.creditsUsed ?? (counter.repliesUsed * 2), // CHANGED: Use credits with fallback
+      used: counter.creditsUsed ?? 0,
       limit: finalLimit, // Use counter.limit (source of truth) with window.limit fallback
       resetAt: counter.resetAt,
       status: 'active',
@@ -369,7 +367,6 @@ export class UsageService {
         planCode: window.planCode,
         periodStart: window.periodStart,
         periodEnd: window.periodEnd,
-        repliesUsed: 0,
         creditsUsed: 0,
         limit: window.limit,
         resetAt: window.resetAt,
@@ -377,7 +374,7 @@ export class UsageService {
       });
     }
 
-    const currentCredits = counter.creditsUsed ?? (counter.repliesUsed * 2);
+    const currentCredits = counter.creditsUsed ?? 0;
     if (currentCredits >= counter.limit) {
       throw new Error('402: Quota exceeded');
     }

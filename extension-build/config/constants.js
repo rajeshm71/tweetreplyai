@@ -2,6 +2,9 @@
  * Extension-side constants for API URLs, polling, timeouts, and validation.
  */
 
+/** Public product label — keep in sync with shared/constants.ts `APP_DISPLAY_NAME`. */
+export const APP_DISPLAY_NAME = 'TweetReplyAI';
+
 export const API = {
   DEFAULT_DOMAIN: 'tweetreplyai.vercel.app',
   LOGIN_URL: 'https://tweetreplyai.vercel.app/login',
@@ -21,6 +24,7 @@ export const TIMEOUTS = {
   DOM_DEBOUNCE_MS: 100,
   BUTTON_THROTTLE_MS: 200,
   PLACEMENT_OBSERVER_MS: 150,
+  TELEMETRY_FLUSH_DEBOUNCE_MS: 4_000,
 };
 
 export const DEFAULTS = {
@@ -29,6 +33,10 @@ export const DEFAULTS = {
   TRACKING_DAYS_MIN: 1,
   TRACKING_DAYS_MAX: 30,
   REPLY_HISTORY_LIMIT: 50,
+  TELEMETRY_MAX_BUFFER: 100,
+  TELEMETRY_DEDUPE_WINDOW_MS: 10_000,
+  SNIPPET_LIBRARY_LIMIT: 20,
+  SNIPPET_MAX_LENGTH: 500,
 };
 
 export const VALIDATION = {
@@ -41,4 +49,39 @@ export const VALIDATION = {
 export const AUTH = {
   TOKEN_EXPIRY_MS: 7 * 24 * 60 * 60 * 1000,
   ONE_DAY_MS: 24 * 60 * 60 * 1000,
+};
+
+/** chrome.storage.sync keys (cross-device when user syncs Chrome). */
+export const STORAGE = {
+  RELATIONSHIP_HINTS_ENABLED: 'relationshipHintsEnabled',
+  FOLLOW_BADGE_ICON_STYLE: 'followBadgeIconStyle',
+};
+
+/** Preset keys for relationship hint pills on X (follow / doesn't follow). */
+export const FOLLOW_BADGE_ICON_STYLE = {
+  TEXT: 'text',
+  EMOJI: 'emoji',
+  ICON_ONLY: 'icon_only',
+};
+
+export const FOLLOW_BADGE_ICON_STYLE_DEFAULT = FOLLOW_BADGE_ICON_STYLE.TEXT;
+
+export const FOLLOW_BADGE_ICON_STYLE_VALUES = [
+  FOLLOW_BADGE_ICON_STYLE.TEXT,
+  FOLLOW_BADGE_ICON_STYLE.EMOJI,
+  FOLLOW_BADGE_ICON_STYLE.ICON_ONLY,
+];
+
+/** chrome.storage.local keys for reply CTA / signature snippet (X extension). */
+export const CTA_STORAGE = {
+  TEXT: 'tweetreply_cta_text',
+  AUTO_APPEND: 'tweetreply_cta_auto_append',
+};
+
+/** chrome.storage.local keys for snippet library migration and usage. */
+export const SNIPPET_STORAGE = {
+  LIBRARY: 'tweetreply_snippet_library',
+  DEFAULT_ID: 'tweetreply_snippet_default_id',
+  AUTO_APPEND_ID: 'tweetreply_snippet_auto_append_id',
+  MIGRATED: 'tweetreply_snippet_migrated_v1',
 };

@@ -16,7 +16,7 @@ export const createMockSubscription = (overrides: Partial<InsertSubscription> = 
 export const createMockWeeklySubscription = (overrides: Partial<InsertSubscription> = {}): InsertSubscription => ({
   ...createMockSubscription(overrides),
   planCode: 'weekly',
-  amountPaid: 299,
+  amountPaid: 399,
 });
 
 export const createMockMonthlySubscription = (overrides: Partial<InsertSubscription> = {}): InsertSubscription => ({

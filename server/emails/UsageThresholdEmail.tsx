@@ -56,8 +56,8 @@ export default function UsageThresholdEmail({
         <Text style={{ color: emailTheme.text, fontSize: '15px', lineHeight: '24px', margin: '0 0 12px' }}>
           You've used <strong>{used}</strong> of your <strong>{limit}</strong> credits this period.
           {isLimit
-            ? " You've reached your limit and can't generate new replies until your credits reset."
-            : ' You have a few replies left — plan accordingly.'}
+            ? " You've reached your limit and can't generate new suggestions until your credits reset."
+            : ' You have a few credits left — plan accordingly.'}
         </Text>
         <Text style={{ color: emailTheme.text, fontSize: '15px', lineHeight: '24px', margin: 0 }}>
           Credits reset on <strong>{resetAt}</strong>.

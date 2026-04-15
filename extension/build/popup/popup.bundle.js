@@ -712,24 +712,21 @@
             { key: "enhanced", label: "Enhanced" },
             { key: "improve", label: "Improve" }
           ];
-          let totalReplies = 0;
           let rows = "";
           for (const mode of modes) {
-            const data = breakdown[mode.key] || { replies: 0, credits: 0 };
-            const replies = Number(data.replies) || 0;
+            const data = breakdown[mode.key] || { credits: 0 };
             const credits = Number(data.credits) || 0;
-            totalReplies += replies;
             rows += `
             <div class="breakdown-row">
               <span class="breakdown-label">${mode.label}:</span>
-              <span class="breakdown-value">${replies} replies, ${credits} credits</span>
+              <span class="breakdown-value">${credits} credits</span>
             </div>
           `;
           }
           content.innerHTML = `
           ${rows}
           <div class="breakdown-total">
-            Total: ${totalReplies} replies, ${totalCredits} credits
+            Total: ${totalCredits} credits
           </div>
         `;
           toggle.style.display = "block";

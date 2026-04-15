@@ -46,7 +46,6 @@ describe("Dodo Payments Service - Unit Tests", () => {
       expect(w).toHaveProperty("code", "weekly");
       expect(w).toHaveProperty("name");
       expect(w).toHaveProperty("price");
-      expect(w).toHaveProperty("replies");
       expect(w).toHaveProperty("credits");
       expect(w).toHaveProperty("interval", "week");
       expect(w).toHaveProperty("dodoPriceId");

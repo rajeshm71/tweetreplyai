@@ -69,16 +69,17 @@ export interface UsageCounter {
   planCode: string;
   periodStart: Date;
   periodEnd: Date;
-  repliesUsed: number; // Keep for analytics
-  creditsUsed: number; // NEW - for limit tracking
+  /** Counter used for analytics/display only; quota enforcement is credits-based. */
+  repliesUsed: number;
+  creditsUsed: number;
   limit: number; // Now represents credits limit
   resetAt: Date;
   createdAt: Date;
   updatedAt: Date;
   modeBreakdown?: {
-    'single-sentence'?: { replies: number; credits: number };
-    'enhanced'?: { replies: number; credits: number };
-    'improve'?: { replies: number; credits: number };
+    'single-sentence'?: { credits: number };
+    'enhanced'?: { credits: number };
+    'improve'?: { credits: number };
   };
 }
 
@@ -88,6 +89,7 @@ export interface InsertUsageCounter {
   planCode: string;
   periodStart: Date;
   periodEnd: Date;
+  /** Counter used for analytics/display only; quota enforcement is credits-based. */
   repliesUsed?: number;
   creditsUsed?: number; // NEW
   limit: number;

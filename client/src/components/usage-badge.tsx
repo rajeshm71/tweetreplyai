@@ -20,9 +20,9 @@ interface UsageStatus {
   upgradeRequired?: boolean;
   upgradeMessage?: string;
   modeBreakdown?: {
-    'single-sentence'?: { replies: number; credits: number };
-    'enhanced'?: { replies: number; credits: number };
-    'improve'?: { replies: number; credits: number };
+    'single-sentence'?: { credits: number };
+    'enhanced'?: { credits: number };
+    'improve'?: { credits: number };
   };
 }
 
@@ -72,7 +72,7 @@ export function UsageBadge({ showDetails = false }: UsageBadgeProps) {
   const timeVerb = usage.subscriptionCanceled ? 'Ends' : 'Resets';
   const resetLine = usageQuotaExhausted
     ? isTrialUser
-      ? "You've used all your trial credits: upgrade to keep replying."
+      ? "You've used all your trial credits: upgrade to continue."
       : `You've used all your credits. ${timeVerb} ${resetDistance}.`
     : `${timeVerb} ${resetDistance}`;
   const showUpgrade = usage.upgradeRequired && !usage.isWhitelisted;
@@ -126,7 +126,7 @@ export function UsageBadge({ showDetails = false }: UsageBadgeProps) {
                       <div className="flex justify-between text-xs">
                         <span className="text-muted-foreground">Concise:</span>
                         <span className="font-medium">
-                          {usage.modeBreakdown['single-sentence'].replies} replies, {usage.modeBreakdown['single-sentence'].credits} credits
+                          {usage.modeBreakdown['single-sentence'].credits} credits
                         </span>
                       </div>
                     )}
@@ -134,7 +134,7 @@ export function UsageBadge({ showDetails = false }: UsageBadgeProps) {
                       <div className="flex justify-between text-xs">
                         <span className="text-muted-foreground">Enhanced:</span>
                         <span className="font-medium">
-                          {usage.modeBreakdown['enhanced'].replies} replies, {usage.modeBreakdown['enhanced'].credits} credits
+                          {usage.modeBreakdown['enhanced'].credits} credits
                         </span>
                       </div>
                     )}
@@ -142,7 +142,7 @@ export function UsageBadge({ showDetails = false }: UsageBadgeProps) {
                       <div className="flex justify-between text-xs">
                         <span className="text-muted-foreground">Improve:</span>
                         <span className="font-medium">
-                          {usage.modeBreakdown['improve'].replies} replies, {usage.modeBreakdown['improve'].credits} credits
+                          {usage.modeBreakdown['improve'].credits} credits
                         </span>
                       </div>
                     )}
@@ -178,7 +178,7 @@ export function UsageBadge({ showDetails = false }: UsageBadgeProps) {
       <span className="text-muted-foreground">
         {usage.used} / {usage.limit} •{' '}
         {usageQuotaExhausted && isTrialUser
-          ? 'upgrade to keep replying'
+          ? 'upgrade to continue'
           : `${usage.subscriptionCanceled ? 'ends' : 'resets'} ${resetDistance}`}
       </span>
     </div>

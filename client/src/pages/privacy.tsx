@@ -44,7 +44,7 @@ export default function PrivacyPolicy() {
                   <div className="bg-green-50 p-4 rounded-lg">
                     <h3 className="text-lg font-semibold text-green-800 mb-2">Usage Data</h3>
                     <ul className="list-disc list-inside text-gray-700 space-y-1">
-                      <li><strong>Reply Generation Usage:</strong> We track the number of replies you generate for quota management purposes</li>
+                      <li><strong>Credit Usage:</strong> We track credit consumption for quota management purposes</li>
                       <li><strong>Extension Usage:</strong> We collect basic usage statistics to improve our service and enforce usage limits</li>
                     </ul>
                   </div>

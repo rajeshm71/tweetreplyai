@@ -19,7 +19,7 @@ const stageConfig: Record<
     subject: "You're replying like a pro 🎯",
     headline: "You're a power user 🎯",
     body: "You've hit your credit limit — that tells us you're serious about growing on Twitter. Upgrade now and keep the momentum going.",
-    cta: 'Upgrade for Unlimited Replies',
+    cta: 'Upgrade for More Credits',
   },
   2: {
     subject: "Don't lose your momentum",

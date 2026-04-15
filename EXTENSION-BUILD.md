@@ -1,18 +1,23 @@
-# Extension build (3 commands)
+# Extension build
 
 Run from project root:
 
-1. **Build content script**
+1. **Verify manifest references**
+   ```bash
+   npm run verify:extension
+   ```
+
+2. **Build extension bundles**
    ```bash
    npm run build:extension
    ```
 
-2. **Build popup script**
+3. **Package to `extension-build`**
    ```bash
-   npm run build:extension:popup
+   npm run package:extension
    ```
 
-3. **Copy to extension-build** (PowerShell on Windows)
+Legacy manual copy command (optional) (PowerShell on Windows):
    ```powershell
    New-Item -ItemType Directory -Force -Path extension-build\background, extension-build\content, extension-build\popup, extension-build\icons | Out-Null; Copy-Item extension\manifest.json extension-build\; Copy-Item extension\background\background.js extension-build\background\; Copy-Item extension\content\content.bundle.js, extension\content\content.css extension-build\content\; Copy-Item extension\popup\popup.html, extension\popup\popup.bundle.js, extension\popup\popup.css extension-build\popup\; Copy-Item extension\icons\icon16.png, extension\icons\icon48.png, extension\icons\icon128.png extension-build\icons\
    ```
