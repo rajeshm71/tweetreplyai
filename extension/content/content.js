@@ -18,6 +18,7 @@ import {
 } from '../config/constants.js';
 import { emitTelemetry } from '../utils/telemetry.js';
 import { getUserFacingError } from '../utils/userFacingErrors.js';
+import { extractCanonicalComposerText, combineReplyAndCta } from './helpers/composer-text.js';
 
 globalThis.__tweetreplyaiExtLoggingAllowed = false;
 installConsoleGate(() => globalThis.__tweetreplyaiExtLoggingAllowed === true);
@@ -218,23 +219,7 @@ class TwitterReplyInjector {
   }
 
   extractComposerPlainText(composer) {
-    if (!composer) return '';
-    const dataTextSpans = composer.querySelectorAll('[data-text="true"]');
-    if (dataTextSpans.length > 0) {
-      const joined = Array.from(dataTextSpans)
-        .map(span => span.textContent || span.innerText)
-        .join(' ')
-        .trim();
-      if (joined) return joined;
-    }
-    let draftText = (composer.textContent || composer.innerText || '').trim();
-    if (!draftText) {
-      const contentEditable = composer.querySelector('[contenteditable="true"]');
-      if (contentEditable) {
-        draftText = (contentEditable.textContent || contentEditable.innerText || '').trim();
-      }
-    }
-    return draftText;
+    return extractCanonicalComposerText(composer);
   }
 
   async appendCtaSnippetToComposer(composer, snippet) {
@@ -244,7 +229,7 @@ class TwitterReplyInjector {
       return;
     }
     const existing = this.extractComposerPlainText(composer);
-    const combined = existing ? `${existing.trimEnd()}\n\n${trimmed}` : trimmed;
+    const combined = combineReplyAndCta(existing, trimmed);
     try {
       await this.insertReplyIntoComposer(composer, combined);
     } catch (error) {

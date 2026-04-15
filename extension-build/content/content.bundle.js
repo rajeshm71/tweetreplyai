@@ -1,6 +1,6 @@
 "use strict";
 (() => {
-  // extension/utils/auth.js
+  // extension-build/utils/auth.js
   var AuthManager = class {
     constructor() {
       this.token = null;
@@ -117,7 +117,7 @@
     }
   };
 
-  // extension/config/constants.js
+  // extension-build/config/constants.js
   var APP_DISPLAY_NAME = "TweetReplyAI";
   var API = {
     DEFAULT_DOMAIN: "tweetreplyai.vercel.app",
@@ -185,7 +185,7 @@
     MIGRATED: "tweetreply_snippet_migrated_v1"
   };
 
-  // extension/utils/api.js
+  // extension-build/utils/api.js
   var ApiClient = class {
     constructor() {
       this.authManager = new AuthManager();
@@ -315,7 +315,7 @@
     }
   };
 
-  // extension/utils/consoleGate.js
+  // extension-build/utils/consoleGate.js
   var GLOBAL_FLAG_KEY = "__tweetreplyaiExtLoggingAllowed";
   var GLOBAL_STATE_KEY = "__tweetreplyaiConsoleGateState";
   function installConsoleGate(getAllowed) {
@@ -364,7 +364,7 @@
     globalThis[GLOBAL_FLAG_KEY] = false;
   }
 
-  // extension/utils/telemetry.js
+  // extension-build/utils/telemetry.js
   var ALLOWED_EVENT_TYPES = /* @__PURE__ */ new Set([
     "auth_sync_failed",
     "api_request_failed",
@@ -429,7 +429,7 @@
     }
   }
 
-  // extension/content/content.js
+  // extension-build/content/content.js
   globalThis.__tweetreplyaiExtLoggingAllowed = false;
   installConsoleGate(() => globalThis.__tweetreplyaiExtLoggingAllowed === true);
   var DIAGNOSE_THREAD_SELECTION = true;
@@ -588,19 +588,16 @@
     }
     extractComposerPlainText(composer) {
       if (!composer) return "";
-      const dataTextSpans = composer.querySelectorAll('[data-text="true"]');
-      if (dataTextSpans.length > 0) {
-        const joined = Array.from(dataTextSpans).map((span) => span.textContent || span.innerText).join(" ").trim();
-        if (joined) return joined;
+      const normalize = (value) => String(value || "").replace(/\r\n/g, "\n").replace(/\u00a0/g, " ").trim();
+      const dataTextSpan = composer.querySelector('[data-text="true"]');
+      const spanText = normalize(dataTextSpan?.textContent || dataTextSpan?.innerText);
+      if (spanText) return spanText;
+      const contentEditable = composer.querySelector('[contenteditable="true"]');
+      if (contentEditable && contentEditable !== composer) {
+        const nestedText = normalize(contentEditable.innerText || contentEditable.textContent);
+        if (nestedText) return nestedText;
       }
-      let draftText = (composer.textContent || composer.innerText || "").trim();
-      if (!draftText) {
-        const contentEditable = composer.querySelector('[contenteditable="true"]');
-        if (contentEditable) {
-          draftText = (contentEditable.textContent || contentEditable.innerText || "").trim();
-        }
-      }
-      return draftText;
+      return normalize(composer.innerText || composer.textContent);
     }
     async appendCtaSnippetToComposer(composer, snippet) {
       const trimmed = String(snippet || "").trim();

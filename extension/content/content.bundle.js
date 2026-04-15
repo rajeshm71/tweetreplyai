@@ -603,19 +603,16 @@
     }
     extractComposerPlainText(composer) {
       if (!composer) return "";
-      const dataTextSpans = composer.querySelectorAll('[data-text="true"]');
-      if (dataTextSpans.length > 0) {
-        const joined = Array.from(dataTextSpans).map((span) => span.textContent || span.innerText).join(" ").trim();
-        if (joined) return joined;
+      const normalize = (value) => String(value || "").replace(/\r\n/g, "\n").replace(/\u00a0/g, " ").trim();
+      const dataTextSpan = composer.querySelector('[data-text="true"]');
+      const spanText = normalize(dataTextSpan?.textContent || dataTextSpan?.innerText);
+      if (spanText) return spanText;
+      const contentEditable = composer.querySelector('[contenteditable="true"]');
+      if (contentEditable && contentEditable !== composer) {
+        const nestedText = normalize(contentEditable.innerText || contentEditable.textContent);
+        if (nestedText) return nestedText;
       }
-      let draftText = (composer.textContent || composer.innerText || "").trim();
-      if (!draftText) {
-        const contentEditable = composer.querySelector('[contenteditable="true"]');
-        if (contentEditable) {
-          draftText = (contentEditable.textContent || contentEditable.innerText || "").trim();
-        }
-      }
-      return draftText;
+      return normalize(composer.innerText || composer.textContent);
     }
     async appendCtaSnippetToComposer(composer, snippet) {
       const trimmed = String(snippet || "").trim();

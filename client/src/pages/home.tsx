@@ -20,10 +20,10 @@ import { formatDistanceToNow } from "date-fns";
 import { POLLING, UI } from "@/config/constants";
 import { deriveReplyUsageFromCredits } from "@shared/usage-breakdown";
 
-type Usage = {
-  today: number;
-  thisWeek: number;
-  thisMonth: number;
+type SimpleAnalyticsResponse = {
+  summary?: {
+    totalReplies?: number;
+  };
 };
 
 type UsageStatus = {
@@ -153,8 +153,36 @@ export default function Home() {
     }
   }, [toast]);
 
-  const { data: usage } = useQuery<Usage>({
-    queryKey: ["/api/usage"],
+  const { data: todayAnalytics } = useQuery<SimpleAnalyticsResponse>({
+    queryKey: ["/api/analytics/simple", "days=1"],
+    // Fix: use explicit query params instead of object key to avoid "/[object Object]" URLs.
+    queryFn: async () => {
+      const res = await fetch("/api/analytics/simple?days=1", { credentials: "include" });
+      if (!res.ok) return { summary: { totalReplies: 0 } };
+      return (await res.json()) as SimpleAnalyticsResponse;
+    },
+    retry: false,
+    enabled: !!user,
+  });
+  const { data: weekAnalytics } = useQuery<SimpleAnalyticsResponse>({
+    queryKey: ["/api/analytics/simple", "days=7"],
+    // Fix: keep week stats on the same endpoint contract used by analytics panel.
+    queryFn: async () => {
+      const res = await fetch("/api/analytics/simple?days=7", { credentials: "include" });
+      if (!res.ok) return { summary: { totalReplies: 0 } };
+      return (await res.json()) as SimpleAnalyticsResponse;
+    },
+    retry: false,
+    enabled: !!user,
+  });
+  const { data: monthAnalytics } = useQuery<SimpleAnalyticsResponse>({
+    queryKey: ["/api/analytics/simple", "days=30"],
+    // Fix: ensure month count uses a valid URL and graceful numeric fallback on API errors.
+    queryFn: async () => {
+      const res = await fetch("/api/analytics/simple?days=30", { credentials: "include" });
+      if (!res.ok) return { summary: { totalReplies: 0 } };
+      return (await res.json()) as SimpleAnalyticsResponse;
+    },
     retry: false,
     enabled: !!user,
   });
@@ -194,6 +222,9 @@ export default function Home() {
     usageStatus != null &&
     (usageStatus.used >= usageStatus.limit || !!usageStatus.upgradeRequired);
   const derivedReplyUsage = deriveReplyUsageFromCredits(usageStatus?.modeBreakdown);
+  const todayReplies = todayAnalytics?.summary?.totalReplies ?? 0;
+  const thisWeekReplies = weekAnalytics?.summary?.totalReplies ?? 0;
+  const thisMonthReplies = monthAnalytics?.summary?.totalReplies ?? 0;
 
   if (isLoading) {
     return (
@@ -373,7 +404,7 @@ export default function Home() {
             )}
 
             {/* Quick Stats - Sprint 2: Modernized with enhanced styling */}
-            {usage && (
+            {usageStatus && (
               <div>
                 <Card className="card-modern-enhanced border border-primary/20 bg-gradient-to-br from-card to-card/50">
                   <CardContent className="p-6">
@@ -387,19 +418,19 @@ export default function Home() {
                       <div className="flex items-center justify-between p-4 bg-gradient-to-br from-muted/50 to-muted/30 rounded-xl border border-border/50">
                         <div>
                           <p className="text-sm text-muted-foreground font-medium">Today</p>
-                          <p className="text-2xl font-bold text-primary mt-1">{usage.today}</p>
+                          <p className="text-2xl font-bold text-primary mt-1">{todayReplies}</p>
                         </div>
                       </div>
                       <div className="flex items-center justify-between p-4 bg-gradient-to-br from-muted/50 to-muted/30 rounded-xl border border-border/50">
                         <div>
                           <p className="text-sm text-muted-foreground font-medium">This Week</p>
-                          <p className="text-2xl font-bold text-primary mt-1">{usage.thisWeek}</p>
+                          <p className="text-2xl font-bold text-primary mt-1">{thisWeekReplies}</p>
                         </div>
                       </div>
                       <div className="flex items-center justify-between p-4 bg-gradient-to-br from-muted/50 to-muted/30 rounded-xl border border-border/50">
                         <div>
                           <p className="text-sm text-muted-foreground font-medium">This Month</p>
-                          <p className="text-2xl font-bold text-primary mt-1">{usage.thisMonth}</p>
+                          <p className="text-2xl font-bold text-primary mt-1">{thisMonthReplies}</p>
                         </div>
                       </div>
                     </div>
