@@ -14,9 +14,26 @@ vi.mock("../../../server/replitAuth", () => ({
   getUserId: vi.fn(() => "test-user"),
 }));
 vi.mock("../../../server/localAuth", () => ({ setupLocalAuth: vi.fn() }));
+
+const { emptySimpleAnalytics } = vi.hoisted(() => {
+  const emptySimpleAnalytics = {
+    summary: {
+      totalReplies: 0,
+      avgQuality: 0,
+      qualityTrend: 0,
+      timeSavedHours: 0,
+      highQualityCount: 0,
+    },
+    parameterBreakdown: [] as unknown[],
+    activityTrend: [] as unknown[],
+    insights: [] as unknown[],
+  };
+  return { emptySimpleAnalytics };
+});
+
 vi.mock("../../../server/services/feedback-analytics", () => ({
   feedbackAnalytics: {
-    getSimpleAnalytics: vi.fn().mockResolvedValue({ totalReplies: 0 }),
+    getSimpleAnalytics: vi.fn().mockResolvedValue(emptySimpleAnalytics),
     getFeedbackStats: vi.fn().mockResolvedValue({
       overall_quality: { upvotes: 0, downvotes: 0, upvote_percentage: 0 },
       by_model: {},
@@ -44,19 +61,32 @@ describe("Analytics Routes - Unit Tests", () => {
       .set("Authorization", `Bearer ${authToken}`);
 
     expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ totalReplies: 0 });
+    expect(res.body.summary).toMatchObject({ totalReplies: 0 });
+  });
+
+  it("passes days query param to getSimpleAnalytics", async () => {
+    const { feedbackAnalytics } = await import("../../../server/services/feedback-analytics");
+    const res = await app.raw()
+      .get("/api/analytics/simple?days=7")
+      .set("Authorization", `Bearer ${authToken}`);
+
+    expect(res.status).toBe(200);
+    expect(feedbackAnalytics.getSimpleAnalytics).toHaveBeenCalledWith("test-user", 7);
   });
 
   it("returns non-zero totalReplies when analytics data exists", async () => {
     const { feedbackAnalytics } = await import("../../../server/services/feedback-analytics");
-    vi.mocked(feedbackAnalytics.getSimpleAnalytics).mockResolvedValue({ totalReplies: 42 } as any);
+    vi.mocked(feedbackAnalytics.getSimpleAnalytics).mockResolvedValue({
+      ...emptySimpleAnalytics,
+      summary: { ...emptySimpleAnalytics.summary, totalReplies: 42 },
+    } as any);
 
     const res = await app.raw()
       .get("/api/analytics/simple")
       .set("Authorization", `Bearer ${authToken}`);
 
     expect(res.status).toBe(200);
-    expect(res.body.totalReplies).toBe(42);
+    expect(res.body.summary.totalReplies).toBe(42);
   });
 
   it("returns 401 when not authenticated", async () => {

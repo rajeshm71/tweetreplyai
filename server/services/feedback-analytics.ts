@@ -268,24 +268,18 @@ class FeedbackAnalytics {
     const previousPeriodStart = new Date(startDate);
     previousPeriodStart.setDate(previousPeriodStart.getDate() - days);
 
-    const { data: usageCounters, error: usageError } = await supabase
-      .from('usage_counters')
-      .select('replies_used, period_start')
+    const { count: windowReplyCount, error: windowCountError } = await supabase
+      .from('reply_history')
+      .select('*', { count: 'exact', head: true })
       .eq('user_id', userId)
-      .gte('period_start', startDate.toISOString());
+      .gte('created_at', startDate.toISOString());
 
-    let totalReplies = 0;
-    if (usageError) {
-      console.error('[Analytics] Error fetching usage counters:', usageError);
-      const { count } = await supabase
-        .from('reply_history')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', userId)
-        .gte('created_at', startDate.toISOString());
-      totalReplies = count || 0;
-    } else {
-      totalReplies = usageCounters?.reduce((sum, counter) => sum + (counter.replies_used || 0), 0) || 0;
+    if (windowCountError) {
+      console.error('[Analytics] Error counting replies in window:', windowCountError);
+      return this.getEmptyAnalytics();
     }
+
+    const totalReplies = windowReplyCount ?? 0;
 
     const { data: summaryData, error: summaryError } = await supabase
       .from('reply_history')

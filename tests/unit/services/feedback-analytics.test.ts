@@ -8,8 +8,18 @@ vi.mock("../../../server/storage", () => ({
   },
 }));
 
-/** Default empty result; pass `terminal` to simulate non-empty query results. */
-function makeChainableQuery(terminal: { data: unknown; error: null } = { data: [], error: null }): any {
+/** Default empty result; pass `terminal` to simulate non-empty query results. Use `count` for head count queries. */
+function makeChainableQuery(
+  terminal: { data?: unknown | null; error?: unknown | null; count?: number | null } = { data: [], error: null }
+): any {
+  const err = terminal.error ?? null;
+  const resolved: { data: unknown | null; error: unknown | null; count?: number | null } =
+    err
+      ? { data: null, error: err, count: null }
+      : terminal.count !== undefined
+        ? { data: null, error: null, count: terminal.count }
+        : { data: terminal.data !== undefined ? terminal.data : [], error: null };
+
   const chain: any = {
     select: vi.fn().mockReturnThis(),
     eq: vi.fn().mockReturnThis(),
@@ -28,7 +38,7 @@ function makeChainableQuery(terminal: { data: unknown; error: null } = { data: [
     not: vi.fn().mockReturnThis(),
     contains: vi.fn().mockReturnThis(),
     match: vi.fn().mockReturnThis(),
-    then: vi.fn((resolve: any) => Promise.resolve(terminal).then(resolve)),
+    then: vi.fn((resolve: any) => Promise.resolve(resolved).then(resolve)),
   };
   return chain;
 }
@@ -109,6 +119,81 @@ describe("Feedback Analytics Service - Unit Tests", () => {
       const result = await feedbackAnalytics.getSimpleAnalytics("user-1", 30);
       expect(result).toBeDefined();
       expect(typeof result).toBe("object");
+    });
+  });
+
+  describe("getSimpleAnalytics — reply window totals", () => {
+    it("sets summary.totalReplies from reply_history count, not usage_counters", async () => {
+      const { supabase } = await import("../../../server/supabase");
+      let replyHistoryPhase = 0;
+      vi.mocked(supabase.from).mockImplementation((table: string) => {
+        expect(table).not.toBe("usage_counters");
+        if (table !== "reply_history") {
+          return makeChainableQuery();
+        }
+        replyHistoryPhase += 1;
+        if (replyHistoryPhase === 1) {
+          return makeChainableQuery({ count: 4, error: null });
+        }
+        if (replyHistoryPhase === 2) {
+          return makeChainableQuery({
+            data: [{ quality_score: 80, created_at: new Date().toISOString() }],
+            error: null,
+          });
+        }
+        return makeChainableQuery({ data: [], error: null });
+      });
+
+      const result = await feedbackAnalytics.getSimpleAnalytics("user-1", 7);
+      expect(result.summary.totalReplies).toBe(4);
+    });
+
+    it("returns getEmptyAnalytics when the reply_history count query errors", async () => {
+      const { supabase } = await import("../../../server/supabase");
+      vi.mocked(supabase.from).mockImplementation((table: string) => {
+        if (table === "reply_history") {
+          return makeChainableQuery({ error: { message: "count failed" } });
+        }
+        return makeChainableQuery();
+      });
+
+      const result = await feedbackAnalytics.getSimpleAnalytics("user-1", 30);
+      expect(result.summary.totalReplies).toBe(0);
+      expect(result.insights[0].text).toMatch(/first reply/i);
+    });
+
+    it.each([
+      [1, "2026-06-14T12:00:00.000Z"],
+      [7, "2026-06-08T12:00:00.000Z"],
+      [30, "2026-05-16T12:00:00.000Z"],
+    ] as const)("uses created_at window for days=%i", async (days, expectedGteIso) => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-06-15T12:00:00.000Z"));
+      const { supabase } = await import("../../../server/supabase");
+      let firstCreatedAtGte: string | undefined;
+      let replyHistoryPhase = 0;
+      vi.mocked(supabase.from).mockImplementation((table: string) => {
+        if (table !== "reply_history") {
+          return makeChainableQuery();
+        }
+        replyHistoryPhase += 1;
+        const terminal =
+          replyHistoryPhase === 1
+            ? { count: 0, error: null as const }
+            : { data: [] as unknown[], error: null as const };
+        const chain = makeChainableQuery(terminal);
+        chain.gte = vi.fn(function (this: any, col: string, val: string) {
+          if (col === "created_at" && firstCreatedAtGte === undefined) {
+            firstCreatedAtGte = val;
+          }
+          return this;
+        });
+        return chain;
+      });
+
+      await feedbackAnalytics.getSimpleAnalytics("user-1", days);
+      expect(firstCreatedAtGte).toBe(expectedGteIso);
+      vi.useRealTimers();
     });
   });
 
