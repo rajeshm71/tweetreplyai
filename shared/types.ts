@@ -77,9 +77,9 @@ export interface UsageCounter {
   createdAt: Date;
   updatedAt: Date;
   modeBreakdown?: {
-    'single-sentence'?: { credits: number };
-    'enhanced'?: { credits: number };
-    'improve'?: { credits: number };
+    'single-sentence'?: { credits: number; replies?: number };
+    'enhanced'?: { credits: number; replies?: number };
+    'improve'?: { credits: number; replies?: number };
   };
 }
 

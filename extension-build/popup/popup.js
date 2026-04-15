@@ -699,18 +699,28 @@ class PopupManager {
           { key: 'improve', label: 'Improve' }
         ];
         
+        let totalReplies = 0;
+        let hasAllReplyCounts = true;
         let rows = '';
         
         for (const mode of modes) {
           const data = breakdown[mode.key] || { credits: 0 };
           // Fix: Ensure numeric values to prevent XSS
           const credits = Number(data.credits) || 0;
+          const replies = Number(data.replies);
+          // Review fix: prefer API-provided derived reply counts to avoid client/server drift in mode cost rules.
+          const derivedReplies = Number.isFinite(replies) ? Math.max(0, Math.floor(replies)) : null;
+          if (derivedReplies === null) {
+            hasAllReplyCounts = false;
+          } else {
+            totalReplies += derivedReplies;
+          }
           
           // Fix: Mode label is static, numeric values are safe
           rows += `
             <div class="breakdown-row">
               <span class="breakdown-label">${mode.label}:</span>
-              <span class="breakdown-value">${credits} credits</span>
+              <span class="breakdown-value">${derivedReplies ?? '--'} replies, ${credits} credits</span>
             </div>
           `;
         }
@@ -719,7 +729,7 @@ class PopupManager {
         content.innerHTML = `
           ${rows}
           <div class="breakdown-total">
-            Total: ${totalCredits} credits
+            Total: ${hasAllReplyCounts ? totalReplies : '--'} replies, ${totalCredits} credits
           </div>
         `;
         
@@ -1759,11 +1769,22 @@ class PopupManager {
   }
 
   updateQuickStats() {
-    // Update today's replies - show 0 if usageData is null
-    const used = this.usageData?.used ?? 0;
+    // Review fix: if per-mode reply counts are missing, avoid misleading "0" and show "--".
+    const breakdown = this.usageData?.modeBreakdown || {};
+    let hasAllReplyCounts = true;
+    const totalReplies = ['single-sentence', 'enhanced', 'improve'].reduce((sum, key) => {
+      const explicitReplies = Number(breakdown[key]?.replies);
+      if (!Number.isFinite(explicitReplies)) {
+        hasAllReplyCounts = false;
+        return sum;
+      }
+      const replies = Math.max(0, Math.floor(explicitReplies));
+      return sum + replies;
+    }, 0);
+    const todayRepliesValue = hasAllReplyCounts ? String(totalReplies) : '--';
     if (this.todayReplies) {
-      this.todayReplies.textContent = used;
-      console.log('[LOG][QuickStats] Today replies updated to', used);
+      this.todayReplies.textContent = todayRepliesValue;
+      console.log('[LOG][QuickStats] Today replies updated to', todayRepliesValue);
     } else {
       console.warn('[WARN][QuickStats] todayReplies element missing');
     }
@@ -1771,7 +1792,7 @@ class PopupManager {
     // Update success rate from quality metrics (50-100 scale)
     if (this.successRate) {
       console.log('[LOG][QuickStats] updateQuickStats invoked with metrics:', this.qualityMetrics);
-      console.log('[LOG][QuickStats] usageData used replies:', used);
+      console.log('[LOG][QuickStats] usageData derived replies:', todayRepliesValue);
       console.log('[LOG][QuickStats] successRate element exists?', !!this.successRate);
       
       if (this.qualityMetrics && this.qualityMetrics.avg_quality_score !== undefined &&

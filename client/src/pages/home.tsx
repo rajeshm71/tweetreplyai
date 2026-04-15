@@ -18,6 +18,7 @@ const GenerateReply = lazy(() => import("@/components/generate-reply").then(modu
 // Removed framer-motion imports - animations removed except for Upgrade to Pro button
 import { formatDistanceToNow } from "date-fns";
 import { POLLING, UI } from "@/config/constants";
+import { deriveReplyUsageFromCredits } from "@shared/usage-breakdown";
 
 type Usage = {
   today: number;
@@ -36,9 +37,9 @@ type UsageStatus = {
   upgradeRequired?: boolean;
   upgradeMessage?: string;
   modeBreakdown?: {
-    'single-sentence'?: { credits: number };
-    'enhanced'?: { credits: number };
-    'improve'?: { credits: number };
+    'single-sentence'?: { credits: number; replies?: number };
+    'enhanced'?: { credits: number; replies?: number };
+    'improve'?: { credits: number; replies?: number };
   };
 };
 
@@ -192,6 +193,7 @@ export default function Home() {
   const usageQuotaExhausted =
     usageStatus != null &&
     (usageStatus.used >= usageStatus.limit || !!usageStatus.upgradeRequired);
+  const derivedReplyUsage = deriveReplyUsageFromCredits(usageStatus?.modeBreakdown);
 
   if (isLoading) {
     return (
@@ -325,7 +327,7 @@ export default function Home() {
                               <div className="flex justify-between text-xs">
                                 <span className="text-muted-foreground">Concise:</span>
                                 <span className="font-medium">
-                                  {usageStatus.modeBreakdown['single-sentence'].credits} credits
+                                  {derivedReplyUsage.modeBreakdown['single-sentence']?.replies ?? 0} replies, {usageStatus.modeBreakdown['single-sentence'].credits} credits
                                 </span>
                               </div>
                             )}
@@ -333,7 +335,7 @@ export default function Home() {
                               <div className="flex justify-between text-xs">
                                 <span className="text-muted-foreground">Enhanced:</span>
                                 <span className="font-medium">
-                                  {usageStatus.modeBreakdown['enhanced'].credits} credits
+                                  {derivedReplyUsage.modeBreakdown['enhanced']?.replies ?? 0} replies, {usageStatus.modeBreakdown['enhanced'].credits} credits
                                 </span>
                               </div>
                             )}
@@ -341,12 +343,12 @@ export default function Home() {
                               <div className="flex justify-between text-xs">
                                 <span className="text-muted-foreground">Improve:</span>
                                 <span className="font-medium">
-                                  {usageStatus.modeBreakdown['improve'].credits} credits
+                                  {derivedReplyUsage.modeBreakdown['improve']?.replies ?? 0} replies, {usageStatus.modeBreakdown['improve'].credits} credits
                                 </span>
                               </div>
                             )}
                             <div className="pt-2 border-t text-xs font-semibold text-foreground">
-                              Total: {usageStatus.used} credits
+                              Total: {derivedReplyUsage.totalReplies} replies, {usageStatus.used} credits
                             </div>
                           </div>
                         )}

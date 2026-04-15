@@ -139,6 +139,36 @@ describe('Usage Endpoints - Unit Tests', () => {
       expect(response.body.resetAt).toBe(mockUsageStatus.resetAt.toISOString());
     });
 
+    it('should pass through modeBreakdown with derived replies', async () => {
+      const mockUser = createMockUser();
+      const token = signTestJwt({ id: mockUser.id, email: mockUser.email });
+      const mockUsageStatus = createMockUsageStatus({
+        used: 9,
+        limit: 100,
+        planCode: 'weekly',
+        modeBreakdown: {
+          'single-sentence': { credits: 3, replies: 3 },
+          enhanced: { credits: 4, replies: 2 },
+          improve: { credits: 2, replies: 1 },
+        },
+      });
+
+      const { storage } = await import('../../../server/storage');
+      vi.mocked(storage.getUser).mockResolvedValue(mockUser as any);
+      const { usageService } = await import('../../../server/services/usage');
+      vi.mocked(usageService.getUsageStatus).mockResolvedValue(mockUsageStatus as any);
+
+      const response = await app.authenticated(mockUser)
+        .get('/api/usage')
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(response.status).toBe(200);
+      // Review fix: verify usage payload preserves server-derived replies for UI rendering.
+      expect(response.body.modeBreakdown?.['single-sentence']).toEqual({ credits: 3, replies: 3 });
+      expect(response.body.modeBreakdown?.enhanced).toEqual({ credits: 4, replies: 2 });
+      expect(response.body.modeBreakdown?.improve).toEqual({ credits: 2, replies: 1 });
+    });
+
     it('should return 404 for user without usage counter', async () => {
       const mockUser = createMockUser();
       const token = signTestJwt({ id: mockUser.id, email: mockUser.email });

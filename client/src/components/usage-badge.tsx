@@ -7,6 +7,7 @@ import { formatDistanceToNow } from "date-fns";
 import { useLocation } from "wouter";
 import { useState, useEffect } from "react";
 import { POLLING } from "@/config/constants";
+import { deriveReplyUsageFromCredits } from "@shared/usage-breakdown";
 
 interface UsageStatus {
   planCode: string;
@@ -20,9 +21,9 @@ interface UsageStatus {
   upgradeRequired?: boolean;
   upgradeMessage?: string;
   modeBreakdown?: {
-    'single-sentence'?: { credits: number };
-    'enhanced'?: { credits: number };
-    'improve'?: { credits: number };
+    'single-sentence'?: { credits: number; replies?: number };
+    'enhanced'?: { credits: number; replies?: number };
+    'improve'?: { credits: number; replies?: number };
   };
 }
 
@@ -67,6 +68,7 @@ export function UsageBadge({ showDetails = false }: UsageBadgeProps) {
 
   const isQuotaExceeded = usage.used >= usage.limit;
   const usageQuotaExhausted = isQuotaExceeded || !!usage.upgradeRequired;
+  const derivedReplyUsage = deriveReplyUsageFromCredits(usage.modeBreakdown);
   const isTrialUser = usage.planCode === 'trial';
   const resetDistance = formatDistanceToNow(new Date(usage.resetAt), { addSuffix: true });
   const timeVerb = usage.subscriptionCanceled ? 'Ends' : 'Resets';
@@ -126,7 +128,7 @@ export function UsageBadge({ showDetails = false }: UsageBadgeProps) {
                       <div className="flex justify-between text-xs">
                         <span className="text-muted-foreground">Concise:</span>
                         <span className="font-medium">
-                          {usage.modeBreakdown['single-sentence'].credits} credits
+                          {derivedReplyUsage.modeBreakdown['single-sentence']?.replies ?? 0} replies, {usage.modeBreakdown['single-sentence'].credits} credits
                         </span>
                       </div>
                     )}
@@ -134,7 +136,7 @@ export function UsageBadge({ showDetails = false }: UsageBadgeProps) {
                       <div className="flex justify-between text-xs">
                         <span className="text-muted-foreground">Enhanced:</span>
                         <span className="font-medium">
-                          {usage.modeBreakdown['enhanced'].credits} credits
+                          {derivedReplyUsage.modeBreakdown['enhanced']?.replies ?? 0} replies, {usage.modeBreakdown['enhanced'].credits} credits
                         </span>
                       </div>
                     )}
@@ -142,12 +144,12 @@ export function UsageBadge({ showDetails = false }: UsageBadgeProps) {
                       <div className="flex justify-between text-xs">
                         <span className="text-muted-foreground">Improve:</span>
                         <span className="font-medium">
-                          {usage.modeBreakdown['improve'].credits} credits
+                          {derivedReplyUsage.modeBreakdown['improve']?.replies ?? 0} replies, {usage.modeBreakdown['improve'].credits} credits
                         </span>
                       </div>
                     )}
                     <div className="pt-2 border-t text-xs font-semibold text-foreground">
-                      Total: {usage.used} credits
+                      Total: {derivedReplyUsage.totalReplies} replies, {usage.used} credits
                     </div>
                   </div>
                 )}

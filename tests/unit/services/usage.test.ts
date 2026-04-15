@@ -170,6 +170,53 @@ describe('Usage Service - Unit Tests', () => {
 
       expect(result?.subscriptionCanceled).toBe(false);
     });
+
+    it('returns mode breakdown with derived replies from credits', async () => {
+      const mockUser = createMockUser({ hasUsedTrial: true } as any);
+      const currentPeriodStart = new Date(Date.now() - 5 * 86400000);
+      const currentPeriodEnd = new Date(Date.now() + 25 * 86400000);
+
+      const mockSubscription = {
+        id: 'sub-3',
+        userId: mockUser.id,
+        dodoSubscriptionId: 'dodo_sub',
+        planCode: 'monthly',
+        status: 'active' as const,
+        currentPeriodStart,
+        currentPeriodEnd,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      const mockCounter = {
+        id: 'cnt-3',
+        userId: mockUser.id,
+        planCode: 'monthly',
+        periodStart: currentPeriodStart,
+        periodEnd: currentPeriodEnd,
+        repliesUsed: 0,
+        creditsUsed: 9,
+        limit: PLAN_LIMITS.monthly.credits,
+        resetAt: currentPeriodEnd,
+        modeBreakdown: {
+          'single-sentence': { credits: 3 },
+          enhanced: { credits: 4 },
+          improve: { credits: 2 },
+        },
+      };
+
+      const { storage } = await import('../../../server/storage-supabase');
+      vi.mocked(storage.getUser).mockResolvedValue(mockUser);
+      vi.mocked(storage.getActiveSubscription).mockResolvedValue(mockSubscription);
+      vi.mocked(storage.getActiveTrialCounter).mockResolvedValue(null);
+      vi.mocked(storage.getUsageCounter).mockResolvedValue(mockCounter as any);
+
+      const result = await usageService.getUsageStatus(mockUser.id);
+
+      expect(result?.modeBreakdown?.['single-sentence']).toEqual({ credits: 3, replies: 3 });
+      expect(result?.modeBreakdown?.enhanced).toEqual({ credits: 4, replies: 2 });
+      expect(result?.modeBreakdown?.improve).toEqual({ credits: 2, replies: 1 });
+    });
   });
 
   describe('canUseReply', () => {
