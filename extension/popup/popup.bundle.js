@@ -944,14 +944,14 @@
             rows += `
             <div class="breakdown-row">
               <span class="breakdown-label">${mode.label}:</span>
-              <span class="breakdown-value">${derivedReplies ?? "--"} replies, ${credits} credits</span>
+              <span class="breakdown-value">${derivedReplies ?? 0} replies, ${credits} credits</span>
             </div>
           `;
           }
           content.innerHTML = `
           ${rows}
           <div class="breakdown-total">
-            Total: ${hasAllReplyCounts ? totalReplies : "--"} replies, ${totalCredits} credits
+            Total: ${hasAllReplyCounts ? totalReplies : 0} replies, ${totalCredits} credits
           </div>
         `;
           toggle.style.display = "block";
@@ -1911,7 +1911,7 @@
         const replies = Math.max(0, Math.floor(explicitReplies));
         return sum + replies;
       }, 0);
-      const todayRepliesValue = hasAllReplyCounts ? String(totalReplies) : "--";
+      const todayRepliesValue = hasAllReplyCounts ? String(totalReplies) : "0";
       if (this.todayReplies) {
         this.todayReplies.textContent = todayRepliesValue;
         console.log("[LOG][QuickStats] Today replies updated to", todayRepliesValue);
