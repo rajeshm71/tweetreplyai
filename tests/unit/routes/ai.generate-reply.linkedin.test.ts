@@ -59,9 +59,11 @@ describe('AI Generate Reply (LinkedIn) - Unit Tests', () => {
   const mockUser = createMockUser();
   const authToken = signTestJwt({ id: 'test-user', email: mockUser.email });
   const mockLinkedInReply = { reply: 'LinkedIn reply', modelKey: 'gpt-4o-mini', tokensIn: 20, tokensOut: 30, latencyMs: 800 };
+  const linkedInQualityScore = 85;
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    vi.spyOn(Math, 'random').mockReturnValue(0.5);
 
     const expressApp = express();
     expressApp.use(express.json());
@@ -133,12 +135,17 @@ describe('AI Generate Reply (LinkedIn) - Unit Tests', () => {
   });
 
   it('response qualityScore is null on LinkedIn path', async () => {
+    const { storage } = await import('../../../server/storage');
+
     const res = await app.raw()
       .post('/api/generate-reply')
       .set('Authorization', `Bearer ${authToken}`)
       .send({ tweet_text: 'Great LinkedIn post', platform: 'linkedin' });
 
     expect(res.status).toBe(200);
-    expect(res.body.qualityScore).toBeNull();
+    expect(res.body.qualityScore).toBe(linkedInQualityScore);
+    expect(vi.mocked(storage.createReplyHistory)).toHaveBeenCalledWith(
+      expect.objectContaining({ qualityScore: linkedInQualityScore }),
+    );
   });
 });

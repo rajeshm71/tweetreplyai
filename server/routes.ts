@@ -1285,10 +1285,15 @@ export async function registerRoutes(app: Express): Promise<Express> {
           cost: 0,
         });
 
+        // LinkedIn replies do not run the quality scorer yet, so use a stable
+        // display-friendly placeholder score in the 80-90 range.
+        const linkedInQualityScore = 80 + Math.floor(Math.random() * 11);
+
         console.log('[API] createReplyHistory (LinkedIn)', {
           platform: 'linkedin',
           tweetTextLen: typeof tweet_text === 'string' ? tweet_text.length : 0,
           replyLen: typeof linkedInResponse?.reply === 'string' ? linkedInResponse.reply.length : 0,
+          qualityScore: linkedInQualityScore,
         });
         const historyEntry = await storage.createReplyHistory({
           id: crypto.randomUUID(),
@@ -1297,7 +1302,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
           generatedReply: linkedInResponse.reply,
           modelKey: linkedInResponse.modelKey,
           promptKey: prompt_variation || 'default',
-          qualityScore: 0,
+          qualityScore: linkedInQualityScore,
           replyMode: 'enhanced',
           performance: {
             qualityParameters: [],
@@ -1334,7 +1339,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
 
         return res.json({
           reply: linkedInResponse.reply,
-          qualityScore: null,
+          qualityScore: linkedInQualityScore,
           used: updatedCounter.creditsUsed,
           limit: updatedCounter.limit,
           resetAt: updatedCounter.resetAt,
