@@ -66,6 +66,7 @@ export const PERIODS = {
 } as const;
 
 export const VALIDATION = {
+  MIN_TWEET_LENGTH: 20,
   MAX_TWEET_LENGTH: 2000,
   MAX_DRAFT_LENGTH: 500,
   MAX_THREAD_CHAIN: 20,

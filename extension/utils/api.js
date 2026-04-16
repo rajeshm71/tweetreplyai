@@ -134,6 +134,33 @@ export class ApiClient {
     });
   }
 
+  /**
+   * Reuse / Reframe an existing X tweet. Calls POST /api/reframe-tweet.
+   * Only `source_tweet` and `degree` are required; the rest are best-effort hints.
+   */
+  async reframeTweet({
+    source_tweet,
+    degree,
+    source_author,
+    source_tweet_url,
+    prompt_variation,
+    model_key,
+    allow_long,
+  }) {
+    return this.makeRequest('/api/reframe-tweet', {
+      method: 'POST',
+      body: {
+        source_tweet,
+        degree,
+        source_author,
+        source_tweet_url,
+        prompt_variation,
+        model_key,
+        allow_long,
+      },
+    });
+  }
+
   async getModels() {
     return this.makeRequest('/api/models');
   }

@@ -6,6 +6,7 @@ import { buildSystemPrompt, buildUserPromptWithThread } from "./prompt-builder.j
 import { getDynamicReplyMaxWords, getDynamicReplyWordRange } from "./oa-dynamic-reply-length.js";
 import type { EnrichedTweetAnalysis } from "./tweet-analysis-agents.js";
 import { AI_MODELS, AI_PARAMS, MODEL_SPECS, REPLY_LIMITS } from "../config/constants.js";
+import { getReframePromptConfig, type ReframePromptOptions } from "./reframe-prompts.js";
 
 // TODO: Set OPENAI_API_KEY in environment to enable AI reply generation
 const openai = process.env.OPENAI_API_KEY ? new OpenAI() : null;
@@ -235,6 +236,67 @@ Write a clean, natural reply based on the user's draft idea. Keep it under ${REP
       console.error(`🔧 [OpenAI] Model used: ${modelKey}`);
       console.error(`🔧 [OpenAI] Full error:`, error);
       throw new Error(`Failed to improve draft: ${message}`);
+    }
+  }
+
+  /**
+   * Reframe a source tweet into a new standalone tweet at the given degree-of-change.
+   * Mirrors `improveDraft` in shape: takes plain strings in, returns a ReplyResponse,
+   * and falls through to a no-op when the client is not configured (demo mode).
+   */
+  async reframeTweet(
+    source: string,
+    degree: number,
+    opts: ReframePromptOptions & { modelPreference?: string } = {},
+  ): Promise<ReplyResponse> {
+    const startTime = Date.now();
+    const modelKey = this.getModel(opts.modelPreference);
+    const config = getReframePromptConfig(degree, {
+      allowLong: opts.allowLong,
+      promptVariation: opts.promptVariation,
+    });
+
+    console.log(`🚀 [OpenAI] Reframe start — model: ${modelKey}, degree: ${config.degree} (${config.band})`);
+
+    if (!openai) {
+      console.log("❌ [OpenAI] OpenAI client not configured (demo mode)");
+      return {
+        reply: source,
+        modelKey: "demo",
+        latencyMs: Date.now() - startTime,
+      };
+    }
+
+    try {
+      const response = await openai.responses.create({
+        model: modelKey,
+        input: [
+          { role: "system", content: config.systemPrompt },
+          { role: "user", content: config.userPrompt(source) },
+        ],
+        top_p: 1,
+        temperature: AI_PARAMS.TEMPERATURE,
+      });
+
+      const rawReply = response.output_text || "";
+      const processedReply = this.postProcessReply(rawReply, true);
+
+      if (processedReply.trim().toLowerCase() === source.trim().toLowerCase()) {
+        console.warn(`⚠️ [OpenAI] Reframe output identical to source at degree ${config.degree}`);
+      }
+
+      const latencyMs = Date.now() - startTime;
+      return {
+        reply: processedReply,
+        modelKey,
+        tokensIn: response.usage?.input_tokens,
+        tokensOut: response.usage?.output_tokens,
+        latencyMs,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      console.error(`❌ [OpenAI] Error reframing tweet: ${message}`);
+      throw new Error(`Failed to reframe tweet: ${message}`);
     }
   }
 

@@ -7,6 +7,7 @@ import { setupLocalAuth } from "./localAuth.js";
 import { setupGoogleAuth } from "./googleAuth.js";
 import { aiRouter } from "./services/ai-router.js";
 import { getAvailablePrompts } from "./services/prompts.js";
+import { getDegreeBand } from "./services/reframe-prompts.js";
 import { dodoPaymentsService, PLANS } from "./services/dodo-payments.js";
 import { usageService } from "./services/usage.js";
 import { whitelistService } from "./services/whitelistService.js";
@@ -3194,6 +3195,249 @@ User draft reply: ${draft_reply}`;
       }
       
       res.status(500).json({ message: "Failed to suggest improvements" });
+    }
+  });
+
+  // Reframe tweet (X extension "Reuse tweet" feature)
+  // Takes a source tweet + 0-100 degree-of-change and returns a standalone
+  // reframed tweet. Shares the same auth/rate-limit/guardrail/quota/quality
+  // pipeline as /api/generate-reply. Stored in reply_history with
+  // replyMode='reframe', promptKey='reframe'.
+  app.post('/api/reframe-tweet', isAuthenticated, generateReplyLimiter, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      const schema = z.object({
+        source_tweet: z
+          .string()
+          .min(VALIDATION.MIN_TWEET_LENGTH, `Source tweet must be at least ${VALIDATION.MIN_TWEET_LENGTH} characters`)
+          .max(VALIDATION.MAX_TWEET_LENGTH),
+        degree: z.number().int().min(0).max(100),
+        source_author: z.string().max(50).optional(),
+        source_tweet_url: z.string().url().optional(),
+        prompt_variation: z.string().optional(),
+        model_key: z.string().optional(),
+        allow_long: z.boolean().optional().default(false),
+        platform: z.enum(['twitter']).optional().default('twitter'),
+      });
+
+      const body = schema.parse(req.body);
+
+      // Quota gate applies to everyone (matches /api/generate-reply).
+      const { canUse, reason } = await usageService.canUseReply(userId);
+      if (!canUse) {
+        const status = await usageService.getUsageStatus(userId);
+        return res.status(402).json({
+          error: reason,
+          message: reason === 'payment_required' ? 'No active plan' : 'Quota exceeded',
+          used: status?.used || 0,
+          limit: status?.limit || 0,
+          resetAt: status?.resetAt || new Date(),
+          upgradeRequired: true,
+          upgradeMessage: whitelistService.getUpgradeMessage(false, status?.used || 0, status?.limit || 0),
+        });
+      }
+
+      // Guardrail on the source tweet text.
+      let guardrailResult: GuardrailResult | null = null;
+      let guardrailViolation = false;
+      try {
+        guardrailResult = await runGuardrail(`Source tweet: ${body.source_tweet}`);
+        console.log("[Guardrail] /api/reframe-tweet result:", {
+          violation: guardrailResult?.violation,
+          category: guardrailResult?.category,
+        });
+        guardrailViolation = guardrailResult?.violation === 1;
+      } catch (error) {
+        console.error("[Guardrail] Error running guardrail for /api/reframe-tweet:", error);
+      }
+
+      const guardrailClassificationStage: Array<{ stage: string; modelKey: string; promptTokens: number; completionTokens: number; totalTokens: number; cost: number; latencyMs: number }> =
+        guardrailResult?.usage
+          ? [
+              {
+                stage: "guardrail_classification",
+                modelKey: guardrailResult.usage.modelKey,
+                promptTokens: guardrailResult.usage.promptTokens,
+                completionTokens: guardrailResult.usage.completionTokens,
+                totalTokens: guardrailResult.usage.promptTokens + guardrailResult.usage.completionTokens,
+                cost: aiRouter.estimateCost(guardrailResult.usage.modelKey, guardrailResult.usage.promptTokens, guardrailResult.usage.completionTokens),
+                latencyMs: guardrailResult.usage.latencyMs,
+              },
+            ]
+          : [];
+
+      const { qualityChecker } = await import('./services/quality-checker.js');
+      const band = getDegreeBand(body.degree);
+
+      if (guardrailViolation && guardrailResult) {
+        // Friendly refusal path (mirrors suggest-improvements).
+        const friendly = await generateGuardrailFriendlyReply(
+          `Source tweet: ${body.source_tweet}`,
+          guardrailResult.rationale,
+        );
+        const updatedCounter = await usageService.consumeReply(userId, 'reframe');
+        const qualityResult = qualityChecker.checkQuality(friendly.reply, body.source_tweet);
+
+        const historyEntry = await storage.createReplyHistory({
+          id: crypto.randomUUID(),
+          userId,
+          originalTweet: body.source_tweet,
+          generatedReply: friendly.reply,
+          modelKey: friendly.modelKey,
+          promptKey: 'reframe_guardrail_violation',
+          qualityScore: qualityResult.totalScore,
+          replyMode: 'reframe',
+          tweetUrl: body.source_tweet_url,
+          performance: {
+            safetyOutcome: 'violation_friendly_reply',
+            guardrailCategory: guardrailResult.category,
+            guardrailRationale: guardrailResult.rationale,
+            latencyMs: friendly.latencyMs,
+            degree: body.degree,
+            band,
+          },
+        });
+
+        const replyTokensIn = friendly.tokensIn ?? 0;
+        const replyTokensOut = friendly.tokensOut ?? 0;
+        const replyCost = aiRouter.estimateCost(friendly.modelKey, replyTokensIn, replyTokensOut);
+        const stageBreakdown = [
+          ...guardrailClassificationStage,
+          {
+            stage: "guardrail_violation",
+            modelKey: friendly.modelKey,
+            promptTokens: replyTokensIn,
+            completionTokens: replyTokensOut,
+            totalTokens: replyTokensIn + replyTokensOut,
+            cost: replyCost,
+            latencyMs: friendly.latencyMs,
+          },
+        ];
+
+        await storage.createReplyTokens({
+          id: crypto.randomUUID(),
+          userId,
+          replyHistoryId: historyEntry.id,
+          stageBreakdown,
+          totalPromptTokens: stageBreakdown.reduce((s, e) => s + e.promptTokens, 0),
+          totalCompletionTokens: stageBreakdown.reduce((s, e) => s + e.completionTokens, 0),
+          totalTokens: stageBreakdown.reduce((s, e) => s + e.totalTokens, 0),
+          totalCost: stageBreakdown.reduce((s, e) => s + e.cost, 0),
+        });
+
+        return res.json({
+          reframed: friendly.reply,
+          qualityScore: qualityResult.totalScore,
+          qualityParameters: qualityResult.parameters,
+          degree: body.degree,
+          band,
+          used: updatedCounter.creditsUsed,
+          limit: updatedCounter.limit,
+          resetAt: updatedCounter.resetAt,
+          meta: {
+            modelKey: friendly.modelKey,
+            latencyMs: friendly.latencyMs,
+            promptVariation: body.prompt_variation || 'default',
+            safetyOutcome: 'violation_friendly_reply',
+          },
+        });
+      }
+
+      // Consume credits AFTER guardrail, BEFORE model call (matches /api/generate-reply).
+      // NOTE: If the subsequent model call fails, credits are not refunded; this
+      // intentionally matches /api/generate-reply and /api/suggest-improvements.
+      const updatedCounter = await usageService.consumeReply(userId, 'reframe');
+
+      let generation;
+      try {
+        generation = await aiRouter.reframeTweet(body.source_tweet, body.degree, {
+          allowLong: body.allow_long,
+          promptVariation: body.prompt_variation,
+          modelPreference: body.model_key,
+        });
+      } catch (error) {
+        console.error('[API] /api/reframe-tweet generation error', error);
+        return res.status(500).json(getClientErrorBody(error, "Failed to reframe tweet"));
+      }
+
+      const qualityResult = qualityChecker.checkQuality(generation.reply, body.source_tweet);
+
+      const historyEntry = await storage.createReplyHistory({
+        id: crypto.randomUUID(),
+        userId,
+        originalTweet: body.source_tweet,
+        generatedReply: generation.reply,
+        modelKey: generation.modelKey,
+        promptKey: 'reframe',
+        qualityScore: qualityResult.totalScore,
+        replyMode: 'reframe',
+        tweetUrl: body.source_tweet_url,
+        performance: {
+          latencyMs: generation.latencyMs,
+          degree: body.degree,
+          band,
+        },
+      });
+
+      const tokensIn = generation.tokensIn ?? 0;
+      const tokensOut = generation.tokensOut ?? 0;
+      const reframeCost = aiRouter.estimateCost(generation.modelKey, tokensIn, tokensOut);
+      const stageBreakdown = [
+        ...guardrailClassificationStage,
+        {
+          stage: 'reframe_generation',
+          modelKey: generation.modelKey,
+          promptTokens: tokensIn,
+          completionTokens: tokensOut,
+          totalTokens: tokensIn + tokensOut,
+          cost: reframeCost,
+          latencyMs: generation.latencyMs,
+        },
+      ];
+
+      await storage.createReplyTokens({
+        id: crypto.randomUUID(),
+        userId,
+        replyHistoryId: historyEntry.id,
+        stageBreakdown,
+        totalPromptTokens: stageBreakdown.reduce((s, e) => s + e.promptTokens, 0),
+        totalCompletionTokens: stageBreakdown.reduce((s, e) => s + e.completionTokens, 0),
+        totalTokens: stageBreakdown.reduce((s, e) => s + e.totalTokens, 0),
+        totalCost: stageBreakdown.reduce((s, e) => s + e.cost, 0),
+      });
+
+      return res.json({
+        reframed: generation.reply,
+        qualityScore: qualityResult.totalScore,
+        qualityParameters: qualityResult.parameters,
+        degree: body.degree,
+        band,
+        used: updatedCounter.creditsUsed,
+        limit: updatedCounter.limit,
+        resetAt: updatedCounter.resetAt,
+        meta: {
+          modelKey: generation.modelKey,
+          latencyMs: generation.latencyMs,
+          promptVariation: body.prompt_variation || 'default',
+        },
+      });
+    } catch (error) {
+      console.error("Error reframing tweet:", error);
+      if (error instanceof ZodError) {
+        return res.status(400).json({
+          message: "Validation error",
+          errors: error.errors.map(err => ({
+            field: err.path.join('.'),
+            message: err.message,
+          })),
+        });
+      }
+      return res.status(500).json(getClientErrorBody(error, "Failed to reframe tweet"));
     }
   });
 

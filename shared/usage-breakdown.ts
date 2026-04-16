@@ -2,6 +2,7 @@ export const REPLY_MODE_COSTS = {
   "single-sentence": 1,
   enhanced: 2,
   improve: 2,
+  reframe: 2,
 } as const;
 
 export type ReplyModeKey = keyof typeof REPLY_MODE_COSTS;

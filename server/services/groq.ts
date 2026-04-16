@@ -6,6 +6,7 @@ import { replyPostProcessor } from "./reply-postprocessor.js";
 import { buildSystemPrompt, buildUserPromptWithThread } from "./prompt-builder.js";
 import { getDynamicReplyMaxWords, getDynamicReplyWordRange } from "./oa-dynamic-reply-length.js";
 import { AI_MODELS, AI_PARAMS, MODEL_SPECS, REPLY_LIMITS } from "../config/constants.js";
+import { getReframePromptConfig, type ReframePromptOptions } from "./reframe-prompts.js";
 
 // Initialize Groq client
 const groq = process.env.GROQ_API_KEY ? new Groq() : null;
@@ -219,6 +220,70 @@ Write a clean, natural reply based on the user's draft idea. Keep it under ${REP
       console.error(`❌ [Groq] Error improving draft: ${message}`);
       console.error(`🔧 [Groq] Model used: ${modelKey}`);
       throw new Error(`Failed to improve draft with Groq: ${message}`);
+    }
+  }
+
+  /**
+   * Reframe a source tweet into a new standalone tweet at the given degree-of-change.
+   * Mirrors `improveDraft` in shape and degrades to a demo response when the Groq
+   * client is not configured.
+   */
+  async reframeTweet(
+    source: string,
+    degree: number,
+    opts: ReframePromptOptions & { modelPreference?: string } = {},
+  ): Promise<ReplyResponse> {
+    const startTime = Date.now();
+    const modelKey = opts.modelPreference && opts.modelPreference in this.MODELS
+      ? opts.modelPreference
+      : AI_MODELS.DEFAULT;
+    const config = getReframePromptConfig(degree, {
+      allowLong: opts.allowLong,
+      promptVariation: opts.promptVariation,
+    });
+
+    console.log(`🚀 [Groq] Reframe start — model: ${modelKey}, degree: ${config.degree} (${config.band})`);
+
+    if (!groq) {
+      console.log("❌ [Groq] Groq client not configured (demo mode)");
+      return {
+        reply: source,
+        modelKey: "demo-groq",
+        latencyMs: Date.now() - startTime,
+      };
+    }
+
+    try {
+      const response = await groq.chat.completions.create({
+        messages: [
+          { role: "system", content: config.systemPrompt },
+          { role: "user", content: config.userPrompt(source) },
+        ],
+        model: modelKey,
+        temperature: AI_PARAMS.TEMPERATURE,
+        max_completion_tokens: AI_PARAMS.GROQ_MAX_TOKENS,
+        top_p: 1,
+      });
+
+      const rawReply = response.choices[0]?.message?.content ?? "";
+      const processedReply = replyPostProcessor.processReplyLight(rawReply);
+
+      const latencyMs = Date.now() - startTime;
+      const estimatedInputTokens = Math.ceil((config.systemPrompt + source).length / AI_PARAMS.TOKEN_ESTIMATION_CHARS_PER_TOKEN);
+      const estimatedOutputTokens = Math.ceil(processedReply.length / AI_PARAMS.TOKEN_ESTIMATION_CHARS_PER_TOKEN);
+
+      const usage = response.usage as { prompt_tokens?: number; completion_tokens?: number } | undefined;
+      return {
+        reply: processedReply,
+        modelKey,
+        tokensIn: usage?.prompt_tokens ?? estimatedInputTokens,
+        tokensOut: usage?.completion_tokens ?? estimatedOutputTokens,
+        latencyMs,
+      };
+    } catch (error: any) {
+      const message = error?.message || error?.error?.message || "Unknown error";
+      console.error(`❌ [Groq] Error reframing tweet: ${message}`);
+      throw new Error(`Failed to reframe tweet with Groq: ${message}`);
     }
   }
 

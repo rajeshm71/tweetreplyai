@@ -280,6 +280,32 @@
         }
       });
     }
+    /**
+     * Reuse / Reframe an existing X tweet. Calls POST /api/reframe-tweet.
+     * Only `source_tweet` and `degree` are required; the rest are best-effort hints.
+     */
+    async reframeTweet({
+      source_tweet,
+      degree,
+      source_author,
+      source_tweet_url,
+      prompt_variation,
+      model_key,
+      allow_long
+    }) {
+      return this.makeRequest("/api/reframe-tweet", {
+        method: "POST",
+        body: {
+          source_tweet,
+          degree,
+          source_author,
+          source_tweet_url,
+          prompt_variation,
+          model_key,
+          allow_long
+        }
+      });
+    }
     async getModels() {
       return this.makeRequest("/api/models");
     }
@@ -360,7 +386,13 @@
     "reply_insert_failed",
     "storage_read_failed",
     "storage_write_failed",
-    "unknown_runtime_error"
+    "unknown_runtime_error",
+    // Reuse / Reframe tweet feature
+    "reuse_open",
+    "reuse_generate_success",
+    "reuse_generate_error",
+    "reuse_post_to_compose",
+    "reuse_post_to_compose_timeout"
   ]);
   var ALLOWED_SURFACES = /* @__PURE__ */ new Set(["content", "popup", "background"]);
   var dedupeMap = /* @__PURE__ */ new Map();

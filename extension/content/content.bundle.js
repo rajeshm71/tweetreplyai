@@ -184,6 +184,26 @@
     AUTO_APPEND_ID: "tweetreply_snippet_auto_append_id",
     MIGRATED: "tweetreply_snippet_migrated_v1"
   };
+  var REUSE = {
+    BUTTON_CLASS: "tweetreply-reuse-button",
+    BUTTON_TITLE: "Reuse this tweet with AI",
+    MODAL_ID: "tweetreply-reuse-modal",
+    MODAL_Z_INDEX: 1e5,
+    DEFAULT_DEGREE: 50,
+    MIN_SOURCE_LEN: 20,
+    TWITTER_CHAR_LIMIT: 280,
+    LONG_TWEET_CHAR_LIMIT: 4e3,
+    COMPOSE_URL_PATH: "/compose/post",
+    COMPOSE_POLL_MS: 100,
+    COMPOSE_POLL_TIMEOUT_MS: 3e3,
+    DEGREE_BANDS: [
+      { max: 20, label: "Minimal" },
+      { max: 40, label: "Light" },
+      { max: 60, label: "Balanced" },
+      { max: 80, label: "Heavy" },
+      { max: 100, label: "Reimagined" }
+    ]
+  };
 
   // extension/utils/api.js
   var ApiClient = class {
@@ -295,6 +315,32 @@
         }
       });
     }
+    /**
+     * Reuse / Reframe an existing X tweet. Calls POST /api/reframe-tweet.
+     * Only `source_tweet` and `degree` are required; the rest are best-effort hints.
+     */
+    async reframeTweet({
+      source_tweet,
+      degree,
+      source_author,
+      source_tweet_url,
+      prompt_variation,
+      model_key,
+      allow_long
+    }) {
+      return this.makeRequest("/api/reframe-tweet", {
+        method: "POST",
+        body: {
+          source_tweet,
+          degree,
+          source_author,
+          source_tweet_url,
+          prompt_variation,
+          model_key,
+          allow_long
+        }
+      });
+    }
     async getModels() {
       return this.makeRequest("/api/models");
     }
@@ -375,7 +421,13 @@
     "reply_insert_failed",
     "storage_read_failed",
     "storage_write_failed",
-    "unknown_runtime_error"
+    "unknown_runtime_error",
+    // Reuse / Reframe tweet feature
+    "reuse_open",
+    "reuse_generate_success",
+    "reuse_generate_error",
+    "reuse_post_to_compose",
+    "reuse_post_to_compose_timeout"
   ]);
   var ALLOWED_SURFACES = /* @__PURE__ */ new Set(["content", "popup", "background"]);
   var dedupeMap = /* @__PURE__ */ new Map();
@@ -444,6 +496,584 @@
     return { message: fallback, action: "retry" };
   }
 
+  // extension/content/helpers/composer-text.js
+  function normalizeComposerText(value) {
+    return String(value || "").replace(/\r\n/g, "\n").replace(/\u00a0/g, " ").trim();
+  }
+  function extractCanonicalComposerText(composer) {
+    if (!composer) return "";
+    const dataTextSpan = composer.querySelector('[data-text="true"]');
+    const spanText = normalizeComposerText(dataTextSpan?.textContent || dataTextSpan?.innerText);
+    if (spanText) return spanText;
+    const contentEditable = composer.querySelector('[contenteditable="true"]');
+    if (contentEditable && contentEditable !== composer) {
+      const nestedText = normalizeComposerText(contentEditable.innerText || contentEditable.textContent);
+      if (nestedText) return nestedText;
+    }
+    return normalizeComposerText(composer.innerText || composer.textContent);
+  }
+  function combineReplyAndCta(existingText, ctaText) {
+    const existing = normalizeComposerText(existingText);
+    const cta = normalizeComposerText(ctaText);
+    if (!cta) return existing;
+    return existing ? `${existing}
+
+${cta}` : cta;
+  }
+
+  // extension/content/helpers/reuse-inject.js
+  var DEFAULT_MIN_SOURCE_LEN = 20;
+  var DEFAULT_BUTTON_CLASS = "tweetreply-reuse-button";
+  var DEFAULT_BUTTON_TITLE = "Reuse this tweet with AI";
+  var SHELL_CLASS = "tweetreply-reuse-shell";
+  function buildReuseButton({ buttonClass, buttonTitle, onClick }) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = buttonClass;
+    btn.setAttribute("aria-label", buttonTitle);
+    btn.title = buttonTitle;
+    btn.dataset.tweetreplyReuse = "1";
+    btn.innerHTML = [
+      '<svg viewBox="0 0 24 24" aria-hidden="true" width="18" height="18" fill="currentColor">',
+      '<path d="M17.5 3A4.5 4.5 0 0 1 22 7.5V12h-2V7.5A2.5 2.5 0 0 0 17.5 5H9v2.5L4.5 4 9 .5V3h8.5zM6.5 21A4.5 4.5 0 0 1 2 16.5V12h2v4.5A2.5 2.5 0 0 0 6.5 19H15v-2.5l4.5 3.5L15 23.5V21H6.5z"/>',
+      "</svg>"
+    ].join("");
+    btn.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      onClick();
+    });
+    return btn;
+  }
+  function wrapAsActionItem(btn) {
+    const shell = document.createElement("div");
+    shell.className = SHELL_CLASS;
+    shell.appendChild(btn);
+    return shell;
+  }
+  function defaultShowToast(message) {
+    try {
+      let host = document.getElementById("tweetreply-reuse-toast-host");
+      if (!host) {
+        host = document.createElement("div");
+        host.id = "tweetreply-reuse-toast-host";
+        host.style.cssText = [
+          "position:fixed",
+          "bottom:24px",
+          "left:50%",
+          "transform:translateX(-50%)",
+          "z-index:100001",
+          "pointer-events:none"
+        ].join(";");
+        document.body.appendChild(host);
+      }
+      const toast = document.createElement("div");
+      toast.className = "tweetreply-reuse-toast";
+      toast.textContent = message;
+      toast.style.cssText = [
+        "background:rgba(15,20,25,0.92)",
+        "color:#fff",
+        "padding:8px 14px",
+        "border-radius:9999px",
+        "font-size:13px",
+        "margin-top:8px",
+        "box-shadow:0 4px 12px rgba(0,0,0,0.15)"
+      ].join(";");
+      host.appendChild(toast);
+      setTimeout(() => toast.remove(), 2400);
+    } catch {
+    }
+  }
+  function injectReuseButtonsImpl(container, deps) {
+    if (!container || !deps) return;
+    const {
+      injected,
+      onClick,
+      extractText,
+      extractTweetUrl,
+      minSourceLen = DEFAULT_MIN_SOURCE_LEN,
+      buttonClass = DEFAULT_BUTTON_CLASS,
+      buttonTitle = DEFAULT_BUTTON_TITLE,
+      showToast = defaultShowToast
+    } = deps;
+    const root = typeof container.querySelectorAll === "function" ? container : null;
+    if (!root) return;
+    const descendants = Array.from(root.querySelectorAll('article[data-testid="tweet"]'));
+    const rootIsArticle = typeof root.matches === "function" && root.matches('article[data-testid="tweet"]');
+    const articles = rootIsArticle ? [root, ...descendants] : descendants;
+    articles.forEach((article) => {
+      if (injected.has(article)) return;
+      if (article.closest('[role="dialog"] [data-testid="tweetComposer"]')) return;
+      if (article.querySelector(`.${buttonClass}`)) {
+        injected.add(article);
+        return;
+      }
+      const actionGroup = article.querySelector('[role="group"]');
+      if (!actionGroup) return;
+      const btn = buildReuseButton({
+        buttonClass,
+        buttonTitle,
+        onClick: () => {
+          let extracted = null;
+          try {
+            extracted = extractText(article);
+          } catch {
+            extracted = null;
+          }
+          const text = extracted?.text?.trim() || "";
+          if (text.length < minSourceLen) {
+            showToast("Tweet is too short to reuse.");
+            return;
+          }
+          let tweetUrl;
+          try {
+            tweetUrl = extractTweetUrl(article);
+          } catch {
+            tweetUrl = void 0;
+          }
+          onClick({ text, author: extracted?.author, tweetUrl });
+        }
+      });
+      const shell = wrapAsActionItem(btn);
+      const shareAnchor = actionGroup.querySelector('[data-testid="share"]');
+      const shareSlot = shareAnchor?.closest("div");
+      if (shareSlot && shareSlot.parentNode === actionGroup) {
+        actionGroup.insertBefore(shell, shareSlot);
+      } else {
+        actionGroup.appendChild(shell);
+      }
+      injected.add(article);
+    });
+  }
+
+  // extension/content/helpers/reuse-modal.js
+  var DEFAULT_BANDS = [
+    { max: 20, label: "Minimal" },
+    { max: 40, label: "Light" },
+    { max: 60, label: "Balanced" },
+    { max: 80, label: "Heavy" },
+    { max: 100, label: "Reimagined" }
+  ];
+  function bandLabelFor(degree, bands = DEFAULT_BANDS) {
+    const d = Math.max(0, Math.min(100, Number(degree) || 0));
+    for (const b of bands) if (d <= b.max) return b.label;
+    return bands[bands.length - 1]?.label || "";
+  }
+  function h(tag, props = {}, children = []) {
+    const el = document.createElement(tag);
+    for (const [key, value] of Object.entries(props)) {
+      if (value == null) continue;
+      if (key === "class") el.className = value;
+      else if (key === "dataset") Object.assign(el.dataset, value);
+      else if (key === "style") el.style.cssText = value;
+      else if (key.startsWith("on") && typeof value === "function") {
+        el.addEventListener(key.slice(2).toLowerCase(), value);
+      } else if (key in el) {
+        try {
+          el[key] = value;
+        } catch {
+          el.setAttribute(key, value);
+        }
+      } else {
+        el.setAttribute(key, value);
+      }
+    }
+    for (const child of [].concat(children)) {
+      if (child == null) continue;
+      if (typeof child === "string") el.appendChild(document.createTextNode(child));
+      else el.appendChild(child);
+    }
+    return el;
+  }
+  function truncate(text, max = 260) {
+    if (!text) return "";
+    return text.length > max ? `${text.slice(0, max - 1)}\u2026` : text;
+  }
+  var REFRAME_PROMPT_KEYS = /* @__PURE__ */ new Set([
+    "default",
+    "conversational",
+    "direct",
+    "analytical",
+    "humorous",
+    "supportive"
+  ]);
+  function createReuseModal(payload, deps) {
+    const {
+      apiClient,
+      postToCompose,
+      onUsageUpdated,
+      emitTelemetry: emitTelemetry2,
+      getUserFacingError: getUserFacingError2,
+      constants,
+      loginUrl = "https://tweetreplyai.vercel.app/login",
+      getPromptVariations
+    } = deps || {};
+    const MODAL_ID = constants?.MODAL_ID || "tweetreply-reuse-modal";
+    const BANDS = constants?.DEGREE_BANDS || DEFAULT_BANDS;
+    const DEFAULT_DEGREE = constants?.DEFAULT_DEGREE ?? 50;
+    const TWITTER_CHAR_LIMIT = constants?.TWITTER_CHAR_LIMIT ?? 280;
+    const LONG_TWEET_CHAR_LIMIT = constants?.LONG_TWEET_CHAR_LIMIT ?? 4e3;
+    const existing = document.getElementById(MODAL_ID);
+    if (existing) {
+      existing.focus?.();
+      return { element: existing, close: () => {
+      } };
+    }
+    const { text: sourceText = "", author = "", tweetUrl } = payload || {};
+    let requestToken = 0;
+    let state = "idle";
+    let lastResult = null;
+    const overlay = h("div", {
+      id: MODAL_ID,
+      class: "tweetreply-reuse-modal",
+      role: "dialog",
+      "aria-modal": "true",
+      "aria-label": "Reuse tweet",
+      tabIndex: "-1"
+    });
+    const card = h("div", { class: "tweetreply-reuse-card" });
+    overlay.appendChild(card);
+    const closeBtn = h("button", {
+      type: "button",
+      class: "tweetreply-reuse-close",
+      "aria-label": "Close",
+      onclick: () => handle.close()
+    }, "\xD7");
+    card.appendChild(h("header", { class: "tweetreply-reuse-header" }, [
+      h("h2", { class: "tweetreply-reuse-title" }, "Reuse tweet"),
+      closeBtn
+    ]));
+    const preview = h("div", { class: "tweetreply-reuse-preview" });
+    if (author) {
+      preview.appendChild(h("div", { class: "tweetreply-reuse-author" }, `@${String(author).replace(/^@/, "")}`));
+    }
+    const previewBody = h("div", { class: "tweetreply-reuse-preview-body" });
+    const previewShortText = truncate(sourceText, 260);
+    const previewFullText = sourceText || "";
+    previewBody.textContent = previewShortText;
+    preview.appendChild(previewBody);
+    if (previewFullText.length > 260) {
+      let expanded = false;
+      const moreBtn = h("button", {
+        type: "button",
+        class: "tweetreply-reuse-show-more",
+        onclick: () => {
+          expanded = !expanded;
+          previewBody.textContent = expanded ? previewFullText : previewShortText;
+          moreBtn.textContent = expanded ? "Show less" : "Show more";
+        }
+      }, "Show more");
+      preview.appendChild(moreBtn);
+    }
+    card.appendChild(preview);
+    const slider = h("input", {
+      type: "range",
+      min: "0",
+      max: "100",
+      step: "1",
+      value: String(DEFAULT_DEGREE),
+      class: "tweetreply-reuse-slider",
+      "aria-label": "Degree of change"
+    });
+    const sliderValue = h("span", { class: "tweetreply-reuse-degree-value" }, `${DEFAULT_DEGREE}`);
+    const sliderLabel = h("span", { class: "tweetreply-reuse-degree-band" }, bandLabelFor(DEFAULT_DEGREE, BANDS));
+    slider.addEventListener("input", () => {
+      const d = Number(slider.value) || 0;
+      sliderValue.textContent = String(d);
+      sliderLabel.textContent = bandLabelFor(d, BANDS);
+    });
+    card.appendChild(h("label", { class: "tweetreply-reuse-field" }, [
+      h("div", { class: "tweetreply-reuse-field-label" }, [
+        h("span", {}, "Degree of change"),
+        h("span", { class: "tweetreply-reuse-degree-readout" }, [sliderValue, " \xB7 ", sliderLabel])
+      ]),
+      slider
+    ]));
+    const styleSelect = h("select", { class: "tweetreply-reuse-style-select", disabled: true });
+    styleSelect.appendChild(h("option", { value: "" }, "Loading styles\u2026"));
+    card.appendChild(h("label", { class: "tweetreply-reuse-field" }, [
+      h("div", { class: "tweetreply-reuse-field-label" }, "Style"),
+      styleSelect
+    ]));
+    const loadStyles = async () => {
+      const fetchFn = typeof getPromptVariations === "function" ? () => getPromptVariations() : () => apiClient?.getPrompts?.();
+      try {
+        const list = await fetchFn();
+        if (!Array.isArray(list) || list.length === 0) throw new Error("no-prompts");
+        const filtered = list.filter((p) => {
+          const k = p?.key || p?.id;
+          return typeof k === "string" && REFRAME_PROMPT_KEYS.has(k);
+        });
+        const final = filtered.length > 0 ? filtered : [{ key: "default", name: "Default" }];
+        styleSelect.innerHTML = "";
+        for (const p of final) {
+          const opt = document.createElement("option");
+          opt.value = p.key || p.id || "default";
+          opt.textContent = p.name || p.label || opt.value;
+          if (p.description) opt.title = p.description;
+          styleSelect.appendChild(opt);
+        }
+        styleSelect.disabled = false;
+      } catch {
+        styleSelect.innerHTML = "";
+        const opt = document.createElement("option");
+        opt.value = "default";
+        opt.textContent = "Default";
+        styleSelect.appendChild(opt);
+        styleSelect.disabled = false;
+      }
+    };
+    loadStyles();
+    const allowLongCheckbox = h("input", { type: "checkbox", class: "tweetreply-reuse-allow-long" });
+    card.appendChild(h("label", { class: "tweetreply-reuse-field tweetreply-reuse-inline" }, [
+      allowLongCheckbox,
+      h("span", {}, [
+        h("span", { class: "tweetreply-reuse-allow-long-label" }, "Allow long tweet (X Premium)"),
+        h(
+          "span",
+          { class: "tweetreply-reuse-hint" },
+          ` Requires X Premium to post tweets longer than ${TWITTER_CHAR_LIMIT} characters.`
+        )
+      ])
+    ]));
+    const resultTextarea = h("textarea", {
+      class: "tweetreply-reuse-result",
+      readOnly: true,
+      rows: "6",
+      placeholder: "The reframed tweet will appear here after Generate."
+    });
+    const qualityChip = h("span", { class: "tweetreply-reuse-quality", hidden: true });
+    const safetyBadge = h("span", { class: "tweetreply-reuse-safety", hidden: true }, "Safety rewrite");
+    const errorBox = h("div", { class: "tweetreply-reuse-error", hidden: true, role: "alert" });
+    card.appendChild(h("div", { class: "tweetreply-reuse-result-wrap" }, [
+      h("div", { class: "tweetreply-reuse-result-header" }, [qualityChip, safetyBadge]),
+      resultTextarea,
+      errorBox
+    ]));
+    const generateBtn = h("button", { type: "button", class: "tweetreply-reuse-generate" }, "Generate");
+    const regenerateBtn = h("button", { type: "button", class: "tweetreply-reuse-regenerate", hidden: true }, "Regenerate");
+    const copyBtn = h("button", { type: "button", class: "tweetreply-reuse-copy", disabled: true }, "Copy");
+    const postBtn = h("button", { type: "button", class: "tweetreply-reuse-post", disabled: true }, "Post to X");
+    card.appendChild(h("footer", { class: "tweetreply-reuse-footer" }, [
+      generateBtn,
+      regenerateBtn,
+      copyBtn,
+      postBtn
+    ]));
+    function setState(next, { error } = {}) {
+      state = next;
+      if (state === "generating") {
+        errorBox.hidden = true;
+        generateBtn.textContent = "Generating\u2026";
+        regenerateBtn.textContent = "Generating\u2026";
+        copyBtn.disabled = true;
+        postBtn.disabled = true;
+      } else {
+        generateBtn.textContent = "Generate";
+        regenerateBtn.textContent = "Regenerate";
+      }
+      if (state === "result" && lastResult) {
+        regenerateBtn.hidden = false;
+        copyBtn.disabled = false;
+        postBtn.disabled = Boolean(lastResult.safetyOutcome);
+        qualityChip.hidden = false;
+        qualityChip.textContent = `Quality ${Math.round(lastResult.qualityScore || 0)}`;
+        safetyBadge.hidden = !lastResult.safetyOutcome;
+        resultTextarea.value = lastResult.reframed;
+      }
+      if (state === "error" && error) {
+        errorBox.hidden = false;
+        errorBox.innerHTML = "";
+        errorBox.appendChild(h("span", {}, error.message || "Something went wrong."));
+        if (error.action === "upgrade") {
+          errorBox.appendChild(h("a", {
+            href: loginUrl,
+            target: "_blank",
+            rel: "noopener noreferrer",
+            class: "tweetreply-reuse-upgrade"
+          }, "Upgrade"));
+        }
+      }
+    }
+    async function runGenerate() {
+      const degree = Number(slider.value) || DEFAULT_DEGREE;
+      const allowLong = Boolean(allowLongCheckbox.checked);
+      const token = ++requestToken;
+      setState("generating");
+      const charLimit = allowLong ? LONG_TWEET_CHAR_LIMIT : TWITTER_CHAR_LIMIT;
+      const startedAt = Date.now();
+      try {
+        const res = await apiClient.reframeTweet({
+          source_tweet: sourceText,
+          degree,
+          source_author: author || void 0,
+          source_tweet_url: tweetUrl,
+          prompt_variation: styleSelect.value || void 0,
+          allow_long: allowLong
+        });
+        if (token !== requestToken) return;
+        const safety = res?.meta?.safetyOutcome === "violation_friendly_reply" ? "violation_friendly_reply" : null;
+        lastResult = {
+          reframed: res?.reframed || "",
+          qualityScore: res?.qualityScore || 0,
+          degree: res?.degree ?? degree,
+          band: res?.band,
+          safetyOutcome: safety
+        };
+        setState("result");
+        onUsageUpdated?.();
+        emitTelemetry2?.({
+          event_type: "reuse_generate_success",
+          surface: "content",
+          context: {
+            action: `degree:${lastResult.degree}`,
+            note: `band=${lastResult.band || ""};chars=${lastResult.reframed.length};charLimit=${charLimit};latency=${Date.now() - startedAt}`
+          }
+        });
+      } catch (err) {
+        if (token !== requestToken) return;
+        const ufe = getUserFacingError2 ? getUserFacingError2(err, "Failed to reframe tweet. Try again.") : { message: "Failed to reframe tweet. Try again.", action: "retry" };
+        emitTelemetry2?.({
+          event_type: "reuse_generate_error",
+          surface: "content",
+          error_code: String(err?.message || "reuse_generate_error").slice(0, 120),
+          context: { action: ufe.action, note: `degree=${degree}` }
+        });
+        if (ufe.action === "signin") {
+          handle.close();
+          return;
+        }
+        setState("error", { error: ufe });
+      }
+    }
+    generateBtn.addEventListener("click", runGenerate);
+    regenerateBtn.addEventListener("click", runGenerate);
+    copyBtn.addEventListener("click", async () => {
+      if (!lastResult?.reframed) return;
+      try {
+        await navigator.clipboard.writeText(lastResult.reframed);
+        copyBtn.textContent = "Copied";
+        setTimeout(() => {
+          copyBtn.textContent = "Copy";
+        }, 1500);
+      } catch {
+        resultTextarea.removeAttribute("readonly");
+        resultTextarea.focus();
+        resultTextarea.select();
+        copyBtn.textContent = "Copy manually";
+      }
+    });
+    postBtn.addEventListener("click", async () => {
+      if (!lastResult?.reframed || lastResult.safetyOutcome) return;
+      postBtn.disabled = true;
+      postBtn.textContent = "Opening\u2026";
+      ignoreNextPopState = 1;
+      try {
+        await postToCompose(lastResult.reframed);
+        handle.close();
+      } catch (err) {
+        setState("error", {
+          error: { message: err?.message || "Could not open the compose box.", action: "retry" }
+        });
+      } finally {
+        ignoreNextPopState = 0;
+        postBtn.textContent = "Post to X";
+        postBtn.disabled = Boolean(lastResult?.safetyOutcome);
+      }
+    });
+    const onKeydown = (ev) => {
+      if (ev.key === "Escape") {
+        ev.stopPropagation();
+        handle.close();
+      }
+    };
+    overlay.addEventListener("click", (ev) => {
+      if (ev.target === overlay) handle.close();
+    });
+    document.addEventListener("keydown", onKeydown, true);
+    window.addEventListener("popstate", onPopState, true);
+    let ignoreNextPopState = 0;
+    function onPopState() {
+      if (ignoreNextPopState > 0) {
+        ignoreNextPopState--;
+        return;
+      }
+      requestToken++;
+      handle.close();
+    }
+    emitTelemetry2?.({
+      event_type: "reuse_open",
+      surface: "content",
+      context: { action: "modal_open", note: `sourceLen=${sourceText.length}` }
+    });
+    document.body.appendChild(overlay);
+    requestAnimationFrame(() => overlay.focus?.());
+    const handle = {
+      element: overlay,
+      close() {
+        requestToken++;
+        document.removeEventListener("keydown", onKeydown, true);
+        window.removeEventListener("popstate", onPopState, true);
+        overlay.remove();
+      },
+      // For tests: let callers trigger a generate without clicking.
+      _runGenerate: runGenerate
+    };
+    return handle;
+  }
+
+  // extension/content/helpers/post-to-compose.js
+  async function postReframedToComposeImpl(text, deps) {
+    const {
+      insertText,
+      emitTelemetry: emitTelemetry2,
+      clipboardWrite,
+      sleep = (ms) => new Promise((r) => setTimeout(r, ms)),
+      now = () => Date.now(),
+      config
+    } = deps || {};
+    if (!config || typeof insertText !== "function") {
+      throw new Error("postReframedToCompose: missing deps");
+    }
+    const composePath = config.composePath || "/compose/post";
+    if (!window.location.pathname.startsWith("/compose/")) {
+      try {
+        history.pushState({}, "", composePath);
+        window.dispatchEvent(new PopStateEvent("popstate"));
+      } catch {
+      }
+    }
+    const started = now();
+    while (now() - started < config.timeoutMs) {
+      const dialog = document.querySelector('[role="dialog"]');
+      const textArea = dialog?.querySelector('[data-testid="tweetTextarea_0"]');
+      const toolbar = dialog?.querySelector('[data-testid="toolBar"]');
+      if (textArea && toolbar) {
+        await insertText(textArea, toolbar, text);
+        emitTelemetry2?.({
+          event_type: "reuse_post_to_compose",
+          surface: "content",
+          context: { action: "insert", note: `chars=${text.length}` }
+        });
+        return true;
+      }
+      await sleep(config.pollMs);
+    }
+    emitTelemetry2?.({
+      event_type: "reuse_post_to_compose_timeout",
+      surface: "content",
+      context: { action: "timeout", note: `chars=${text.length}` }
+    });
+    const writeClipboard = clipboardWrite || (typeof navigator !== "undefined" && navigator.clipboard?.writeText ? (s) => navigator.clipboard.writeText(s) : null);
+    if (writeClipboard) {
+      try {
+        await writeClipboard(text);
+      } catch {
+      }
+    }
+    throw new Error("Compose box did not open in time. Reframed text copied to clipboard.");
+  }
+
   // extension/content/content.js
   globalThis.__tweetreplyaiExtLoggingAllowed = false;
   installConsoleGate(() => globalThis.__tweetreplyaiExtLoggingAllowed === true);
@@ -464,6 +1094,8 @@
       this.usageData = null;
       this.injectedButtons = /* @__PURE__ */ new Set();
       this.injectedContainers = /* @__PURE__ */ new Set();
+      this.injectedReuseButtons = /* @__PURE__ */ new WeakSet();
+      this._reuseModal = null;
       this.followStatusByUser = /* @__PURE__ */ new Map();
       this.followBadgeRefreshTimer = null;
       this.followStatusMessageHandler = null;
@@ -602,17 +1234,7 @@
       }
     }
     extractComposerPlainText(composer) {
-      if (!composer) return "";
-      const normalize = (value) => String(value || "").replace(/\r\n/g, "\n").replace(/\u00a0/g, " ").trim();
-      const dataTextSpan = composer.querySelector('[data-text="true"]');
-      const spanText = normalize(dataTextSpan?.textContent || dataTextSpan?.innerText);
-      if (spanText) return spanText;
-      const contentEditable = composer.querySelector('[contenteditable="true"]');
-      if (contentEditable && contentEditable !== composer) {
-        const nestedText = normalize(contentEditable.innerText || contentEditable.textContent);
-        if (nestedText) return nestedText;
-      }
-      return normalize(composer.innerText || composer.textContent);
+      return extractCanonicalComposerText(composer);
     }
     async appendCtaSnippetToComposer(composer, snippet) {
       const trimmed = String(snippet || "").trim();
@@ -621,9 +1243,7 @@
         return;
       }
       const existing = this.extractComposerPlainText(composer);
-      const combined = existing ? `${existing.trimEnd()}
-
-${trimmed}` : trimmed;
+      const combined = combineReplyAndCta(existing, trimmed);
       try {
         await this.insertReplyIntoComposer(composer, combined);
       } catch (error) {
@@ -1091,6 +1711,7 @@ ${trimmed}` : trimmed;
         this.mainObserverDebounceTimer = setTimeout(() => {
           addedNodes.forEach((node) => {
             this.checkForReplyComposers(node);
+            this.injectReuseButtons(node);
           });
           addedNodes.clear();
           this.scheduleFollowBadgeRefresh();
@@ -1113,6 +1734,7 @@ ${trimmed}` : trimmed;
         subtree: true
       });
       this.checkForReplyComposers(document.body);
+      this.injectReuseButtons(document.body);
     }
     checkForReplyComposers(container) {
       const specificSelectors = [
@@ -1397,6 +2019,91 @@ ${trimmed}` : trimmed;
         }
       }
       return { text, author };
+    }
+    /**
+     * Extract the canonical tweet permalink (/{user}/status/{id}) from an
+     * article. Returns an absolute URL or undefined. Used by the Reuse feature
+     * because extractTextAndAuthorFromArticle intentionally returns only text+author.
+     */
+    extractTweetUrlFromArticle(article) {
+      if (!article) return void 0;
+      try {
+        const timeEl = article.querySelector('a[role="link"] time');
+        const anchor = timeEl && timeEl.closest('a[href*="/status/"]') || article.querySelector('a[href*="/status/"]');
+        if (!anchor) return void 0;
+        const href = anchor.getAttribute("href") || "";
+        if (!href) return void 0;
+        return new URL(href, window.location.origin).toString();
+      } catch {
+        return void 0;
+      }
+    }
+    /**
+     * Inject a Reuse button onto every X tweet article in the given container.
+     * Delegates to the pure helper `injectReuseButtonsImpl` with DI.
+     */
+    injectReuseButtons(container) {
+      try {
+        injectReuseButtonsImpl(container, {
+          injected: this.injectedReuseButtons,
+          onClick: (payload) => this.openReuseModal(payload),
+          extractText: (article) => this.extractTextAndAuthorFromArticle(article),
+          extractTweetUrl: (article) => this.extractTweetUrlFromArticle(article),
+          minSourceLen: REUSE.MIN_SOURCE_LEN,
+          buttonClass: REUSE.BUTTON_CLASS,
+          buttonTitle: REUSE.BUTTON_TITLE
+        });
+      } catch (error) {
+        console.warn("[TweetReplyAI] injectReuseButtons failed:", error);
+      }
+    }
+    /**
+     * Open (or refocus) the Reuse modal for the given source tweet. Only one
+     * modal is mounted at a time; a second invocation closes the previous one.
+     */
+    openReuseModal(payload) {
+      try {
+        if (this._reuseModal) {
+          try {
+            this._reuseModal.close();
+          } catch {
+          }
+          this._reuseModal = null;
+        }
+        this._reuseModal = createReuseModal(payload, {
+          apiClient: this.apiClient,
+          postToCompose: (text) => this.postReframedToCompose(text),
+          onUsageUpdated: () => {
+            try {
+              chrome.runtime.sendMessage({ action: "usageUpdated" });
+            } catch {
+            }
+          },
+          emitTelemetry,
+          getUserFacingError,
+          constants: REUSE,
+          loginUrl: API.LOGIN_URL
+        });
+      } catch (error) {
+        console.error("[TweetReplyAI] Failed to open Reuse modal:", error);
+      }
+    }
+    /**
+     * Navigate to X's native compose dialog and insert the reframed text. Never
+     * auto-submits; the user reviews and posts manually. Pure logic lives in
+     * `helpers/post-to-compose.js` so it can be unit-tested without the full
+     * injector.
+     */
+    async postReframedToCompose(text) {
+      return postReframedToComposeImpl(text, {
+        insertText: (ta, tb, t) => this.insertTextTwitterMethod(ta, tb, t),
+        emitTelemetry,
+        config: {
+          composePath: REUSE.COMPOSE_URL_PATH || "/compose/post",
+          pollMs: REUSE.COMPOSE_POLL_MS,
+          timeoutMs: REUSE.COMPOSE_POLL_TIMEOUT_MS
+        }
+      });
     }
     /**
      * Find the article that owns the given status ID (the tweet's own permalink, not "Replying to" or quoted).
@@ -2706,30 +3413,30 @@ ${trimmed}` : trimmed;
       }
       this[lockKey] = true;
       try {
-        const history = await this.getReplyHistory();
+        const history2 = await this.getReplyHistory();
         const settings = await this.getTrackingSettings();
         const now = Date.now();
-        if (!history[username]) {
-          history[username] = { replies: [] };
+        if (!history2[username]) {
+          history2[username] = { replies: [] };
         }
-        if (history[username].hidden !== void 0) {
-          delete history[username].hidden;
+        if (history2[username].hidden !== void 0) {
+          delete history2[username].hidden;
         }
-        if (history[username].hideUntil !== void 0) {
-          delete history[username].hideUntil;
+        if (history2[username].hideUntil !== void 0) {
+          delete history2[username].hideUntil;
         }
-        const recentReply = history[username].replies.find(
+        const recentReply = history2[username].replies.find(
           (r) => Math.abs(r.timestamp - now) < 1e3
         );
         if (recentReply) {
           return;
         }
-        history[username].replies.push({ timestamp: now });
+        history2[username].replies.push({ timestamp: now });
         const cutoff = now - settings.trackingPeriodDays * AUTH.ONE_DAY_MS;
-        history[username].replies = history[username].replies.filter(
+        history2[username].replies = history2[username].replies.filter(
           (r) => r.timestamp > cutoff
         );
-        await chrome.storage.local.set({ replyHistory: history });
+        await chrome.storage.local.set({ replyHistory: history2 });
         await this.updateReplyCountsOnTweets();
       } catch (error) {
         console.error("[TweetReplyAI] Error tracking reply:", error);
@@ -2739,11 +3446,11 @@ ${trimmed}` : trimmed;
     }
     // Cleanup expired history
     async cleanupExpiredHistory() {
-      const history = await this.getReplyHistory();
+      const history2 = await this.getReplyHistory();
       const settings = await this.getTrackingSettings();
       const cutoff = Date.now() - settings.trackingPeriodDays * AUTH.ONE_DAY_MS;
       let hasChanges = false;
-      for (const [username, data] of Object.entries(history)) {
+      for (const [username, data] of Object.entries(history2)) {
         const originalCount = data.replies?.length || 0;
         data.replies = (data.replies || []).filter((r) => r.timestamp > cutoff);
         if (data.hidden !== void 0) {
@@ -2755,14 +3462,14 @@ ${trimmed}` : trimmed;
           hasChanges = true;
         }
         if (data.replies.length === 0) {
-          delete history[username];
+          delete history2[username];
           hasChanges = true;
         } else if (data.replies.length !== originalCount) {
           hasChanges = true;
         }
       }
       if (hasChanges) {
-        await chrome.storage.local.set({ replyHistory: history });
+        await chrome.storage.local.set({ replyHistory: history2 });
         await this.updateReplyCountsOnTweets();
       }
     }
@@ -2823,8 +3530,8 @@ ${trimmed}` : trimmed;
     async getReplyCountForUser(username, days) {
       if (!username || username === "unknown") return 0;
       try {
-        const history = await this.getReplyHistory();
-        const userData = history[username];
+        const history2 = await this.getReplyHistory();
+        const userData = history2[username];
         if (!userData || !userData.replies || userData.replies.length === 0) {
           return 0;
         }
@@ -3766,6 +4473,14 @@ ${trimmed}` : trimmed;
     // CLEANUP & DESTRUCTION
     // ============================================================================
     destroy() {
+      if (this._reuseModal) {
+        try {
+          this._reuseModal.close();
+        } catch {
+        }
+        this._reuseModal = null;
+      }
+      this.injectedReuseButtons = /* @__PURE__ */ new WeakSet();
       if (this.mainObserver) {
         this.mainObserver.disconnect();
         this.mainObserver = null;

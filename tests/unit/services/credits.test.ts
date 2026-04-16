@@ -3,10 +3,11 @@ import { getCreditCost, CREDIT_COSTS } from "../../../server/services/credits";
 
 describe("Credits Service - Unit Tests", () => {
   describe("CREDIT_COSTS constant", () => {
-    it("has all three expected plan keys", () => {
+    it("has all expected plan keys", () => {
       expect(CREDIT_COSTS).toHaveProperty("single-sentence");
       expect(CREDIT_COSTS).toHaveProperty("enhanced");
       expect(CREDIT_COSTS).toHaveProperty("improve");
+      expect(CREDIT_COSTS).toHaveProperty("reframe");
     });
 
     it("single-sentence costs 1 credit", () => {
@@ -19,6 +20,10 @@ describe("Credits Service - Unit Tests", () => {
 
     it("improve costs 2 credits", () => {
       expect(CREDIT_COSTS["improve"]).toBe(2);
+    });
+
+    it("reframe costs 2 credits", () => {
+      expect(CREDIT_COSTS["reframe"]).toBe(2);
     });
   });
 
@@ -41,6 +46,10 @@ describe("Credits Service - Unit Tests", () => {
 
     it("returns 2 for improve mode", () => {
       expect(getCreditCost("improve")).toBe(2);
+    });
+
+    it("returns 2 for reframe mode", () => {
+      expect(getCreditCost("reframe")).toBe(2);
     });
 
     it("returns 2 for unknown mode strings (fallback via ??)", () => {

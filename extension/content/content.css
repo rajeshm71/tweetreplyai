@@ -322,3 +322,348 @@
     margin-left: 3px;
   }
 }
+
+/* ==========================================================================
+   Reuse tweet — button injected into each X tweet action row + centered modal.
+   All selectors are prefixed with `tweetreply-reuse-` to avoid colliding with
+   X's own class names. High z-index so the modal sits above X's own overlays.
+   ========================================================================== */
+
+.tweetreply-reuse-shell {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.tweetreply-reuse-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  background: transparent;
+  border: none;
+  border-radius: 9999px;
+  color: rgb(83, 100, 113);
+  cursor: pointer;
+  padding: 0;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.tweetreply-reuse-button:hover {
+  background: rgba(29, 155, 240, 0.1);
+  color: rgb(29, 155, 240);
+}
+
+.tweetreply-reuse-button:focus-visible {
+  outline: 2px solid rgb(29, 155, 240);
+  outline-offset: 2px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .tweetreply-reuse-button {
+    color: rgb(139, 152, 165);
+  }
+
+  .tweetreply-reuse-button:hover {
+    background: rgba(29, 155, 240, 0.15);
+    color: rgb(29, 155, 240);
+  }
+}
+
+/* Modal overlay ---------------------------------------------------------- */
+.tweetreply-reuse-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 16px;
+  color: rgb(15, 20, 25);
+  font-family: TwitterChirp, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    Roboto, Oxygen, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+}
+
+.tweetreply-reuse-card {
+  width: 100%;
+  max-width: 560px;
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.tweetreply-reuse-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.tweetreply-reuse-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.tweetreply-reuse-close {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  border-radius: 9999px;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  color: inherit;
+}
+
+.tweetreply-reuse-close:hover {
+  background: rgba(15, 20, 25, 0.1);
+}
+
+.tweetreply-reuse-preview {
+  background: rgba(15, 20, 25, 0.04);
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 14px;
+  line-height: 1.4;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tweetreply-reuse-author {
+  font-weight: 600;
+  color: rgb(83, 100, 113);
+  font-size: 13px;
+}
+
+.tweetreply-reuse-preview-body {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.tweetreply-reuse-show-more {
+  align-self: flex-start;
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: rgb(29, 155, 240);
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.tweetreply-reuse-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+}
+
+.tweetreply-reuse-field.tweetreply-reuse-inline {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.tweetreply-reuse-field-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-weight: 600;
+  color: rgb(15, 20, 25);
+}
+
+.tweetreply-reuse-degree-readout {
+  font-weight: 500;
+  color: rgb(83, 100, 113);
+  font-size: 13px;
+}
+
+.tweetreply-reuse-slider {
+  width: 100%;
+  accent-color: rgb(29, 155, 240);
+}
+
+.tweetreply-reuse-style-select {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(15, 20, 25, 0.15);
+  background: #fff;
+  color: inherit;
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.tweetreply-reuse-hint {
+  color: rgb(83, 100, 113);
+  font-size: 12px;
+}
+
+.tweetreply-reuse-allow-long-label {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.tweetreply-reuse-result-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tweetreply-reuse-result-header {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.tweetreply-reuse-quality,
+.tweetreply-reuse-safety {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 9999px;
+}
+
+.tweetreply-reuse-quality {
+  background: rgba(29, 155, 240, 0.12);
+  color: rgb(29, 155, 240);
+}
+
+.tweetreply-reuse-safety {
+  background: rgba(194, 65, 12, 0.12);
+  color: rgb(154, 52, 18);
+}
+
+.tweetreply-reuse-result {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  min-height: 120px;
+  border-radius: 12px;
+  border: 1px solid rgba(15, 20, 25, 0.15);
+  padding: 10px 12px;
+  font-size: 14px;
+  font-family: inherit;
+  color: inherit;
+  background: #fff;
+}
+
+.tweetreply-reuse-error {
+  background: rgba(244, 33, 46, 0.1);
+  color: rgb(176, 14, 29);
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tweetreply-reuse-upgrade {
+  margin-left: auto;
+  color: #fff;
+  background: rgb(29, 155, 240);
+  padding: 6px 12px;
+  border-radius: 9999px;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.tweetreply-reuse-footer {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.tweetreply-reuse-footer button {
+  padding: 8px 14px;
+  border-radius: 9999px;
+  border: 1px solid rgba(15, 20, 25, 0.15);
+  background: #fff;
+  color: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.tweetreply-reuse-footer button:hover:not(:disabled) {
+  background: rgba(15, 20, 25, 0.05);
+}
+
+.tweetreply-reuse-footer button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.tweetreply-reuse-generate,
+.tweetreply-reuse-post {
+  background: rgb(29, 155, 240) !important;
+  color: #fff !important;
+  border-color: rgb(29, 155, 240) !important;
+}
+
+.tweetreply-reuse-generate:hover:not(:disabled),
+.tweetreply-reuse-post:hover:not(:disabled) {
+  background: rgb(26, 140, 216) !important;
+}
+
+@media (prefers-color-scheme: dark) {
+  .tweetreply-reuse-modal {
+    color: rgb(231, 233, 234);
+  }
+
+  .tweetreply-reuse-card {
+    background: rgb(21, 32, 43);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.55);
+  }
+
+  .tweetreply-reuse-preview {
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .tweetreply-reuse-author {
+    color: rgb(139, 152, 165);
+  }
+
+  .tweetreply-reuse-field-label {
+    color: rgb(231, 233, 234);
+  }
+
+  .tweetreply-reuse-degree-readout {
+    color: rgb(139, 152, 165);
+  }
+
+  .tweetreply-reuse-style-select,
+  .tweetreply-reuse-result {
+    background: rgb(21, 32, 43);
+    color: rgb(231, 233, 234);
+    border-color: rgba(255, 255, 255, 0.15);
+  }
+
+  .tweetreply-reuse-footer button {
+    background: transparent;
+    color: rgb(231, 233, 234);
+    border-color: rgba(255, 255, 255, 0.25);
+  }
+
+  .tweetreply-reuse-close:hover {
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .tweetreply-reuse-hint {
+    color: rgb(139, 152, 165);
+  }
+}

@@ -68,6 +68,39 @@ export class UnifiedAIRouter {
     return openaiRouter.improveDraft(tweetText, draftReply, modelKey);
   }
 
+  async reframeTweet(
+    source: string,
+    degree: number,
+    opts: { allowLong?: boolean; promptVariation?: string; modelPreference?: string } = {},
+  ): Promise<ReplyResponse> {
+    const preferFallbackAsPrimary =
+      !opts.modelPreference ||
+      opts.modelPreference === "auto" ||
+      opts.modelPreference === AI_MODELS.FALLBACK;
+    const modelKey = preferFallbackAsPrimary ? AI_MODELS.DEFAULT : opts.modelPreference!;
+    const provider = this.getProviderForModel(modelKey);
+
+    console.log(`🔧 [AI Router] reframeTweet called - Model: ${modelKey}, degree: ${degree}`);
+
+    try {
+      switch (provider) {
+        case "groq":
+          return await groqModelRouter.reframeTweet(source, degree, { ...opts, modelPreference: modelKey });
+        case "openai":
+          return await openaiRouter.reframeTweet(source, degree, { ...opts, modelPreference: modelKey });
+        default:
+          throw new Error(`Unknown model: ${modelKey}`);
+      }
+    } catch (error) {
+      if (modelKey !== AI_MODELS.FALLBACK) {
+        const message = error instanceof Error ? error.message : "Unknown error";
+        console.log(`⚠️ [AI Router] reframeTweet ${modelKey} failed (${message}), falling back to ${AI_MODELS.FALLBACK}`);
+        return openaiRouter.reframeTweet(source, degree, { ...opts, modelPreference: AI_MODELS.FALLBACK });
+      }
+      throw error;
+    }
+  }
+
   getAllModels(): ModelInfo[] {
     const groqModels = groqModelRouter.getAvailableModels().map(model => ({
       ...model,

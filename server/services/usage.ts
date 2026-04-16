@@ -35,6 +35,7 @@ export interface UsageStatus {
     'single-sentence'?: { credits: number; replies?: number };
     'enhanced'?: { credits: number; replies?: number };
     'improve'?: { credits: number; replies?: number };
+    'reframe'?: { credits: number; replies?: number };
   };
 }
 

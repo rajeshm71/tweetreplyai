@@ -15,10 +15,14 @@ import {
   FOLLOW_BADGE_ICON_STYLE,
   FOLLOW_BADGE_ICON_STYLE_DEFAULT,
   FOLLOW_BADGE_ICON_STYLE_VALUES,
+  REUSE,
 } from '../config/constants.js';
 import { emitTelemetry } from '../utils/telemetry.js';
 import { getUserFacingError } from '../utils/userFacingErrors.js';
 import { extractCanonicalComposerText, combineReplyAndCta } from './helpers/composer-text.js';
+import { injectReuseButtonsImpl } from './helpers/reuse-inject.js';
+import { createReuseModal } from './helpers/reuse-modal.js';
+import { postReframedToComposeImpl } from './helpers/post-to-compose.js';
 
 globalThis.__tweetreplyaiExtLoggingAllowed = false;
 installConsoleGate(() => globalThis.__tweetreplyaiExtLoggingAllowed === true);
@@ -46,6 +50,10 @@ class TwitterReplyInjector {
     this.usageData = null;
     this.injectedButtons = new Set();
     this.injectedContainers = new Set(); // Track injected container IDs
+    /** Dedupe set for the Reuse button injection (one button per article element). */
+    this.injectedReuseButtons = new WeakSet();
+    /** Active Reuse modal handle ({ element, close }) or null. */
+    this._reuseModal = null;
     /** @type {Map<string, { followedBy: boolean, following: boolean, hasRelationshipData: boolean }>} */
     this.followStatusByUser = new Map();
     this.followBadgeRefreshTimer = null;
@@ -833,6 +841,7 @@ class TwitterReplyInjector {
       this.mainObserverDebounceTimer = setTimeout(() => {
         addedNodes.forEach((node) => {
           this.checkForReplyComposers(node);
+          this.injectReuseButtons(node);
         });
         addedNodes.clear();
 
@@ -862,6 +871,7 @@ class TwitterReplyInjector {
 
     // Also check existing composers
     this.checkForReplyComposers(document.body);
+    this.injectReuseButtons(document.body);
   }
 
   checkForReplyComposers(container) {
@@ -1228,6 +1238,90 @@ class TwitterReplyInjector {
       }
     }
     return { text, author };
+  }
+
+  /**
+   * Extract the canonical tweet permalink (/{user}/status/{id}) from an
+   * article. Returns an absolute URL or undefined. Used by the Reuse feature
+   * because extractTextAndAuthorFromArticle intentionally returns only text+author.
+   */
+  extractTweetUrlFromArticle(article) {
+    if (!article) return undefined;
+    try {
+      const timeEl = article.querySelector('a[role="link"] time');
+      const anchor = (timeEl && timeEl.closest('a[href*="/status/"]'))
+        || article.querySelector('a[href*="/status/"]');
+      if (!anchor) return undefined;
+      const href = anchor.getAttribute('href') || '';
+      if (!href) return undefined;
+      return new URL(href, window.location.origin).toString();
+    } catch {
+      return undefined;
+    }
+  }
+
+  /**
+   * Inject a Reuse button onto every X tweet article in the given container.
+   * Delegates to the pure helper `injectReuseButtonsImpl` with DI.
+   */
+  injectReuseButtons(container) {
+    try {
+      injectReuseButtonsImpl(container, {
+        injected: this.injectedReuseButtons,
+        onClick: (payload) => this.openReuseModal(payload),
+        extractText: (article) => this.extractTextAndAuthorFromArticle(article),
+        extractTweetUrl: (article) => this.extractTweetUrlFromArticle(article),
+        minSourceLen: REUSE.MIN_SOURCE_LEN,
+        buttonClass: REUSE.BUTTON_CLASS,
+        buttonTitle: REUSE.BUTTON_TITLE,
+      });
+    } catch (error) {
+      console.warn('[TweetReplyAI] injectReuseButtons failed:', error);
+    }
+  }
+
+  /**
+   * Open (or refocus) the Reuse modal for the given source tweet. Only one
+   * modal is mounted at a time; a second invocation closes the previous one.
+   */
+  openReuseModal(payload) {
+    try {
+      if (this._reuseModal) {
+        try { this._reuseModal.close(); } catch {}
+        this._reuseModal = null;
+      }
+      this._reuseModal = createReuseModal(payload, {
+        apiClient: this.apiClient,
+        postToCompose: (text) => this.postReframedToCompose(text),
+        onUsageUpdated: () => {
+          try { chrome.runtime.sendMessage({ action: 'usageUpdated' }); } catch {}
+        },
+        emitTelemetry,
+        getUserFacingError,
+        constants: REUSE,
+        loginUrl: API.LOGIN_URL,
+      });
+    } catch (error) {
+      console.error('[TweetReplyAI] Failed to open Reuse modal:', error);
+    }
+  }
+
+  /**
+   * Navigate to X's native compose dialog and insert the reframed text. Never
+   * auto-submits; the user reviews and posts manually. Pure logic lives in
+   * `helpers/post-to-compose.js` so it can be unit-tested without the full
+   * injector.
+   */
+  async postReframedToCompose(text) {
+    return postReframedToComposeImpl(text, {
+      insertText: (ta, tb, t) => this.insertTextTwitterMethod(ta, tb, t),
+      emitTelemetry,
+      config: {
+        composePath: REUSE.COMPOSE_URL_PATH || '/compose/post',
+        pollMs: REUSE.COMPOSE_POLL_MS,
+        timeoutMs: REUSE.COMPOSE_POLL_TIMEOUT_MS,
+      },
+    });
   }
 
   /**
@@ -4279,6 +4373,13 @@ class TwitterReplyInjector {
   // ============================================================================
 
   destroy() {
+    // Tear down the Reuse modal first so it doesn't outlive the injector.
+    if (this._reuseModal) {
+      try { this._reuseModal.close(); } catch {}
+      this._reuseModal = null;
+    }
+    this.injectedReuseButtons = new WeakSet();
+
     // Disconnect observers
     if (this.mainObserver) {
       this.mainObserver.disconnect();
