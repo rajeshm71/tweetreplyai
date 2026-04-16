@@ -187,7 +187,7 @@ export default function Home() {
     enabled: !!user,
   });
 
-  // Fetch usage status for the counter
+  // Keep usage fresh because multiple dashboard widgets depend on it.
   const { data: usageStatus } = useQuery<UsageStatus>({
     queryKey: ["/api/usage"],
     refetchInterval: POLLING.USAGE_REFETCH_INTERVAL_MS,
