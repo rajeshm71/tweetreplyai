@@ -43,30 +43,35 @@ const BAND_INSTRUCTIONS: Record<DegreeBand, string> = {
     "- Fix only awkward phrasing, typos, or redundancy.",
     "- Keep the same opening hook and ordering.",
     "- Anti-plagiarism floor: you MUST NOT reproduce any contiguous span of 8 or more words identical to the source. If you notice such a span, lightly reword it.",
+    "- Formatting: PRESERVE the source's line-break structure exactly. If the source has blank lines between sentences or paragraphs, keep them.",
   ].join('\n'),
   light: [
     "This is a LIGHT rewrite.",
     "- Reword roughly 30-40% of sentences; keep tone, structure, and stance unchanged.",
     "- Same hook and ordering are fine.",
     "- Anti-plagiarism floor: you MUST NOT reproduce any contiguous span of 8 or more words identical to the source.",
+    "- Formatting: PRESERVE the source's line-break structure exactly. If the source has blank lines between sentences or paragraphs, keep them.",
   ].join('\n'),
   balanced: [
     "This is a BALANCED rewrite.",
     "- Rewrite the majority of sentences in fresh language.",
     "- Preserve the core idea and stance. Reordering points or swapping the hook is allowed.",
     "- Do not copy long phrases from the source.",
+    "- Formatting: write like a tweet. Break the output into short lines, with a blank line between distinct ideas. 1-3 short paragraphs is typical.",
   ].join('\n'),
   heavy: [
     "This is a HEAVY rewrite.",
     "- Keep the thesis/insight, but use entirely new phrasing and a new hook.",
     "- Format can change (prose vs. short list, question vs. statement).",
     "- Do not preserve the exact structure of the source.",
+    "- Formatting: write like a tweet. Favor short, punchy lines. Use a blank line between distinct ideas. A one-line hook + 1-2 short paragraphs reads well.",
   ].join('\n'),
   reimagined: [
     "This is a FULLY REIMAGINED rewrite.",
     "- Keep only the core insight or claim of the source.",
     "- Invent a new angle, voice, and structure around that insight.",
     "- Stance must be preserved (do not flip pro to con or vice versa).",
+    "- Formatting: write like a tweet. Favor short, punchy lines. Use a blank line between distinct ideas. A one-line hook + 1-2 short paragraphs reads well.",
   ].join('\n'),
 };
 
@@ -83,7 +88,7 @@ function buildSharedRules(degree: number, allowLong: boolean): string {
     "- Output is the user's OWN standalone tweet. Do NOT attribute the idea. Do NOT include phrases like \"as @someone said\", \"quoting X\", \"via @\", or surrounding quotation marks.",
     `- Target length: the reframed tweet must fit in ${charLimit} characters.`,
     "- Do not add hashtags unless the source used them.",
-    "- Do not wrap the output in quotes, code fences, or markdown.",
+    "- Do not wrap the output in quotes or code fences. No markdown syntax (no **bold**, _italic_, or #headings). Plain line breaks are allowed and encouraged.",
   ];
 
   if (band === 'minimal' || band === 'light') {
@@ -157,7 +162,7 @@ export function getReframePromptConfig(
       '"""',
       '',
       `Rewrite the tweet above as your own standalone tweet at degree ${clamped}/100 (${band}).`,
-      'Output only the rewritten tweet text, no quotes, no preamble.',
+      'Use line breaks where they read naturally for a tweet. Output only the rewritten tweet text, no quotes, no preamble.',
     ].join('\n');
   };
 

@@ -112,4 +112,39 @@ describe("reframe-prompts Service - Unit Tests", () => {
       expect(cfg.systemPrompt).not.toMatch(/blunt and direct/i);
     });
   });
+
+  describe("per-band formatting instructions", () => {
+    it("minimal (degree=10) and light (degree=35) instruct the model to preserve source line breaks", () => {
+      for (const d of [10, 35]) {
+        const sys = getReframePromptConfig(d).systemPrompt;
+        expect(sys).toContain("PRESERVE the source's line-break structure");
+      }
+    });
+
+    it("balanced (degree=50) instructs the model to break output into short lines with blank lines between ideas", () => {
+      const sys = getReframePromptConfig(50).systemPrompt;
+      expect(sys).toContain("Break the output into short lines");
+      expect(sys).toContain("blank line between distinct ideas");
+    });
+
+    it("heavy (degree=75) and reimagined (degree=95) instruct the model to favor short, punchy lines", () => {
+      for (const d of [75, 95]) {
+        const sys = getReframePromptConfig(d).systemPrompt;
+        expect(sys).toContain("short, punchy lines");
+      }
+    });
+
+    it("every band advertises that plain line breaks are allowed and disallows stray markdown syntax", () => {
+      for (const d of [0, 25, 50, 75, 100]) {
+        const sys = getReframePromptConfig(d).systemPrompt;
+        expect(sys).toContain("Plain line breaks are allowed");
+        expect(sys).not.toMatch(/code fences, or markdown\.$/m);
+      }
+    });
+
+    it("user prompt nudges the model to use natural line breaks", () => {
+      const prompt = getReframePromptConfig(50).userPrompt("Example source tweet");
+      expect(prompt).toContain("Use line breaks where they read naturally");
+    });
+  });
 });
