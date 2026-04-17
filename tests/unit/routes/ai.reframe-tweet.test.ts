@@ -194,6 +194,26 @@ describe('AI Reframe Tweet Route - Unit Tests', () => {
     );
   });
 
+  it('preserves newlines from the AI response in the API response body', async () => {
+    const { aiRouter } = await import('../../../server/services/ai-router');
+    const multilineReply = "You don't hate working.\nYou hate working hard and still being broke.";
+    vi.mocked(aiRouter.reframeTweet).mockResolvedValue({
+      ...mockReframeResponse,
+      reply: multilineReply,
+    });
+
+    const res = await app
+      .raw()
+      .post('/api/reframe-tweet')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({ source_tweet: validSource, degree: 50 });
+
+    expect(res.status).toBe(200);
+    expect(res.body.reframed).toBe(multilineReply);
+    expect(res.body.reframed.includes('\n')).toBe(true);
+    expect(res.body.reframed.split('\n').length).toBe(2);
+  });
+
   it('persists reply_history with replyMode="reframe" and promptKey="reframe"', async () => {
     await app
       .raw()

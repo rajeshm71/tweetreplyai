@@ -821,6 +821,49 @@ export class ReplyPostProcessor {
   }
 
   /**
+   * Collapse runs of horizontal whitespace while preserving newlines.
+   * Used by the reframe (Reuse tweet) flow where tweet line-break structure
+   * is meaningful and must not be flattened.
+   */
+  private normalizeHorizontalWhitespace(text: string): string {
+    return text
+      .replace(/[ \t\f\v\u00A0]+/g, " ")
+      .replace(/[ \t]*\n[ \t]*/g, "\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+  }
+
+  /**
+   * Lightweight post-processor for the reframe / "Reuse tweet" flow.
+   *
+   * Unlike `processReply` / `processReplyLight`, this path preserves line
+   * breaks in the model output (tweets often rely on stanza-like structure).
+   * It skips:
+   *  - `applyFormatCleanup` (its trailing `normalizeWhitespace` eats \n)
+   *  - `removeEndingPunctuation` (rewritten tweets may legitimately end
+   *    with `.` or `?`)
+   *  - `limitWordCount` (char-limit is enforced by the reframe prompt and
+   *    the word-split can merge paragraphs).
+   *
+   * It keeps meta-commentary / wrapper-quote / banned-pattern removal since
+   * those operate on prefixes and do not touch interior newlines.
+   */
+  processReframe(rawReply: string): string {
+    if (!rawReply || typeof rawReply !== "string") {
+      return "";
+    }
+    const original = rawReply.trim();
+    if (!original) return "";
+
+    let processed = original;
+    processed = this.removeMetaCommentary(processed);
+    processed = this.removeWrapperQuotes(processed);
+    processed = this.removeBannedPatterns(processed);
+    processed = this.normalizeHorizontalWhitespace(processed);
+    return processed.trim() || original;
+  }
+
+  /**
    * Escape special regex characters
    */
   private escapeRegex(text: string): string {

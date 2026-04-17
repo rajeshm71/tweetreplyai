@@ -266,7 +266,7 @@ Write a clean, natural reply based on the user's draft idea. Keep it under ${REP
       });
 
       const rawReply = response.choices[0]?.message?.content ?? "";
-      const processedReply = replyPostProcessor.processReplyLight(rawReply);
+      const processedReply = replyPostProcessor.processReframe(rawReply);
 
       const latencyMs = Date.now() - startTime;
       const estimatedInputTokens = Math.ceil((config.systemPrompt + source).length / AI_PARAMS.TOKEN_ESTIMATION_CHARS_PER_TOKEN);

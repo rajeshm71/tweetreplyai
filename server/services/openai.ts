@@ -279,7 +279,7 @@ Write a clean, natural reply based on the user's draft idea. Keep it under ${REP
       });
 
       const rawReply = response.output_text || "";
-      const processedReply = this.postProcessReply(rawReply, true);
+      const processedReply = replyPostProcessor.processReframe(rawReply);
 
       if (processedReply.trim().toLowerCase() === source.trim().toLowerCase()) {
         console.warn(`⚠️ [OpenAI] Reframe output identical to source at degree ${config.degree}`);
