@@ -709,7 +709,8 @@ class PopupManager {
         const modes = [
           { key: 'single-sentence', label: 'Concise' },
           { key: 'enhanced', label: 'Enhanced' },
-          { key: 'improve', label: 'Improve' }
+          { key: 'improve', label: 'Improve' },
+          { key: 'reframe', label: 'Reused Tweets' }
         ];
         
         let totalReplies = 0;
