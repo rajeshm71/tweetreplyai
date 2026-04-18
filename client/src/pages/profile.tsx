@@ -198,12 +198,28 @@ export default function ProfilePage() {
                 variant="outline"
                 className="w-full justify-start"
                 onClick={async () => {
-                  const response = await fetch('/api/billing/portal', {
-                    method: 'POST',
-                    credentials: 'include',
-                  });
-                  const data = await response.json();
-                  window.open(data.portal_url, '_blank');
+                  try {
+                    const response = await fetch('/api/billing/portal', {
+                      method: 'POST',
+                      credentials: 'include',
+                    });
+                    const data = await response.json().catch(() => ({}));
+
+                    if (response.ok && data?.portal_url) {
+                      window.open(data.portal_url, '_blank');
+                      return;
+                    }
+
+                    if (response.status === 501 || data?.code === 'portal_unavailable') {
+                      window.location.href = `mailto:${data?.supportEmail || 'support@tweetreplyai.com'}?subject=Billing%20request`;
+                      return;
+                    }
+
+                    window.location.href = 'mailto:support@tweetreplyai.com?subject=Billing%20request';
+                  } catch (err) {
+                    console.error('[Profile] billing portal click failed', err);
+                    window.location.href = 'mailto:support@tweetreplyai.com?subject=Billing%20request';
+                  }
                 }}
                 data-testid="button-billing-portal"
               >

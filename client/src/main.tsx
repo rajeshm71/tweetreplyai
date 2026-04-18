@@ -1,5 +1,8 @@
 import { createRoot } from "react-dom/client";
 import "./index.css";
+import { initClientSentry } from "./lib/sentry";
+
+initClientSentry();
 
 declare global {
   interface Window {

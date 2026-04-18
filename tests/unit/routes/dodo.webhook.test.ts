@@ -3,6 +3,16 @@ import express from "express";
 import { setupRoutes } from "../../../server/routes";
 import request from "supertest";
 
+const { reportRouteErrorMock } = vi.hoisted(() => ({
+  reportRouteErrorMock: vi.fn(),
+}));
+
+vi.mock("../../../server/utils/sentry.js", () => ({
+  tagRequestUser: vi.fn(),
+  reportRouteError: (...args: unknown[]) => reportRouteErrorMock(...args),
+  sentryUserContext: () => (_req: unknown, _res: unknown, next: () => void) => next(),
+}));
+
 vi.mock("../../../server/replitAuth", () => ({
   setupAuth: vi.fn(),
   isAuthenticated: vi.fn((_req: any, _res: any, next: any) => next()),
@@ -61,6 +71,11 @@ describe("Dodo Webhook Route - Unit Tests", () => {
       .set("webhook-timestamp", "ts")
       .send(Buffer.from(JSON.stringify({})));
     expect([400, 500]).toContain(res.status);
+    expect(reportRouteErrorMock).toHaveBeenCalled();
+    expect(reportRouteErrorMock.mock.calls[0][1]).toMatchObject({
+      route: "POST /api/dodo/webhook",
+      httpStatus: 500,
+    });
   });
 
   it("returns 200 with { received: true } for payment.succeeded event", async () => {

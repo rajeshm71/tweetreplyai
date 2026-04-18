@@ -83,5 +83,22 @@ describe("Billing Portal Route - Unit Tests", () => {
       .set("Authorization", `Bearer ${authToken}`);
     expect(res.status).toBe(500);
   });
+
+  it("returns 501 portal_unavailable when Dodo portal is not yet implemented (null session)", async () => {
+    const { storage } = await import("../../../server/storage");
+    const { dodoPaymentsService } = await import("../../../server/services/dodo-payments");
+    vi.mocked(storage.getUser).mockResolvedValue({ id: "test-user", dodoCustomerId: "cus-123" } as any);
+    vi.mocked(dodoPaymentsService.createCustomerPortalSession).mockResolvedValue(null as any);
+
+    const res = await app.raw()
+      .post("/api/billing/portal")
+      .set("Authorization", `Bearer ${authToken}`);
+
+    expect(res.status).toBe(501);
+    expect(res.body).toMatchObject({
+      code: "portal_unavailable",
+      supportEmail: expect.stringContaining("@"),
+    });
+  });
 });
 

@@ -1,4 +1,4 @@
-import { User, Gear, SignOut, House, Download, Crown, ListChecks } from "@phosphor-icons/react";
+import { User, Gear, SignOut, House, Download, Crown, ListChecks, ChatCircle } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -167,6 +167,21 @@ export function AppHeader() {
                 <DropdownMenuItem onClick={() => setLocation('/settings')} data-testid="menu-item-settings" role="menuitem" aria-label="View settings">
                   <Gear className="mr-2 h-4 w-4" aria-hidden="true" />
                   <span>Settings</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => {
+                    const subject = encodeURIComponent('TweetReplyAI feedback');
+                    const body = encodeURIComponent(
+                      `Hey team,\n\n[your feedback here]\n\n— signed in as ${user?.email ?? 'unknown'}`,
+                    );
+                    window.location.href = `mailto:support@tweetreplyai.com?subject=${subject}&body=${body}`;
+                  }}
+                  data-testid="menu-item-feedback"
+                  role="menuitem"
+                  aria-label="Send feedback"
+                >
+                  <ChatCircle className="mr-2 h-4 w-4" aria-hidden="true" />
+                  <span>Send feedback</span>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLogout} data-testid="menu-item-logout" role="menuitem" aria-label="Log out">

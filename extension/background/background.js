@@ -1,6 +1,13 @@
 import { API, DEFAULTS, TIMEOUTS } from '../config/constants.js';
 import { installConsoleGate } from '../utils/consoleGate.js';
 import { normalizeTelemetryEvent, shouldDedupeEvent } from '../utils/telemetry.js';
+import {
+  initExtensionSentry,
+  captureExtensionError,
+  setExtensionUser,
+} from '../utils/sentry.js';
+
+initExtensionSentry({ scope: 'background' });
 
 globalThis.__tweetreplyaiExtLoggingAllowed = false;
 installConsoleGate(() => globalThis.__tweetreplyaiExtLoggingAllowed === true);
@@ -347,6 +354,7 @@ class BackgroundManager {
       await chrome.storage.local.remove(['authToken', 'authTime']);
       this.debugAllowed = false;
       globalThis.__tweetreplyaiExtLoggingAllowed = false;
+      setExtensionUser(null);
       sendResponse({ success: true });
     } catch (error) {
       console.error('Failed to clear auth:', error);
@@ -391,12 +399,14 @@ class BackgroundManager {
       if (!response.ok) {
         this.debugAllowed = false;
         globalThis.__tweetreplyaiExtLoggingAllowed = false;
+        setExtensionUser(null);
         return;
       }
 
       const user = await response.json();
       this.debugAllowed = !!user?.isWhitelisted;
       globalThis.__tweetreplyaiExtLoggingAllowed = this.debugAllowed;
+      if (user?.id) setExtensionUser(String(user.id));
     } catch {
       this.debugAllowed = false;
       globalThis.__tweetreplyaiExtLoggingAllowed = false;
@@ -468,6 +478,15 @@ class BackgroundManager {
           http_status: response.status,
           error_code: response.statusText || 'http_error',
         });
+        if (response.status >= 500) {
+          captureExtensionError(new Error(`HTTP ${response.status}`), {
+            tags: {
+              scope: 'background',
+              endpoint: String(endpoint),
+              http_status: String(response.status),
+            },
+          });
+        }
         sendResponse({
           success: false,
           status: response.status,
@@ -502,9 +521,21 @@ class BackgroundManager {
         route: message?.endpoint || '',
         error_code: error?.message || 'api_request_exception',
       });
+      const errObj =
+        error instanceof Error ? error : new Error(String(error?.message ?? error));
+      // User-driven fetch aborts are not actionable Sentry signal (code review).
+      if (errObj.name !== 'AbortError') {
+        captureExtensionError(errObj, {
+          tags: {
+            scope: 'background',
+            endpoint: String(message?.endpoint || ''),
+            kind: 'fetch_exception',
+          },
+        });
+      }
       sendResponse({
         success: false,
-        error: error.message
+        error: errObj.message,
       });
     }
   }

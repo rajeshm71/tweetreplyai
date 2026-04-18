@@ -19,6 +19,9 @@ import {
 } from '../config/constants.js';
 import { emitTelemetry } from '../utils/telemetry.js';
 import { getUserFacingError } from '../utils/userFacingErrors.js';
+import { initExtensionSentry } from '../utils/sentry.js';
+
+initExtensionSentry({ scope: 'content' });
 import { extractCanonicalComposerText, combineReplyAndCta } from './helpers/composer-text.js';
 import { injectReuseButtonsImpl } from './helpers/reuse-inject.js';
 import { createReuseModal } from './helpers/reuse-modal.js';

@@ -89,6 +89,36 @@ export interface IStorage {
   updateEmailCampaign(id: string, updates: Partial<EmailCampaign>): Promise<EmailCampaign>;
   deleteEmailCampaign(id: string): Promise<void>;
   getUsersForSegment(segment: EmailCampaign['segment']): Promise<User[]>;
+
+  // Extension telemetry
+  insertExtensionTelemetryEvents(events: InsertExtensionTelemetryEvent[]): Promise<number>;
+  listExtensionTelemetryEvents(sinceMs: number, limit?: number): Promise<ExtensionTelemetryRow[]>;
+}
+
+export interface InsertExtensionTelemetryEvent {
+  userId?: string | null;
+  eventType: string;
+  surface?: string | null;
+  extensionVersion?: string | null;
+  route?: string | null;
+  httpStatus?: number | null;
+  errorCode?: string | null;
+  context?: Record<string, unknown> | null;
+  clientTimestamp?: string | null;
+}
+
+export interface ExtensionTelemetryRow {
+  id: number;
+  userId: string | null;
+  eventType: string;
+  surface: string | null;
+  extensionVersion: string | null;
+  route: string | null;
+  httpStatus: number | null;
+  errorCode: string | null;
+  context: Record<string, unknown> | null;
+  clientTimestamp: string | null;
+  receivedAt: string;
 }
 
 // DatabaseStorage class removed - we now use Supabase JS client

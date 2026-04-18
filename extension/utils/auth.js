@@ -1,3 +1,5 @@
+import { setExtensionUser } from './sentry.js';
+
 export class AuthManager {
   constructor() {
     this.token = null;
@@ -105,6 +107,8 @@ export class AuthManager {
       await new Promise((resolve) => {
         chrome.runtime.sendMessage({ action: 'clearAuth' }, resolve);
       });
+
+      setExtensionUser(null);
 
       return true;
     } catch (error) {

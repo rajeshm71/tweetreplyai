@@ -1590,6 +1590,61 @@ export class SupabaseStorage implements IStorage {
 
     return (data ?? []).map(mapUser);
   }
+
+  async insertExtensionTelemetryEvents(
+    events: import('./storage.js').InsertExtensionTelemetryEvent[],
+  ): Promise<number> {
+    if (!events.length) return 0;
+    const rows = events.map((event) => ({
+      user_id: event.userId ?? null,
+      event_type: event.eventType,
+      surface: event.surface ?? null,
+      extension_version: event.extensionVersion ?? null,
+      route: event.route ?? null,
+      http_status: event.httpStatus ?? null,
+      error_code: event.errorCode ?? null,
+      context: event.context ?? null,
+      client_timestamp: event.clientTimestamp ?? null,
+    }));
+    const { error } = await supabase.from('extension_telemetry').insert(rows);
+    if (error) {
+      console.error('insertExtensionTelemetryEvents error:', error);
+      return 0;
+    }
+    return rows.length;
+  }
+
+  async listExtensionTelemetryEvents(
+    sinceMs: number,
+    limit: number = 1000,
+  ): Promise<import('./storage.js').ExtensionTelemetryRow[]> {
+    const sinceIso = new Date(sinceMs).toISOString();
+    const { data, error } = await supabase
+      .from('extension_telemetry')
+      .select(
+        'id, user_id, event_type, surface, extension_version, route, http_status, error_code, context, client_timestamp, received_at',
+      )
+      .gte('received_at', sinceIso)
+      .order('received_at', { ascending: false })
+      .limit(limit);
+    if (error) {
+      console.error('listExtensionTelemetryEvents error:', error);
+      return [];
+    }
+    return (data ?? []).map((row: any) => ({
+      id: row.id,
+      userId: row.user_id,
+      eventType: row.event_type,
+      surface: row.surface,
+      extensionVersion: row.extension_version,
+      route: row.route,
+      httpStatus: row.http_status,
+      errorCode: row.error_code,
+      context: row.context,
+      clientTimestamp: row.client_timestamp,
+      receivedAt: row.received_at,
+    }));
+  }
 }
 
 export const storage = new SupabaseStorage();

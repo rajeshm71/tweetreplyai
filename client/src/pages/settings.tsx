@@ -2,6 +2,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { AppHeader } from "@/components/app-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
@@ -429,12 +430,47 @@ export default function SettingsPage() {
     return null;
   }
 
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const handleDeleteAccount = async () => {
-    toast({
-      title: "Account Deletion",
-      description: "Account deletion is not yet available. Please contact support.",
-      variant: "destructive",
-    });
+    if (deleteConfirmText !== "DELETE") {
+      toast({
+        title: "Confirmation required",
+        description: 'Type DELETE (uppercase) to confirm.',
+        variant: "destructive",
+      });
+      return;
+    }
+    setIsDeleting(true);
+    try {
+      const response = await apiRequest("POST", "/api/account/delete", { confirmation: "DELETE" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        toast({
+          title: "Failed to delete account",
+          description: data.message || "Please try again or contact support.",
+          variant: "destructive",
+        });
+        return;
+      }
+      toast({
+        title: "Account deleted",
+        description: "Your account and personal data have been removed.",
+      });
+      queryClient.clear();
+      window.location.href = "/";
+    } catch (err) {
+      console.error("[Settings] delete account failed", err);
+      toast({
+        title: "Failed to delete account",
+        description: "An unexpected error occurred. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleting(false);
+      setDeleteConfirmText("");
+    }
   };
 
   return (
@@ -630,24 +666,43 @@ export default function SettingsPage() {
                   <AlertDialogContent>
                     <AlertDialogHeader>
                       <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This action cannot be undone. This will permanently delete your account
-                        and remove all your data from our servers, including:
-                        <ul className="list-disc list-inside mt-2 space-y-1">
-                          <li>All generated replies</li>
-                          <li>Usage history and analytics</li>
-                          <li>Subscription information</li>
-                          <li>Account settings and preferences</li>
-                        </ul>
+                      <AlertDialogDescription asChild>
+                        <div className="space-y-3">
+                          <p>
+                            This action cannot be undone. Your personal data will be
+                            permanently removed from our servers, including:
+                          </p>
+                          <ul className="list-disc list-inside space-y-1">
+                            <li>Account profile and email</li>
+                            <li>Usage history and analytics</li>
+                            <li>Active subscription (auto-cancelled)</li>
+                            <li>Settings and preferences</li>
+                          </ul>
+                          <div className="pt-2">
+                            <Label htmlFor="delete-confirm">
+                              Type <span className="font-mono font-semibold">DELETE</span> to confirm
+                            </Label>
+                            <Input
+                              id="delete-confirm"
+                              value={deleteConfirmText}
+                              onChange={(e) => setDeleteConfirmText(e.target.value)}
+                              placeholder="DELETE"
+                              autoComplete="off"
+                              className="mt-1"
+                              data-testid="input-delete-confirm"
+                            />
+                          </div>
+                        </div>
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogCancel onClick={() => setDeleteConfirmText("")}>Cancel</AlertDialogCancel>
                       <AlertDialogAction
                         onClick={handleDeleteAccount}
+                        disabled={deleteConfirmText !== "DELETE" || isDeleting}
                         className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                       >
-                        Delete Account
+                        {isDeleting ? "Deleting..." : "Delete Account"}
                       </AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>

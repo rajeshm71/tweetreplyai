@@ -12,6 +12,9 @@ import {
 } from '../config/constants.js';
 import { emitTelemetry } from '../utils/telemetry.js';
 import { getUserFacingError } from '../utils/userFacingErrors.js';
+import { initExtensionSentry } from '../utils/sentry.js';
+
+initExtensionSentry({ scope: 'popup' });
 
 const SETTINGS_TAB_IDS = ['account', 'x', 'cta', 'billing', 'tracking'];
 const SETTINGS_ACTIVE_TAB_KEY = 'settingsActiveTab';

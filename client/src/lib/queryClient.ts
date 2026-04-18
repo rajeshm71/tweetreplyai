@@ -1,4 +1,46 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import { Sentry } from "./sentry";
+
+/**
+ * Report React Query failures to Sentry only for "important" errors:
+ * - VITE_SENTRY_DSN must be set (otherwise no-op).
+ * - HTTP status missing (network / parse) or status >= 500.
+ * Skips every 4xx (401/402/403/404/429/…), not only a subset — avoids auth,
+ * quota, not-found, and rate-limit noise in Sentry.
+ * Never attach response bodies — only a short queryKey preview tag.
+ */
+function shouldReportQueryErrorToSentry(error: unknown): boolean {
+  const dsn = (import.meta.env.VITE_SENTRY_DSN as string | undefined)?.trim?.();
+  if (!dsn) return false;
+  const status = (error as Error & { status?: number })?.status;
+  if (status === undefined || status === null || Number.isNaN(Number(status))) return true;
+  if (status >= 500) return true;
+  return false;
+}
+
+function captureQueryError(
+  error: unknown,
+  meta: { queryKey?: readonly unknown[]; source: "query" | "mutation" },
+): void {
+  if (!shouldReportQueryErrorToSentry(error)) return;
+  try {
+    Sentry.withScope((scope) => {
+      scope.setTag("react_query", meta.source);
+      const preview = meta.queryKey?.length
+        ? meta.queryKey
+            .slice(0, 3)
+            .map((k) => String(k).slice(0, 40))
+            .join("|")
+            .slice(0, 120)
+        : "unknown";
+      scope.setTag("query_key_preview", preview);
+      const ex = error instanceof Error ? error : new Error(String(error));
+      Sentry.captureException(ex);
+    });
+  } catch {
+    /* never break UI */
+  }
+}
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
@@ -62,9 +104,18 @@ export const queryClient = new QueryClient({
       refetchOnWindowFocus: false,
       staleTime: Infinity,
       retry: false,
+      onError: (error, query) => {
+        captureQueryError(error, { queryKey: query.queryKey, source: "query" });
+      },
     },
     mutations: {
       retry: false,
+      onError: (error, _variables, _context, mutation) => {
+        captureQueryError(error, {
+          queryKey: mutation.options.mutationKey,
+          source: "mutation",
+        });
+      },
     },
   },
 });

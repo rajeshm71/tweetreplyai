@@ -27,6 +27,9 @@ import {
   normalizeDodoSubscriptionStatus,
   shouldSendPaymentFailedOnTransition,
 } from "./utils/dodoSubscriptionStatus.js";
+import { tagRequestUser, reportRouteError } from "./utils/sentry.js";
+import { logger } from "./utils/logger.js";
+import { formatReceiptAmount } from "./utils/receipt.js";
 // FIX: sendWelcomeEmail removed (unused after switching to emailService.sendWelcome in registration block below)
 import { sendPasswordResetEmail } from "./utils/email.js";
 import * as emailService from "./services/emailService.js";
@@ -63,36 +66,33 @@ const handleZodError = (res: any, error: unknown) => {
   return null;
 };
 
-type ExtensionTelemetryEvent = {
-  event_type: string;
-  timestamp?: string;
-  extension_version?: string;
-  surface?: string;
-  route?: string;
-  http_status?: number | null;
-  error_code?: string;
-  context?: Record<string, string | undefined>;
-  userId?: string;
-  receivedAt: number;
-};
-
-const extensionTelemetryRing: ExtensionTelemetryEvent[] = [];
+// Fix (review #5): the in-memory extensionTelemetryRing has been removed.
+// Events are persisted to public.extension_telemetry (Supabase) and read
+// back via storage.listExtensionTelemetryEvents on both the summary route
+// and the /admin ops-metrics endpoint. The ring was dead on read and was
+// only adding allocation overhead + a small PII foot-gun in memory dumps.
 
 // JWT-based authentication for serverless environments
 const jwtIsAuthenticated = (req: any, res: any, next: any) => {
   const token = req.headers.authorization?.replace('Bearer ', '') || req.cookies?.token;
-  
+
   if (!token) {
     // Fallback to session-based auth
     if (!req.isAuthenticated()) {
       return res.status(401).json({ message: "Unauthorized" });
     }
+    // Fix (review #2): tag Sentry scope once req.user is confirmed present
+    // via Passport session. Must happen after auth succeeds, not before.
+    tagRequestUser(req);
     return next();
   }
 
   try {
     const decoded = jwt.verify(token, getSessionSecret());
     req.user = decoded;
+    // Fix (review #2): tag Sentry scope AFTER req.user is populated so
+    // subsequent exceptions inside the route are attributable to a user id.
+    tagRequestUser(req);
     return next();
   } catch (error) {
     return res.status(401).json({ message: "Unauthorized" });
@@ -301,6 +301,33 @@ export async function registerRoutes(app: Express): Promise<Express> {
     },
   });
 
+  // Health & readiness (unauthenticated, for uptime monitors / load balancers)
+  // /api/health: liveness — returns 200 if the process is up.
+  // /api/ready:  readiness — returns 200 only after we can reach Supabase.
+  app.get('/api/health', (_req, res) => {
+    res.json({
+      status: 'ok',
+      uptimeSec: Math.round(process.uptime()),
+      env: process.env.NODE_ENV || 'development',
+      release: process.env.SENTRY_RELEASE || process.env.VERCEL_GIT_COMMIT_SHA || null,
+      timestamp: new Date().toISOString(),
+    });
+  });
+  app.get('/api/ready', async (_req, res) => {
+    try {
+      const { supabase } = await import('./supabase.js');
+      const { error } = await supabase.from('users').select('id', { count: 'exact', head: true }).limit(1);
+      if (error) throw error;
+      res.json({ status: 'ready', timestamp: new Date().toISOString() });
+    } catch (error: any) {
+      res.status(503).json({
+        status: 'not_ready',
+        reason: error?.message || 'dependency_unavailable',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  });
+
   // Auth routes
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
     try {
@@ -324,6 +351,11 @@ export async function registerRoutes(app: Express): Promise<Express> {
       });
     } catch (error) {
       console.error("Error fetching user:", error);
+      reportRouteError(error, {
+        route: 'GET /api/auth/user',
+        userId: (req as any).user?.id ? String((req as any).user.id) : undefined,
+        httpStatus: 500,
+      });
       res.status(500).json({ message: "Failed to fetch user" });
     }
   });
@@ -345,6 +377,11 @@ export async function registerRoutes(app: Express): Promise<Express> {
         return res.status(400).json(toValidationErrorResponse(err));
       }
       console.error('Error updating X username:', err);
+      reportRouteError(err, {
+        route: 'POST /api/user/x-username',
+        userId: (req as any).user?.id ? String((req as any).user.id) : undefined,
+        httpStatus: 500,
+      });
       return res.status(500).json({ message: 'Failed to update X username' });
     }
   });
@@ -367,6 +404,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
     passport.authenticate('local-register', (err: any, user: any, info: any) => {
       if (err) {
         console.error('Registration error:', err);
+        reportRouteError(err, { route: 'POST /api/auth/register', httpStatus: 500 });
         return res.status(500).json(getClientErrorBody(err, 'Registration failed'));
       }
       if (!user) {
@@ -374,6 +412,11 @@ export async function registerRoutes(app: Express): Promise<Express> {
       }
       req.logIn(user, (err) => {
         if (err) {
+          reportRouteError(err, {
+            route: 'POST /api/auth/register',
+            userId: String(user.id),
+            httpStatus: 500,
+          });
           return res.status(500).json({ message: 'Login after registration failed' });
         }
         // Fire-and-forget welcome email + Resend contact sync
@@ -414,6 +457,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
     passport.authenticate('local-login', (err: any, user: any, info: any) => {
       if (err) {
         console.error('Login error:', err);
+        reportRouteError(err, { route: 'POST /api/auth/login', httpStatus: 500 });
         return res.status(500).json(getClientErrorBody(err, 'Login failed'));
       }
       if (!user) {
@@ -421,6 +465,11 @@ export async function registerRoutes(app: Express): Promise<Express> {
       }
       req.logIn(user, (err) => {
         if (err) {
+          reportRouteError(err, {
+            route: 'POST /api/auth/login',
+            userId: String(user.id),
+            httpStatus: 500,
+          });
           return res.status(500).json({ message: 'Login failed' });
         }
         // Generate JWT token for serverless environments
@@ -450,7 +499,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
     }
   }
 
-  app.get('/api/auth/google', (req, res, next) => {
+  app.get('/api/auth/google', authRateLimiter, (req, res, next) => {
     console.log('Request URL:', req.url);
     // Avoid logging raw headers (can contain cookies/authorization tokens).
     console.log('[Google OAuth] callbackConfigured:', !!process.env.GOOGLE_CALLBACK_URL);
@@ -461,7 +510,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
     })(req, res, next);
   });
 
-  app.get('/api/auth/google/callback',
+  app.get('/api/auth/google/callback', authRateLimiter,
     (req, res, next) => {
       console.log('Callback URL received:', req.url);
       passport.authenticate('google', {
@@ -491,6 +540,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
     req.logout((err) => {
       if (err) {
         console.error('Logout error:', err);
+        reportRouteError(err, { route: 'POST /api/auth/logout', httpStatus: 500 });
         return res.status(500).json({ message: 'Logout failed' });
       }
       // Destroy session so the same Cookie header cannot keep /api/auth/user authenticated
@@ -555,6 +605,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
       if (err instanceof ZodError) {
         return res.status(400).json(toValidationErrorResponse(err));
       }
+      reportRouteError(err, { route: 'POST /api/auth/forgot-password', httpStatus: 500 });
       return res.status(500).json({ message: 'Failed to start password reset. Try again later.' });
     }
   });
@@ -587,6 +638,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
       if (err instanceof ZodError) {
         return res.status(400).json(toValidationErrorResponse(err));
       }
+      reportRouteError(err, { route: 'POST /api/auth/reset-password', httpStatus: 500 });
       return res.status(500).json({ message: 'Failed to reset password.' });
     }
   });
@@ -619,7 +671,97 @@ export async function registerRoutes(app: Express): Promise<Express> {
       return res.status(200).json({ message: 'Password changed successfully.' });
     } catch (err) {
       console.error('Change password error:', err);
+      if (err instanceof ZodError) {
+        return res.status(400).json(toValidationErrorResponse(err));
+      }
+      reportRouteError(err, {
+        route: 'POST /api/auth/change-password',
+        userId: String((req as any).user?.id || ''),
+        httpStatus: 500,
+      });
       return res.status(500).json({ message: 'Failed to change password.' });
+    }
+  });
+
+  // Account deletion (GDPR/CCPA "right to erasure").
+  // Requires the user to type the exact string "DELETE" in the request body as
+  // a double-confirmation safeguard. Cancels any active Dodo subscription,
+  // scrambles PII on the users row, revokes sessions, and logs the event.
+  // Reply history rows are retained for analytics but their PII-bearing text
+  // columns are cleared.
+  app.post('/api/account/delete', isAuthenticated, authRateLimiter, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const schema = z.object({
+        confirmation: z.string().min(1),
+      });
+      const { confirmation } = schema.parse(req.body ?? {});
+      if (confirmation !== 'DELETE') {
+        return res.status(400).json({
+          code: 'confirmation_required',
+          message: 'Type DELETE (uppercase) to confirm account deletion.',
+        });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+
+      // Best-effort subscription cancel (do not block deletion on Dodo errors).
+      try {
+        const active = await storage.getActiveSubscription(userId);
+        if (active?.dodoSubscriptionId && active.status === 'active') {
+          await dodoPaymentsService.cancelSubscription(active.dodoSubscriptionId);
+          await storage.updateSubscription(active.id, {
+            status: 'canceled',
+            cancelAt: new Date(),
+          });
+        }
+      } catch (cancelErr) {
+        console.error('[AccountDelete] subscription cancel failed (continuing):', cancelErr);
+      }
+
+      // Scramble PII so the row can stay for referential integrity on reply
+      // history / subscriptions, but no personal data remains.
+      const tombstone = `deleted_${Date.now()}_${crypto.randomUUID()}@deleted.local`;
+      await storage.updateUser(userId, {
+        email: tombstone,
+        password: undefined,
+        googleSub: undefined,
+        firstName: '',
+        lastName: '',
+        profileImageUrl: '',
+        authProviders: [],
+        xUsername: null,
+      } as any);
+
+      // Revoke sessions.
+      res.clearCookie('token', { httpOnly: true, secure: true, sameSite: 'strict', path: '/' });
+      res.clearCookie('connect.sid', { path: '/' });
+      const finish = () => {
+        console.log('[AccountDelete] user scrubbed', { userId });
+        return res.json({ success: true, message: 'Account deleted. Sorry to see you go.' });
+      };
+      if (req.session) {
+        req.session.destroy((err: unknown) => {
+          if (err) console.error('[AccountDelete] session destroy error', err);
+          finish();
+        });
+      } else {
+        finish();
+      }
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0]?.message || 'Invalid request' });
+      }
+      console.error('[AccountDelete] error', err);
+      reportRouteError(err, {
+        route: 'POST /api/account/delete',
+        userId: String((req as any).user?.id || ''),
+        httpStatus: 500,
+      });
+      return res.status(500).json({ message: 'Failed to delete account.' });
     }
   });
 
@@ -630,6 +772,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
       res.json(modelsByProvider);
     } catch (error) {
       console.error("Error fetching models:", error);
+      reportRouteError(error, { route: 'GET /api/models', httpStatus: 500 });
       res.status(500).json({ message: "Failed to fetch models" });
     }
   });
@@ -641,6 +784,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
       res.json(prompts);
     } catch (error) {
       console.error("Error fetching prompts:", error);
+      reportRouteError(error, { route: 'GET /api/prompts', httpStatus: 500 });
       res.status(500).json({ message: "Failed to fetch prompts" });
     }
   });
@@ -692,6 +836,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
       });
     } catch (error) {
       console.error("Error getting extension auth:", error);
+      reportRouteError(error, { route: 'GET /api/extension/auth', httpStatus: 500 });
       res.status(500).json({ message: "Failed to get auth status" });
     }
   });
@@ -719,20 +864,44 @@ export async function registerRoutes(app: Express): Promise<Express> {
         })).max(100),
       });
       const parsed = schema.parse(req.body || {});
-      parsed.events.forEach((event) => {
-        extensionTelemetryRing.push({ ...event, userId, receivedAt: Date.now() });
-      });
-      while (extensionTelemetryRing.length > 5000) extensionTelemetryRing.shift();
-      console.log('[ExtensionTelemetry]', {
+      // Persist durably; failures here must not block the extension.
+      try {
+        await storage.insertExtensionTelemetryEvents(
+          parsed.events.map((event) => ({
+            userId,
+            eventType: event.event_type,
+            surface: event.surface ?? null,
+            extensionVersion: event.extension_version ?? null,
+            route: event.route ?? null,
+            httpStatus: event.http_status ?? null,
+            errorCode: event.error_code ?? null,
+            context: event.context ?? null,
+            clientTimestamp: event.timestamp ?? null,
+          })),
+        );
+      } catch (persistError) {
+        // Fix (review #6): route through structured logger so production
+        // log drains can filter / alert on this event.
+        logger.warn('extension_telemetry.persist_failed', {
+          err: persistError instanceof Error ? persistError.message : String(persistError),
+          userId,
+          count: parsed.events.length,
+        });
+      }
+      logger.info('extension_telemetry.accepted', {
         userId,
         count: parsed.events.length,
-        sample: parsed.events.slice(0, 3),
       });
       res.json({ ok: true, accepted: parsed.events.length });
     } catch (error) {
       const zodHandled = handleZodError(res, error);
       if (zodHandled) return;
       console.error('POST /api/extension/telemetry error:', error);
+      reportRouteError(error, {
+        route: 'POST /api/extension/telemetry',
+        userId: (req as any).user?.id ? String((req as any).user.id) : undefined,
+        httpStatus: 500,
+      });
       res.status(500).json(getClientErrorBody(error, 'Failed to store telemetry'));
     }
   });
@@ -746,14 +915,19 @@ export async function registerRoutes(app: Express): Promise<Express> {
         return res.status(403).json({ message: "Forbidden" });
       }
       const since = Date.now() - 24 * 60 * 60 * 1000;
-      const recent = extensionTelemetryRing.filter((e) => e.receivedAt >= since);
+      const rows = await storage.listExtensionTelemetryEvents(since, 5000);
       const summary: Record<string, number> = {};
-      recent.forEach((event) => {
-        const key = `${event.event_type}:${event.surface || 'unknown'}:${event.extension_version || 'unknown'}`;
+      rows.forEach((event) => {
+        const key = `${event.eventType}:${event.surface || 'unknown'}:${event.extensionVersion || 'unknown'}`;
         summary[key] = (summary[key] || 0) + 1;
       });
-      res.json({ last24h: recent.length, buckets: summary });
+      res.json({ last24h: rows.length, buckets: summary });
     } catch (error) {
+      reportRouteError(error, {
+        route: 'GET /api/extension/telemetry/summary',
+        userId: (req as any).user?.id ? String((req as any).user.id) : undefined,
+        httpStatus: 500,
+      });
       res.status(500).json(getClientErrorBody(error, 'Failed to fetch telemetry summary'));
     }
   });
@@ -790,6 +964,11 @@ export async function registerRoutes(app: Express): Promise<Express> {
       });
     } catch (error) {
       console.error('[Subscription Status] Error:', error);
+      reportRouteError(error, {
+        route: 'GET /api/subscription/status',
+        userId: (req as any).user?.id ? String((req as any).user.id) : undefined,
+        httpStatus: 500,
+      });
       res.status(500).json({ message: "Failed to fetch subscription status" });
     }
   });
@@ -844,6 +1023,11 @@ export async function registerRoutes(app: Express): Promise<Express> {
     } catch (error: any) {
       console.error("[API-DEBUG] /api/usage - ERROR:", error);
       console.error("[API-DEBUG] /api/usage - ERROR stack:", error?.stack);
+      reportRouteError(error, {
+        route: 'GET /api/usage',
+        userId: (req as any).user?.id ? String((req as any).user.id) : undefined,
+        httpStatus: 500,
+      });
       res.status(500).json(getClientErrorBody(error, "Failed to fetch usage"));
     }
   });
@@ -871,6 +1055,11 @@ export async function registerRoutes(app: Express): Promise<Express> {
       res.json(preferences);
     } catch (error) {
       console.error("Error fetching user preferences:", error);
+      reportRouteError(error, {
+        route: 'GET /api/user/preferences',
+        userId: (req as any).user?.id ? String((req as any).user.id) : undefined,
+        httpStatus: 500,
+      });
       res.status(500).json({ message: "Failed to fetch user preferences" });
     }
   });
@@ -913,6 +1102,11 @@ export async function registerRoutes(app: Express): Promise<Express> {
         });
       }
       console.error("Error updating user preferences:", error);
+      reportRouteError(error, {
+        route: 'PUT /api/user/preferences',
+        userId: (req as any).user?.id ? String((req as any).user.id) : undefined,
+        httpStatus: 500,
+      });
       res.status(500).json({ message: "Failed to update user preferences" });
     }
   });
@@ -928,6 +1122,11 @@ export async function registerRoutes(app: Express): Promise<Express> {
       res.json(prefs);
     } catch (error) {
       console.error('GET /api/user/email-preferences error:', error);
+      reportRouteError(error, {
+        route: 'GET /api/user/email-preferences',
+        userId: (req as any).user?.id ? String((req as any).user.id) : undefined,
+        httpStatus: 500,
+      });
       res.status(500).json({ message: 'Failed to get email preferences' });
     }
   });
@@ -948,6 +1147,11 @@ export async function registerRoutes(app: Express): Promise<Express> {
         return res.status(400).json(toValidationErrorResponse(error));
       }
       console.error('PATCH /api/user/email-preferences error:', error);
+      reportRouteError(error, {
+        route: 'PATCH /api/user/email-preferences',
+        userId: (req as any).user?.id ? String((req as any).user.id) : undefined,
+        httpStatus: 500,
+      });
       res.status(500).json({ message: 'Failed to update email preferences' });
     }
   });
@@ -1685,6 +1889,11 @@ export async function registerRoutes(app: Express): Promise<Express> {
         });
       }
 
+      reportRouteError(error, {
+        route: 'POST /api/generate-reply',
+        userId: (req as any).user?.id ? String((req as any).user.id) : undefined,
+        httpStatus: 500,
+      });
       res.status(500).json(getClientErrorBody(error, "Failed to generate reply"));
     }
   });
@@ -1745,6 +1954,11 @@ export async function registerRoutes(app: Express): Promise<Express> {
       const handled = handleZodError(res, error);
       if (handled) return handled;
 
+      reportRouteError(error, {
+        route: 'POST /api/checkout',
+        userId: (req as any).user?.id ? String((req as any).user.id) : undefined,
+        httpStatus: 500,
+      });
       res.status(500).json({ message: "Failed to create checkout session" });
     }
   });
@@ -1790,6 +2004,11 @@ export async function registerRoutes(app: Express): Promise<Express> {
         if (error.status === 401 || error.status === 403) {
           return res.status(error.status).json({ success: false, error: 'unauthorized' });
         }
+        reportRouteError(error, {
+          route: 'GET /api/checkout/success',
+          userId,
+          httpStatus: 500,
+        });
         return res.status(500).json({ success: false, error: 'checkout_failed' });
       }
       const subData = subscription as any;
@@ -2064,24 +2283,34 @@ export async function registerRoutes(app: Express): Promise<Express> {
 
     } catch (error: any) {
       console.error('[Checkout Success] Error:', error);
+      const status = error.status || 500;
+      if (status >= 500) {
+        reportRouteError(error, {
+          route: 'GET /api/checkout/success',
+          userId: (req as any).user?.id ? String((req as any).user.id) : undefined,
+          httpStatus: status,
+        });
+      }
       const errorCode = error.status === 404 ? 'subscription_not_found' : 
                        error.status === 401 || error.status === 403 ? 'unauthorized' : 'checkout_failed';
       return res.status(error.status || 500).json({ success: false, error: errorCode });
     }
   });
 
-  // Customer portal route
+  // Customer portal route.
+  // NOTE: The hosted Dodo customer portal is not yet wired up; until it is,
+  // this route returns 501 with a support-email fallback so clients can render
+  // a clean message instead of opening `about:blank#undefined`. Cancel still
+  // works via POST /api/subscription/cancel (see manage-subscription-modal).
   app.post('/api/billing/portal', isAuthenticated, async (req: any, res) => {
     try {
       const userId = getUserId(req);
       const user = await storage.getUser(userId);
-      
+
       if (!user || !user.dodoCustomerId) {
         return res.status(400).json({ message: "No billing account found" });
       }
 
-      // Get domain from request headers (for production) or environment variables
-      // In Vercel, req.headers.host gives the actual domain the user is accessing
       const requestHost = req.headers.host;
       const domain = process.env.DOMAIN || requestHost || process.env.VERCEL_URL || 'localhost:5000';
       const protocol = domain.includes('localhost') ? 'http' : 'https';
@@ -2090,12 +2319,24 @@ export async function registerRoutes(app: Express): Promise<Express> {
       const session = await dodoPaymentsService.createCustomerPortalSession(
         user.dodoCustomerId,
         returnUrl
-      ) as any;
+      );
+
+      if (!session?.url) {
+        return res.status(501).json({
+          code: 'portal_unavailable',
+          message: "Self-serve billing portal is coming soon. For card updates or invoices, email support@tweetreplyai.com.",
+          supportEmail: 'support@tweetreplyai.com',
+        });
+      }
 
       res.json({ portal_url: session.url });
-
     } catch (error) {
       console.error("Error creating portal session:", error);
+      reportRouteError(error, {
+        route: 'POST /api/billing/portal',
+        userId: (req as any).user?.id ? String((req as any).user.id) : undefined,
+        httpStatus: 500,
+      });
       res.status(500).json({ message: "Failed to create portal session" });
     }
   });
@@ -2177,6 +2418,11 @@ export async function registerRoutes(app: Express): Promise<Express> {
       });
     } catch (error) {
       console.error("Error fetching subscription:", error);
+      reportRouteError(error, {
+        route: 'GET /api/subscription',
+        userId: (req as any).user?.id ? String((req as any).user.id) : undefined,
+        httpStatus: 500,
+      });
       res.status(500).json({ message: "Failed to fetch subscription" });
     }
   });
@@ -2242,6 +2488,11 @@ export async function registerRoutes(app: Express): Promise<Express> {
       });
     } catch (error: any) {
       console.error("Error canceling subscription:", error);
+      reportRouteError(error, {
+        route: 'POST /api/subscription/cancel',
+        userId: (req as any).user?.id ? String((req as any).user.id) : undefined,
+        httpStatus: 500,
+      });
       res.status(500).json(getClientErrorBody(error, "Failed to cancel subscription"));
     }
   });
@@ -2312,6 +2563,63 @@ export async function registerRoutes(app: Express): Promise<Express> {
           await storage.upsertUser({
             ...user,
             dodoCustomerId: customerId,
+          });
+        }
+
+        // Send a receipt email (idempotent by paymentId).
+        try {
+          const paymentId: string | undefined =
+            eventData.payment_id || eventData.id || eventData.data?.object?.id;
+          const rawAmount: number | undefined =
+            typeof eventData.amount === 'number' ? eventData.amount : eventData.data?.object?.amount;
+          const currency: string = String(
+            eventData.currency || eventData.data?.object?.currency || 'USD',
+          ).toUpperCase();
+          if (paymentId && typeof rawAmount === 'number') {
+            // Fix (review #4): Dodo always delivers amounts in minor units
+            // (cents). Previous heuristic (> 1000 ? /100 : raw) mis-formatted
+            // sub-$10 charges by 100x. See server/utils/receipt.ts.
+            const amountFormatted = formatReceiptAmount(rawAmount, currency);
+            // Fix (review #7): prefer price_id (what planCodeFromPriceId
+            // actually expects) before falling back to product_id.
+            const priceOrProductId: string | undefined =
+              eventData.price_id
+              || eventData.data?.object?.price_id
+              || eventData.product_id
+              || eventData.data?.object?.product_id;
+            const planCodeGuess = priceOrProductId
+              ? dodoPaymentsService.planCodeFromPriceId(priceOrProductId)
+              : null;
+            const planName = planCodeGuess
+              ? PLANS[planCodeGuess]?.name || planCodeGuess
+              : 'TweetReplyAI plan';
+            const invoiceNumber: string | undefined =
+              eventData.invoice?.number || eventData.data?.object?.invoice_number;
+            emailService
+              .sendPaymentReceipt(user.id, {
+                paymentId,
+                amountFormatted,
+                planName,
+                receiptDate: new Date().toLocaleDateString('en-US', {
+                  month: 'long',
+                  day: 'numeric',
+                  year: 'numeric',
+                }),
+                invoiceNumber,
+              })
+              .catch((err) =>
+                logger.error('dodo.webhook.send_receipt_failed', {
+                  err: err instanceof Error ? err.message : String(err),
+                  paymentId,
+                }),
+              );
+          }
+        } catch (receiptError) {
+          logger.warn('dodo.webhook.receipt_dispatch_error', {
+            err:
+              receiptError instanceof Error
+                ? receiptError.message
+                : String(receiptError),
           });
         }
 
@@ -2828,6 +3136,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
       console.error('[Webhook] Dodo Payments webhook error:', error);
       console.error('[Webhook] Error stack:', error.stack);
       console.error('[Webhook] Error message:', error.message);
+      reportRouteError(error, { route: 'POST /api/dodo/webhook', httpStatus: 500 });
       res.status(500).json({ received: true, ...getClientErrorBody(error, 'Webhook handler failed') });
     }
   });
@@ -2860,6 +3169,11 @@ export async function registerRoutes(app: Express): Promise<Express> {
       const handled = handleZodError(res, error);
       if (handled) return handled;
 
+      reportRouteError(error, {
+        route: 'POST /api/feedback',
+        userId: (req as any).user?.id ? String((req as any).user.id) : undefined,
+        httpStatus: 500,
+      });
       res.status(500).json({ message: "Failed to create feedback" });
     }
   });
@@ -2872,6 +3186,11 @@ export async function registerRoutes(app: Express): Promise<Express> {
       res.json({ success: true });
     } catch (error) {
       console.error("Error initializing trial:", error);
+      reportRouteError(error, {
+        route: 'POST /api/auth/initialize-trial',
+        userId: (req as any).user?.id ? String((req as any).user.id) : undefined,
+        httpStatus: 500,
+      });
       res.status(500).json({ message: "Failed to initialize trial" });
     }
   });
@@ -2886,6 +3205,11 @@ export async function registerRoutes(app: Express): Promise<Express> {
       res.json({ history });
     } catch (error) {
       console.error("Error fetching reply history:", error);
+      reportRouteError(error, {
+        route: 'GET /api/reply-history',
+        userId: (req as any).user?.id ? String((req as any).user.id) : undefined,
+        httpStatus: 500,
+      });
       res.status(500).json({ message: "Failed to fetch reply history" });
     }
   });
@@ -2917,6 +3241,11 @@ export async function registerRoutes(app: Express): Promise<Express> {
           })),
         });
       }
+      reportRouteError(error, {
+        route: 'POST /api/reply-history/:id/mark-used',
+        userId: (req as any).user?.id ? String((req as any).user.id) : undefined,
+        httpStatus: 500,
+      });
       res.status(500).json({ message: "Failed to mark reply as used" });
     }
   });
@@ -2940,6 +3269,11 @@ export async function registerRoutes(app: Express): Promise<Express> {
       res.json({ templates });
     } catch (error) {
       console.error("Error fetching reply templates:", error);
+      reportRouteError(error, {
+        route: 'GET /api/reply-templates',
+        userId: (req as any).user?.id ? String((req as any).user.id) : undefined,
+        httpStatus: 500,
+      });
       res.status(500).json({ message: "Failed to fetch reply templates" });
     }
   });
@@ -3113,6 +3447,11 @@ User draft reply: ${draft_reply}`;
         improvedReply = improvementResponse.reply;
       } catch (error) {
         console.error('Error generating improvement:', error);
+        reportRouteError(error, {
+          route: 'POST /api/suggest-improvements',
+          userId: (req as any).user?.id ? String((req as any).user.id) : undefined,
+          httpStatus: 500,
+        });
         return res.status(500).json(getClientErrorBody(error, "Failed to generate improvement"));
       }
 
@@ -3193,7 +3532,12 @@ User draft reply: ${draft_reply}`;
           }))
         });
       }
-      
+
+      reportRouteError(error, {
+        route: 'POST /api/suggest-improvements',
+        userId: (req as any).user?.id ? String((req as any).user.id) : undefined,
+        httpStatus: 500,
+      });
       res.status(500).json({ message: "Failed to suggest improvements" });
     }
   });
@@ -3362,6 +3706,11 @@ User draft reply: ${draft_reply}`;
         });
       } catch (error) {
         console.error('[API] /api/reframe-tweet generation error', error);
+        reportRouteError(error, {
+          route: 'POST /api/reframe-tweet',
+          userId,
+          httpStatus: 500,
+        });
         return res.status(500).json(getClientErrorBody(error, "Failed to reframe tweet"));
       }
 
@@ -3437,6 +3786,11 @@ User draft reply: ${draft_reply}`;
           })),
         });
       }
+      reportRouteError(error, {
+        route: 'POST /api/reframe-tweet',
+        userId: (req as any).user?.id ? String((req as any).user.id) : undefined,
+        httpStatus: 500,
+      });
       return res.status(500).json(getClientErrorBody(error, "Failed to reframe tweet"));
     }
   });
@@ -3458,6 +3812,11 @@ User draft reply: ${draft_reply}`;
       res.json(analytics);
     } catch (error) {
       console.error("Error fetching simple analytics:", error);
+      reportRouteError(error, {
+        route: 'GET /api/analytics/simple',
+        userId: (req as any).user?.id ? String((req as any).user.id) : undefined,
+        httpStatus: 500,
+      });
       res.status(500).json({ message: "Failed to fetch analytics" });
     }
   });
@@ -3479,6 +3838,11 @@ User draft reply: ${draft_reply}`;
       res.json(stats);
     } catch (error) {
       console.error("Error fetching feedback stats:", error);
+      reportRouteError(error, {
+        route: 'GET /api/analytics/feedback-stats',
+        userId: (req as any).user?.id ? String((req as any).user.id) : undefined,
+        httpStatus: 500,
+      });
       res.status(500).json({ message: "Failed to fetch feedback stats" });
     }
   });
@@ -3506,6 +3870,11 @@ User draft reply: ${draft_reply}`;
       });
     } catch (error) {
       console.error("Error fetching quality metrics:", error);
+      reportRouteError(error, {
+        route: 'GET /api/quality/metrics',
+        userId: (req as any).user?.id ? String((req as any).user.id) : undefined,
+        httpStatus: 500,
+      });
       res.status(500).json({ message: "Failed to fetch quality metrics" });
     }
   });
@@ -3641,9 +4010,60 @@ User draft reply: ${draft_reply}`;
         convStage3Sent++;
       }
 
-      res.json({ ok: true, nudgeSent, winbackSent, weeklySent, convStage2Sent, convStage3Sent });
+      // Trial expiring reminders — T-3 days and T-1 day. Idempotency key is scoped
+      // to periodStart + daysRemaining, so re-running the cron is safe.
+      let trialExpiringSent = 0;
+      try {
+        const trialReminderWindows: Array<{ days: number; lowerMs: number; upperMs: number }> = [
+          {
+            days: 3,
+            lowerMs: 3 * 24 * 60 * 60 * 1000 - 12 * 60 * 60 * 1000,
+            upperMs: 3 * 24 * 60 * 60 * 1000 + 12 * 60 * 60 * 1000,
+          },
+          {
+            days: 1,
+            lowerMs: 1 * 24 * 60 * 60 * 1000 - 12 * 60 * 60 * 1000,
+            upperMs: 1 * 24 * 60 * 60 * 1000 + 12 * 60 * 60 * 1000,
+          },
+        ];
+
+        for (const win of trialReminderWindows) {
+          const lowerIso = new Date(now + win.lowerMs).toISOString();
+          const upperIso = new Date(now + win.upperMs).toISOString();
+          const { data: trialCounters } = await supabase
+            .from('usage_counters')
+            .select('user_id, period_start, period_end, credits_used, limit, plan_code')
+            .eq('plan_code', 'trial')
+            .gte('period_end', lowerIso)
+            .lte('period_end', upperIso);
+
+          for (const row of trialCounters ?? []) {
+            // Skip users who already upgraded to an active paid subscription.
+            const activeSub = await storage.getActiveSubscription(row.user_id);
+            if (activeSub && (activeSub.planCode || '').toLowerCase() !== 'trial') continue;
+            emailService
+              .sendTrialExpiring(row.user_id, win.days, {
+                periodStart: new Date(row.period_start),
+                creditsUsed: row.credits_used ?? 0,
+                limit: row.limit ?? 0,
+              })
+              .catch(() => {});
+            trialExpiringSent++;
+          }
+        }
+      } catch (trialError) {
+        logger.error('cron.email_nudges.trial_expiring_failed', {
+          err:
+            trialError instanceof Error
+              ? trialError.message
+              : String(trialError),
+        });
+      }
+
+      res.json({ ok: true, nudgeSent, winbackSent, weeklySent, convStage2Sent, convStage3Sent, trialExpiringSent });
     } catch (error) {
       console.error('[cron/email-nudges] error:', error);
+      reportRouteError(error, { route: 'GET /api/cron/email-nudges', httpStatus: 500 });
       res.status(500).json({ message: 'Cron job failed' });
     }
   });
@@ -3767,6 +4187,7 @@ User draft reply: ${draft_reply}`;
       res.json({ received: true });
     } catch (error) {
       console.error('[resend-webhook] error:', error);
+      reportRouteError(error, { route: 'POST /api/webhooks/resend', httpStatus: 500 });
       res.status(500).json({ message: 'Webhook handler failed' });
     }
   });
@@ -3788,6 +4209,7 @@ User draft reply: ${draft_reply}`;
       res.json(campaigns);
     } catch (error) {
       console.error('GET /api/admin/campaigns error:', error);
+      reportRouteError(error, { route: 'GET /api/admin/campaigns', httpStatus: 500 });
       res.status(500).json({ message: 'Failed to list campaigns' });
     }
   });
@@ -3813,6 +4235,7 @@ User draft reply: ${draft_reply}`;
     } catch (error) {
       if (error instanceof ZodError) return res.status(400).json(toValidationErrorResponse(error));
       console.error('POST /api/admin/campaigns error:', error);
+      reportRouteError(error, { route: 'POST /api/admin/campaigns', httpStatus: 500 });
       res.status(500).json({ message: 'Failed to create campaign' });
     }
   });
@@ -3836,6 +4259,7 @@ User draft reply: ${draft_reply}`;
       res.json({ campaign, preview });
     } catch (error) {
       console.error('GET /api/admin/campaigns/:id error:', error);
+      reportRouteError(error, { route: 'GET /api/admin/campaigns/:id', httpStatus: 500 });
       res.status(500).json({ message: 'Failed to get campaign' });
     }
   });
@@ -3859,6 +4283,7 @@ User draft reply: ${draft_reply}`;
     } catch (error) {
       if (error instanceof ZodError) return res.status(400).json(toValidationErrorResponse(error));
       console.error('PATCH /api/admin/campaigns/:id error:', error);
+      reportRouteError(error, { route: 'PATCH /api/admin/campaigns/:id', httpStatus: 500 });
       res.status(500).json({ message: 'Failed to update campaign' });
     }
   });
@@ -3869,6 +4294,7 @@ User draft reply: ${draft_reply}`;
       res.json(result);
     } catch (error: any) {
       console.error('POST /api/admin/campaigns/:id/send error:', error);
+      reportRouteError(error, { route: 'POST /api/admin/campaigns/:id/send', httpStatus: 500 });
       res.status(500).json({ message: error.message || 'Failed to send campaign' });
     }
   });
@@ -3884,7 +4310,86 @@ User draft reply: ${draft_reply}`;
       res.json({ deleted: true });
     } catch (error) {
       console.error('DELETE /api/admin/campaigns/:id error:', error);
+      reportRouteError(error, { route: 'DELETE /api/admin/campaigns/:id', httpStatus: 500 });
       res.status(500).json({ message: 'Failed to delete campaign' });
+    }
+  });
+
+  // Lightweight operator metrics endpoint for the /admin dashboard.
+  // Returns DAU, signups (24h/7d), credit burn, top error codes, and subscription churn.
+  app.get('/api/admin/ops-metrics', adminAuth, async (_req, res) => {
+    try {
+      const { supabase } = await import('./supabase.js');
+      const now = Date.now();
+      const oneDayAgo = new Date(now - 24 * 60 * 60 * 1000).toISOString();
+      const sevenDaysAgo = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString();
+      const thirtyDaysAgo = new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString();
+
+      // Fix (review #3): DAU is computed via a Postgres RPC to avoid
+      // Supabase's default 1000-row page cap. Fetching rows and de-duping in
+      // Node silently undercounts once DAU exceeds 1000.
+      const [dauRes, repliesRes, signups24hRes, signups7dRes, activeSubsRes, canceledRes, errorsRes] =
+        await Promise.all([
+          supabase.rpc('distinct_dau', { since_ts: oneDayAgo }),
+          supabase
+            .from('reply_events')
+            .select('id', { count: 'exact', head: true })
+            .gte('created_at', oneDayAgo),
+          supabase
+            .from('users')
+            .select('id', { count: 'exact', head: true })
+            .gte('created_at', oneDayAgo),
+          supabase
+            .from('users')
+            .select('id', { count: 'exact', head: true })
+            .gte('created_at', sevenDaysAgo),
+          supabase
+            .from('subscriptions')
+            .select('id', { count: 'exact', head: true })
+            .eq('status', 'active'),
+          supabase
+            .from('subscriptions')
+            .select('id', { count: 'exact', head: true })
+            .in('status', ['canceled', 'cancelled'])
+            .gte('updated_at', thirtyDaysAgo),
+          storage.listExtensionTelemetryEvents(now - 24 * 60 * 60 * 1000, 5000),
+        ]);
+
+      // RPC returns a bigint which supabase-js surfaces as a number or a
+      // numeric-string depending on size. Coerce defensively.
+      const dauCount = Number(
+        typeof dauRes.data === 'number' ? dauRes.data : (dauRes.data as any) ?? 0,
+      );
+
+      const errorCounts: Record<string, number> = {};
+      errorsRes
+        .filter((event) => event.eventType === 'error' || event.errorCode)
+        .forEach((event) => {
+          const key = event.errorCode || event.eventType;
+          errorCounts[key] = (errorCounts[key] || 0) + 1;
+        });
+      const topErrors = Object.entries(errorCounts)
+        .sort(([, a], [, b]) => b - a)
+        .slice(0, 10)
+        .map(([code, count]) => ({ code, count }));
+
+      res.json({
+        dau: Number.isFinite(dauCount) ? dauCount : 0,
+        replies24h: repliesRes.count ?? 0,
+        signups24h: signups24hRes.count ?? 0,
+        signups7d: signups7dRes.count ?? 0,
+        activeSubscriptions: activeSubsRes.count ?? 0,
+        canceledSubscriptions30d: canceledRes.count ?? 0,
+        topErrors,
+        telemetryEvents24h: errorsRes.length,
+        generatedAt: new Date().toISOString(),
+      });
+    } catch (error: any) {
+      logger.error('admin.ops_metrics.failed', {
+        err: error instanceof Error ? error.message : String(error),
+      });
+      reportRouteError(error, { route: 'GET /api/admin/ops-metrics', httpStatus: 500 });
+      res.status(500).json({ message: 'Failed to fetch ops metrics' });
     }
   });
 
@@ -3911,6 +4416,7 @@ User draft reply: ${draft_reply}`;
       res.json({ ok: true, dispatched });
     } catch (error) {
       console.error('[cron/dispatch-campaigns] error:', error);
+      reportRouteError(error, { route: 'GET /api/cron/dispatch-campaigns', httpStatus: 500 });
       res.status(500).json({ message: 'Dispatch cron failed' });
     }
   });

@@ -12,6 +12,15 @@ import { createMockUser } from '../../factories/user.factory';
 import { createMockUsageStatus } from '../../factories/usage.factory';
 import { signTestJwt } from '../../helpers/jwt';
 
+const { reportRouteErrorMock } = vi.hoisted(() => ({
+  reportRouteErrorMock: vi.fn(),
+}));
+
+vi.mock('../../../server/utils/sentry.js', () => ({
+  tagRequestUser: vi.fn(),
+  reportRouteError: (...args: unknown[]) => reportRouteErrorMock(...args),
+}));
+
 vi.mock('../../../server/replitAuth', () => ({
   setupAuth: vi.fn(),
   isAuthenticated: vi.fn((req: any, _res: any, next: any) => {
@@ -75,6 +84,7 @@ describe('AI Reframe Tweet Route - Unit Tests', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    reportRouteErrorMock.mockClear();
 
     const expressApp = express();
     expressApp.use(express.json());
@@ -307,6 +317,12 @@ describe('AI Reframe Tweet Route - Unit Tests', () => {
       .send({ source_tweet: validSource, degree: 50 });
 
     expectJsonResponse(res, 500, { message: expect.stringContaining('reframe') });
+    expect(reportRouteErrorMock).toHaveBeenCalled();
+    expect(reportRouteErrorMock.mock.calls[0][1]).toMatchObject({
+      route: 'POST /api/reframe-tweet',
+      userId: 'test-user',
+      httpStatus: 500,
+    });
   });
 
   it('forwards allow_long=true to aiRouter.reframeTweet', async () => {

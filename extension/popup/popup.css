@@ -1442,6 +1442,43 @@ body {
   text-decoration: underline;
 }
 
+.settings-legal-links {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: var(--font-size-xs);
+  color: var(--color-muted-foreground, #666);
+}
+
+.settings-legal-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.settings-legal-link:hover {
+  text-decoration: underline;
+}
+
+.popup-legal-footer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 0 4px;
+  font-size: 11px;
+  color: var(--color-muted-foreground, #888);
+}
+
+.popup-legal-footer a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.popup-legal-footer a:hover {
+  text-decoration: underline;
+}
+
 .settings-section h4 {
   margin-bottom: var(--spacing-4);
   font-size: var(--font-size-lg);

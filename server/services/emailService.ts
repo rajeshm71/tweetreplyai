@@ -18,6 +18,8 @@ import {
   renderWeeklyValueEmail,
   renderWinBackEmail,
   renderCampaignEmail,
+  renderTrialExpiringEmail,
+  renderPaymentReceiptEmail,
 } from '../emailTemplates.js';
 import type { UsageCounter, User, EmailCampaign } from '../../shared/types.js';
 
@@ -375,6 +377,67 @@ export async function sendConversionStage(
       renderConversionEmail({
         firstName: user.firstName,
         stage,
+        upgradeUrl: UPGRADE_URL,
+        settingsUrl: SETTINGS_URL,
+        unsubscribeUrl: ctx.unsubscribeUrl,
+      }),
+  });
+}
+
+export async function sendPaymentReceipt(
+  userId: string,
+  params: {
+    paymentId: string;
+    amountFormatted: string;
+    planName: string;
+    receiptDate: string;
+    invoiceNumber?: string;
+  },
+): Promise<void> {
+  const user = await storage.getUser(userId);
+  if (!user) return;
+
+  await dispatch({
+    userId,
+    toEmail: user.email,
+    templateKey: 'payment_receipt',
+    // One email per unique payment id; safe to re-run webhook.
+    idempotencyKey: `payment.receipt:${params.paymentId}`,
+    category: 'billing',
+    render: (_ctx) =>
+      renderPaymentReceiptEmail({
+        firstName: user.firstName,
+        amountFormatted: params.amountFormatted,
+        planName: params.planName,
+        receiptDate: params.receiptDate,
+        invoiceNumber: params.invoiceNumber,
+        billingUrl: `${APP_URL}/settings`,
+      }),
+  });
+}
+
+export async function sendTrialExpiring(
+  userId: string,
+  daysRemaining: number,
+  counter: Pick<UsageCounter, 'periodStart' | 'creditsUsed' | 'limit'>,
+): Promise<void> {
+  const user = await storage.getUser(userId);
+  if (!user) return;
+  const periodStartIso = toDateIso(new Date(counter.periodStart));
+
+  await dispatch({
+    userId,
+    toEmail: user.email,
+    templateKey: 'trial_expiring',
+    // One email per user per trial period per reminder day.
+    idempotencyKey: `trial.expiring:${userId}:${periodStartIso}:d${daysRemaining}`,
+    category: 'conversion',
+    render: (ctx) =>
+      renderTrialExpiringEmail({
+        firstName: user.firstName,
+        daysRemaining,
+        used: counter.creditsUsed,
+        limit: counter.limit,
         upgradeUrl: UPGRADE_URL,
         settingsUrl: SETTINGS_URL,
         unsubscribeUrl: ctx.unsubscribeUrl,

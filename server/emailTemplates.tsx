@@ -11,6 +11,8 @@ import ActivationNudgeEmail from './emails/ActivationNudgeEmail.js';
 import ConversionEmail from './emails/ConversionEmail.js';
 import WeeklyValueEmail from './emails/WeeklyValueEmail.js';
 import WinBackEmail from './emails/WinBackEmail.js';
+import TrialExpiringEmail from './emails/TrialExpiringEmail.js';
+import PaymentReceiptEmail from './emails/PaymentReceiptEmail.js';
 import FeatureUpdateEmail from './emails/FeatureUpdateEmail.js';
 import PromoDiscountEmail from './emails/PromoDiscountEmail.js';
 import NewsletterEmail from './emails/NewsletterEmail.js';
@@ -159,6 +161,40 @@ export async function renderWinBackEmail(params: {
 }): Promise<TransactionalEmailPayload> {
   const { html, text } = await renderBoth(<WinBackEmail {...params} />);
   return { subject: 'We saved some viral opportunities for you', html, text };
+}
+
+export async function renderPaymentReceiptEmail(params: {
+  firstName?: string;
+  amountFormatted: string;
+  planName: string;
+  receiptDate: string;
+  invoiceNumber?: string;
+  billingUrl: string;
+}): Promise<TransactionalEmailPayload> {
+  const { html, text } = await renderBoth(<PaymentReceiptEmail {...params} />);
+  return {
+    subject: `Your ${APP_DISPLAY_NAME} receipt — ${params.amountFormatted}`,
+    html,
+    text,
+  };
+}
+
+export async function renderTrialExpiringEmail(params: {
+  firstName?: string;
+  daysRemaining: number;
+  used: number;
+  limit: number;
+  upgradeUrl: string;
+  settingsUrl?: string;
+  unsubscribeUrl?: string;
+}): Promise<TransactionalEmailPayload> {
+  const { html, text } = await renderBoth(<TrialExpiringEmail {...params} />);
+  const dayWord = params.daysRemaining === 1 ? 'day' : 'days';
+  return {
+    subject: `Your ${APP_DISPLAY_NAME} trial ends in ${params.daysRemaining} ${dayWord}`,
+    html,
+    text,
+  };
 }
 
 // ---------------------------------------------------------------------------

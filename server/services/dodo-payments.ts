@@ -123,8 +123,14 @@ export class DodoPaymentsService {
     }
   }
 
-  async createCustomerPortalSession(customerId: string, returnUrl: string) {
-    throw new Error("Not implemented");
+  async createCustomerPortalSession(customerId: string, returnUrl: string): Promise<{ url: string } | null> {
+    // Customer portal not yet implemented via Dodo SDK. Return null so callers
+    // can fall back to a support-email flow. Users can still cancel via the
+    // in-app flow (manage-subscription-modal.tsx -> POST /api/subscription/cancel).
+    // Referenced args are intentionally unused until Dodo SDK support lands.
+    void customerId;
+    void returnUrl;
+    return null;
   }
 
   async getSubscription(subscriptionId: string) {

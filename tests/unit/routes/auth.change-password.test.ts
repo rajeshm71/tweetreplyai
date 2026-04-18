@@ -67,26 +67,22 @@ describe('Auth Change Password Route - Unit Tests', () => {
     expectAuthError(res);
   });
 
-  it('returns 500 when currentPassword is missing (route does not handle ZodError)', async () => {
-    // Note: the change-password catch block returns 500 for all errors including Zod validation.
-    // This is a known gap — the route should return 400, but currently returns 500.
+  it('returns 400 when currentPassword is missing (validation)', async () => {
     const res = await app.raw()
       .post('/api/auth/change-password')
       .set('Authorization', `Bearer ${authToken}`)
       .send({ newPassword: 'New1234!' });
 
-    expect(res.status).toBe(500);
-    expect(res.body).toHaveProperty('message');
+    expectValidationError(res);
   });
 
-  it('returns 500 when newPassword is missing (route does not handle ZodError)', async () => {
+  it('returns 400 when newPassword is missing (validation)', async () => {
     const res = await app.raw()
       .post('/api/auth/change-password')
       .set('Authorization', `Bearer ${authToken}`)
       .send({ currentPassword: 'Old1234!' });
 
-    expect(res.status).toBe(500);
-    expect(res.body).toHaveProperty('message');
+    expectValidationError(res);
   });
 
   it('returns 400 when account has no password (Google-only)', async () => {

@@ -1,5 +1,6 @@
 import { AuthManager } from './auth.js';
 import { API, DEFAULTS } from '../config/constants.js';
+import { captureExtensionError, setExtensionUser } from './sentry.js';
 
 export class ApiClient {
   constructor() {
@@ -34,16 +35,34 @@ export class ApiClient {
         },
         (response) => {
           if (chrome.runtime.lastError) {
-            reject(new Error(chrome.runtime.lastError.message));
+            const msg = chrome.runtime.lastError.message;
+            captureExtensionError(new Error(msg), {
+              tags: {
+                endpoint: String(endpoint),
+                surface: 'api_client',
+                kind: 'runtime_last_error',
+              },
+            });
+            reject(new Error(msg));
             return;
           }
           
           if (!response) {
+            captureExtensionError(new Error('No response from background script'), {
+              tags: {
+                endpoint: String(endpoint),
+                surface: 'api_client',
+                kind: 'empty_response',
+              },
+            });
             reject(new Error('No response from background script'));
             return;
           }
           
           if (!response.success) {
+            const st = response.status;
+            // HTTP 5xx is already reported in background/handleApiRequest — skip here to avoid duplicate Sentry events per request.
+            // Transport failures (lastError / empty response) still report above; background has no chrome.runtime.lastError.
             // Handle specific error codes
             if (response.status === 401) {
               // Auto-logout on 401 (unauthorized) - token is invalid or user logged out from web app
@@ -70,11 +89,15 @@ export class ApiClient {
   }
 
   async getCurrentUser() {
-    return this.makeRequest('/api/auth/user');
+    const user = await this.makeRequest('/api/auth/user');
+    if (user?.id) setExtensionUser(String(user.id));
+    return user;
   }
 
   async getExtensionAuth() {
-    return this.makeRequest('/api/extension/auth');
+    const data = await this.makeRequest('/api/extension/auth');
+    if (data?.user?.id) setExtensionUser(String(data.user.id));
+    return data;
   }
 
   async getUsage() {

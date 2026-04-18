@@ -1,3 +1,5 @@
+import { captureExtensionError } from '../../utils/sentry.js';
+
 /**
  * Pure factory for the "Reuse tweet" modal. Returns a handle with `close()`
  * and `element` so the caller (content script) can focus / dismiss it.
@@ -337,6 +339,14 @@ export function createReuseModal(payload, deps) {
       });
     } catch (err) {
       if (token !== requestToken) return;
+      const msg = String(err?.message || '');
+      // Server / transport failures (5xx or extension messaging) — send to Sentry; skip 401/402/404 noise.
+      if (/^5\d\d:/.test(msg) || msg.includes('No response from background') || msg.includes('runtime.lastError')) {
+        captureExtensionError(err instanceof Error ? err : new Error(msg), {
+          surface: 'reuse_modal',
+          phase: 'reframe_generate',
+        });
+      }
       const ufe = getUserFacingError ? getUserFacingError(err, 'Failed to reframe tweet. Try again.') : { message: 'Failed to reframe tweet. Try again.', action: 'retry' };
       emitTelemetry?.({
         event_type: 'reuse_generate_error',

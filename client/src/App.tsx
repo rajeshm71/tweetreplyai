@@ -6,6 +6,9 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ExtensionGuideProvider } from "@/contexts/extension-guide-context";
 import { useAuth } from "@/hooks/useAuth";
+import { Sentry, setSentryUser } from "@/lib/sentry";
+import { CookieBanner } from "@/components/cookie-banner";
+import { OfflineBanner } from "@/components/offline-banner";
 
 // Sprint 4: Lazy load routes for code-splitting (Passport/session auth)
 const Landing = lazy(() => import("@/pages/landing"));
@@ -18,6 +21,7 @@ const PrivacyPolicy = lazy(() => import("@/pages/privacy"));
 const TermsOfService = lazy(() => import("@/pages/terms"));
 const CompleteProfile = lazy(() => import("@/pages/complete-profile"));
 const ResetPasswordPage = lazy(() => import("@/pages/reset-password"));
+const AdminOpsPage = lazy(() => import("@/pages/admin-ops"));
 const NotFound = lazy(() => import("@/pages/not-found"));
 
 // Loading component for Suspense fallback
@@ -89,9 +93,14 @@ function Router() {
     (window as any).__tweetreplyaiLoggingAllowed = !!user?.isWhitelisted;
   }, [user?.isWhitelisted]);
 
+  useEffect(() => {
+    setSentryUser(user?.id ?? null);
+  }, [user?.id]);
+
   return (
     <Suspense fallback={<LoadingFallback />}>
       <Switch>
+        <Route path="/admin" component={AdminOpsPage} />
         {isLoading || !isAuthenticated ? (
           <>
             <Route path="/" component={Landing} />
@@ -132,16 +141,43 @@ function Router() {
   );
 }
 
+function ErrorFallback({ resetError }: { error: unknown; resetError: () => void }) {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background p-6">
+      <div className="max-w-md w-full rounded-lg border border-border bg-card p-6 text-card-foreground shadow-sm">
+        <h2 className="text-lg font-semibold mb-2">Something went wrong</h2>
+        <p className="text-sm text-muted-foreground mb-4">
+          An unexpected error occurred. Our team has been notified. You can try reloading the page.
+        </p>
+        <button
+          type="button"
+          onClick={() => {
+            resetError();
+            if (typeof window !== "undefined") window.location.reload();
+          }}
+          className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+        >
+          Reload
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <ExtensionGuideProvider>
-          <Toaster />
-          <Router />
-        </ExtensionGuideProvider>
-      </TooltipProvider>
-    </QueryClientProvider>
+    <Sentry.ErrorBoundary fallback={ErrorFallback}>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <ExtensionGuideProvider>
+            <Toaster />
+            <OfflineBanner />
+            <Router />
+            <CookieBanner />
+          </ExtensionGuideProvider>
+        </TooltipProvider>
+      </QueryClientProvider>
+    </Sentry.ErrorBoundary>
   );
 }
 

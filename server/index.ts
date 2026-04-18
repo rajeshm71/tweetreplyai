@@ -7,6 +7,11 @@ import { getClientErrorBody } from "./config/env.js";
 import cors from "cors";
 import { corsApiOptions } from "./config/cors.js";
 import { redactForLogs, safeStringifyForLogs } from "./utils/logging.js";
+import { registerCrashHandlers } from "./utils/crashHandlers.js";
+import { initSentry, Sentry } from "./utils/sentry.js";
+
+initSentry();
+registerCrashHandlers();
 
 const app = express();
 
@@ -23,6 +28,9 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
 app.use('/api', cors(corsApiOptions));
+
+// Sentry user tagging is applied inside the auth middleware (see
+// jwtIsAuthenticated in routes.ts) so req.user is populated first.
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -77,6 +85,13 @@ app.use((req, res, next) => {
     const status = err.status || err.statusCode || 500;
     const body = getClientErrorBody(err, "Internal Server Error");
     console.error('Server error:', err);
+    if (status >= 500) {
+      try {
+        Sentry.captureException(err);
+      } catch {
+        // ignore Sentry failures
+      }
+    }
     res.status(status).json(body);
   });
 
