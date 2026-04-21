@@ -9,9 +9,12 @@ This directory contains all tests for the TweetReply AI backend.
 | `npm run test:unit` | `tests/unit/**` + `tests/simple.test.ts` (path-based, not title-based) |
 | `npm run test:integration` | `tests/integration/**` only (uses `vitest.integration.config.ts`: serial fork, `SKIP_AUTH_RATE_LIMIT=1`, MSW `bypass` for real HTTP) |
 | `npm run test:e2e` | Playwright in `e2e/` (Chromium): `chromium-public-api` + `chromium-authenticated`; starts `npm run dev` unless `E2E_BASE_URL` is set |
+| `npm run test:e2e:smoke` | Fast Playwright smoke for critical frontend routes (`route-shell-smoke`, `settings-smoke`) |
+| `npm run test:client` | Vitest + jsdom client tests in `tests/unit/client/**` (routes, pages, error boundary, UI components) |
+| `npm run test:smoke:frontend` | Fast client subset (`app.routes`, `settings.page`, `error-boundary`) |
 | `npm run test:e2e:ui` | Playwright UI mode (debug) |
 | `npm run test:e2e:headed` | Playwright headed browser |
-| `npm run test:all` | **Full verification:** `test:unit` → `test:integration` → `test:e2e` (stops on first failure). See [Run everything (`test:all`)](#run-everything-testall) below. |
+| `npm run test:all` | **Full verification:** `test:unit` → `test:client` → `test:integration` → `test:e2e` (stops on first failure). See [Run everything (`test:all`)](#run-everything-testall) below. |
 | `npm test` | Vitest watch; default [vitest.config.ts](../vitest.config.ts) **excludes** `tests/integration/**` and `e2e/**` (use `test:integration` / `test:e2e`) |
 | `npm run test:watch` | Watch mode (re-runs on file change) |
 | `npm run test:coverage` | `vitest run --coverage` using default config (same excludes as `npm test` — not integration). See thresholds below. |
@@ -23,8 +26,9 @@ This directory contains all tests for the TweetReply AI backend.
 `npm run test:all` runs, in order:
 
 1. **`npm run test:unit`** — fast unit suite.
-2. **`npm run test:integration`** — Supabase-backed tests (skip or pass depending on `DATABASE_URL` and secrets).
-3. **`npm run test:e2e`** — Playwright (needs `.env` with `SUPABASE_URL` + key so `npm run dev` can start; one-time `npx playwright install chromium`).
+2. **`npm run test:client`** — jsdom frontend route/page/component safety suite.
+3. **`npm run test:integration`** — Supabase-backed tests (skip or pass depending on `DATABASE_URL` and secrets).
+4. **`npm run test:e2e`** — Playwright (needs `.env` with `SUPABASE_URL` + key so `npm run dev` can start; one-time `npx playwright install chromium`).
 
 **Prerequisites:** Same as running each command alone. **CI:** Fork PRs may lack DB/Supabase secrets; use separate jobs or optional workflows as today. **`test:all` is not** `npm test` (watch); use it when you want a full non-interactive check.
 
@@ -47,6 +51,16 @@ This directory contains all tests for the TweetReply AI backend.
 | `SKIP_AUTH_RATE_LIMIT` | Stable auth in E2E | Injected as `1` for the dev child process via `playwright.config.ts` `webServer.env` |
 
 **Fork PRs:** Authenticated tests **skip** when `E2E_USER_EMAIL` / `E2E_USER_PASSWORD` are unset (clear skip reason in HTML report). The dev server still needs Supabase env vars where CI runs E2E.
+
+### Frontend route safety policy
+
+- Every private route in [client/src/App.tsx](../client/src/App.tsx) must have at least one client smoke test in `tests/unit/client/`.
+- Any new/changed page with hooks or redirects must include:
+  - a render-with-auth-state test,
+  - at least one loading→loaded transition test,
+  - and a \"does not hit ErrorBoundary\" expectation where applicable.
+- `test:client` is required before merge; PR CI also runs Playwright smoke (`test:e2e:smoke`) for route-shell and settings stability.
+- No new private route should be merged without a matching smoke test file or test case update.
 
 ### Coverage thresholds and exclusions
 

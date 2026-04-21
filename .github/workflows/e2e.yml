@@ -27,7 +27,22 @@ jobs:
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
 
-      - name: Run Playwright tests
+      - name: Run Playwright frontend smoke tests
+        if: github.event_name == 'pull_request'
+        run: npm run test:e2e:smoke
+        env:
+          NODE_ENV: development
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          E2E_USER_EMAIL: ${{ secrets.E2E_USER_EMAIL }}
+          E2E_USER_PASSWORD: ${{ secrets.E2E_USER_PASSWORD }}
+          E2E_USER_NO_X_EMAIL: ${{ secrets.E2E_USER_NO_X_EMAIL }}
+          E2E_USER_NO_X_PASSWORD: ${{ secrets.E2E_USER_NO_X_PASSWORD }}
+          SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
+
+      - name: Run full Playwright tests
+        if: github.event_name != 'pull_request'
         run: npm run test:e2e
         env:
           NODE_ENV: development

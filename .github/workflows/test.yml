@@ -29,9 +29,22 @@ jobs:
       
     - name: Run type checking
       run: npm run check
+
+    - name: Run hook lint rules
+      run: npm run lint:hooks
       
     - name: Run unit tests
       run: npm run test:unit
+      env:
+        NODE_ENV: test
+
+    - name: Run frontend client tests
+      run: npm run test:client
+      env:
+        NODE_ENV: test
+
+    - name: Run frontend smoke subset
+      run: npm run test:smoke:frontend
       env:
         NODE_ENV: test
         
