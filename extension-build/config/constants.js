@@ -85,3 +85,28 @@ export const SNIPPET_STORAGE = {
   AUTO_APPEND_ID: 'tweetreply_snippet_auto_append_id',
   MIGRATED: 'tweetreply_snippet_migrated_v1',
 };
+
+/**
+ * Constants for the "Reuse tweet" feature (content-script button on X + modal +
+ * POST /api/reframe-tweet). Single source of truth on the extension side.
+ */
+export const REUSE = {
+  BUTTON_CLASS: 'tweetreply-reuse-button',
+  BUTTON_TITLE: 'Reuse this tweet with AI',
+  MODAL_ID: 'tweetreply-reuse-modal',
+  MODAL_Z_INDEX: 100_000,
+  DEFAULT_DEGREE: 50,
+  MIN_SOURCE_LEN: 20,
+  TWITTER_CHAR_LIMIT: 280,
+  LONG_TWEET_CHAR_LIMIT: 4000,
+  COMPOSE_URL_PATH: '/compose/post',
+  COMPOSE_POLL_MS: 100,
+  COMPOSE_POLL_TIMEOUT_MS: 3000,
+  DEGREE_BANDS: [
+    { max: 20, label: 'Minimal' },
+    { max: 40, label: 'Light' },
+    { max: 60, label: 'Balanced' },
+    { max: 80, label: 'Heavy' },
+    { max: 100, label: 'Reimagined' },
+  ],
+};

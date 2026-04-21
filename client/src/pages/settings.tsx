@@ -330,6 +330,9 @@ export default function SettingsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [promptStyleEnabled, setPromptStyleEnabled] = useState(false);
+  // Must be declared before any conditional returns to keep hook order stable.
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
   const [emailPrefsState, setEmailPrefsState] = useState({
     usageAlerts: true,
     productTips: true,
@@ -429,9 +432,6 @@ export default function SettingsPage() {
   if (!user) {
     return null;
   }
-
-  const [deleteConfirmText, setDeleteConfirmText] = useState("");
-  const [isDeleting, setIsDeleting] = useState(false);
 
   const handleDeleteAccount = async () => {
     if (deleteConfirmText !== "DELETE") {

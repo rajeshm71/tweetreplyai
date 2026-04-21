@@ -983,26 +983,11 @@ class TwitterReplyInjector {
       return;
     }
 
-    // Tweet details page: place Suggest in the same row as Reply for alignment
-    // Only apply to inline reply under the tweet, not dialog composers
+    // Temporary product decision: hide TweetReply controls on detail-page inline composers.
+    // Keep dialog composers enabled even when URL is /status/:id.
     if (this.isTweetDetailPage() && !composerContainer.closest('[role="dialog"]')) {
-      const replyBtn = this.findReplyButton(composerContainer);
-      if (replyBtn) {
-        const replyRow = replyBtn.parentElement;
-        if (replyRow) {
-          const controlsRow = this.createSuggestButton(composer, containerId);
-          controlsRow.hidden = (ctx.type === 'post');
-          // Insert our row above the reply row so Suggest stays in line with Concise, Direct, Improve (not on toolbar)
-          replyRow.parentNode.insertBefore(controlsRow, replyRow);
-          const display = replyRow.style.display || getComputedStyle(replyRow).display;
-          if (display !== 'flex' && display !== 'inline-flex' && display !== 'grid' && display !== 'inline-grid') {
-            replyRow.style.display = 'flex';
-            replyRow.style.alignItems = 'center';
-          }
-          this.injectedButtons.add(composer);
-          return;
-        }
-      }
+      this.injectedButtons.add(composer);
+      return;
     }
 
     // Find the composer's toolbar area
@@ -1558,10 +1543,13 @@ class TwitterReplyInjector {
     // Create Improve Reply button
     const improveButton = this.createImproveButton(composer);
     
-    // Append Suggest then Improve then CTA directly to container so all controls are on one line
+    // Append Suggest then Improve directly to container so controls are on one line
     container.appendChild(suggestButton);
     container.appendChild(improveButton);
-    container.appendChild(this.createCtaButton(composer));
+    // Product requirement: CTA should not appear on tweet detail pages (/status/:id).
+    if (!this.isTweetDetailPage()) {
+      container.appendChild(this.createCtaButton(composer));
+    }
     return container;
   }
 

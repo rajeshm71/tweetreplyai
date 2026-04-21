@@ -8433,22 +8433,8 @@ ${cta}` : cta;
         return;
       }
       if (this.isTweetDetailPage() && !composerContainer.closest('[role="dialog"]')) {
-        const replyBtn = this.findReplyButton(composerContainer);
-        if (replyBtn) {
-          const replyRow = replyBtn.parentElement;
-          if (replyRow) {
-            const controlsRow = this.createSuggestButton(composer, containerId);
-            controlsRow.hidden = ctx.type === "post";
-            replyRow.parentNode.insertBefore(controlsRow, replyRow);
-            const display = replyRow.style.display || getComputedStyle(replyRow).display;
-            if (display !== "flex" && display !== "inline-flex" && display !== "grid" && display !== "inline-grid") {
-              replyRow.style.display = "flex";
-              replyRow.style.alignItems = "center";
-            }
-            this.injectedButtons.add(composer);
-            return;
-          }
-        }
+        this.injectedButtons.add(composer);
+        return;
       }
       let toolbar = composerContainer.querySelector('[data-testid="toolBar"]') || composerContainer.querySelector(".toolbar") || composerContainer.querySelector('[role="toolbar"]');
       if (!toolbar) {
@@ -8903,7 +8889,9 @@ ${cta}` : cta;
       const improveButton = this.createImproveButton(composer);
       container.appendChild(suggestButton);
       container.appendChild(improveButton);
-      container.appendChild(this.createCtaButton(composer));
+      if (!this.isTweetDetailPage()) {
+        container.appendChild(this.createCtaButton(composer));
+      }
       return container;
     }
     async updateButtonStateAsync(button) {

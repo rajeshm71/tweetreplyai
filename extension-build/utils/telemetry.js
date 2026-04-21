@@ -11,6 +11,12 @@ const ALLOWED_EVENT_TYPES = new Set([
   'storage_read_failed',
   'storage_write_failed',
   'unknown_runtime_error',
+  // Reuse / Reframe tweet feature
+  'reuse_open',
+  'reuse_generate_success',
+  'reuse_generate_error',
+  'reuse_post_to_compose',
+  'reuse_post_to_compose_timeout',
 ]);
 
 const ALLOWED_SURFACES = new Set(['content', 'popup', 'background']);

@@ -19,8 +19,7 @@
   ],
   
   "background": {
-    "service_worker": "background/background.js",
-    "type": "module"
+    "service_worker": "background/background.bundle.js"
   },
   
   "content_scripts": [

@@ -15,9 +15,17 @@ import {
   FOLLOW_BADGE_ICON_STYLE,
   FOLLOW_BADGE_ICON_STYLE_DEFAULT,
   FOLLOW_BADGE_ICON_STYLE_VALUES,
+  REUSE,
 } from '../config/constants.js';
 import { emitTelemetry } from '../utils/telemetry.js';
+import { getUserFacingError } from '../utils/userFacingErrors.js';
+import { initExtensionSentry } from '../utils/sentry.js';
+
+initExtensionSentry({ scope: 'content' });
 import { extractCanonicalComposerText, combineReplyAndCta } from './helpers/composer-text.js';
+import { injectReuseButtonsImpl } from './helpers/reuse-inject.js';
+import { createReuseModal } from './helpers/reuse-modal.js';
+import { postReframedToComposeImpl } from './helpers/post-to-compose.js';
 
 globalThis.__tweetreplyaiExtLoggingAllowed = false;
 installConsoleGate(() => globalThis.__tweetreplyaiExtLoggingAllowed === true);
@@ -45,6 +53,10 @@ class TwitterReplyInjector {
     this.usageData = null;
     this.injectedButtons = new Set();
     this.injectedContainers = new Set(); // Track injected container IDs
+    /** Dedupe set for the Reuse button injection (one button per article element). */
+    this.injectedReuseButtons = new WeakSet();
+    /** Active Reuse modal handle ({ element, close }) or null. */
+    this._reuseModal = null;
     /** @type {Map<string, { followedBy: boolean, following: boolean, hasRelationshipData: boolean }>} */
     this.followStatusByUser = new Map();
     this.followBadgeRefreshTimer = null;
@@ -832,6 +844,7 @@ class TwitterReplyInjector {
       this.mainObserverDebounceTimer = setTimeout(() => {
         addedNodes.forEach((node) => {
           this.checkForReplyComposers(node);
+          this.injectReuseButtons(node);
         });
         addedNodes.clear();
 
@@ -861,6 +874,7 @@ class TwitterReplyInjector {
 
     // Also check existing composers
     this.checkForReplyComposers(document.body);
+    this.injectReuseButtons(document.body);
   }
 
   checkForReplyComposers(container) {
@@ -1227,6 +1241,90 @@ class TwitterReplyInjector {
       }
     }
     return { text, author };
+  }
+
+  /**
+   * Extract the canonical tweet permalink (/{user}/status/{id}) from an
+   * article. Returns an absolute URL or undefined. Used by the Reuse feature
+   * because extractTextAndAuthorFromArticle intentionally returns only text+author.
+   */
+  extractTweetUrlFromArticle(article) {
+    if (!article) return undefined;
+    try {
+      const timeEl = article.querySelector('a[role="link"] time');
+      const anchor = (timeEl && timeEl.closest('a[href*="/status/"]'))
+        || article.querySelector('a[href*="/status/"]');
+      if (!anchor) return undefined;
+      const href = anchor.getAttribute('href') || '';
+      if (!href) return undefined;
+      return new URL(href, window.location.origin).toString();
+    } catch {
+      return undefined;
+    }
+  }
+
+  /**
+   * Inject a Reuse button onto every X tweet article in the given container.
+   * Delegates to the pure helper `injectReuseButtonsImpl` with DI.
+   */
+  injectReuseButtons(container) {
+    try {
+      injectReuseButtonsImpl(container, {
+        injected: this.injectedReuseButtons,
+        onClick: (payload) => this.openReuseModal(payload),
+        extractText: (article) => this.extractTextAndAuthorFromArticle(article),
+        extractTweetUrl: (article) => this.extractTweetUrlFromArticle(article),
+        minSourceLen: REUSE.MIN_SOURCE_LEN,
+        buttonClass: REUSE.BUTTON_CLASS,
+        buttonTitle: REUSE.BUTTON_TITLE,
+      });
+    } catch (error) {
+      console.warn('[TweetReplyAI] injectReuseButtons failed:', error);
+    }
+  }
+
+  /**
+   * Open (or refocus) the Reuse modal for the given source tweet. Only one
+   * modal is mounted at a time; a second invocation closes the previous one.
+   */
+  openReuseModal(payload) {
+    try {
+      if (this._reuseModal) {
+        try { this._reuseModal.close(); } catch {}
+        this._reuseModal = null;
+      }
+      this._reuseModal = createReuseModal(payload, {
+        apiClient: this.apiClient,
+        postToCompose: (text) => this.postReframedToCompose(text),
+        onUsageUpdated: () => {
+          try { chrome.runtime.sendMessage({ action: 'usageUpdated' }); } catch {}
+        },
+        emitTelemetry,
+        getUserFacingError,
+        constants: REUSE,
+        loginUrl: API.LOGIN_URL,
+      });
+    } catch (error) {
+      console.error('[TweetReplyAI] Failed to open Reuse modal:', error);
+    }
+  }
+
+  /**
+   * Navigate to X's native compose dialog and insert the reframed text. Never
+   * auto-submits; the user reviews and posts manually. Pure logic lives in
+   * `helpers/post-to-compose.js` so it can be unit-tested without the full
+   * injector.
+   */
+  async postReframedToCompose(text) {
+    return postReframedToComposeImpl(text, {
+      insertText: (ta, tb, t) => this.insertTextTwitterMethod(ta, tb, t),
+      emitTelemetry,
+      config: {
+        composePath: REUSE.COMPOSE_URL_PATH || '/compose/post',
+        pollMs: REUSE.COMPOSE_POLL_MS,
+        timeoutMs: REUSE.COMPOSE_POLL_TIMEOUT_MS,
+      },
+    });
   }
 
   /**
@@ -1809,6 +1907,10 @@ class TwitterReplyInjector {
   }
 
   updateButtonState(button) {
+    // Fix: keyboard shortcuts pass only real DOM buttons — plain objects would crash on .classList / .closest.
+    if (!button || typeof button.closest !== 'function' || typeof button.classList === 'undefined') {
+      return;
+    }
     // Don't update if still pending
     if (button.dataset.authPending === 'true') {
       return;
@@ -2171,26 +2273,20 @@ class TwitterReplyInjector {
         route: '/api/generate-reply',
         error_code: error?.message || 'generate_reply_failed',
       });
-      
-      // Parse error message
-      let errorMessage = 'Failed to generate reply';
-      if (error.message.includes('400')) {
-        errorMessage = 'Invalid request. Please try again or refresh the page.';
-      } else if (error.message.includes('401')) {
-        // Auto-logout on 401 (unauthorized) - token is invalid or user logged out from web app
+      if (error?.message?.includes('401')) {
         this.authManager.signOut().catch(err => {
           console.error('Failed to sign out on 401:', err);
         });
         this.isAuthenticated = false;
-        errorMessage = 'You have been logged out. Please sign in again.';
-      } else if (error.message.includes('402')) {
-        errorMessage = 'Credits used up: upgrade to continue!';
-      } else if (error.message.includes('Network error')) {
-        errorMessage = 'Network error - check your connection';
-      } else if (error.message) {
-        errorMessage = `Failed to generate reply: ${error.message}`;
       }
-      
+      const { message: baseMessage } = getUserFacingError(
+        error,
+        'Something went wrong. Try again.',
+      );
+      let errorMessage = baseMessage;
+      if (error?.message?.includes('400')) {
+        errorMessage = 'Invalid request. Please try again or refresh the page.';
+      }
       this.showMessage(composer, errorMessage, 'error');
     } finally {
       // Restore button
@@ -2215,8 +2311,51 @@ class TwitterReplyInjector {
     }
   }
 
+  /**
+   * Fix: prefer focused composer, then first visible reply box (plan: active composer, not random query).
+   */
+  findActiveReplyComposer() {
+    const candidates = document.querySelectorAll(
+      '[data-testid="tweetTextarea_0"], [data-testid="tweetTextarea_1"], [data-testid="tweetTextarea_2"]',
+    );
+    const active = document.activeElement;
+    for (const el of Array.from(candidates)) {
+      if (active && (el === active || el.contains(active))) {
+        return el;
+      }
+    }
+    for (const el of Array.from(candidates)) {
+      if (this.isComposerVisible(el)) return el;
+    }
+    return null;
+  }
+
+  /** Toolbar scope for locating injected TweetReply buttons (same as findButtonForComposer). */
+  findComposerButtonContainer(composer) {
+    return composer?.closest?.('[data-testid="tweetComposer"]') || composer?.parentElement || null;
+  }
+
+  findImproveButtonForComposer(composer) {
+    const container = this.findComposerButtonContainer(composer);
+    return container?.querySelector('.tweetreply-improve-btn') || null;
+  }
+
+  /**
+   * Fix: plan UX — minimal hint when no composer (cannot use showMessage without a composer parent).
+   */
+  showTransientPageMessage(message, type = 'info') {
+    const el = document.createElement('div');
+    el.className = `tweetreply-message tweetreply-message--${type}`;
+    el.setAttribute('role', 'status');
+    el.textContent = message;
+    el.style.cssText =
+      'position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:2147483646;max-width:90vw;padding:10px 14px;border-radius:8px;font-size:14px;box-shadow:0 4px 12px rgba(0,0,0,.25);';
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 4000);
+  }
+
   async handleShortcutCommand(command) {
-    const composer = document.querySelector('[data-testid="tweetTextarea_0"], [data-testid="tweetTextarea_1"], [contenteditable="true"][role="textbox"]');
+    const composer = this.findActiveReplyComposer();
     if (!composer) {
       emitTelemetry({
         event_type: 'composer_injection_failed',
@@ -2224,26 +2363,61 @@ class TwitterReplyInjector {
         error_code: 'shortcut_no_composer',
         context: { action: command },
       });
+      this.showTransientPageMessage('Open a reply composer on X first, then try the shortcut again.');
       return;
     }
-    const runtimeButton = { disabled: false, innerHTML: 'Shortcut', dataset: {}, style: {} };
+    const actualComposer =
+      composer.querySelector?.('[contenteditable="true"]') ||
+      composer.querySelector?.('.public-DraftEditor-content') ||
+      composer;
+
     if (command === 'suggest_reply') {
-      await this.handleSuggestReply(composer, runtimeButton);
+      const suggestBtn = this.findButtonForComposer(composer);
+      if (!suggestBtn) {
+        emitTelemetry({
+          event_type: 'composer_injection_failed',
+          surface: 'content',
+          error_code: 'shortcut_no_suggest_button',
+          context: { action: command },
+        });
+        this.showMessage(
+          actualComposer,
+          'Wait for TweetReply buttons to appear on this composer, then try again.',
+          'info',
+        );
+        return;
+      }
+      await this.handleSuggestReply(composer, suggestBtn);
       return;
     }
     if (command === 'improve_draft') {
-      await this.handleImproveReply(composer, runtimeButton);
+      const improveBtn = this.findImproveButtonForComposer(composer);
+      if (!improveBtn) {
+        emitTelemetry({
+          event_type: 'composer_injection_failed',
+          surface: 'content',
+          error_code: 'shortcut_no_improve_button',
+          context: { action: command },
+        });
+        this.showMessage(
+          actualComposer,
+          'Wait for TweetReply buttons to appear on this composer, then try again.',
+          'info',
+        );
+        return;
+      }
+      await this.handleImproveReply(composer, improveBtn);
       return;
     }
     if (command === 'insert_default_snippet') {
       const { defaultSnippet, legacyText } = await this.getSnippetLibraryState();
       const snippetText = defaultSnippet?.text || legacyText;
       if (!snippetText) {
-        this.showMessage(composer, 'No default snippet set in extension settings.', 'info');
+        this.showMessage(actualComposer, 'No default snippet set in extension settings.', 'info');
         return;
       }
-      await this.appendCtaSnippetToComposer(composer, snippetText);
-      this.showMessage(composer, 'Snippet inserted', 'success');
+      await this.appendCtaSnippetToComposer(actualComposer, snippetText);
+      this.showMessage(actualComposer, 'Snippet inserted', 'success');
     }
   }
 
@@ -2397,30 +2571,24 @@ class TwitterReplyInjector {
         error_code: error?.message || 'improve_reply_failed',
       });
       console.error('[TweetReplyAI] Error details:', {
-        message: error.message,
-        stack: error.stack,
-        response: error.response
+        message: error?.message,
+        stack: error?.stack,
+        response: error?.response,
       });
-      
-      // Parse error message
-      let errorMessage = 'Failed to improve reply';
-      if (error.message.includes('400')) {
-        errorMessage = 'Invalid request. Please try again or refresh the page.';
-      } else if (error.message.includes('401')) {
-        // Auto-logout on 401 (unauthorized) - token is invalid or user logged out from web app
+      if (error?.message?.includes('401')) {
         this.authManager.signOut().catch(err => {
           console.error('Failed to sign out on 401:', err);
         });
         this.isAuthenticated = false;
-        errorMessage = 'You have been logged out. Please sign in again.';
-      } else if (error.message.includes('402')) {
-        errorMessage = 'Credits used up: upgrade to continue!';
-      } else if (error.message.includes('Network error')) {
-        errorMessage = 'Network error - check your connection';
-      } else if (error.message) {
-        errorMessage = `Failed to improve reply: ${error.message}`;
       }
-      
+      const { message: baseMessage } = getUserFacingError(
+        error,
+        'Something went wrong. Try again.',
+      );
+      let errorMessage = baseMessage;
+      if (error?.message?.includes('400')) {
+        errorMessage = 'Invalid request. Please try again or refresh the page.';
+      }
       this.showMessage(composer, errorMessage, 'error');
     } finally {
       // Restore button
@@ -4208,6 +4376,13 @@ class TwitterReplyInjector {
   // ============================================================================
 
   destroy() {
+    // Tear down the Reuse modal first so it doesn't outlive the injector.
+    if (this._reuseModal) {
+      try { this._reuseModal.close(); } catch {}
+      this._reuseModal = null;
+    }
+    this.injectedReuseButtons = new WeakSet();
+
     // Disconnect observers
     if (this.mainObserver) {
       this.mainObserver.disconnect();

@@ -5,12 +5,17 @@ const root = process.cwd();
 const extensionDir = path.join(root, 'extension');
 const outputDir = path.join(root, 'extension-build');
 
-const copyRecursive = (src, dest) => {
+/** Top-level names under extension/ that must not ship to the Web Store (stale artifacts, zips). */
+const SKIP_TOP_LEVEL = new Set(['build']);
+
+const copyRecursive = (src, dest, depth = 0) => {
   const stat = fs.statSync(src);
   if (stat.isDirectory()) {
+    const base = path.basename(src);
+    if (depth === 1 && SKIP_TOP_LEVEL.has(base)) return;
     fs.mkdirSync(dest, { recursive: true });
     for (const entry of fs.readdirSync(src)) {
-      copyRecursive(path.join(src, entry), path.join(dest, entry));
+      copyRecursive(path.join(src, entry), path.join(dest, entry), depth + 1);
     }
     return;
   }

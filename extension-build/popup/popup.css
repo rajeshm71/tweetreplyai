@@ -1262,6 +1262,7 @@ body {
 .panel-content,
 .settings-content {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
   padding: var(--spacing-5);
@@ -1296,6 +1297,105 @@ body {
 /* ============================================
    SETTINGS PANEL
    ============================================ */
+
+.settings-intro {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  margin: 0 0 var(--spacing-4) 0;
+  line-height: var(--line-height-relaxed);
+}
+
+.settings-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  padding-bottom: var(--spacing-3);
+  margin-bottom: var(--spacing-3);
+  border-bottom: 1px solid var(--color-border);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--color-surface);
+}
+
+.settings-tab {
+  appearance: none;
+  border: 1px solid var(--color-border);
+  background: var(--color-background-secondary);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  padding: var(--spacing-2) var(--spacing-3);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-family: inherit;
+  line-height: 1.3;
+  transition: border-color var(--transition-base), background var(--transition-base);
+}
+
+.settings-tab[aria-selected="true"] {
+  border-color: var(--color-primary-500);
+  background: rgba(99, 102, 241, 0.12);
+  color: var(--color-text-primary);
+}
+
+.settings-tab:focus-visible {
+  outline: 2px solid var(--color-primary-500);
+  outline-offset: 2px;
+}
+
+.settings-tabpanels {
+  min-height: 0;
+}
+
+.settings-card {
+  background: var(--color-background-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-4);
+  margin-bottom: var(--spacing-4);
+}
+
+.settings-card:last-child {
+  margin-bottom: 0;
+}
+
+.settings-card__title {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+  margin: 0 0 var(--spacing-3) 0;
+  color: var(--color-text-primary);
+}
+
+.settings-card__hint {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  margin: 0 0 var(--spacing-3) 0;
+  line-height: var(--line-height-relaxed);
+}
+
+.settings-card.settings-section {
+  margin-top: 0;
+  padding: var(--spacing-4);
+  border-top: none;
+}
+
+.settings-card > .user-info {
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin-bottom: var(--spacing-4);
+}
+
+.settings-card > .settings-actions {
+  margin-bottom: var(--spacing-4);
+}
+
+.snippet-empty-hint {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  margin: 0;
+}
 
 .user-info {
   margin-bottom: var(--spacing-6);
@@ -1339,6 +1439,43 @@ body {
 }
 
 .settings-web-link:hover {
+  text-decoration: underline;
+}
+
+.settings-legal-links {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: var(--font-size-xs);
+  color: var(--color-muted-foreground, #666);
+}
+
+.settings-legal-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.settings-legal-link:hover {
+  text-decoration: underline;
+}
+
+.popup-legal-footer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 0 4px;
+  font-size: 11px;
+  color: var(--color-muted-foreground, #888);
+}
+
+.popup-legal-footer a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.popup-legal-footer a:hover {
   text-decoration: underline;
 }
 
@@ -1422,6 +1559,14 @@ body {
 .settings-section .primary-btn {
   width: 100%;
   margin-top: var(--spacing-3);
+}
+
+.settings-feedback-banner {
+  margin-bottom: var(--spacing-3);
+}
+
+#cta-settings-saved.settings-feedback-banner {
+  margin-top: 0;
 }
 
 #tracking-settings-saved,
@@ -2314,6 +2459,23 @@ body {
     border-color: rgba(255, 255, 255, 0.12);
     box-shadow: 0 20px 48px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.12);
   }
+  .settings-tabs {
+    background: rgba(255, 255, 255, 0.04);
+    border-bottom-color: rgba(255, 255, 255, 0.12);
+  }
+  .settings-tab {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.12);
+    color: var(--color-text-primary);
+  }
+  .settings-tab[aria-selected="true"] {
+    background: rgba(99, 102, 241, 0.2);
+    border-color: var(--color-primary-500);
+  }
+  .settings-card {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.12);
+  }
   .plan-badge {
     background: rgba(255, 255, 255, 0.12);
     border-color: rgba(255, 255, 255, 0.2);
@@ -2355,6 +2517,23 @@ body[data-theme="dark"] {
   background: rgba(255, 255, 255, 0.08);
   border-color: rgba(255, 255, 255, 0.12);
   box-shadow: 0 20px 48px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+[data-theme="dark"] .settings-tabs {
+  background: rgba(255, 255, 255, 0.04);
+  border-bottom-color: rgba(255, 255, 255, 0.12);
+}
+[data-theme="dark"] .settings-tab {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: var(--color-text-primary);
+}
+[data-theme="dark"] .settings-tab[aria-selected="true"] {
+  background: rgba(99, 102, 241, 0.2);
+  border-color: var(--color-primary-500);
+}
+[data-theme="dark"] .settings-card {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.12);
 }
 [data-theme="dark"] .plan-badge {
   background: rgba(255, 255, 255, 0.12);
