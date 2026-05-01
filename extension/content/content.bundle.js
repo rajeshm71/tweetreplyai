@@ -6729,7 +6729,10 @@ Event: ${getEventDescription(event)}`
     DOM_DEBOUNCE_MS: 100,
     BUTTON_THROTTLE_MS: 200,
     PLACEMENT_OBSERVER_MS: 150,
-    TELEMETRY_FLUSH_DEBOUNCE_MS: 4e3
+    TELEMETRY_FLUSH_DEBOUNCE_MS: 4e3,
+    /** Auto-like: poll interval and max wait after Reply open (bounded retry vs one-shot 50ms). */
+    AUTO_LIKE_POLL_MS: 100,
+    AUTO_LIKE_MAX_WAIT_MS: 2e3
   };
   var DEFAULTS = {
     ANALYTICS_DAYS: 30,
@@ -7694,11 +7697,87 @@ ${cta}` : cta;
     throw new Error("Compose box did not open in time. Reframed text copied to clipboard.");
   }
 
+  // extension/content/helpers/draft-insert.js
+  async function insertTextIntoTwitterDraftArea(textArea, composer, text, deps) {
+    const { sleep } = deps;
+    composer?.click?.();
+    textArea?.focus?.();
+    await sleep(20);
+    try {
+      const range = document.createRange();
+      range.selectNodeContents(textArea);
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+    } catch {
+    }
+    let pasted = false;
+    try {
+      const dt = new DataTransfer();
+      dt.setData("text/plain", text);
+      const pasteEvent = new ClipboardEvent("paste", {
+        bubbles: true,
+        cancelable: true,
+        clipboardData: dt
+      });
+      textArea.dispatchEvent(pasteEvent);
+      await sleep(50);
+      const dataTextSpan2 = textArea.querySelector('[data-text="true"]');
+      const prefix = text.length ? text.slice(0, Math.min(20, text.length)) : "";
+      if (prefix && dataTextSpan2?.textContent?.includes(prefix)) {
+        pasted = true;
+      }
+    } catch {
+    }
+    if (pasted) {
+      try {
+        const draftSpan = textArea.querySelector('[data-text="true"]');
+        if (draftSpan?.firstChild) {
+          const endRange = document.createRange();
+          endRange.setStart(
+            draftSpan.firstChild,
+            String(draftSpan.firstChild.textContent || "").length
+          );
+          endRange.collapse(true);
+          const sel = window.getSelection();
+          sel?.removeAllRanges();
+          sel?.addRange(endRange);
+        }
+      } catch {
+      }
+      return;
+    }
+    let inserted = false;
+    try {
+      inserted = document.execCommand("insertText", false, text);
+    } catch {
+      inserted = false;
+    }
+    if (inserted) return;
+    const dataTextSpan = textArea?.querySelector?.('[data-text="true"]');
+    const targetElement = dataTextSpan ? dataTextSpan.parentElement : textArea;
+    if (!targetElement) return;
+    const span = document.createElement("span");
+    span.dataset.text = "true";
+    span.textContent = text;
+    if (typeof targetElement.replaceChildren === "function") {
+      targetElement.replaceChildren(span);
+    } else {
+      while (targetElement.firstChild) targetElement.removeChild(targetElement.firstChild);
+      targetElement.appendChild(span);
+    }
+    targetElement.dispatchEvent(
+      new InputEvent("input", { bubbles: true, cancelable: true })
+    );
+  }
+
   // extension/content/content.js
   initExtensionSentry({ scope: "content" });
   globalThis.__tweetreplyaiExtLoggingAllowed = false;
   installConsoleGate(() => globalThis.__tweetreplyaiExtLoggingAllowed === true);
   var DIAGNOSE_THREAD_SELECTION = true;
+  var DIAG_AUTO_LIKE = false;
+  var CONTENT_SCRIPT_DIAG_REVISION = 2;
   var TwitterReplyInjector = class {
     constructor() {
       if (window.__tweetReplyInjector) {
@@ -7831,28 +7910,11 @@ ${cta}` : cta;
       const textArea = element.querySelector('div[data-testid^="tweetTextarea_"][role="textbox"]');
       return textArea || (element.parentElement ? this.findTwitterTextArea(element.parentElement) : null);
     }
-    // Insert text using proven Twitter approach
+    // Insert text using Draft.js-aware path (execCommand) + DOM fallback
     async insertTextTwitterMethod(textArea, composer, text) {
-      composer.click();
-      const dataTextSpan = textArea.querySelector('[data-text="true"]');
-      const targetElement = dataTextSpan ? dataTextSpan.parentElement : textArea;
-      if (targetElement) {
-        const span = document.createElement("span");
-        span.dataset.text = "true";
-        span.textContent = text;
-        if (typeof targetElement.replaceChildren === "function") {
-          targetElement.replaceChildren(span);
-        } else {
-          while (targetElement.firstChild) {
-            targetElement.removeChild(targetElement.firstChild);
-          }
-          targetElement.appendChild(span);
-        }
-        targetElement.dispatchEvent(new InputEvent("input", {
-          bubbles: true,
-          cancelable: true
-        }));
-      }
+      await insertTextIntoTwitterDraftArea(textArea, composer, text, {
+        sleep: (ms) => this.sleep(ms)
+      });
     }
     extractComposerPlainText(composer) {
       return extractCanonicalComposerText(composer);
@@ -7942,6 +8004,65 @@ ${cta}` : cta;
       }
       return null;
     }
+    /**
+     * Session dedupe for auto-like: prefer numeric status id; else canonical /status/ path or DOM fingerprint.
+     */
+    getAutoLikeDedupeKey(tweetArticle) {
+      if (!tweetArticle) return "invalid";
+      const id = this.getTweetIdFromArticle(tweetArticle);
+      if (id) return `tid:${id}`;
+      const link = tweetArticle.querySelector('a[href*="/status/"]');
+      if (link?.href) {
+        try {
+          const u = new URL(link.href);
+          const m = u.pathname.match(/\/status\/(\d+)/);
+          if (m) return `tid:${m[1]}`;
+          return `path:${u.pathname}`;
+        } catch {
+          const m = String(link.href).match(/status\/(\d+)/);
+          if (m) return `tid:${m[1]}`;
+          return `href:${String(link.href).slice(0, 120)}`;
+        }
+      }
+      return `dom:${this._articleDomFingerprint(tweetArticle)}`;
+    }
+    _articleDomFingerprint(article) {
+      const parts = [
+        article.getAttribute("data-tweet-id") || "",
+        article.getAttribute("aria-labelledby") || ""
+      ];
+      const link = article.querySelector('a[href*="/status/"]');
+      if (link) parts.push(link.getAttribute("href") || "");
+      const s = parts.join("|");
+      let h2 = 0;
+      for (let i = 0; i < s.length; i++) h2 = (h2 << 5) - h2 + s.charCodeAt(i) | 0;
+      return String(h2);
+    }
+    isTweetArticleLiked(tweetArticle) {
+      if (!tweetArticle) return false;
+      if (tweetArticle.querySelector('[data-testid="unlike"]')) return true;
+      const like = tweetArticle.querySelector('[data-testid="like"]');
+      if (like?.getAttribute("aria-pressed") === "true") return true;
+      return false;
+    }
+    /**
+     * Narrow tweetButtonInline: only when it is clearly Reply on a tweet card (not composer/dialog send).
+     * Surfaces that still trigger auto-like: timeline + detail tweet [data-testid="reply"], aria Reply,
+     * and inline Reply when label/text indicates Reply inside article[data-testid="tweet"].
+     */
+    isTweetInlineReplyButton(target) {
+      if (!target || typeof target.closest !== "function") return false;
+      const inline = target.closest('[data-testid="tweetButtonInline"]');
+      if (!inline) return false;
+      if (inline.closest('[data-testid="tweetComposer"]') || inline.closest('[role="dialog"]')) return false;
+      const article = inline.closest('article[data-testid="tweet"]');
+      if (!article) return false;
+      const label = (inline.getAttribute("aria-label") || "").toLowerCase();
+      if (label.includes("reply") && !label.includes("unlike")) return true;
+      const text = (inline.textContent || "").trim().toLowerCase();
+      if (text === "reply" || /^reply\b/.test(text)) return true;
+      return false;
+    }
     findLikeButton(tweetArticle) {
       if (!tweetArticle) return null;
       const isAlreadyLikedOrUnlike = (btn) => {
@@ -7977,27 +8098,103 @@ ${cta}` : cta;
       }
       return null;
     }
-    async performAutoLike(likeButton) {
+    /**
+     * Poll + MutationObserver until like control exists or timeout (action bar may re-render after Reply).
+     */
+    async waitForLikeButton(tweetArticle, maxWaitMs) {
+      if (!tweetArticle) return null;
+      const deadline = Date.now() + maxWaitMs;
+      const pollMs = TIMEOUTS.AUTO_LIKE_POLL_MS;
+      return new Promise((resolve) => {
+        let settled = false;
+        let obs;
+        let iv;
+        const finish = (btn) => {
+          if (settled) return;
+          settled = true;
+          try {
+            obs?.disconnect();
+          } catch {
+          }
+          clearInterval(iv);
+          resolve(btn);
+        };
+        const tick = () => {
+          if (this.isTweetArticleLiked(tweetArticle)) {
+            finish(null);
+            return;
+          }
+          const btn = this.findLikeButton(tweetArticle);
+          if (btn) {
+            finish(btn);
+            return;
+          }
+          if (Date.now() >= deadline) finish(null);
+        };
+        obs = new MutationObserver(() => tick());
+        try {
+          obs.observe(tweetArticle, {
+            childList: true,
+            subtree: true,
+            attributes: true,
+            attributeFilter: ["data-testid", "aria-pressed", "aria-label"]
+          });
+        } catch {
+        }
+        iv = setInterval(tick, pollMs);
+        tick();
+      });
+    }
+    async performAutoLike(likeButton, useMouseEvent = false) {
       if (!likeButton) return false;
       try {
-        likeButton.click();
+        if (useMouseEvent) {
+          likeButton.dispatchEvent(
+            new MouseEvent("click", { bubbles: true, cancelable: true, view: window })
+          );
+        } else {
+          likeButton.click();
+        }
         await new Promise((resolve) => setTimeout(resolve, TIMEOUTS.DOM_DEBOUNCE_MS));
         return true;
       } catch (error2) {
         console.warn("[TweetReplyAI] Failed to auto-like:", error2);
-        try {
-          const event = new MouseEvent("click", {
-            bubbles: true,
-            cancelable: true,
-            view: window
-          });
-          likeButton.dispatchEvent(event);
-          await new Promise((resolve) => setTimeout(resolve, TIMEOUTS.DOM_DEBOUNCE_MS));
-          return true;
-        } catch (e) {
-          console.warn("[TweetReplyAI] MouseEvent simulation failed:", e);
-          return false;
+        return false;
+      }
+    }
+    /** One native click plus at most one MouseEvent retry; success only if liked state verifies. */
+    async performAutoLikeVerified(tweetArticle, likeButton) {
+      if (!likeButton || !tweetArticle) return false;
+      if (this.isTweetArticleLiked(tweetArticle)) return true;
+      await this.performAutoLike(likeButton, false);
+      await new Promise((r) => setTimeout(r, TIMEOUTS.DOM_DEBOUNCE_MS));
+      if (this.isTweetArticleLiked(tweetArticle)) return true;
+      await this.performAutoLike(likeButton, true);
+      await new Promise((r) => setTimeout(r, TIMEOUTS.DOM_DEBOUNCE_MS));
+      return this.isTweetArticleLiked(tweetArticle);
+    }
+    async runAutoLikeAfterReplyOpen(tweetArticle) {
+      const dedupeKey = this.getAutoLikeDedupeKey(tweetArticle);
+      if (this.autoLikedTweetIds.has(dedupeKey)) return;
+      if (this.isTweetArticleLiked(tweetArticle)) {
+        this.autoLikedTweetIds.add(dedupeKey);
+        return;
+      }
+      const likeButton = await this.waitForLikeButton(tweetArticle, TIMEOUTS.AUTO_LIKE_MAX_WAIT_MS);
+      if (this.isTweetArticleLiked(tweetArticle)) {
+        this.autoLikedTweetIds.add(dedupeKey);
+        return;
+      }
+      if (!likeButton) {
+        if (DIAG_AUTO_LIKE) {
+          console.log("[TweetReplyAI][auto-like]", { dedupeKey, foundLike: false, verifiedLiked: false });
         }
+        return;
+      }
+      const verified = await this.performAutoLikeVerified(tweetArticle, likeButton);
+      if (verified) this.autoLikedTweetIds.add(dedupeKey);
+      if (DIAG_AUTO_LIKE) {
+        console.log("[TweetReplyAI][auto-like]", { dedupeKey, foundLike: true, verifiedLiked: verified });
       }
     }
     setupAutoLikeOnReply() {
@@ -8045,9 +8242,11 @@ ${cta}` : cta;
             this.pendingReplyTarget = null;
             return;
           }
-          const isReplyButton = target.matches('[data-testid="reply"]') || target.closest('[data-testid="reply"]') || target.matches('button[aria-label*="Reply" i]') || target.closest('button[aria-label*="Reply" i]') || target.matches('[role="button"][aria-label*="Reply" i]') || target.closest('[role="button"][aria-label*="Reply" i]') || target.matches('[data-testid="tweetButtonInline"]') || target.closest('[data-testid="tweetButtonInline"]');
-          if (!isReplyButton) return;
-          const replyButton = target.closest('[data-testid="reply"]') || target.closest('button[aria-label*="Reply" i]') || target.closest('[role="button"][aria-label*="Reply" i]') || target.closest('[data-testid="tweetButtonInline"]') || target;
+          const replyByTestId = target.closest('[data-testid="reply"]');
+          const replyByAria = target.closest('button[aria-label*="Reply" i]') || target.closest('[role="button"][aria-label*="Reply" i]');
+          const inlineReply = this.isTweetInlineReplyButton(target) ? target.closest('[data-testid="tweetButtonInline"]') : null;
+          if (!replyByTestId && !replyByAria && !inlineReply) return;
+          const replyButton = replyByTestId || replyByAria || inlineReply;
           const tweetArticle = this.findTweetArticle(replyButton);
           if (!tweetArticle) {
             return;
@@ -8066,18 +8265,9 @@ ${cta}` : cta;
           this.isAutoLikeEnabled().then((autoLikeEnabled) => {
             if (autoLikeEnabled) {
               setTimeout(() => {
-                const tweetId2 = this.getTweetIdFromArticle(tweetArticle);
-                if (tweetId2 !== null && this.autoLikedTweetIds.has(tweetId2)) {
-                  return;
-                }
-                const likeButton = this.findLikeButton(tweetArticle);
-                if (likeButton) {
-                  this.performAutoLike(likeButton).then(() => {
-                    if (tweetId2 !== null) this.autoLikedTweetIds.add(tweetId2);
-                  }).catch((err) => {
-                    console.warn("[TweetReplyAI] Auto-like execution failed:", err);
-                  });
-                }
+                this.runAutoLikeAfterReplyOpen(tweetArticle).catch((err) => {
+                  console.warn("[TweetReplyAI] Auto-like execution failed:", err);
+                });
               }, 50);
             }
           }).catch((err) => {
@@ -8090,6 +8280,13 @@ ${cta}` : cta;
       document.addEventListener("click", this.autoLikeClickHandler, true);
     }
     async initialize() {
+      try {
+        const v = chrome.runtime?.getManifest?.()?.version ?? "?";
+        console.log(
+          `[TweetReplyAI] content script revision=${CONTENT_SCRIPT_DIAG_REVISION} manifest=${v} (reload extension if this does not change after rebuild)`
+        );
+      } catch {
+      }
       this.authManager.setApiClient(this.apiClient);
       await this.loadRelationshipHintsSetting();
       this.isAuthenticated = await this.authManager.isAuthenticated(true);
@@ -9445,7 +9642,6 @@ ${cta}` : cta;
           });
         } catch (error2) {
         }
-        this.showMessage(composer, "\u2713 Reply inserted", "success");
         this.updateAllButtonStates();
       } catch (error2) {
         console.error("Failed to generate reply:", error2);
@@ -10869,7 +11065,6 @@ ${cta}` : cta;
     // Handles multiple Twitter input types with comprehensive fallbacks
     async insertReplyIntoComposer(composer, replyData) {
       try {
-        console.log("[TweetReplyAI] \u{1F680} Starting Twitter text insertion method");
         if (!composer || !replyData) {
           console.log("[TweetReplyAI] \u274C Invalid parameters");
           return;
@@ -10880,6 +11075,20 @@ ${cta}` : cta;
           return;
         }
         const cleanText = this.stripReplyPrefix(replyText.replace(/<[^>]*>/g, ""));
+        const container = composer.closest?.('[data-testid^="tweetTextarea_"]');
+        const insertCtx = {
+          diagRevision: CONTENT_SCRIPT_DIAG_REVISION,
+          pathname: typeof location !== "undefined" ? location.pathname : "",
+          composerContainerTestId: container?.getAttribute?.("data-testid") ?? null,
+          composerTestId: composer.getAttribute("data-testid"),
+          composerRole: composer.getAttribute("role"),
+          contentEditable: composer.contentEditable,
+          classNamePreview: String(composer.className || "").trim().slice(0, 120) || "(none)",
+          cleanTextChars: cleanText.length
+        };
+        console.log(
+          `[TweetReplyAI] \u{1F680} Starting Twitter text insertion method ${JSON.stringify(insertCtx)}`
+        );
         if (composer.contentEditable === "true" || composer.getAttribute("data-testid")?.startsWith("tweetTextarea_") || composer.getAttribute("role") === "textbox") {
           try {
             const toolbar = document.querySelector('[data-testid="toolBar"]');
@@ -11051,14 +11260,20 @@ ${cta}` : cta;
       });
     }
     showMessage(composer, message, type = "info") {
-      const existingMessage = composer.parentElement?.querySelector(".tweetreply-message");
+      const parent = composer?.parentElement;
+      const dialogEl = composer?.closest?.('[role="dialog"]') || parent?.closest?.('[role="dialog"]') || null;
+      if (dialogEl && (type === "success" || type === "error")) {
+        const existingMessage2 = parent?.querySelector?.(".tweetreply-message");
+        if (existingMessage2) existingMessage2.remove();
+        return;
+      }
+      const existingMessage = parent?.querySelector?.(".tweetreply-message");
       if (existingMessage) {
         existingMessage.remove();
       }
       const messageEl = document.createElement("div");
       messageEl.className = `tweetreply-message tweetreply-message--${type}`;
       messageEl.textContent = message;
-      const parent = composer.parentElement;
       if (parent) {
         parent.insertBefore(messageEl, composer.nextSibling);
       }

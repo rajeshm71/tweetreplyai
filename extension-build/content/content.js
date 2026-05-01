@@ -26,12 +26,16 @@ import { extractCanonicalComposerText, combineReplyAndCta } from './helpers/comp
 import { injectReuseButtonsImpl } from './helpers/reuse-inject.js';
 import { createReuseModal } from './helpers/reuse-modal.js';
 import { postReframedToComposeImpl } from './helpers/post-to-compose.js';
+import { insertTextIntoTwitterDraftArea } from './helpers/draft-insert.js';
 
 globalThis.__tweetreplyaiExtLoggingAllowed = false;
 installConsoleGate(() => globalThis.__tweetreplyaiExtLoggingAllowed === true);
 
 /** Set false to disable thread/original-tweet diagnostic logs (wrong originalTweetAuthor debugging). */
 const DIAGNOSE_THREAD_SELECTION = true;
+
+/** Bump when changing insert-path console diagnostics (confirm new bundle after chrome://extensions → Reload). */
+const CONTENT_SCRIPT_DIAG_REVISION = 2;
 
 class TwitterReplyInjector {
   constructor() {
@@ -204,29 +208,11 @@ class TwitterReplyInjector {
     return textArea || (element.parentElement ? this.findTwitterTextArea(element.parentElement) : null);
   }
 
-  // Insert text using proven Twitter approach
+  // Insert text using Draft.js-aware path (execCommand) + DOM fallback
   async insertTextTwitterMethod(textArea, composer, text) {
-    composer.click();
-    const dataTextSpan = textArea.querySelector('[data-text="true"]');
-    const targetElement = dataTextSpan ? dataTextSpan.parentElement : textArea;
-    
-    if (targetElement) {
-      const span = document.createElement('span');
-      span.dataset.text = 'true';
-      span.textContent = text;
-      if (typeof targetElement.replaceChildren === 'function') {
-        targetElement.replaceChildren(span);
-      } else {
-        while (targetElement.firstChild) {
-          targetElement.removeChild(targetElement.firstChild);
-        }
-        targetElement.appendChild(span);
-      }
-      targetElement.dispatchEvent(new InputEvent("input", {
-        bubbles: true,
-        cancelable: true
-      }));
-    }
+    await insertTextIntoTwitterDraftArea(textArea, composer, text, {
+      sleep: (ms) => this.sleep(ms),
+    });
   }
 
   extractComposerPlainText(composer) {
@@ -546,6 +532,15 @@ class TwitterReplyInjector {
   }
 
   async initialize() {
+    try {
+      const v = chrome.runtime?.getManifest?.()?.version ?? '?';
+      console.log(
+        `[TweetReplyAI] content script revision=${CONTENT_SCRIPT_DIAG_REVISION} manifest=${v} (reload extension if this does not change after rebuild)`,
+      );
+    } catch {
+      /* ignore */
+    }
+
     // Set apiClient in authManager for server validation
     this.authManager.setApiClient(this.apiClient);
     
@@ -983,26 +978,11 @@ class TwitterReplyInjector {
       return;
     }
 
-    // Tweet details page: place Suggest in the same row as Reply for alignment
-    // Only apply to inline reply under the tweet, not dialog composers
+    // Temporary product decision: hide TweetReply controls on detail-page inline composers.
+    // Keep dialog composers enabled even when URL is /status/:id.
     if (this.isTweetDetailPage() && !composerContainer.closest('[role="dialog"]')) {
-      const replyBtn = this.findReplyButton(composerContainer);
-      if (replyBtn) {
-        const replyRow = replyBtn.parentElement;
-        if (replyRow) {
-          const controlsRow = this.createSuggestButton(composer, containerId);
-          controlsRow.hidden = (ctx.type === 'post');
-          // Insert our row above the reply row so Suggest stays in line with Concise, Direct, Improve (not on toolbar)
-          replyRow.parentNode.insertBefore(controlsRow, replyRow);
-          const display = replyRow.style.display || getComputedStyle(replyRow).display;
-          if (display !== 'flex' && display !== 'inline-flex' && display !== 'grid' && display !== 'inline-grid') {
-            replyRow.style.display = 'flex';
-            replyRow.style.alignItems = 'center';
-          }
-          this.injectedButtons.add(composer);
-          return;
-        }
-      }
+      this.injectedButtons.add(composer);
+      return;
     }
 
     // Find the composer's toolbar area
@@ -1558,10 +1538,13 @@ class TwitterReplyInjector {
     // Create Improve Reply button
     const improveButton = this.createImproveButton(composer);
     
-    // Append Suggest then Improve then CTA directly to container so all controls are on one line
+    // Append Suggest then Improve directly to container so controls are on one line
     container.appendChild(suggestButton);
     container.appendChild(improveButton);
-    container.appendChild(this.createCtaButton(composer));
+    // Product requirement: CTA should not appear on tweet detail pages (/status/:id).
+    if (!this.isTweetDetailPage()) {
+      container.appendChild(this.createCtaButton(composer));
+    }
     return container;
   }
 
@@ -2259,8 +2242,7 @@ class TwitterReplyInjector {
         // Ignore errors if popup is not open
       }
 
-      // Show success message
-      this.showMessage(composer, '✓ Reply inserted', 'success');
+      // Success toast intentionally disabled to avoid UI flicker.
 
       // Update all button states
       this.updateAllButtonStates();
@@ -4079,8 +4061,6 @@ class TwitterReplyInjector {
   // Handles multiple Twitter input types with comprehensive fallbacks
   async insertReplyIntoComposer(composer, replyData) {
     try {
-      console.log('[TweetReplyAI] 🚀 Starting Twitter text insertion method');
-      
       if (!composer || !replyData) {
         console.log('[TweetReplyAI] ❌ Invalid parameters');
         return;
@@ -4095,6 +4075,21 @@ class TwitterReplyInjector {
 
       // Clean the text (remove HTML tags and strip prefixes)
       const cleanText = this.stripReplyPrefix(replyText.replace(/<[^>]*>/g, ""));
+
+      const container = composer.closest?.('[data-testid^="tweetTextarea_"]');
+      const insertCtx = {
+        diagRevision: CONTENT_SCRIPT_DIAG_REVISION,
+        pathname: typeof location !== 'undefined' ? location.pathname : '',
+        composerContainerTestId: container?.getAttribute?.('data-testid') ?? null,
+        composerTestId: composer.getAttribute('data-testid'),
+        composerRole: composer.getAttribute('role'),
+        contentEditable: composer.contentEditable,
+        classNamePreview: String(composer.className || '').trim().slice(0, 120) || '(none)',
+        cleanTextChars: cleanText.length,
+      };
+      console.log(
+        `[TweetReplyAI] 🚀 Starting Twitter text insertion method ${JSON.stringify(insertCtx)}`,
+      );
 
       // Strategy 1: Twitter Method (PRIMARY METHOD)
       if (composer.contentEditable === 'true' || 
@@ -4332,8 +4327,20 @@ class TwitterReplyInjector {
   }
 
   showMessage(composer, message, type = 'info') {
+    const parent = composer?.parentElement;
+    const dialogEl =
+      composer?.closest?.('[role="dialog"]') || parent?.closest?.('[role="dialog"]') || null;
+
+    // Suppress all success/failure toasts inside the native reply dialog.
+    // This avoids green/red flicker while keeping non-dialog/info messages intact.
+    if (dialogEl && (type === 'success' || type === 'error')) {
+      const existingMessage = parent?.querySelector?.('.tweetreply-message');
+      if (existingMessage) existingMessage.remove();
+      return;
+    }
+
     // Remove existing messages
-    const existingMessage = composer.parentElement?.querySelector('.tweetreply-message');
+    const existingMessage = parent?.querySelector?.('.tweetreply-message');
     if (existingMessage) {
       existingMessage.remove();
     }
@@ -4344,7 +4351,6 @@ class TwitterReplyInjector {
     messageEl.textContent = message;
 
     // Insert after composer
-    const parent = composer.parentElement;
     if (parent) {
       parent.insertBefore(messageEl, composer.nextSibling);
     }

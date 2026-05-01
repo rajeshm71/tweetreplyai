@@ -8,7 +8,7 @@ This directory contains all tests for the TweetReply AI backend.
 |--------|--------|
 | `npm run test:unit` | `tests/unit/**` + `tests/simple.test.ts` (path-based, not title-based) |
 | `npm run test:integration` | `tests/integration/**` only (uses `vitest.integration.config.ts`: serial fork, `SKIP_AUTH_RATE_LIMIT=1`, MSW `bypass` for real HTTP) |
-| `npm run test:e2e` | Playwright in `e2e/` (Chromium): `chromium-public-api` + `chromium-authenticated`; starts `npm run dev` unless `E2E_BASE_URL` is set |
+| `npm run test:e2e` | Playwright in `e2e/` (Chromium): `chromium-public-api` + `chromium-authenticated`; optional `chromium-x-extension-composer` when `E2E_X_COMPOSER_E2E=1`; starts `npm run dev` unless `E2E_BASE_URL` is set |
 | `npm run test:e2e:smoke` | Fast Playwright smoke for critical frontend routes (`route-shell-smoke`, `settings-smoke`) |
 | `npm run test:client` | Vitest + jsdom client tests in `tests/unit/client/**` (routes, pages, error boundary, UI components) |
 | `npm run test:smoke:frontend` | Fast client subset (`app.routes`, `settings.page`, `error-boundary`) |
@@ -39,6 +39,7 @@ This directory contains all tests for the TweetReply AI backend.
 | `e2e/public/**` | Unauthenticated UI + optional UI login (`login-flow`, `complete-profile`) |
 | `e2e/api/**` | `APIRequestContext` smoke (`/api/plans`, `/api/models`, …) |
 | `e2e/authenticated/**` | Tests using `storageState` from `e2e/global-setup.ts` |
+| `e2e/authenticated/composer-insert-smoke.spec.ts` | Optional live X + unpacked extension smoke (Draft.js insert); excluded from `chromium-authenticated`; runs only when `E2E_X_COMPOSER_E2E=1` ([`playwright.config.ts`](../playwright.config.ts)) |
 | `e2e/.auth/user.json` | Written by global setup (gitignored). Empty storage when no E2E user creds. |
 | `e2e/fixtures/auth.ts` | Shared `hasE2eUserCreds`, `loginViaUi`, optional no-handle user helpers |
 
@@ -49,6 +50,8 @@ This directory contains all tests for the TweetReply AI backend.
 | `E2E_USER_EMAIL` / `E2E_USER_PASSWORD` | Authenticated specs + `global-setup` UI login | User must have **`xUsername` set** in `users` or setup throws |
 | `E2E_USER_NO_X_EMAIL` / `E2E_USER_NO_X_PASSWORD` | Optional complete-profile flow | User **without** handle; second run may need DB reset |
 | `SKIP_AUTH_RATE_LIMIT` | Stable auth in E2E | Injected as `1` for the dev child process via `playwright.config.ts` `webServer.env` |
+| `E2E_X_COMPOSER_E2E` | Registers Playwright project `chromium-x-extension-composer` | Set to `1` to load [`extension/`](../extension/) via `--load-extension` (Chrome channel, **headed**). Requires Google Chrome installed locally. |
+| `E2E_X_REPLY_TWEET_URL` | Live X composer regression | Full tweet URL to open before clicking **Suggest reply**. You must already be logged into X in the browser profile Playwright launches (first run may need manual login). Extension must be able to reach your TweetReply API (sign in via extension popup if prompted). |
 
 **Fork PRs:** Authenticated tests **skip** when `E2E_USER_EMAIL` / `E2E_USER_PASSWORD` are unset (clear skip reason in HTML report). The dev server still needs Supabase env vars where CI runs E2E.
 
@@ -189,6 +192,7 @@ Upgrade them to T1 by mocking the API client and asserting on inputs/outputs.
 | `tests/unit/services/prompt-builder.test.ts` | `buildPrompt` with tone/length/style combinations |
 | `tests/unit/services/quality-checker.test.ts` | `checkQuality` with sample replies |
 | `tests/unit/extension/auth-manager.test.ts` | `AuthManager.login/logout/getToken` |
+| `tests/unit/extension/composer-insert.test.ts` | T1 | `insertTextIntoTwitterDraftArea` (`extension/content/helpers/draft-insert.js`): `execCommand('insertText')` path + DOM fallback |
 | `tests/unit/extension/console-gate.test.ts` | `installConsoleGate` suppression behavior |
 
 ---
@@ -209,6 +213,7 @@ tests/
 │   │   └── env.test.ts               # T1 Env var validation
 │   ├── extension/
 │   │   ├── auth-manager.test.ts      # [SMOKE] Extension AuthManager
+│   │   ├── composer-insert.test.ts   # T1 X Draft.js insert helper
 │   │   └── console-gate.test.ts      # [SMOKE] Extension console gate
 │   ├── routes/
 │   │   ├── ai.test.ts                # T2 generate-reply (main)

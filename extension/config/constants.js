@@ -25,6 +25,9 @@ export const TIMEOUTS = {
   BUTTON_THROTTLE_MS: 200,
   PLACEMENT_OBSERVER_MS: 150,
   TELEMETRY_FLUSH_DEBOUNCE_MS: 4_000,
+  /** Auto-like: poll interval and max wait after Reply open (bounded retry vs one-shot 50ms). */
+  AUTO_LIKE_POLL_MS: 100,
+  AUTO_LIKE_MAX_WAIT_MS: 2000,
 };
 
 export const DEFAULTS = {

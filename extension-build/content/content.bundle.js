@@ -7694,11 +7694,86 @@ ${cta}` : cta;
     throw new Error("Compose box did not open in time. Reframed text copied to clipboard.");
   }
 
+  // extension/content/helpers/draft-insert.js
+  async function insertTextIntoTwitterDraftArea(textArea, composer, text, deps) {
+    const { sleep } = deps;
+    composer?.click?.();
+    textArea?.focus?.();
+    await sleep(20);
+    try {
+      const range = document.createRange();
+      range.selectNodeContents(textArea);
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+    } catch {
+    }
+    let pasted = false;
+    try {
+      const dt = new DataTransfer();
+      dt.setData("text/plain", text);
+      const pasteEvent = new ClipboardEvent("paste", {
+        bubbles: true,
+        cancelable: true,
+        clipboardData: dt
+      });
+      textArea.dispatchEvent(pasteEvent);
+      await sleep(50);
+      const dataTextSpan2 = textArea.querySelector('[data-text="true"]');
+      const prefix = text.length ? text.slice(0, Math.min(20, text.length)) : "";
+      if (prefix && dataTextSpan2?.textContent?.includes(prefix)) {
+        pasted = true;
+      }
+    } catch {
+    }
+    if (pasted) {
+      try {
+        const draftSpan = textArea.querySelector('[data-text="true"]');
+        if (draftSpan?.firstChild) {
+          const endRange = document.createRange();
+          endRange.setStart(
+            draftSpan.firstChild,
+            String(draftSpan.firstChild.textContent || "").length
+          );
+          endRange.collapse(true);
+          const sel = window.getSelection();
+          sel?.removeAllRanges();
+          sel?.addRange(endRange);
+        }
+      } catch {
+      }
+      return;
+    }
+    let inserted = false;
+    try {
+      inserted = document.execCommand("insertText", false, text);
+    } catch {
+      inserted = false;
+    }
+    if (inserted) return;
+    const dataTextSpan = textArea?.querySelector?.('[data-text="true"]');
+    const targetElement = dataTextSpan ? dataTextSpan.parentElement : textArea;
+    if (!targetElement) return;
+    const span = document.createElement("span");
+    span.dataset.text = "true";
+    span.textContent = text;
+    if (typeof targetElement.replaceChildren === "function") {
+      targetElement.replaceChildren(span);
+    } else {
+      while (targetElement.firstChild) targetElement.removeChild(targetElement.firstChild);
+      targetElement.appendChild(span);
+    }
+    targetElement.dispatchEvent(
+      new InputEvent("input", { bubbles: true, cancelable: true })
+    );
+  }
+
   // extension/content/content.js
   initExtensionSentry({ scope: "content" });
   globalThis.__tweetreplyaiExtLoggingAllowed = false;
   installConsoleGate(() => globalThis.__tweetreplyaiExtLoggingAllowed === true);
   var DIAGNOSE_THREAD_SELECTION = true;
+  var CONTENT_SCRIPT_DIAG_REVISION = 2;
   var TwitterReplyInjector = class {
     constructor() {
       if (window.__tweetReplyInjector) {
@@ -7831,28 +7906,11 @@ ${cta}` : cta;
       const textArea = element.querySelector('div[data-testid^="tweetTextarea_"][role="textbox"]');
       return textArea || (element.parentElement ? this.findTwitterTextArea(element.parentElement) : null);
     }
-    // Insert text using proven Twitter approach
+    // Insert text using Draft.js-aware path (execCommand) + DOM fallback
     async insertTextTwitterMethod(textArea, composer, text) {
-      composer.click();
-      const dataTextSpan = textArea.querySelector('[data-text="true"]');
-      const targetElement = dataTextSpan ? dataTextSpan.parentElement : textArea;
-      if (targetElement) {
-        const span = document.createElement("span");
-        span.dataset.text = "true";
-        span.textContent = text;
-        if (typeof targetElement.replaceChildren === "function") {
-          targetElement.replaceChildren(span);
-        } else {
-          while (targetElement.firstChild) {
-            targetElement.removeChild(targetElement.firstChild);
-          }
-          targetElement.appendChild(span);
-        }
-        targetElement.dispatchEvent(new InputEvent("input", {
-          bubbles: true,
-          cancelable: true
-        }));
-      }
+      await insertTextIntoTwitterDraftArea(textArea, composer, text, {
+        sleep: (ms) => this.sleep(ms)
+      });
     }
     extractComposerPlainText(composer) {
       return extractCanonicalComposerText(composer);
@@ -8090,6 +8148,13 @@ ${cta}` : cta;
       document.addEventListener("click", this.autoLikeClickHandler, true);
     }
     async initialize() {
+      try {
+        const v = chrome.runtime?.getManifest?.()?.version ?? "?";
+        console.log(
+          `[TweetReplyAI] content script revision=${CONTENT_SCRIPT_DIAG_REVISION} manifest=${v} (reload extension if this does not change after rebuild)`
+        );
+      } catch {
+      }
       this.authManager.setApiClient(this.apiClient);
       await this.loadRelationshipHintsSetting();
       this.isAuthenticated = await this.authManager.isAuthenticated(true);
@@ -8433,22 +8498,8 @@ ${cta}` : cta;
         return;
       }
       if (this.isTweetDetailPage() && !composerContainer.closest('[role="dialog"]')) {
-        const replyBtn = this.findReplyButton(composerContainer);
-        if (replyBtn) {
-          const replyRow = replyBtn.parentElement;
-          if (replyRow) {
-            const controlsRow = this.createSuggestButton(composer, containerId);
-            controlsRow.hidden = ctx.type === "post";
-            replyRow.parentNode.insertBefore(controlsRow, replyRow);
-            const display = replyRow.style.display || getComputedStyle(replyRow).display;
-            if (display !== "flex" && display !== "inline-flex" && display !== "grid" && display !== "inline-grid") {
-              replyRow.style.display = "flex";
-              replyRow.style.alignItems = "center";
-            }
-            this.injectedButtons.add(composer);
-            return;
-          }
-        }
+        this.injectedButtons.add(composer);
+        return;
       }
       let toolbar = composerContainer.querySelector('[data-testid="toolBar"]') || composerContainer.querySelector(".toolbar") || composerContainer.querySelector('[role="toolbar"]');
       if (!toolbar) {
@@ -8903,7 +8954,9 @@ ${cta}` : cta;
       const improveButton = this.createImproveButton(composer);
       container.appendChild(suggestButton);
       container.appendChild(improveButton);
-      container.appendChild(this.createCtaButton(composer));
+      if (!this.isTweetDetailPage()) {
+        container.appendChild(this.createCtaButton(composer));
+      }
       return container;
     }
     async updateButtonStateAsync(button) {
@@ -9457,7 +9510,6 @@ ${cta}` : cta;
           });
         } catch (error2) {
         }
-        this.showMessage(composer, "\u2713 Reply inserted", "success");
         this.updateAllButtonStates();
       } catch (error2) {
         console.error("Failed to generate reply:", error2);
@@ -10881,7 +10933,6 @@ ${cta}` : cta;
     // Handles multiple Twitter input types with comprehensive fallbacks
     async insertReplyIntoComposer(composer, replyData) {
       try {
-        console.log("[TweetReplyAI] \u{1F680} Starting Twitter text insertion method");
         if (!composer || !replyData) {
           console.log("[TweetReplyAI] \u274C Invalid parameters");
           return;
@@ -10892,6 +10943,20 @@ ${cta}` : cta;
           return;
         }
         const cleanText = this.stripReplyPrefix(replyText.replace(/<[^>]*>/g, ""));
+        const container = composer.closest?.('[data-testid^="tweetTextarea_"]');
+        const insertCtx = {
+          diagRevision: CONTENT_SCRIPT_DIAG_REVISION,
+          pathname: typeof location !== "undefined" ? location.pathname : "",
+          composerContainerTestId: container?.getAttribute?.("data-testid") ?? null,
+          composerTestId: composer.getAttribute("data-testid"),
+          composerRole: composer.getAttribute("role"),
+          contentEditable: composer.contentEditable,
+          classNamePreview: String(composer.className || "").trim().slice(0, 120) || "(none)",
+          cleanTextChars: cleanText.length
+        };
+        console.log(
+          `[TweetReplyAI] \u{1F680} Starting Twitter text insertion method ${JSON.stringify(insertCtx)}`
+        );
         if (composer.contentEditable === "true" || composer.getAttribute("data-testid")?.startsWith("tweetTextarea_") || composer.getAttribute("role") === "textbox") {
           try {
             const toolbar = document.querySelector('[data-testid="toolBar"]');
@@ -11063,14 +11128,20 @@ ${cta}` : cta;
       });
     }
     showMessage(composer, message, type = "info") {
-      const existingMessage = composer.parentElement?.querySelector(".tweetreply-message");
+      const parent = composer?.parentElement;
+      const dialogEl = composer?.closest?.('[role="dialog"]') || parent?.closest?.('[role="dialog"]') || null;
+      if (dialogEl && (type === "success" || type === "error")) {
+        const existingMessage2 = parent?.querySelector?.(".tweetreply-message");
+        if (existingMessage2) existingMessage2.remove();
+        return;
+      }
+      const existingMessage = parent?.querySelector?.(".tweetreply-message");
       if (existingMessage) {
         existingMessage.remove();
       }
       const messageEl = document.createElement("div");
       messageEl.className = `tweetreply-message tweetreply-message--${type}`;
       messageEl.textContent = message;
-      const parent = composer.parentElement;
       if (parent) {
         parent.insertBefore(messageEl, composer.nextSibling);
       }
