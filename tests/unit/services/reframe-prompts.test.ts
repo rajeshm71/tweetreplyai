@@ -83,6 +83,14 @@ describe("reframe-prompts Service - Unit Tests", () => {
       }
     });
 
+    it("includes the global structural pattern rule at every degree", () => {
+      for (const d of [0, 25, 50, 75, 100]) {
+        const sys = getReframePromptConfig(d).systemPrompt;
+        expect(sys).toMatch(/Structural pattern/i);
+        expect(sys).toMatch(/Do not collapse list-like sources/i);
+      }
+    });
+
     it("user prompt includes the trimmed source tweet in quotes", () => {
       const cfg = getReframePromptConfig(50);
       const prompt = cfg.userPrompt("  Hello world!  ");
@@ -121,17 +129,28 @@ describe("reframe-prompts Service - Unit Tests", () => {
       }
     });
 
-    it("balanced (degree=50) instructs the model to break output into short lines with blank lines between ideas", () => {
+    it("balanced (degree=50) instructs the model to mirror list/multiline layout", () => {
       const sys = getReframePromptConfig(50).systemPrompt;
-      expect(sys).toContain("Break the output into short lines");
-      expect(sys).toContain("blank line between distinct ideas");
+      expect(sys).toMatch(/mirror the source layout/i);
+      expect(sys).toMatch(/list-like/i);
+      expect(sys).not.toContain("1-3 short paragraphs is typical");
     });
 
-    it("heavy (degree=75) and reimagined (degree=95) instruct the model to favor short, punchy lines", () => {
-      for (const d of [75, 95]) {
-        const sys = getReframePromptConfig(d).systemPrompt;
-        expect(sys).toContain("short, punchy lines");
-      }
+    it("heavy (degree=75) forbids collapsing list-like sources into one narrative paragraph", () => {
+      const sys = getReframePromptConfig(75).systemPrompt;
+      expect(sys).toMatch(/list-like or multiline/i);
+      expect(sys).toMatch(/do not collapse into one narrative paragraph/i);
+    });
+
+    it("reimagined (degree=95) keeps list-like sources list-like with line breaks", () => {
+      const sys = getReframePromptConfig(95).systemPrompt;
+      expect(sys).toMatch(/list-like or multiline/i);
+      expect(sys).toMatch(/stay list-like with line breaks between items/i);
+    });
+
+    it("heavy (degree=75) still favors short punchy lines between items", () => {
+      const sys = getReframePromptConfig(75).systemPrompt;
+      expect(sys).toContain("short, punchy lines");
     });
 
     it("every band advertises that plain line breaks are allowed and disallows stray markdown syntax", () => {
@@ -142,9 +161,10 @@ describe("reframe-prompts Service - Unit Tests", () => {
       }
     });
 
-    it("user prompt nudges the model to use natural line breaks", () => {
+    it("user prompt instructs matching source layout for list vs prose", () => {
       const prompt = getReframePromptConfig(50).userPrompt("Example source tweet");
-      expect(prompt).toContain("Use line breaks where they read naturally");
+      expect(prompt).toContain("Match the source layout");
+      expect(prompt).toMatch(/list-like sources stay list-like/i);
     });
   });
 });

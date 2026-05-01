@@ -57,21 +57,21 @@ const BAND_INSTRUCTIONS: Record<DegreeBand, string> = {
     "- Rewrite the majority of sentences in fresh language.",
     "- Preserve the core idea and stance. Reordering points or swapping the hook is allowed.",
     "- Do not copy long phrases from the source.",
-    "- Formatting: write like a tweet. Break the output into short lines, with a blank line between distinct ideas. 1-3 short paragraphs is typical.",
+    "- Formatting: mirror the source layout. If it is list-like or multiline, keep it list-like (one main idea per line or item; blank lines between stanzas if the source had them). Reword heavily; reorder items or merge adjacent redundant lines only if the output stays clearly list-like. For continuous prose sources, use short lines and breaks between ideas.",
   ].join('\n'),
   heavy: [
     "This is a HEAVY rewrite.",
     "- Keep the thesis/insight, but use entirely new phrasing and a new hook.",
-    "- Format can change (prose vs. short list, question vs. statement).",
-    "- Do not preserve the exact structure of the source.",
-    "- Formatting: write like a tweet. Favor short, punchy lines. Use a blank line between distinct ideas. A one-line hook + 1-2 short paragraphs reads well.",
+    "- You may change list presentation (dashes vs quotes, question vs statement), drop weak points, merge redundant adjacent items, or add one point if it serves the core idea.",
+    "- If the source is list-like or multiline, keep it list-like—line breaks between items; do not collapse into one narrative paragraph. Continuous prose may use a hook plus short stanzas.",
+    "- Formatting: short, punchy lines; blank lines between distinct ideas or list items as in the source.",
   ].join('\n'),
   reimagined: [
     "This is a FULLY REIMAGINED rewrite.",
     "- Keep only the core insight or claim of the source.",
-    "- Invent a new angle, voice, and structure around that insight.",
+    "- Invent a new angle and voice around that insight.",
     "- Stance must be preserved (do not flip pro to con or vice versa).",
-    "- Formatting: write like a tweet. Favor short, punchy lines. Use a blank line between distinct ideas. A one-line hook + 1-2 short paragraphs reads well.",
+    "- If the source is list-like or multiline, stay list-like with line breaks between items (you may add, drop, or rephrase items). Continuous prose may use a new structure with short lines and stanza breaks.",
   ].join('\n'),
 };
 
@@ -89,6 +89,7 @@ function buildSharedRules(degree: number, allowLong: boolean): string {
     `- Target length: the reframed tweet must fit in ${charLimit} characters.`,
     "- Do not add hashtags unless the source used them.",
     "- Do not wrap the output in quotes or code fences. No markdown syntax (no **bold**, _italic_, or #headings). Plain line breaks are allowed and encouraged.",
+    "- Structural pattern: If the source uses multiple lines, bullets or numbers, quoted one-liners on separate lines, or a clear per-item list, keep that scannable shape—line breaks between items. Do not collapse list-like sources into one or two narrative paragraphs. If the source is already continuous prose, short paragraphs and line breaks between ideas are fine.",
   ];
 
   if (band === 'minimal' || band === 'light') {
@@ -122,7 +123,8 @@ function buildSharedRules(degree: number, allowLong: boolean): string {
 const PROMPT_VARIATION_TONE: Record<string, string> = {
   default: '',
   conversational: "Voice: casual and conversational, like talking to a friend on X.",
-  direct: "Voice: blunt and direct. Cut the fluff. Short, punchy sentences.",
+  direct:
+    "Voice: blunt and direct. Cut the fluff. Short, punchy sentences—without merging list items into one paragraph when the source is list-like.",
   analytical: "Voice: measured and analytical. Prefer precise wording over flourish.",
   humorous: "Voice: light wit, one beat of humor allowed if it fits the source.",
   supportive: "Voice: warm and supportive. Never sycophantic.",
@@ -162,7 +164,7 @@ export function getReframePromptConfig(
       '"""',
       '',
       `Rewrite the tweet above as your own standalone tweet at degree ${clamped}/100 (${band}).`,
-      'Use line breaks where they read naturally for a tweet. Output only the rewritten tweet text, no quotes, no preamble.',
+      'Match the source layout: list-like sources stay list-like with line breaks between items; prose sources stay prose-shaped. Output only the rewritten tweet text, no quotes, no preamble.',
     ].join('\n');
   };
 
