@@ -88,6 +88,8 @@ describe("reframe-prompts Service - Unit Tests", () => {
         const sys = getReframePromptConfig(d).systemPrompt;
         expect(sys).toMatch(/Structural pattern/i);
         expect(sys).toMatch(/Do not collapse list-like sources/i);
+        expect(sys).toMatch(/List markers may change/i);
+        expect(sys).toMatch(/do not concatenate multiple source lines/i);
       }
     });
 
@@ -126,6 +128,7 @@ describe("reframe-prompts Service - Unit Tests", () => {
       for (const d of [10, 35]) {
         const sys = getReframePromptConfig(d).systemPrompt;
         expect(sys).toContain("PRESERVE the source's line-break structure");
+        expect(sys).toMatch(/Markers may change/i);
       }
     });
 
@@ -136,16 +139,23 @@ describe("reframe-prompts Service - Unit Tests", () => {
       expect(sys).not.toContain("1-3 short paragraphs is typical");
     });
 
-    it("heavy (degree=75) forbids collapsing list-like sources into one narrative paragraph", () => {
-      const sys = getReframePromptConfig(75).systemPrompt;
-      expect(sys).toMatch(/list-like or multiline/i);
-      expect(sys).toMatch(/do not collapse into one narrative paragraph/i);
+    it("balanced (degree=50) allows dropping redundant items and one related line", () => {
+      const sys = getReframePromptConfig(50).systemPrompt;
+      expect(sys).toMatch(/drop redundant items/i);
+      expect(sys).toMatch(/at most one short related line/i);
     });
 
-    it("reimagined (degree=95) keeps list-like sources list-like with line breaks", () => {
+    it("heavy (degree=75) forbids collapsing list-like sources and encourages add/remove lines", () => {
+      const sys = getReframePromptConfig(75).systemPrompt;
+      expect(sys).toMatch(/do not collapse list-like sources into one narrative paragraph/i);
+      expect(sys).toMatch(/Add or remove lines/i);
+      expect(sys).toMatch(/original, not copied/i);
+    });
+
+    it("reimagined (degree=95) actively varies lines and preserves break rhythm", () => {
       const sys = getReframePromptConfig(95).systemPrompt;
-      expect(sys).toMatch(/list-like or multiline/i);
-      expect(sys).toMatch(/stay list-like with line breaks between items/i);
+      expect(sys).toMatch(/Actively add, drop, or replace lines/i);
+      expect(sys).toMatch(/blank-line rhythm/i);
     });
 
     it("heavy (degree=75) still favors short punchy lines between items", () => {
@@ -161,9 +171,12 @@ describe("reframe-prompts Service - Unit Tests", () => {
       }
     });
 
-    it("user prompt instructs matching source layout for list vs prose", () => {
+    it("user prompt instructs layout, markers, and add/drop related lines", () => {
       const prompt = getReframePromptConfig(50).userPrompt("Example source tweet");
       expect(prompt).toContain("Match the source layout");
+      expect(prompt).toMatch(/preserve line breaks and blank-line gaps/i);
+      expect(prompt).toMatch(/list markers may change/i);
+      expect(prompt).toMatch(/Add or drop related lines as needed so it does not read as copied/i);
       expect(prompt).toMatch(/list-like sources stay list-like/i);
     });
   });

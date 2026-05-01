@@ -44,6 +44,7 @@ const BAND_INSTRUCTIONS: Record<DegreeBand, string> = {
     "- Keep the same opening hook and ordering.",
     "- Anti-plagiarism floor: you MUST NOT reproduce any contiguous span of 8 or more words identical to the source. If you notice such a span, lightly reword it.",
     "- Formatting: PRESERVE the source's line-break structure exactly. If the source has blank lines between sentences or paragraphs, keep them.",
+    "- Markers may change (e.g. dash vs bullet or quotes), but line breaks and inter-stanza blank lines must stay aligned with the source.",
   ].join('\n'),
   light: [
     "This is a LIGHT rewrite.",
@@ -51,6 +52,7 @@ const BAND_INSTRUCTIONS: Record<DegreeBand, string> = {
     "- Same hook and ordering are fine.",
     "- Anti-plagiarism floor: you MUST NOT reproduce any contiguous span of 8 or more words identical to the source.",
     "- Formatting: PRESERVE the source's line-break structure exactly. If the source has blank lines between sentences or paragraphs, keep them.",
+    "- Markers may change (e.g. dash vs bullet or quotes), but line breaks and inter-stanza blank lines must stay aligned with the source.",
   ].join('\n'),
   balanced: [
     "This is a BALANCED rewrite.",
@@ -58,20 +60,22 @@ const BAND_INSTRUCTIONS: Record<DegreeBand, string> = {
     "- Preserve the core idea and stance. Reordering points or swapping the hook is allowed.",
     "- Do not copy long phrases from the source.",
     "- Formatting: mirror the source layout. If it is list-like or multiline, keep it list-like (one main idea per line or item; blank lines between stanzas if the source had them). Reword heavily; reorder items or merge adjacent redundant lines only if the output stays clearly list-like. For continuous prose sources, use short lines and breaks between ideas.",
+    "- Variation: you may drop redundant items and add at most one short related line that restates or bridges the same core idea (no new facts—obey the hard rules). Wording should feel fresh so it does not read as copied.",
   ].join('\n'),
   heavy: [
     "This is a HEAVY rewrite.",
     "- Keep the thesis/insight, but use entirely new phrasing and a new hook.",
-    "- You may change list presentation (dashes vs quotes, question vs statement), drop weak points, merge redundant adjacent items, or add one point if it serves the core idea.",
-    "- If the source is list-like or multiline, keep it list-like—line breaks between items; do not collapse into one narrative paragraph. Continuous prose may use a hook plus short stanzas.",
-    "- Formatting: short, punchy lines; blank lines between distinct ideas or list items as in the source.",
+    "- List markers may change freely (dashes, bullets, quotes, questions vs statements). Add or remove lines that serve the thesis—merge near-duplicates, drop weak points, add clarifying lines—so the output feels original, not copied.",
+    "- Preserve multiline break rhythm: line breaks between items, blank lines between stanzas as in the source; do not collapse list-like sources into one narrative paragraph. Continuous prose may use a hook plus short stanzas.",
+    "- Formatting: short, punchy lines; keep vertical spacing aligned with the source pattern.",
   ].join('\n'),
   reimagined: [
     "This is a FULLY REIMAGINED rewrite.",
     "- Keep only the core insight or claim of the source.",
     "- Invent a new angle and voice around that insight.",
     "- Stance must be preserved (do not flip pro to con or vice versa).",
-    "- If the source is list-like or multiline, stay list-like with line breaks between items (you may add, drop, or rephrase items). Continuous prose may use a new structure with short lines and stanza breaks.",
+    "- Actively add, drop, or replace lines around the core insight (obey hard rules on invented specifics) so it does not read as copied. List markers may change freely.",
+    "- When the source is list-like or multiline, preserve line breaks and blank-line rhythm between items or stanzas; do not merge into one prose block. Continuous prose may use a new structure with short lines and stanza breaks.",
   ].join('\n'),
 };
 
@@ -89,7 +93,7 @@ function buildSharedRules(degree: number, allowLong: boolean): string {
     `- Target length: the reframed tweet must fit in ${charLimit} characters.`,
     "- Do not add hashtags unless the source used them.",
     "- Do not wrap the output in quotes or code fences. No markdown syntax (no **bold**, _italic_, or #headings). Plain line breaks are allowed and encouraged.",
-    "- Structural pattern: If the source uses multiple lines, bullets or numbers, quoted one-liners on separate lines, or a clear per-item list, keep that scannable shape—line breaks between items. Do not collapse list-like sources into one or two narrative paragraphs. If the source is already continuous prose, short paragraphs and line breaks between ideas are fine.",
+    "- Structural pattern: If the source is list-like or multiline, keep the same break rhythm—one main idea per line as in the source, preserve blank lines between stanzas, and do not concatenate multiple source lines into one paragraph. List markers may change (dashes, bullets, numbers, quoted lines vs plain lines). Do not collapse list-like sources into one or two narrative paragraphs. If the source is already continuous prose, short paragraphs and line breaks between ideas are fine.",
   ];
 
   if (band === 'minimal' || band === 'light') {
@@ -164,7 +168,7 @@ export function getReframePromptConfig(
       '"""',
       '',
       `Rewrite the tweet above as your own standalone tweet at degree ${clamped}/100 (${band}).`,
-      'Match the source layout: list-like sources stay list-like with line breaks between items; prose sources stay prose-shaped. Output only the rewritten tweet text, no quotes, no preamble.',
+      'Match the source layout: preserve line breaks and blank-line gaps; list markers may change. Add or drop related lines as needed so it does not read as copied. List-like sources stay list-like; prose stays prose-shaped. Output only the rewritten tweet text, no quotes, no preamble.',
     ].join('\n');
   };
 
