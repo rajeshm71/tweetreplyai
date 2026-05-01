@@ -60,10 +60,11 @@ describe("reframe-prompts Service - Unit Tests", () => {
       expect(cfg.systemPrompt).toMatch(/MINIMAL rewrite/i);
     });
 
-    it("reimagined band system prompt mentions a new angle", () => {
+    it("reimagined band scopes new angle to options and body, not replacing lead questions", () => {
       const cfg = getReframePromptConfig(90);
       expect(cfg.band).toBe("reimagined");
       expect(cfg.systemPrompt).toMatch(/new angle/i);
+      expect(cfg.systemPrompt).toMatch(/not by replacing a lead question/i);
       expect(cfg.systemPrompt).toMatch(/FULLY REIMAGINED/i);
     });
 
@@ -90,6 +91,15 @@ describe("reframe-prompts Service - Unit Tests", () => {
         expect(sys).toMatch(/Do not collapse list-like sources/i);
         expect(sys).toMatch(/List markers may change/i);
         expect(sys).toMatch(/do not concatenate multiple source lines/i);
+      }
+    });
+
+    it("includes the lead-question preservation rule at every degree", () => {
+      for (const d of [0, 25, 50, 75, 100]) {
+        const sys = getReframePromptConfig(d).systemPrompt;
+        expect(sys).toMatch(/Lead question \(when applicable\)/i);
+        expect(sys).toMatch(/statement lead/i);
+        expect(sys).toMatch(/do not invent a question for purely declarative opens/i);
       }
     });
 
@@ -145,6 +155,18 @@ describe("reframe-prompts Service - Unit Tests", () => {
       expect(sys).toMatch(/at most one short related line/i);
     });
 
+    it("balanced (degree=50) preserves opening question intent instead of swapping the hook", () => {
+      const sys = getReframePromptConfig(50).systemPrompt;
+      expect(sys).not.toContain("swapping the hook");
+      expect(sys).toMatch(/same question intent/i);
+    });
+
+    it("heavy (degree=75) reframes hook without requiring a different prompt (no 'new hook')", () => {
+      const sys = getReframePromptConfig(75).systemPrompt;
+      expect(sys).not.toMatch(/\ba new hook\b/i);
+      expect(sys).toMatch(/must stay a question with the same intent/i);
+    });
+
     it("heavy (degree=75) forbids collapsing list-like sources and encourages add/remove lines", () => {
       const sys = getReframePromptConfig(75).systemPrompt;
       expect(sys).toMatch(/do not collapse list-like sources into one narrative paragraph/i);
@@ -171,11 +193,13 @@ describe("reframe-prompts Service - Unit Tests", () => {
       }
     });
 
-    it("user prompt instructs layout, markers, and add/drop related lines", () => {
+    it("user prompt instructs layout, markers, lead question, and add/drop related lines", () => {
       const prompt = getReframePromptConfig(50).userPrompt("Example source tweet");
       expect(prompt).toContain("Match the source layout");
       expect(prompt).toMatch(/preserve line breaks and blank-line gaps/i);
       expect(prompt).toMatch(/list markers may change/i);
+      expect(prompt).toMatch(/If the source opens with a question/i);
+      expect(prompt).toMatch(/keep that question/i);
       expect(prompt).toMatch(/Add or drop related lines as needed so it does not read as copied/i);
       expect(prompt).toMatch(/list-like sources stay list-like/i);
     });

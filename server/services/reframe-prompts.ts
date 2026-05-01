@@ -57,14 +57,14 @@ const BAND_INSTRUCTIONS: Record<DegreeBand, string> = {
   balanced: [
     "This is a BALANCED rewrite.",
     "- Rewrite the majority of sentences in fresh language.",
-    "- Preserve the core idea and stance. Reordering points or swapping the hook is allowed.",
+    "- Preserve the core idea and stance. Keep the opening hook's intent: if the source opens with a question, the output must still open with that same question intent (light rephrase only—see hard rules); do not swap it for a statement lead or unrelated question. Reorder and vary list or body lines below freely within this band.",
     "- Do not copy long phrases from the source.",
     "- Formatting: mirror the source layout. If it is list-like or multiline, keep it list-like (one main idea per line or item; blank lines between stanzas if the source had them). Reword heavily; reorder items or merge adjacent redundant lines only if the output stays clearly list-like. For continuous prose sources, use short lines and breaks between ideas.",
     "- Variation: you may drop redundant items and add at most one short related line that restates or bridges the same core idea (no new facts—obey the hard rules). Wording should feel fresh so it does not read as copied.",
   ].join('\n'),
   heavy: [
     "This is a HEAVY rewrite.",
-    "- Keep the thesis/insight, but use entirely new phrasing and a new hook.",
+    "- Keep the thesis/insight. Use fresh phrasing throughout; if the source opens with a question, rephrase it but it must stay a question with the same intent (see hard rules). Originality comes from list items and body lines, not from a different prompt or a statement lead.",
     "- List markers may change freely (dashes, bullets, quotes, questions vs statements). Add or remove lines that serve the thesis—merge near-duplicates, drop weak points, add clarifying lines—so the output feels original, not copied.",
     "- Preserve multiline break rhythm: line breaks between items, blank lines between stanzas as in the source; do not collapse list-like sources into one narrative paragraph. Continuous prose may use a hook plus short stanzas.",
     "- Formatting: short, punchy lines; keep vertical spacing aligned with the source pattern.",
@@ -72,7 +72,7 @@ const BAND_INSTRUCTIONS: Record<DegreeBand, string> = {
   reimagined: [
     "This is a FULLY REIMAGINED rewrite.",
     "- Keep only the core insight or claim of the source.",
-    "- Invent a new angle and voice around that insight.",
+    "- Invent a new angle and voice in the options, list items, and body—not by replacing a lead question with a different premise or statement hook. If the source opens with a question, preserve that question's intent in the opening (rephrase allowed; see hard rules).",
     "- Stance must be preserved (do not flip pro to con or vice versa).",
     "- Actively add, drop, or replace lines around the core insight (obey hard rules on invented specifics) so it does not read as copied. List markers may change freely.",
     "- When the source is list-like or multiline, preserve line breaks and blank-line rhythm between items or stanzas; do not merge into one prose block. Continuous prose may use a new structure with short lines and stanza breaks.",
@@ -94,6 +94,7 @@ function buildSharedRules(degree: number, allowLong: boolean): string {
     "- Do not add hashtags unless the source used them.",
     "- Do not wrap the output in quotes or code fences. No markdown syntax (no **bold**, _italic_, or #headings). Plain line breaks are allowed and encouraged.",
     "- Structural pattern: If the source is list-like or multiline, keep the same break rhythm—one main idea per line as in the source, preserve blank lines between stanzas, and do not concatenate multiple source lines into one paragraph. List markers may change (dashes, bullets, numbers, quoted lines vs plain lines). Do not collapse list-like sources into one or two narrative paragraphs. If the source is already continuous prose, short paragraphs and line breaks between ideas are fine.",
+    "- Lead question (when applicable): If the first substantive line of the source ends with ? or is clearly interrogative, the output must open with a question that preserves the same meaning and framing (who it is for, what is being asked). Light rephrase only—do not replace with a statement lead or a different question. This rule does not apply when the source does not open as a question; do not invent a question for purely declarative opens. List items and lines after the opening stanza may still be added, removed, merged, or rephrased per the band instructions.",
   ];
 
   if (band === 'minimal' || band === 'light') {
@@ -168,7 +169,7 @@ export function getReframePromptConfig(
       '"""',
       '',
       `Rewrite the tweet above as your own standalone tweet at degree ${clamped}/100 (${band}).`,
-      'Match the source layout: preserve line breaks and blank-line gaps; list markers may change. Add or drop related lines as needed so it does not read as copied. List-like sources stay list-like; prose stays prose-shaped. Output only the rewritten tweet text, no quotes, no preamble.',
+      'Match the source layout: preserve line breaks and blank-line gaps; list markers may change. If the source opens with a question, keep that question’s intent in the opening line; change list/options below as needed. Add or drop related lines as needed so it does not read as copied. List-like sources stay list-like; prose stays prose-shaped. Output only the rewritten tweet text, no quotes, no preamble.',
     ].join('\n');
   };
 
