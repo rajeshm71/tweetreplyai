@@ -39,7 +39,7 @@ function clampDegree(degree: number): number {
 const BAND_INSTRUCTIONS: Record<DegreeBand, string> = {
   minimal: [
     "This is a MINIMAL rewrite (copy-edit only).",
-    "- Preserve the original structure, vocabulary, sentiment, and formatting.",
+    "- Preserve the original structure, meaning, sentiment, and formatting. When you must reword (e.g. anti-plagiarism), prefer simpler everyday words over stiff or fancy ones.",
     "- Fix only awkward phrasing, typos, or redundancy.",
     "- Keep the same opening hook and ordering.",
     "- Anti-plagiarism floor: you MUST NOT reproduce any contiguous span of 8 or more words identical to the source. If you notice such a span, lightly reword it.",
@@ -49,6 +49,7 @@ const BAND_INSTRUCTIONS: Record<DegreeBand, string> = {
   light: [
     "This is a LIGHT rewrite.",
     "- Reword roughly 30-40% of sentences; keep tone, structure, and stance unchanged.",
+    "- Where you reword, prefer simpler everyday language; soften stiff or jargon-heavy phrasing while keeping the same meaning.",
     "- Same hook and ordering are fine.",
     "- Anti-plagiarism floor: you MUST NOT reproduce any contiguous span of 8 or more words identical to the source.",
     "- Formatting: PRESERVE the source's line-break structure exactly. If the source has blank lines between sentences or paragraphs, keep them.",
@@ -89,6 +90,7 @@ function buildSharedRules(degree: number, allowLong: boolean): string {
   const lines = [
     "Hard rules that apply to EVERY reframe:",
     "- Preserve the source language. If the source is Hindi, output Hindi; if Spanish, output Spanish; etc. Do not translate.",
+    "- Plain language (when the source is English): use simple, everyday words and short, natural sentences. Avoid fancy vocabulary, academic tone, and corporate jargon unless the source depends on a specific term. If the source sounds stiff or verbose, simplify wording while preserving meaning. If the source is not English, keep that language; do not elevate style.",
     "- Output is the user's OWN standalone tweet. Do NOT attribute the idea. Do NOT include phrases like \"as @someone said\", \"quoting X\", \"via @\", or surrounding quotation marks.",
     `- Target length: the reframed tweet must fit in ${charLimit} characters.`,
     "- Do not add hashtags unless the source used them.",
@@ -127,12 +129,14 @@ function buildSharedRules(degree: number, allowLong: boolean): string {
 // picks e.g. "humorous" or "analytical".
 const PROMPT_VARIATION_TONE: Record<string, string> = {
   default: '',
-  conversational: "Voice: casual and conversational, like talking to a friend on X.",
+  conversational:
+    "Voice: casual and conversational, like talking to a friend on X. Plain everyday words.",
   direct:
-    "Voice: blunt and direct. Cut the fluff. Short, punchy sentences—without merging list items into one paragraph when the source is list-like.",
-  analytical: "Voice: measured and analytical. Prefer precise wording over flourish.",
-  humorous: "Voice: light wit, one beat of humor allowed if it fits the source.",
-  supportive: "Voice: warm and supportive. Never sycophantic.",
+    "Voice: blunt and direct. Cut the fluff. Short, punchy sentences and plain everyday words—without merging list items into one paragraph when the source is list-like.",
+  analytical:
+    "Voice: measured and analytical—clear and plain, not academic. Use simple everyday English; prefer clarity over formal diction.",
+  humorous: "Voice: light wit, one beat of humor allowed if it fits the source. Plain everyday words.",
+  supportive: "Voice: warm and supportive. Never sycophantic. Plain everyday words.",
 };
 
 function buildSystemPrompt(degree: number, band: DegreeBand, allowLong: boolean, promptVariation?: string): string {
@@ -141,7 +145,7 @@ function buildSystemPrompt(degree: number, band: DegreeBand, allowLong: boolean,
     : '';
 
   return [
-    "You are a seasoned X (Twitter) user rewriting another user's tweet into YOUR OWN standalone tweet.",
+    "You are an X (Twitter) user rewriting another user's tweet into YOUR OWN standalone tweet, in plain everyday language.",
     `Degree of change: ${degree}/100 (band: ${band}).`,
     '',
     BAND_INSTRUCTIONS[band],
@@ -169,7 +173,7 @@ export function getReframePromptConfig(
       '"""',
       '',
       `Rewrite the tweet above as your own standalone tweet at degree ${clamped}/100 (${band}).`,
-      'Match the source layout: preserve line breaks and blank-line gaps; list markers may change. If the source opens with a question, keep that question’s intent in the opening line; change list/options below as needed. Add or drop related lines as needed so it does not read as copied. List-like sources stay list-like; prose stays prose-shaped. Output only the rewritten tweet text, no quotes, no preamble.',
+      'Match the source layout: preserve line breaks and blank-line gaps; list markers may change. If the source opens with a question, keep that question’s intent in the opening line; change list/options below as needed. Add or drop related lines as needed so it does not read as copied. For English sources, use simple everyday words—avoid fancy or academic wording unless the source requires a term. List-like sources stay list-like; prose stays prose-shaped. Output only the rewritten tweet text, no quotes, no preamble.',
     ].join('\n');
   };
 

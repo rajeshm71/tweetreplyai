@@ -58,6 +58,10 @@ describe("reframe-prompts Service - Unit Tests", () => {
       expect(cfg.band).toBe("minimal");
       expect(cfg.systemPrompt).toMatch(/8 or more words/i);
       expect(cfg.systemPrompt).toMatch(/MINIMAL rewrite/i);
+      expect(cfg.systemPrompt).toMatch(/simpler everyday words/i);
+      expect(cfg.systemPrompt).not.toMatch(
+        /Preserve the original structure, vocabulary, sentiment, and formatting/,
+      );
     });
 
     it("reimagined band scopes new angle to options and body, not replacing lead questions", () => {
@@ -103,6 +107,25 @@ describe("reframe-prompts Service - Unit Tests", () => {
       }
     });
 
+    it("includes plain everyday English guidance at every degree", () => {
+      for (const d of [0, 25, 50, 75, 100]) {
+        const sys = getReframePromptConfig(d).systemPrompt;
+        expect(sys).toMatch(/Plain language \(when the source is English\)/i);
+        expect(sys).toMatch(/simple, everyday words/i);
+      }
+    });
+
+    it("opening persona asks for plain everyday language", () => {
+      expect(getReframePromptConfig(50).systemPrompt).toMatch(/plain everyday language/i);
+      expect(getReframePromptConfig(50).systemPrompt).not.toMatch(/seasoned X/);
+    });
+
+    it("analytical tone stresses plain wording over formal diction", () => {
+      const cfg = getReframePromptConfig(50, { promptVariation: "analytical" });
+      expect(cfg.systemPrompt).toMatch(/simple everyday English/i);
+      expect(cfg.systemPrompt).toMatch(/not academic/i);
+    });
+
     it("user prompt includes the trimmed source tweet in quotes", () => {
       const cfg = getReframePromptConfig(50);
       const prompt = cfg.userPrompt("  Hello world!  ");
@@ -140,6 +163,12 @@ describe("reframe-prompts Service - Unit Tests", () => {
         expect(sys).toContain("PRESERVE the source's line-break structure");
         expect(sys).toMatch(/Markers may change/i);
       }
+    });
+
+    it("light (degree=35) prefers simpler everyday language when rewording", () => {
+      const sys = getReframePromptConfig(35).systemPrompt;
+      expect(sys).toMatch(/simpler everyday language/i);
+      expect(sys).toMatch(/jargon-heavy phrasing/i);
     });
 
     it("balanced (degree=50) instructs the model to mirror list/multiline layout", () => {
@@ -201,6 +230,7 @@ describe("reframe-prompts Service - Unit Tests", () => {
       expect(prompt).toMatch(/If the source opens with a question/i);
       expect(prompt).toMatch(/keep that question/i);
       expect(prompt).toMatch(/Add or drop related lines as needed so it does not read as copied/i);
+      expect(prompt).toMatch(/simple everyday words/i);
       expect(prompt).toMatch(/list-like sources stay list-like/i);
     });
   });
