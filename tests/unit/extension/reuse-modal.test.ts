@@ -40,6 +40,11 @@ function makeDeps(overrides: any = {}) {
 describe("createReuseModal (extension helper)", () => {
   beforeEach(() => {
     document.body.innerHTML = "";
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(globalThis.navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    });
   });
 
   afterEach(() => {
@@ -236,7 +241,7 @@ describe("createReuseModal (extension helper)", () => {
     expect(badge.hidden).toBe(false);
   });
 
-  it("disables Copy and Post to X while a regenerate is in flight (stale lastResult guard)", async () => {
+  it("disables Copy and Post to X while a regenerate is in flight (stale selection guard)", async () => {
     const deps = makeDeps();
     deps.apiClient.reframeTweet.mockResolvedValueOnce({
       reframed: "First result",
@@ -312,6 +317,181 @@ describe("createReuseModal (extension helper)", () => {
     // tear it down — the guard only absorbs the one self-initiated event.
     window.dispatchEvent(new PopStateEvent("popstate"));
     expect(document.getElementById(REUSE.MODAL_ID)).toBeNull();
+  });
+
+  it("keeps multiple generations as selectable variation chips; Copy uses selected row", async () => {
+    const deps = makeDeps();
+    deps.apiClient.reframeTweet
+      .mockResolvedValueOnce({
+        reframed: "First variation text",
+        qualityScore: 80,
+        degree: 50,
+        band: "balanced",
+        meta: { promptVariation: "default" },
+      })
+      .mockResolvedValueOnce({
+        reframed: "Second variation text",
+        qualityScore: 81,
+        degree: 60,
+        band: "balanced",
+        meta: { promptVariation: "direct" },
+      });
+
+    const handle = createReuseModal({ text: "This source tweet is long enough.", author: "alice" }, deps);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const modal = document.getElementById(REUSE.MODAL_ID)!;
+    const generate = modal.querySelector<HTMLButtonElement>(".tweetreply-reuse-generate")!;
+    generate.click();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(modal.querySelectorAll(".tweetreply-reuse-variation-chip").length).toBe(1);
+
+    generate.click();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const chips = modal.querySelectorAll(".tweetreply-reuse-variation-chip");
+    expect(chips.length).toBe(2);
+    const textarea = modal.querySelector<HTMLTextAreaElement>(".tweetreply-reuse-result")!;
+    expect(textarea.value).toBe("Second variation text");
+
+    const firstChip = chips[chips.length - 1] as HTMLButtonElement;
+    firstChip.click();
+    await Promise.resolve();
+
+    expect(textarea.value).toBe("First variation text");
+
+    const copyBtn = modal.querySelector<HTMLButtonElement>(".tweetreply-reuse-copy")!;
+    copyBtn.click();
+    await Promise.resolve();
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith("First variation text");
+
+    handle.close();
+  });
+
+  it("Post to X uses the selected variation text when an older chip is selected", async () => {
+    const deps = makeDeps();
+    deps.apiClient.reframeTweet
+      .mockResolvedValueOnce({
+        reframed: "Post me",
+        qualityScore: 80,
+        degree: 50,
+        band: "balanced",
+        meta: {},
+      })
+      .mockResolvedValueOnce({
+        reframed: "Not this one",
+        qualityScore: 80,
+        degree: 50,
+        band: "balanced",
+        meta: {},
+      });
+
+    createReuseModal({ text: "This source tweet is long enough.", author: "alice" }, deps);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const modal = document.getElementById(REUSE.MODAL_ID)!;
+    const generate = modal.querySelector<HTMLButtonElement>(".tweetreply-reuse-generate")!;
+    generate.click();
+    await Promise.resolve();
+    await Promise.resolve();
+    generate.click();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const chips = modal.querySelectorAll(".tweetreply-reuse-variation-chip");
+    (chips[chips.length - 1] as HTMLButtonElement).click();
+    await Promise.resolve();
+
+    modal.querySelector<HTMLButtonElement>(".tweetreply-reuse-post")!.click();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(deps.postToCompose).toHaveBeenCalledWith("Post me");
+  });
+
+  it("when the latest variation has a safety outcome, Post is disabled until user selects a safe row", async () => {
+    const deps = makeDeps();
+    deps.apiClient.reframeTweet
+      .mockResolvedValueOnce({
+        reframed: "Safe to post",
+        qualityScore: 80,
+        degree: 50,
+        band: "balanced",
+        meta: {},
+      })
+      .mockResolvedValueOnce({
+        reframed: "Unsafe rewrite",
+        qualityScore: 70,
+        degree: 50,
+        band: "balanced",
+        meta: { safetyOutcome: "violation_friendly_reply" },
+      });
+
+    createReuseModal({ text: "This source tweet is long enough.", author: "alice" }, deps);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const modal = document.getElementById(REUSE.MODAL_ID)!;
+    const generate = modal.querySelector<HTMLButtonElement>(".tweetreply-reuse-generate")!;
+    generate.click();
+    await Promise.resolve();
+    await Promise.resolve();
+    generate.click();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const postBtn = modal.querySelector<HTMLButtonElement>(".tweetreply-reuse-post")!;
+    expect(postBtn.disabled).toBe(true);
+
+    const chips = modal.querySelectorAll(".tweetreply-reuse-variation-chip");
+    (chips[chips.length - 1] as HTMLButtonElement).click();
+    await Promise.resolve();
+
+    expect(postBtn.disabled).toBe(false);
+  });
+
+  it("after a generate error, Copy still works for a prior successful variation", async () => {
+    const deps = makeDeps();
+    deps.apiClient.reframeTweet
+      .mockResolvedValueOnce({
+        reframed: "Already have this",
+        qualityScore: 80,
+        degree: 50,
+        band: "balanced",
+        meta: {},
+      })
+      .mockRejectedValueOnce(new Error("500: Server error"));
+
+    const handle = createReuseModal({ text: "This source tweet is long enough.", author: "alice" }, deps);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const modal = document.getElementById(REUSE.MODAL_ID)!;
+    const generate = modal.querySelector<HTMLButtonElement>(".tweetreply-reuse-generate")!;
+    generate.click();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    generate.click();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const errorBox = modal.querySelector<HTMLElement>(".tweetreply-reuse-error")!;
+    expect(errorBox.hidden).toBe(false);
+
+    const copyBtn = modal.querySelector<HTMLButtonElement>(".tweetreply-reuse-copy")!;
+    expect(copyBtn.disabled).toBe(false);
+    copyBtn.click();
+    await Promise.resolve();
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith("Already have this");
+
+    handle.close();
   });
 
   it("filters /api/prompts results to reframe-relevant keys only (drops improve / guardrail_violation)", async () => {

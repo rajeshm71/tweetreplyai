@@ -614,10 +614,10 @@ Error:`,
   function getRandomByte() {
     return safeMathRandom() * 16;
   }
-  function uuid4(crypto = getCrypto()) {
+  function uuid4(crypto2 = getCrypto()) {
     try {
-      if (crypto?.randomUUID) {
-        return withRandomSafeContext(() => crypto.randomUUID()).replace(/-/g, "");
+      if (crypto2?.randomUUID) {
+        return withRandomSafeContext(() => crypto2.randomUUID()).replace(/-/g, "");
       }
     } catch {
     }
@@ -7313,6 +7313,7 @@ ${cta}` : cta;
     "humorous",
     "supportive"
   ]);
+  var MAX_VARIATIONS = 10;
   function createReuseModal(payload, deps) {
     const {
       apiClient,
@@ -7338,7 +7339,9 @@ ${cta}` : cta;
     const { text: sourceText = "", author = "", tweetUrl } = payload || {};
     let requestToken = 0;
     let state = "idle";
-    let lastResult = null;
+    let generationHistory = [];
+    let selectedId = null;
+    let variationSeq = 0;
     const overlay = h("div", {
       id: MODAL_ID,
       class: "tweetreply-reuse-modal",
@@ -7461,8 +7464,22 @@ ${cta}` : cta;
     const qualityChip = h("span", { class: "tweetreply-reuse-quality", hidden: true });
     const safetyBadge = h("span", { class: "tweetreply-reuse-safety", hidden: true }, "Safety rewrite");
     const errorBox = h("div", { class: "tweetreply-reuse-error", hidden: true, role: "alert" });
+    const variationsWrap = h("div", { class: "tweetreply-reuse-variations-wrap", hidden: true });
+    variationsWrap.appendChild(h("div", { class: "tweetreply-reuse-variations-label" }, "Variations"));
+    const variationsContainer = h("div", {
+      class: "tweetreply-reuse-variations",
+      role: "radiogroup",
+      "aria-label": "Variations"
+    });
+    const variationsCapHint = h("div", {
+      class: "tweetreply-reuse-variations-cap",
+      hidden: true
+    }, `Showing last ${MAX_VARIATIONS} variations.`);
+    variationsWrap.appendChild(variationsContainer);
+    variationsWrap.appendChild(variationsCapHint);
     card.appendChild(h("div", { class: "tweetreply-reuse-result-wrap" }, [
       h("div", { class: "tweetreply-reuse-result-header" }, [qualityChip, safetyBadge]),
+      variationsWrap,
       resultTextarea,
       errorBox
     ]));
@@ -7476,26 +7493,109 @@ ${cta}` : cta;
       copyBtn,
       postBtn
     ]));
+    function newVariationId() {
+      if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+        return crypto.randomUUID();
+      }
+      variationSeq += 1;
+      return `reuse-var-${variationSeq}`;
+    }
+    function buildVariationEntry(res, { degree, promptVariationKey }) {
+      const safety = res?.meta?.safetyOutcome === "violation_friendly_reply" ? "violation_friendly_reply" : null;
+      return {
+        id: newVariationId(),
+        reframed: res?.reframed || "",
+        qualityScore: res?.qualityScore || 0,
+        degree: res?.degree ?? degree,
+        band: res?.band,
+        promptVariation: promptVariationKey || "",
+        safetyOutcome: safety,
+        createdAt: Date.now()
+      };
+    }
+    function getSelected() {
+      return generationHistory.find((e) => e.id === selectedId) ?? null;
+    }
+    function trimHistoryIfNeeded() {
+      while (generationHistory.length > MAX_VARIATIONS) {
+        const removed = generationHistory.shift();
+        if (removed?.id === selectedId) {
+          selectedId = generationHistory.length ? generationHistory[generationHistory.length - 1].id : null;
+        }
+      }
+      if (selectedId && !generationHistory.some((e) => e.id === selectedId)) {
+        selectedId = generationHistory[generationHistory.length - 1]?.id ?? null;
+      }
+    }
+    function chipLabelFor(entry) {
+      const bandWord = bandLabelFor(entry.degree, BANDS);
+      const styleKey = entry.promptVariation || "default";
+      const t = new Date(entry.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      return `${bandWord} \xB7 ${styleKey} \xB7 ${t}`;
+    }
+    function applyResultChrome() {
+      const sel = getSelected();
+      if (!sel) {
+        qualityChip.hidden = true;
+        safetyBadge.hidden = true;
+        resultTextarea.value = "";
+        copyBtn.disabled = true;
+        postBtn.disabled = true;
+        return;
+      }
+      qualityChip.hidden = false;
+      qualityChip.textContent = `Quality ${Math.round(sel.qualityScore || 0)}`;
+      safetyBadge.hidden = !sel.safetyOutcome;
+      resultTextarea.value = sel.reframed;
+      copyBtn.disabled = false;
+      postBtn.disabled = Boolean(sel.safetyOutcome);
+    }
+    function renderHistory() {
+      variationsWrap.hidden = generationHistory.length === 0;
+      variationsCapHint.hidden = generationHistory.length < MAX_VARIATIONS;
+      variationsContainer.replaceChildren();
+      const reversed = [...generationHistory].reverse();
+      for (let i = 0; i < reversed.length; i += 1) {
+        const entry = reversed[i];
+        const idxFromNew = i;
+        const chip = h("button", {
+          type: "button",
+          class: `tweetreply-reuse-variation-chip${entry.id === selectedId ? " tweetreply-reuse-variation-chip--selected" : ""}`,
+          role: "radio",
+          "aria-checked": String(entry.id === selectedId)
+        }, chipLabelFor(entry));
+        chip.addEventListener("click", () => {
+          if (selectedId === entry.id) return;
+          selectedId = entry.id;
+          renderHistory();
+          applyResultChrome();
+          emitTelemetry2?.({
+            event_type: "reuse_variation_select",
+            surface: "content",
+            context: { action: `index:${idxFromNew}`, note: `historyLen=${generationHistory.length}` }
+          });
+        });
+        variationsContainer.appendChild(chip);
+      }
+    }
     function setState(next, { error: error2 } = {}) {
       state = next;
       if (state === "generating") {
         errorBox.hidden = true;
         generateBtn.textContent = "Generating\u2026";
         regenerateBtn.textContent = "Generating\u2026";
+        variationsContainer.classList.add("tweetreply-reuse-variations--busy");
         copyBtn.disabled = true;
         postBtn.disabled = true;
       } else {
         generateBtn.textContent = "Generate";
         regenerateBtn.textContent = "Regenerate";
+        variationsContainer.classList.remove("tweetreply-reuse-variations--busy");
       }
-      if (state === "result" && lastResult) {
-        regenerateBtn.hidden = false;
-        copyBtn.disabled = false;
-        postBtn.disabled = Boolean(lastResult.safetyOutcome);
-        qualityChip.hidden = false;
-        qualityChip.textContent = `Quality ${Math.round(lastResult.qualityScore || 0)}`;
-        safetyBadge.hidden = !lastResult.safetyOutcome;
-        resultTextarea.value = lastResult.reframed;
+      if (state === "result") {
+        regenerateBtn.hidden = generationHistory.length === 0;
+        applyResultChrome();
+        renderHistory();
       }
       if (state === "error" && error2) {
         errorBox.hidden = false;
@@ -7509,6 +7609,12 @@ ${cta}` : cta;
             class: "tweetreply-reuse-upgrade"
           }, "Upgrade"));
         }
+        if (generationHistory.length > 0 && getSelected()) {
+          applyResultChrome();
+        } else {
+          copyBtn.disabled = true;
+          postBtn.disabled = true;
+        }
       }
     }
     async function runGenerate() {
@@ -7518,32 +7624,29 @@ ${cta}` : cta;
       setState("generating");
       const charLimit = allowLong ? LONG_TWEET_CHAR_LIMIT : TWITTER_CHAR_LIMIT;
       const startedAt = Date.now();
+      const promptVariationKey = styleSelect.value || "";
       try {
         const res = await apiClient.reframeTweet({
           source_tweet: sourceText,
           degree,
           source_author: author || void 0,
           source_tweet_url: tweetUrl,
-          prompt_variation: styleSelect.value || void 0,
+          prompt_variation: promptVariationKey || void 0,
           allow_long: allowLong
         });
         if (token !== requestToken) return;
-        const safety = res?.meta?.safetyOutcome === "violation_friendly_reply" ? "violation_friendly_reply" : null;
-        lastResult = {
-          reframed: res?.reframed || "",
-          qualityScore: res?.qualityScore || 0,
-          degree: res?.degree ?? degree,
-          band: res?.band,
-          safetyOutcome: safety
-        };
+        const entry = buildVariationEntry(res, { degree, promptVariationKey });
+        generationHistory.push(entry);
+        trimHistoryIfNeeded();
+        selectedId = entry.id;
         setState("result");
         onUsageUpdated?.();
         emitTelemetry2?.({
           event_type: "reuse_generate_success",
           surface: "content",
           context: {
-            action: `degree:${lastResult.degree}`,
-            note: `band=${lastResult.band || ""};chars=${lastResult.reframed.length};charLimit=${charLimit};latency=${Date.now() - startedAt}`
+            action: `degree:${entry.degree}`,
+            note: `band=${entry.band || ""};chars=${entry.reframed.length};charLimit=${charLimit};latency=${Date.now() - startedAt}`
           }
         });
       } catch (err) {
@@ -7572,9 +7675,10 @@ ${cta}` : cta;
     generateBtn.addEventListener("click", runGenerate);
     regenerateBtn.addEventListener("click", runGenerate);
     copyBtn.addEventListener("click", async () => {
-      if (!lastResult?.reframed) return;
+      const sel = getSelected();
+      if (!sel?.reframed) return;
       try {
-        await navigator.clipboard.writeText(lastResult.reframed);
+        await navigator.clipboard.writeText(sel.reframed);
         copyBtn.textContent = "Copied";
         setTimeout(() => {
           copyBtn.textContent = "Copy";
@@ -7587,12 +7691,13 @@ ${cta}` : cta;
       }
     });
     postBtn.addEventListener("click", async () => {
-      if (!lastResult?.reframed || lastResult.safetyOutcome) return;
+      const sel = getSelected();
+      if (!sel?.reframed || sel.safetyOutcome) return;
       postBtn.disabled = true;
       postBtn.textContent = "Opening\u2026";
       ignoreNextPopState = 1;
       try {
-        await postToCompose(lastResult.reframed);
+        await postToCompose(sel.reframed);
         handle.close();
       } catch (err) {
         setState("error", {
@@ -7601,7 +7706,7 @@ ${cta}` : cta;
       } finally {
         ignoreNextPopState = 0;
         postBtn.textContent = "Post to X";
-        postBtn.disabled = Boolean(lastResult?.safetyOutcome);
+        postBtn.disabled = Boolean(getSelected()?.safetyOutcome);
       }
     });
     const onKeydown = (ev) => {

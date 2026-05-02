@@ -70,6 +70,9 @@ const REFRAME_PROMPT_KEYS = new Set([
   'supportive',
 ]);
 
+/** Max stored generations per modal session (oldest dropped when exceeded). */
+const MAX_VARIATIONS = 10;
+
 export function createReuseModal(payload, deps) {
   const {
     apiClient,
@@ -100,7 +103,10 @@ export function createReuseModal(payload, deps) {
 
   let requestToken = 0;
   let state = 'idle'; // 'idle' | 'generating' | 'result' | 'error'
-  let lastResult = null;
+  /** @type {Array<{ id: string, reframed: string, qualityScore: number, degree: number, band?: string, promptVariation: string, safetyOutcome: string | null, createdAt: number }>} */
+  let generationHistory = [];
+  let selectedId = null;
+  let variationSeq = 0;
 
   const overlay = h('div', {
     id: MODAL_ID,
@@ -235,8 +241,23 @@ export function createReuseModal(payload, deps) {
   const safetyBadge = h('span', { class: 'tweetreply-reuse-safety', hidden: true }, 'Safety rewrite');
   const errorBox = h('div', { class: 'tweetreply-reuse-error', hidden: true, role: 'alert' });
 
+  const variationsWrap = h('div', { class: 'tweetreply-reuse-variations-wrap', hidden: true });
+  variationsWrap.appendChild(h('div', { class: 'tweetreply-reuse-variations-label' }, 'Variations'));
+  const variationsContainer = h('div', {
+    class: 'tweetreply-reuse-variations',
+    role: 'radiogroup',
+    'aria-label': 'Variations',
+  });
+  const variationsCapHint = h('div', {
+    class: 'tweetreply-reuse-variations-cap',
+    hidden: true,
+  }, `Showing last ${MAX_VARIATIONS} variations.`);
+  variationsWrap.appendChild(variationsContainer);
+  variationsWrap.appendChild(variationsCapHint);
+
   card.appendChild(h('div', { class: 'tweetreply-reuse-result-wrap' }, [
     h('div', { class: 'tweetreply-reuse-result-header' }, [qualityChip, safetyBadge]),
+    variationsWrap,
     resultTextarea,
     errorBox,
   ]));
@@ -251,6 +272,102 @@ export function createReuseModal(payload, deps) {
     generateBtn, regenerateBtn, copyBtn, postBtn,
   ]));
 
+  function newVariationId() {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID();
+    }
+    variationSeq += 1;
+    return `reuse-var-${variationSeq}`;
+  }
+
+  function buildVariationEntry(res, { degree, promptVariationKey }) {
+    const safety = res?.meta?.safetyOutcome === 'violation_friendly_reply'
+      ? 'violation_friendly_reply'
+      : null;
+    return {
+      id: newVariationId(),
+      reframed: res?.reframed || '',
+      qualityScore: res?.qualityScore || 0,
+      degree: res?.degree ?? degree,
+      band: res?.band,
+      promptVariation: promptVariationKey || '',
+      safetyOutcome: safety,
+      createdAt: Date.now(),
+    };
+  }
+
+  function getSelected() {
+    return generationHistory.find((e) => e.id === selectedId) ?? null;
+  }
+
+  function trimHistoryIfNeeded() {
+    while (generationHistory.length > MAX_VARIATIONS) {
+      const removed = generationHistory.shift();
+      if (removed?.id === selectedId) {
+        selectedId = generationHistory.length
+          ? generationHistory[generationHistory.length - 1].id
+          : null;
+      }
+    }
+    if (selectedId && !generationHistory.some((e) => e.id === selectedId)) {
+      selectedId = generationHistory[generationHistory.length - 1]?.id ?? null;
+    }
+  }
+
+  function chipLabelFor(entry) {
+    const bandWord = bandLabelFor(entry.degree, BANDS);
+    const styleKey = entry.promptVariation || 'default';
+    const t = new Date(entry.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return `${bandWord} · ${styleKey} · ${t}`;
+  }
+
+  function applyResultChrome() {
+    const sel = getSelected();
+    if (!sel) {
+      qualityChip.hidden = true;
+      safetyBadge.hidden = true;
+      resultTextarea.value = '';
+      copyBtn.disabled = true;
+      postBtn.disabled = true;
+      return;
+    }
+    qualityChip.hidden = false;
+    qualityChip.textContent = `Quality ${Math.round(sel.qualityScore || 0)}`;
+    safetyBadge.hidden = !sel.safetyOutcome;
+    resultTextarea.value = sel.reframed;
+    copyBtn.disabled = false;
+    postBtn.disabled = Boolean(sel.safetyOutcome);
+  }
+
+  function renderHistory() {
+    variationsWrap.hidden = generationHistory.length === 0;
+    variationsCapHint.hidden = generationHistory.length < MAX_VARIATIONS;
+    variationsContainer.replaceChildren();
+    const reversed = [...generationHistory].reverse();
+    for (let i = 0; i < reversed.length; i += 1) {
+      const entry = reversed[i];
+      const idxFromNew = i;
+      const chip = h('button', {
+        type: 'button',
+        class: `tweetreply-reuse-variation-chip${entry.id === selectedId ? ' tweetreply-reuse-variation-chip--selected' : ''}`,
+        role: 'radio',
+        'aria-checked': String(entry.id === selectedId),
+      }, chipLabelFor(entry));
+      chip.addEventListener('click', () => {
+        if (selectedId === entry.id) return;
+        selectedId = entry.id;
+        renderHistory();
+        applyResultChrome();
+        emitTelemetry?.({
+          event_type: 'reuse_variation_select',
+          surface: 'content',
+          context: { action: `index:${idxFromNew}`, note: `historyLen=${generationHistory.length}` },
+        });
+      });
+      variationsContainer.appendChild(chip);
+    }
+  }
+
   function setState(next, { error } = {}) {
     state = next;
     // NOTE: Generate / Regenerate are intentionally kept clickable while a
@@ -261,22 +378,19 @@ export function createReuseModal(payload, deps) {
       errorBox.hidden = true;
       generateBtn.textContent = 'Generating…';
       regenerateBtn.textContent = 'Generating…';
-      // While a new request is in-flight, the previous lastResult is known-
-      // stale. Disable Copy and Post so the user cannot act on it.
+      // While a new request is in-flight, the prior preview is stale for Copy/Post.
+      variationsContainer.classList.add('tweetreply-reuse-variations--busy');
       copyBtn.disabled = true;
       postBtn.disabled = true;
     } else {
       generateBtn.textContent = 'Generate';
       regenerateBtn.textContent = 'Regenerate';
+      variationsContainer.classList.remove('tweetreply-reuse-variations--busy');
     }
-    if (state === 'result' && lastResult) {
-      regenerateBtn.hidden = false;
-      copyBtn.disabled = false;
-      postBtn.disabled = Boolean(lastResult.safetyOutcome);
-      qualityChip.hidden = false;
-      qualityChip.textContent = `Quality ${Math.round(lastResult.qualityScore || 0)}`;
-      safetyBadge.hidden = !lastResult.safetyOutcome;
-      resultTextarea.value = lastResult.reframed;
+    if (state === 'result') {
+      regenerateBtn.hidden = generationHistory.length === 0;
+      applyResultChrome();
+      renderHistory();
     }
     if (state === 'error' && error) {
       errorBox.hidden = false;
@@ -289,6 +403,12 @@ export function createReuseModal(payload, deps) {
           rel: 'noopener noreferrer',
           class: 'tweetreply-reuse-upgrade',
         }, 'Upgrade'));
+      }
+      if (generationHistory.length > 0 && getSelected()) {
+        applyResultChrome();
+      } else {
+        copyBtn.disabled = true;
+        postBtn.disabled = true;
       }
     }
   }
@@ -303,6 +423,7 @@ export function createReuseModal(payload, deps) {
 
     const charLimit = allowLong ? LONG_TWEET_CHAR_LIMIT : TWITTER_CHAR_LIMIT;
     const startedAt = Date.now();
+    const promptVariationKey = styleSelect.value || '';
 
     try {
       // Telemetry is emitted once per outcome via reuse_generate_success /
@@ -312,29 +433,23 @@ export function createReuseModal(payload, deps) {
         degree,
         source_author: author || undefined,
         source_tweet_url: tweetUrl,
-        prompt_variation: styleSelect.value || undefined,
+        prompt_variation: promptVariationKey || undefined,
         allow_long: allowLong,
       });
       if (token !== requestToken) return; // late response, ignore
 
-      const safety = res?.meta?.safetyOutcome === 'violation_friendly_reply'
-        ? 'violation_friendly_reply'
-        : null;
-      lastResult = {
-        reframed: res?.reframed || '',
-        qualityScore: res?.qualityScore || 0,
-        degree: res?.degree ?? degree,
-        band: res?.band,
-        safetyOutcome: safety,
-      };
+      const entry = buildVariationEntry(res, { degree, promptVariationKey });
+      generationHistory.push(entry);
+      trimHistoryIfNeeded();
+      selectedId = entry.id;
       setState('result');
       onUsageUpdated?.();
       emitTelemetry?.({
         event_type: 'reuse_generate_success',
         surface: 'content',
         context: {
-          action: `degree:${lastResult.degree}`,
-          note: `band=${lastResult.band || ''};chars=${lastResult.reframed.length};charLimit=${charLimit};latency=${Date.now() - startedAt}`,
+          action: `degree:${entry.degree}`,
+          note: `band=${entry.band || ''};chars=${entry.reframed.length};charLimit=${charLimit};latency=${Date.now() - startedAt}`,
         },
       });
     } catch (err) {
@@ -367,9 +482,10 @@ export function createReuseModal(payload, deps) {
   regenerateBtn.addEventListener('click', runGenerate);
 
   copyBtn.addEventListener('click', async () => {
-    if (!lastResult?.reframed) return;
+    const sel = getSelected();
+    if (!sel?.reframed) return;
     try {
-      await navigator.clipboard.writeText(lastResult.reframed);
+      await navigator.clipboard.writeText(sel.reframed);
       copyBtn.textContent = 'Copied';
       setTimeout(() => { copyBtn.textContent = 'Copy'; }, 1500);
     } catch {
@@ -381,7 +497,8 @@ export function createReuseModal(payload, deps) {
   });
 
   postBtn.addEventListener('click', async () => {
-    if (!lastResult?.reframed || lastResult.safetyOutcome) return;
+    const sel = getSelected();
+    if (!sel?.reframed || sel.safetyOutcome) return;
     postBtn.disabled = true;
     postBtn.textContent = 'Opening…';
     // `postToCompose` will history.pushState('/compose/post') and dispatch a
@@ -391,7 +508,7 @@ export function createReuseModal(payload, deps) {
     // One pending self-initiated navigation is absorbed.
     ignoreNextPopState = 1;
     try {
-      await postToCompose(lastResult.reframed);
+      await postToCompose(sel.reframed);
       handle.close();
     } catch (err) {
       setState('error', {
@@ -403,7 +520,7 @@ export function createReuseModal(payload, deps) {
       // later popstate still closes the modal.
       ignoreNextPopState = 0;
       postBtn.textContent = 'Post to X';
-      postBtn.disabled = Boolean(lastResult?.safetyOutcome);
+      postBtn.disabled = Boolean(getSelected()?.safetyOutcome);
     }
   });
 

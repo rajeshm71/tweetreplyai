@@ -414,8 +414,14 @@
 }
 
 .tweetreply-reuse-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
   width: 32px;
   height: 32px;
+  margin: 0;
+  padding: 0;
   border: none;
   background: transparent;
   border-radius: 9999px;
@@ -423,6 +429,9 @@
   line-height: 1;
   cursor: pointer;
   color: inherit;
+  flex-shrink: 0;
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 .tweetreply-reuse-close:hover {
@@ -524,6 +533,59 @@
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.tweetreply-reuse-variations-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tweetreply-reuse-variations-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(15, 20, 25, 0.55);
+}
+
+.tweetreply-reuse-variations {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+.tweetreply-reuse-variations--busy {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.tweetreply-reuse-variation-chip {
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  line-height: 1.2;
+  padding: 6px 10px;
+  border-radius: 9999px;
+  border: 1px solid rgba(15, 20, 25, 0.18);
+  background: rgba(15, 20, 25, 0.04);
+  color: inherit;
+  cursor: pointer;
+}
+
+.tweetreply-reuse-variation-chip:hover {
+  background: rgba(15, 20, 25, 0.08);
+}
+
+.tweetreply-reuse-variation-chip--selected {
+  border-color: rgb(29, 155, 240);
+  background: rgba(29, 155, 240, 0.14);
+  box-shadow: 0 0 0 1px rgba(29, 155, 240, 0.25);
+}
+
+.tweetreply-reuse-variations-cap {
+  font-size: 11px;
+  color: rgba(15, 20, 25, 0.45);
 }
 
 .tweetreply-reuse-quality,
@@ -664,6 +726,28 @@
   }
 
   .tweetreply-reuse-hint {
+    color: rgb(139, 152, 165);
+  }
+
+  .tweetreply-reuse-variations-label {
+    color: rgb(139, 152, 165);
+  }
+
+  .tweetreply-reuse-variation-chip {
+    border-color: rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .tweetreply-reuse-variation-chip:hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .tweetreply-reuse-variation-chip--selected {
+    border-color: rgb(29, 155, 240);
+    background: rgba(29, 155, 240, 0.22);
+  }
+
+  .tweetreply-reuse-variations-cap {
     color: rgb(139, 152, 165);
   }
 }
