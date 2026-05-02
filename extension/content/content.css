@@ -384,6 +384,8 @@
   color: rgb(15, 20, 25);
   font-family: TwitterChirp, -apple-system, BlinkMacSystemFont, "Segoe UI",
     Roboto, Oxygen, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+  /* Children (e.g. past-variations sheet) position relative to this overlay */
+  isolation: isolate;
 }
 
 .tweetreply-reuse-card {
@@ -535,57 +537,162 @@
   flex-wrap: wrap;
 }
 
-.tweetreply-reuse-variations-wrap {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.tweetreply-reuse-variations-label {
-  font-size: 12px;
-  font-weight: 600;
-  color: rgba(15, 20, 25, 0.55);
-}
-
-.tweetreply-reuse-variations {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  max-height: 120px;
-  overflow-y: auto;
-}
-
-.tweetreply-reuse-variations--busy {
-  opacity: 0.6;
-  pointer-events: none;
-}
-
-.tweetreply-reuse-variation-chip {
-  font-size: 12px;
+.tweetreply-reuse-past-variations-btn {
+  align-self: flex-start;
+  font-size: 13px;
   font-weight: 600;
   font-family: inherit;
-  line-height: 1.2;
-  padding: 6px 10px;
+  padding: 8px 14px;
   border-radius: 9999px;
-  border: 1px solid rgba(15, 20, 25, 0.18);
-  background: rgba(15, 20, 25, 0.04);
-  color: inherit;
+  border: 1px solid rgb(29, 155, 240);
+  background: rgba(29, 155, 240, 0.1);
+  color: rgb(29, 155, 240);
   cursor: pointer;
 }
 
-.tweetreply-reuse-variation-chip:hover {
-  background: rgba(15, 20, 25, 0.08);
+.tweetreply-reuse-past-variations-btn:hover:not(:disabled) {
+  background: rgba(29, 155, 240, 0.18);
 }
 
-.tweetreply-reuse-variation-chip--selected {
+.tweetreply-reuse-past-variations-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.tweetreply-reuse-past-sheet {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.45);
+  box-sizing: border-box;
+}
+
+.tweetreply-reuse-past-panel {
+  width: 100%;
+  max-width: 480px;
+  max-height: min(70vh, 520px);
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+}
+
+.tweetreply-reuse-past-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(15, 20, 25, 0.12);
+  flex-shrink: 0;
+}
+
+.tweetreply-reuse-past-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.tweetreply-reuse-past-close {
+  background: none;
+  border: none;
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+  color: rgba(15, 20, 25, 0.55);
+  padding: 4px 8px;
+  border-radius: 8px;
+}
+
+.tweetreply-reuse-past-close:hover {
+  background: rgba(15, 20, 25, 0.06);
+  color: inherit;
+}
+
+.tweetreply-reuse-past-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px 16px;
+}
+
+.tweetreply-reuse-past-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tweetreply-reuse-past-row {
+  padding: 12px;
+  border: 1px solid rgba(15, 20, 25, 0.12);
+  border-radius: 12px;
+  background: rgba(15, 20, 25, 0.03);
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.tweetreply-reuse-past-row:hover {
+  border-color: rgba(29, 155, 240, 0.45);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.tweetreply-reuse-past-row--selected {
   border-color: rgb(29, 155, 240);
-  background: rgba(29, 155, 240, 0.14);
-  box-shadow: 0 0 0 1px rgba(29, 155, 240, 0.25);
+  background: rgba(29, 155, 240, 0.08);
 }
 
-.tweetreply-reuse-variations-cap {
+.tweetreply-reuse-past-meta {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(15, 20, 25, 0.55);
+  margin-bottom: 6px;
+}
+
+.tweetreply-reuse-past-preview {
+  font-size: 13px;
+  line-height: 1.45;
+  color: rgb(15, 20, 25);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+
+.tweetreply-reuse-past-use-btn {
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  padding: 6px 12px;
+  border-radius: 9999px;
+  border: 1px solid rgb(29, 155, 240);
+  background: rgb(29, 155, 240);
+  color: #fff;
+  cursor: pointer;
+}
+
+.tweetreply-reuse-past-use-btn:hover {
+  background: rgb(26, 140, 216);
+}
+
+.tweetreply-reuse-past-cap {
+  padding: 8px 16px 14px;
   font-size: 11px;
   color: rgba(15, 20, 25, 0.45);
+  border-top: 1px solid rgba(15, 20, 25, 0.08);
+  flex-shrink: 0;
+}
+
+.tweetreply-reuse-past-empty {
+  font-size: 13px;
+  color: rgba(15, 20, 25, 0.55);
+  padding: 24px;
+  text-align: center;
 }
 
 .tweetreply-reuse-quality,
@@ -729,25 +836,46 @@
     color: rgb(139, 152, 165);
   }
 
-  .tweetreply-reuse-variations-label {
+  .tweetreply-reuse-past-panel {
+    background: rgb(21, 32, 43);
+  }
+
+  .tweetreply-reuse-past-header {
+    border-bottom-color: rgba(255, 255, 255, 0.12);
+  }
+
+  .tweetreply-reuse-past-title {
+    color: rgb(231, 233, 234);
+  }
+
+  .tweetreply-reuse-past-close {
     color: rgb(139, 152, 165);
   }
 
-  .tweetreply-reuse-variation-chip {
-    border-color: rgba(255, 255, 255, 0.2);
-    background: rgba(255, 255, 255, 0.06);
+  .tweetreply-reuse-past-close:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: rgb(231, 233, 234);
   }
 
-  .tweetreply-reuse-variation-chip:hover {
-    background: rgba(255, 255, 255, 0.1);
+  .tweetreply-reuse-past-meta {
+    color: rgb(139, 152, 165);
   }
 
-  .tweetreply-reuse-variation-chip--selected {
-    border-color: rgb(29, 155, 240);
-    background: rgba(29, 155, 240, 0.22);
+  .tweetreply-reuse-past-preview {
+    color: rgb(231, 233, 234);
   }
 
-  .tweetreply-reuse-variations-cap {
+  .tweetreply-reuse-past-row {
+    border-color: rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  .tweetreply-reuse-past-cap {
+    color: rgb(139, 152, 165);
+    border-top-color: rgba(255, 255, 255, 0.08);
+  }
+
+  .tweetreply-reuse-past-empty {
     color: rgb(139, 152, 165);
   }
 }

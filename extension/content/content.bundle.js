@@ -7352,6 +7352,34 @@ ${cta}` : cta;
     });
     const card = h("div", { class: "tweetreply-reuse-card" });
     overlay.appendChild(card);
+    const pastSheet = h("div", {
+      class: "tweetreply-reuse-past-sheet",
+      hidden: true,
+      "aria-hidden": "true"
+    });
+    const pastPanelTitle = h("h3", { id: "tweetreply-reuse-past-title", class: "tweetreply-reuse-past-title" }, "Past variations");
+    const pastPanelClose = h("button", {
+      type: "button",
+      class: "tweetreply-reuse-past-close",
+      "aria-label": "Close past variations"
+    }, "\xD7");
+    const pastList = h("div", { class: "tweetreply-reuse-past-list" });
+    const pastListScroll = h("div", { class: "tweetreply-reuse-past-scroll" });
+    pastListScroll.appendChild(pastList);
+    const pastCapHint = h("div", { class: "tweetreply-reuse-past-cap", hidden: true }, `Showing last ${MAX_VARIATIONS} variations.`);
+    const pastPanel = h("div", {
+      class: "tweetreply-reuse-past-panel",
+      role: "dialog",
+      "aria-modal": "true",
+      "aria-labelledby": "tweetreply-reuse-past-title",
+      onclick: (ev) => ev.stopPropagation()
+    }, [
+      h("div", { class: "tweetreply-reuse-past-header" }, [pastPanelTitle, pastPanelClose]),
+      pastListScroll,
+      pastCapHint
+    ]);
+    pastSheet.appendChild(pastPanel);
+    overlay.appendChild(pastSheet);
     const closeBtn = h("button", {
       type: "button",
       class: "tweetreply-reuse-close",
@@ -7464,22 +7492,14 @@ ${cta}` : cta;
     const qualityChip = h("span", { class: "tweetreply-reuse-quality", hidden: true });
     const safetyBadge = h("span", { class: "tweetreply-reuse-safety", hidden: true }, "Safety rewrite");
     const errorBox = h("div", { class: "tweetreply-reuse-error", hidden: true, role: "alert" });
-    const variationsWrap = h("div", { class: "tweetreply-reuse-variations-wrap", hidden: true });
-    variationsWrap.appendChild(h("div", { class: "tweetreply-reuse-variations-label" }, "Variations"));
-    const variationsContainer = h("div", {
-      class: "tweetreply-reuse-variations",
-      role: "radiogroup",
-      "aria-label": "Variations"
-    });
-    const variationsCapHint = h("div", {
-      class: "tweetreply-reuse-variations-cap",
+    const pastVariationsBtn = h("button", {
+      type: "button",
+      class: "tweetreply-reuse-past-variations-btn",
       hidden: true
-    }, `Showing last ${MAX_VARIATIONS} variations.`);
-    variationsWrap.appendChild(variationsContainer);
-    variationsWrap.appendChild(variationsCapHint);
+    }, "Past variations");
     card.appendChild(h("div", { class: "tweetreply-reuse-result-wrap" }, [
       h("div", { class: "tweetreply-reuse-result-header" }, [qualityChip, safetyBadge]),
-      variationsWrap,
+      pastVariationsBtn,
       resultTextarea,
       errorBox
     ]));
@@ -7527,11 +7547,89 @@ ${cta}` : cta;
         selectedId = generationHistory[generationHistory.length - 1]?.id ?? null;
       }
     }
-    function chipLabelFor(entry) {
-      const bandWord = bandLabelFor(entry.degree, BANDS);
-      const styleKey = entry.promptVariation || "default";
-      const t = new Date(entry.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-      return `${bandWord} \xB7 ${styleKey} \xB7 ${t}`;
+    function selectPastVariation(entry, idxFromNew) {
+      selectedId = entry.id;
+      applyResultChrome();
+      closePastVariationsPanel();
+      emitTelemetry2?.({
+        event_type: "reuse_variation_select",
+        surface: "content",
+        context: { action: `index:${idxFromNew}`, note: `historyLen=${generationHistory.length}` }
+      });
+    }
+    function renderPastVariationsList() {
+      pastList.replaceChildren();
+      if (generationHistory.length === 0) {
+        pastList.appendChild(h("div", { class: "tweetreply-reuse-past-empty" }, "No variations yet."));
+        pastCapHint.hidden = true;
+        return;
+      }
+      pastCapHint.hidden = generationHistory.length < MAX_VARIATIONS;
+      const reversed = [...generationHistory].reverse();
+      reversed.forEach((entry, idxFromNew) => {
+        const metaLine = [
+          new Date(entry.createdAt).toLocaleString([], { dateStyle: "short", timeStyle: "short" }),
+          entry.promptVariation || "default",
+          `Q ${Math.round(entry.qualityScore || 0)}`
+        ].join(" \xB7 ");
+        const meta = h("div", { class: "tweetreply-reuse-past-meta" }, metaLine);
+        const preview2 = h("div", { class: "tweetreply-reuse-past-preview" }, truncate2(entry.reframed, 200));
+        const useBtn = h("button", { type: "button", class: "tweetreply-reuse-past-use-btn" }, "Use this");
+        useBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          selectPastVariation(entry, idxFromNew);
+        });
+        const row = h("div", {
+          class: `tweetreply-reuse-past-row${entry.id === selectedId ? " tweetreply-reuse-past-row--selected" : ""}`
+        });
+        row.appendChild(meta);
+        row.appendChild(preview2);
+        row.appendChild(useBtn);
+        row.addEventListener("click", (ev) => {
+          if (ev.target instanceof HTMLElement && ev.target.closest("button")) return;
+          selectPastVariation(entry, idxFromNew);
+        });
+        pastList.appendChild(row);
+      });
+    }
+    function openPastVariationsPanel() {
+      if (generationHistory.length === 0 || state === "generating") return;
+      pastSheet.hidden = false;
+      pastSheet.setAttribute("aria-hidden", "false");
+      renderPastVariationsList();
+      requestAnimationFrame(() => pastPanelClose.focus());
+      emitTelemetry2?.({
+        event_type: "reuse_past_variations_open",
+        surface: "content",
+        context: { action: "open", note: `count=${generationHistory.length}` }
+      });
+    }
+    function closePastVariationsPanel() {
+      if (pastSheet.hidden) return;
+      pastSheet.hidden = true;
+      pastSheet.setAttribute("aria-hidden", "true");
+      pastVariationsBtn.focus();
+    }
+    pastSheet.addEventListener("click", (ev) => {
+      if (ev.target === pastSheet) closePastVariationsPanel();
+    });
+    pastPanelClose.addEventListener("click", (e) => {
+      e.stopPropagation();
+      closePastVariationsPanel();
+    });
+    pastVariationsBtn.addEventListener("click", () => {
+      if (state === "generating") return;
+      openPastVariationsPanel();
+    });
+    function updatePastVariationsButton() {
+      const n = generationHistory.length;
+      if (n === 0) {
+        pastVariationsBtn.hidden = true;
+        return;
+      }
+      pastVariationsBtn.hidden = false;
+      pastVariationsBtn.textContent = `Past variations (${n})`;
+      pastVariationsBtn.disabled = state === "generating";
     }
     function applyResultChrome() {
       const sel = getSelected();
@@ -7550,52 +7648,21 @@ ${cta}` : cta;
       copyBtn.disabled = false;
       postBtn.disabled = Boolean(sel.safetyOutcome);
     }
-    function renderHistory() {
-      variationsWrap.hidden = generationHistory.length === 0;
-      variationsCapHint.hidden = generationHistory.length < MAX_VARIATIONS;
-      variationsContainer.replaceChildren();
-      const reversed = [...generationHistory].reverse();
-      for (let i = 0; i < reversed.length; i += 1) {
-        const entry = reversed[i];
-        const idxFromNew = i;
-        const chip = h("button", {
-          type: "button",
-          class: `tweetreply-reuse-variation-chip${entry.id === selectedId ? " tweetreply-reuse-variation-chip--selected" : ""}`,
-          role: "radio",
-          "aria-checked": String(entry.id === selectedId)
-        }, chipLabelFor(entry));
-        chip.addEventListener("click", () => {
-          if (selectedId === entry.id) return;
-          selectedId = entry.id;
-          renderHistory();
-          applyResultChrome();
-          emitTelemetry2?.({
-            event_type: "reuse_variation_select",
-            surface: "content",
-            context: { action: `index:${idxFromNew}`, note: `historyLen=${generationHistory.length}` }
-          });
-        });
-        variationsContainer.appendChild(chip);
-      }
-    }
     function setState(next, { error: error2 } = {}) {
       state = next;
       if (state === "generating") {
         errorBox.hidden = true;
         generateBtn.textContent = "Generating\u2026";
         regenerateBtn.textContent = "Generating\u2026";
-        variationsContainer.classList.add("tweetreply-reuse-variations--busy");
         copyBtn.disabled = true;
         postBtn.disabled = true;
       } else {
         generateBtn.textContent = "Generate";
         regenerateBtn.textContent = "Regenerate";
-        variationsContainer.classList.remove("tweetreply-reuse-variations--busy");
       }
       if (state === "result") {
         regenerateBtn.hidden = generationHistory.length === 0;
         applyResultChrome();
-        renderHistory();
       }
       if (state === "error" && error2) {
         errorBox.hidden = false;
@@ -7616,6 +7683,8 @@ ${cta}` : cta;
           postBtn.disabled = true;
         }
       }
+      updatePastVariationsButton();
+      if (!pastSheet.hidden) renderPastVariationsList();
     }
     async function runGenerate() {
       const degree = Number(slider.value) || DEFAULT_DEGREE;
@@ -7710,10 +7779,13 @@ ${cta}` : cta;
       }
     });
     const onKeydown = (ev) => {
-      if (ev.key === "Escape") {
-        ev.stopPropagation();
-        handle.close();
+      if (ev.key !== "Escape") return;
+      ev.stopPropagation();
+      if (!pastSheet.hidden) {
+        closePastVariationsPanel();
+        return;
       }
+      handle.close();
     };
     overlay.addEventListener("click", (ev) => {
       if (ev.target === overlay) handle.close();

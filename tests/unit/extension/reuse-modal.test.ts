@@ -319,7 +319,7 @@ describe("createReuseModal (extension helper)", () => {
     expect(document.getElementById(REUSE.MODAL_ID)).toBeNull();
   });
 
-  it("keeps multiple generations as selectable variation chips; Copy uses selected row", async () => {
+  it("keeps multiple generations in past-variations panel; Copy uses selected row", async () => {
     const deps = makeDeps();
     deps.apiClient.reframeTweet
       .mockResolvedValueOnce({
@@ -347,19 +347,21 @@ describe("createReuseModal (extension helper)", () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    expect(modal.querySelectorAll(".tweetreply-reuse-variation-chip").length).toBe(1);
+    expect(modal.querySelector(".tweetreply-reuse-past-variations-btn")).toBeTruthy();
 
     generate.click();
     await Promise.resolve();
     await Promise.resolve();
 
-    const chips = modal.querySelectorAll(".tweetreply-reuse-variation-chip");
-    expect(chips.length).toBe(2);
     const textarea = modal.querySelector<HTMLTextAreaElement>(".tweetreply-reuse-result")!;
     expect(textarea.value).toBe("Second variation text");
 
-    const firstChip = chips[chips.length - 1] as HTMLButtonElement;
-    firstChip.click();
+    modal.querySelector<HTMLButtonElement>(".tweetreply-reuse-past-variations-btn")!.click();
+    await Promise.resolve();
+
+    const rows = modal.querySelectorAll(".tweetreply-reuse-past-row");
+    expect(rows.length).toBe(2);
+    (rows[rows.length - 1] as HTMLElement).click();
     await Promise.resolve();
 
     expect(textarea.value).toBe("First variation text");
@@ -372,7 +374,7 @@ describe("createReuseModal (extension helper)", () => {
     handle.close();
   });
 
-  it("Post to X uses the selected variation text when an older chip is selected", async () => {
+  it("Post to X uses the selected variation text when an older row is chosen in past panel", async () => {
     const deps = makeDeps();
     deps.apiClient.reframeTweet
       .mockResolvedValueOnce({
@@ -403,8 +405,10 @@ describe("createReuseModal (extension helper)", () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    const chips = modal.querySelectorAll(".tweetreply-reuse-variation-chip");
-    (chips[chips.length - 1] as HTMLButtonElement).click();
+    modal.querySelector<HTMLButtonElement>(".tweetreply-reuse-past-variations-btn")!.click();
+    await Promise.resolve();
+    const rows = modal.querySelectorAll(".tweetreply-reuse-past-row");
+    (rows[rows.length - 1] as HTMLElement).click();
     await Promise.resolve();
 
     modal.querySelector<HTMLButtonElement>(".tweetreply-reuse-post")!.click();
@@ -448,8 +452,10 @@ describe("createReuseModal (extension helper)", () => {
     const postBtn = modal.querySelector<HTMLButtonElement>(".tweetreply-reuse-post")!;
     expect(postBtn.disabled).toBe(true);
 
-    const chips = modal.querySelectorAll(".tweetreply-reuse-variation-chip");
-    (chips[chips.length - 1] as HTMLButtonElement).click();
+    modal.querySelector<HTMLButtonElement>(".tweetreply-reuse-past-variations-btn")!.click();
+    await Promise.resolve();
+    const rows = modal.querySelectorAll(".tweetreply-reuse-past-row");
+    (rows[rows.length - 1] as HTMLElement).click();
     await Promise.resolve();
 
     expect(postBtn.disabled).toBe(false);
