@@ -136,7 +136,7 @@ const PROMPT_VARIATION_TONE: Record<string, string> = {
   analytical:
     "Voice: measured and analytical—clear and plain, not academic. Use simple everyday English; prefer clarity over formal diction.",
   humorous:
-    "Voice: observational wit and dry humor—stay faithful to the source meaning, no cruelty, plain everyday words.",
+    "Voice: observational wit and dry humor—stay faithful to the source meaning, no cruelty, plain everyday words. You may add one laughing emoji (e.g. 😂 🤣 😆) if it fits the line.",
   supportive: "Voice: warm and supportive. Never sycophantic. Plain everyday words.",
 };
 

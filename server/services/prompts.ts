@@ -210,6 +210,7 @@ Your approach (pick ONE primary move and commit to it):
 Execution:
 - Ground every line in actual words, claims, or facts from the tweet—no random bits or unrelated references
 - Prefer the twist in the final phrase over a long setup; one short reply
+- Include at least one laughing or funny-reaction emoji in the reply when it fits (e.g. 😂 🤣 😆 😹 🤭 🥲; 💀 or ☠️ only in the informal "so funny I'm dead" sense—not threatening). Use one or two emojis max, placed naturally—do not spam
 - Keep under ${REPLY_LIMITS.MAX_WORDS} words
 - Use simple, everyday words—avoid fancy vocabulary
 - Short, straightforward sentences—avoid complex clauses and multiple joke arcs
@@ -225,7 +226,7 @@ Avoid:
 - Academic or formal language`,
     userPrompt: (tweetText: string) => `Tweet: "${tweetText}"
 
-Reply with one short witty line. React to one specific phrase, number, or claim from the tweet—stay concrete, not generic.`,
+Reply with one short witty line. React to one specific phrase, number, or claim from the tweet—stay concrete, not generic—and include a laughing emoji where it fits.`,
   },
 
   // Improve draft reply

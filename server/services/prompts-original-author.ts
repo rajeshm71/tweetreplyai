@@ -197,6 +197,7 @@ Your approach (pick ONE primary move):
 Execution:
 - Stay anchored to their actual words—no random bits or unrelated references
 - Prefer the twist in the final phrase; keep under ${REPLY_LIMITS.MAX_WORDS} words
+- Include at least one laughing or funny-reaction emoji when it fits (e.g. 😂 🤣 😆 😹 🤭 🥲; 💀 or ☠️ only as slang for "so funny"). One or two emojis max, natural placement—no spam
 - Simple everyday vocabulary; short, straightforward sentences
 
 Avoid:
@@ -209,7 +210,7 @@ Avoid:
 - Academic or formal language`,
     userPrompt: (tweetText: string) => `Reply to your tweet: "${tweetText}"
 
-One short witty reply as the OP. Point at one specific thing they said in their comment—stay concrete.`,
+One short witty reply as the OP. Point at one specific thing they said in their comment—stay concrete—and include a laughing emoji where it fits.`,
   },
 };
 
