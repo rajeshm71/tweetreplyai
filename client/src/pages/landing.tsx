@@ -857,8 +857,8 @@ export default function Landing() {
                 <p 
                   className="text-xl md:text-2xl text-muted-foreground mb-8 max-w-3xl lg:max-w-none leading-relaxed"
                 >
-                  Transform your X engagement with AI that creates authentic, 
-                  contextual replies in seconds. <span className="text-foreground font-semibold">No more writer's block.</span>
+                  Transform your X engagement with AI that creates authentic,
+                  contextual replies in seconds.
                 </p>
 
                 <div 
