@@ -135,7 +135,8 @@ const PROMPT_VARIATION_TONE: Record<string, string> = {
     "Voice: blunt and direct. Cut the fluff. Short, punchy sentences and plain everyday words—without merging list items into one paragraph when the source is list-like.",
   analytical:
     "Voice: measured and analytical—clear and plain, not academic. Use simple everyday English; prefer clarity over formal diction.",
-  humorous: "Voice: light wit, one beat of humor allowed if it fits the source. Plain everyday words.",
+  humorous:
+    "Voice: observational wit and dry humor—stay faithful to the source meaning, no cruelty, plain everyday words.",
   supportive: "Voice: warm and supportive. Never sycophantic. Plain everyday words.",
 };
 

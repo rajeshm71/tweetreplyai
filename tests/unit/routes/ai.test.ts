@@ -65,7 +65,7 @@ vi.mock('../../../server/services/prompts', () => ({
     { name: 'direct', description: 'Straightforward, has opinions, more decisive' },
     { name: 'supportive', description: 'More positive, encouraging, builds people up' },
     { name: 'analytical', description: 'More thoughtful, analytical, focuses on details' },
-    { name: 'humorous', description: 'Witty, playful, finds humor in situations' },
+    { name: 'humorous', description: 'Observational wit—one sharp angle tied to a concrete detail in the tweet' },
   ]),
 }));
 

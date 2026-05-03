@@ -499,7 +499,9 @@ export class TweetAnalysisOrchestrator {
     if (analysis.understanding.tone === 'sarcastic') {
       parts.push(`- The tweet is sarcastic; match the tone appropriately or respond with light humor`);
     } else if (analysis.understanding.tone === 'humorous') {
-      parts.push(`- The tweet is humorous; respond with appropriate light humor or appreciation`);
+      parts.push(
+        `- The tweet is humorous; match the joke's energy with wit grounded in their wording—avoid generic praise unless they are clearly inviting applause`,
+      );
     } else if (analysis.understanding.tone === 'informative') {
       parts.push(`- The tweet is informative; acknowledge the information or add relevant context`);
     } else if (analysis.understanding.tone === 'serious') {

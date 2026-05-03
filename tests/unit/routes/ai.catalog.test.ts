@@ -23,7 +23,7 @@ vi.mock('../../../server/services/ai-router', () => ({
 vi.mock('../../../server/services/prompts', () => ({
   getAvailablePrompts: vi.fn().mockReturnValue([
     { name: 'default', description: 'Natural, casual responses' },
-    { name: 'humorous', description: 'Witty and playful' },
+    { name: 'humorous', description: 'Observational wit—one sharp angle tied to a concrete detail in the tweet' },
   ]),
 }));
 
