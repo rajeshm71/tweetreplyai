@@ -1,6 +1,6 @@
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CaretDown, CaretUp } from "@phosphor-icons/react";
 import { IconBolt, IconClock, IconTrendingUp } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
@@ -45,6 +45,7 @@ type UsageStatus = {
 
 export default function Home() {
   const { user, isLoading } = useAuth();
+  const queryClient = useQueryClient();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const generateReplyRef = useRef<GenerateReplyRef>(null);
@@ -86,9 +87,23 @@ export default function Home() {
         credentials: 'include',
       })
         .then(async (response) => {
-          window.history.replaceState({}, '', '/app/pricing');
-          const data = await response.json();
+          // Code review: replaceState only after we can read the response body, so we do not clear the URL before confirming JSON (avoids odd state if parse fails).
+          let data: { success?: boolean; error?: string };
+          try {
+            data = await response.json();
+          } catch {
+            window.history.replaceState({}, '', '/app');
+            toast({
+              title: "Error",
+              description: "Invalid response from server. Please refresh or contact support.",
+              variant: "destructive",
+            });
+            return;
+          }
+          window.history.replaceState({}, '', '/app');
           if (data.success) {
+            void queryClient.invalidateQueries({ queryKey: ["/api/subscription"] });
+            void queryClient.invalidateQueries({ queryKey: ["/api/usage"] });
             toast({
               title: "Subscription Activated",
               description: "Your subscription has been successfully activated!",
@@ -107,14 +122,14 @@ export default function Home() {
             };
             toast({
               title: "Payment Failed",
-              description: errorMessages[data.error] || "An error occurred. Please try again.",
+              description: errorMessages[data.error ?? ""] || "An error occurred. Please try again.",
               variant: "destructive",
             });
           }
         })
         .catch((error) => {
           console.error('Checkout success error:', error);
-          window.history.replaceState({}, '', '/app/pricing');
+          window.history.replaceState({}, '', '/app');
           toast({
             title: "Error",
             description: "Failed to process subscription. Please contact support.",
@@ -124,7 +139,9 @@ export default function Home() {
     } else if (success === 'subscription_activated') {
       processedRef.current = true;
       // Handle direct success parameter
-      window.history.replaceState({}, '', '/app/pricing');
+      window.history.replaceState({}, '', '/app');
+      void queryClient.invalidateQueries({ queryKey: ["/api/subscription"] });
+      void queryClient.invalidateQueries({ queryKey: ["/api/usage"] });
       toast({
         title: "Subscription Activated",
         description: "Your subscription has been successfully activated!",
@@ -133,7 +150,7 @@ export default function Home() {
     } else if (error) {
       processedRef.current = true;
       // Handle error parameter
-      window.history.replaceState({}, '', '/app/pricing');
+      window.history.replaceState({}, '', '/app');
       const errorMessages: Record<string, string> = {
         missing_session_id: "Missing subscription information. Please try again.",
         no_subscription: "No subscription found. Please contact support.",
@@ -151,7 +168,7 @@ export default function Home() {
         variant: "destructive",
       });
     }
-  }, [toast]);
+  }, [toast, queryClient]);
 
   const { data: todayAnalytics } = useQuery<SimpleAnalyticsResponse>({
     queryKey: ["/api/analytics/simple", "days=1"],

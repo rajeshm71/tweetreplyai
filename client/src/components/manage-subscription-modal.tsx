@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -17,6 +17,9 @@ interface ManageSubscriptionModalProps {
     status: string;
     currentPeriodEnd: string;
   };
+  /** Preformatted price line, e.g. "$9.99 per month" */
+  priceLabel?: string;
+  usageSummary?: { used: number; limit: number };
   onCancelSuccess?: () => void;
   onSwitchPlan?: (planCode: string) => void;
 }
@@ -25,6 +28,8 @@ export function ManageSubscriptionModal({
   open,
   onOpenChange,
   subscription,
+  priceLabel,
+  usageSummary,
   onCancelSuccess,
   onSwitchPlan: externalSwitchPlan,
 }: ManageSubscriptionModalProps) {
@@ -103,10 +108,6 @@ export function ManageSubscriptionModal({
     cancelMutation.mutate();
   };
 
-  const handleKeepPlan = () => {
-    setShowConfirmDialog(false);
-  };
-
   const renewalDate = new Date(subscription.currentPeriodEnd).toLocaleDateString('en-US', {
     month: 'long',
     day: 'numeric',
@@ -119,6 +120,10 @@ export function ManageSubscriptionModal({
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Manage Subscription</DialogTitle>
+            {/* Code review: description pairs with title for screen readers (Radix Dialog pattern). */}
+            <DialogDescription>
+              Current plan, renewal date, and options to switch or cancel your subscription.
+            </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-6">
@@ -127,7 +132,19 @@ export function ManageSubscriptionModal({
               <div>
                 <p className="text-sm text-muted-foreground">Current Plan</p>
                 <p className="text-lg font-semibold">{subscription.planName}</p>
+                {priceLabel && (
+                  <p className="text-sm text-muted-foreground mt-1">{priceLabel}</p>
+                )}
               </div>
+
+              {usageSummary && (
+                <div>
+                  <p className="text-sm text-muted-foreground">Usage</p>
+                  <p className="text-sm">
+                    {usageSummary.used} / {usageSummary.limit} credits used
+                  </p>
+                </div>
+              )}
               
               <div>
                 <p className="text-sm text-muted-foreground">Status</p>
@@ -156,12 +173,12 @@ export function ManageSubscriptionModal({
             )}
             
             {/* Actions */}
-            <div className="pt-4 border-t space-y-2">
+            <div className="pt-4 border-t flex flex-wrap gap-2 justify-end">
               {alternativePlan && (
                 <Button
+                  size="sm"
                   variant="outline"
                   onClick={() => handleSwitchPlan(alternativePlan.code)}
-                  className="w-full"
                 >
                   Switch to {alternativePlan.name}
                   <CaretRight className="w-4 h-4 ml-2" />
@@ -169,10 +186,11 @@ export function ManageSubscriptionModal({
               )}
               
               <Button
+                size="sm"
                 variant="outline"
                 onClick={handleCancelClick}
                 disabled={cancelMutation.isPending}
-                className="w-full text-muted-foreground hover:text-destructive hover:border-destructive/50"
+                className="text-muted-foreground hover:text-destructive hover:border-destructive/50"
               >
                 {cancelMutation.isPending ? "Processing..." : "Cancel Subscription"}
               </Button>
