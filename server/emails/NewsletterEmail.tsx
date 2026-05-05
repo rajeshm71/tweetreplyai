@@ -28,7 +28,7 @@ export default function NewsletterEmail({
 }: Props) {
   return (
     <EmailLayout
-      previewText={`${APP_DISPLAY_NAME} Newsletter — Issue #${issueNumber}`}
+      previewText={`${APP_DISPLAY_NAME} Newsletter, Issue #${issueNumber}`}
       variant="engagement"
       settingsUrl={settingsUrl}
       unsubscribeUrl={unsubscribeUrl}

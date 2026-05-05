@@ -14,7 +14,7 @@ export default function PaymentFailedEmail({ firstName, portalUrl }: Props) {
   return (
     <EmailLayout previewText="Action required: your payment failed" variant="billing">
       <Heading style={{ color: '#dc2626', fontSize: '22px', fontWeight: 700, margin: '0 0 16px' }}>
-        Payment failed — action required
+        Payment failed, action required
       </Heading>
       <Section style={{ textAlign: 'left' as const, margin: '0 0 24px' }}>
         <Text style={{ color: emailTheme.text, fontSize: '15px', lineHeight: '24px', margin: '0 0 12px' }}>

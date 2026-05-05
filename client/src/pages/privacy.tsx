@@ -109,7 +109,7 @@ export default function PrivacyPolicy() {
                     <h3 className="text-lg font-semibold text-gray-800 mb-2">Server Storage</h3>
                     <ul className="list-disc list-inside text-gray-700 space-y-1">
                       <li><strong>Minimal Server Data:</strong> We store minimal data on our servers, primarily for authentication and quota management</li>
-                      <li><strong>Secure Infrastructure:</strong> Our servers use industry-standard security measures</li>
+                      <li><strong>Secure Infrastructure:</strong> Our servers use industry standard security measures</li>
                       <li><strong>Data Retention:</strong> We retain data only as long as necessary for service provision</li>
                     </ul>
                   </div>

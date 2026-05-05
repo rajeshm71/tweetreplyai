@@ -28,7 +28,7 @@ export default function WinBackEmail({ firstName, appUrl, settingsUrl, unsubscri
           {greeting}
         </Text>
         <Text style={{ color: emailTheme.text, fontSize: '15px', lineHeight: '24px', margin: '0 0 12px' }}>
-          {`It's been a while since you generated a reply on ${APP_DISPLAY_NAME}. Your audience is still out there — and so are the trending conversations you could be jumping into.`}
+          {`It's been a while since you generated a reply on ${APP_DISPLAY_NAME}. Your audience is still out there, and so are the trending conversations you could be jumping into.`}
         </Text>
         <Text style={{ color: emailTheme.text, fontSize: '15px', lineHeight: '24px', margin: 0 }}>
           Come back and generate a reply in 30 seconds. We saved some viral opportunities for you.

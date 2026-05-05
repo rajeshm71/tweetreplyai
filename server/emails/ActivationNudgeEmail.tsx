@@ -31,7 +31,7 @@ export default function ActivationNudgeEmail({ firstName, appUrl, settingsUrl, u
           {`You signed up for ${APP_DISPLAY_NAME} but haven't generated your first reply yet. It only takes 30 seconds!`}
         </Text>
         <Text style={{ color: emailTheme.text, fontSize: '15px', lineHeight: '24px', margin: 0 }}>
-          Paste any tweet, pick a tone, and get an AI-crafted reply that gets noticed.
+          Paste any tweet, pick a tone, and get an AI crafted reply that gets noticed.
         </Text>
       </Section>
       <Button

@@ -628,7 +628,7 @@ export default function SettingsPage() {
               <Separator />
 
               <div className="space-y-2">
-                <Label>Two-Factor Authentication</Label>
+                <Label>Two Factor Authentication</Label>
                 <p className="text-sm text-muted-foreground mb-2">
                   Add an extra layer of security to your account
                 </p>
@@ -675,7 +675,7 @@ export default function SettingsPage() {
                           <ul className="list-disc list-inside space-y-1">
                             <li>Account profile and email</li>
                             <li>Usage history and analytics</li>
-                            <li>Active subscription (auto-cancelled)</li>
+                            <li>Active subscription (auto cancelled)</li>
                             <li>Settings and preferences</li>
                           </ul>
                           <div className="pt-2">

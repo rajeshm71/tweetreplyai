@@ -24,7 +24,7 @@ export default function PaymentReceiptEmail({
   const greeting = firstName ? `Hi ${firstName},` : 'Hi there,';
   return (
     <EmailLayout
-      previewText={`${APP_DISPLAY_NAME} receipt — ${amountFormatted}`}
+      previewText={`${APP_DISPLAY_NAME} receipt, ${amountFormatted}`}
       variant="transactional"
     >
       <Heading

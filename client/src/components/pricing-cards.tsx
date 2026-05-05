@@ -258,7 +258,7 @@ export function PricingCards({
             </div>
             <div className="flex items-center space-x-3">
               <IconCheck className={`w-4 h-4 ${pricingTiers.trial.textColor} flex-shrink-0`} />
-              <span className="text-sm">Context-Aware Replies</span>
+              <span className="text-sm">Context Aware Replies</span>
             </div>
             <div className="flex items-center space-x-3">
               <IconCheck className={`w-4 h-4 ${pricingTiers.trial.textColor} flex-shrink-0`} />
@@ -366,7 +366,7 @@ export function PricingCards({
             </div>
             <div className="flex items-center space-x-3">
               <IconCheck className={`w-4 h-4 ${pricingTiers.weekly.textColor} flex-shrink-0`} />
-              <span className="text-sm">Context-Aware Replies</span>
+              <span className="text-sm">Context Aware Replies</span>
             </div>
             <div className="flex items-center space-x-3">
               <IconCheck className={`w-4 h-4 ${pricingTiers.weekly.textColor} flex-shrink-0`} />
@@ -464,7 +464,7 @@ export function PricingCards({
             </div>
             <div className="flex items-center space-x-3">
               <IconCheck className={`w-4 h-4 ${pricingTiers.monthly.textColor} flex-shrink-0`} />
-              <span className="text-sm">Context-Aware Replies</span>
+              <span className="text-sm">Context Aware Replies</span>
             </div>
             <div className="flex items-center space-x-3">
               <IconCheck className={`w-4 h-4 ${pricingTiers.monthly.textColor} flex-shrink-0`} />

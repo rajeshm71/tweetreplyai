@@ -106,8 +106,8 @@ export async function renderUsageThresholdEmail(params: {
 }): Promise<TransactionalEmailPayload> {
   const subject =
     params.pct >= 100
-      ? "You've hit your limit — here's what to do"
-      : "You've used 80% of your credits — heads up";
+      ? "You've hit your limit, here's what to do"
+      : "You've used 80% of your credits, heads up";
   const { html, text } = await renderBoth(<UsageThresholdEmail {...params} />);
   return { subject, html, text };
 }
@@ -173,7 +173,7 @@ export async function renderPaymentReceiptEmail(params: {
 }): Promise<TransactionalEmailPayload> {
   const { html, text } = await renderBoth(<PaymentReceiptEmail {...params} />);
   return {
-    subject: `Your ${APP_DISPLAY_NAME} receipt — ${params.amountFormatted}`,
+    subject: `Your ${APP_DISPLAY_NAME} receipt, ${params.amountFormatted}`,
     html,
     text,
   };

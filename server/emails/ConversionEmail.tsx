@@ -18,19 +18,19 @@ const stageConfig: Record<
   1: {
     subject: "You're replying like a pro 🎯",
     headline: "You're a power user 🎯",
-    body: "You've hit your credit limit — that tells us you're serious about growing on Twitter. Upgrade now and keep the momentum going.",
+    body: "You've hit your credit limit. That tells us you're serious about growing on Twitter. Upgrade now and keep the momentum going.",
     cta: 'Upgrade for More Credits',
   },
   2: {
     subject: "Don't lose your momentum",
     headline: "Don't lose your momentum 💪",
-    body: "You had great engagement momentum before hitting your limit. Upgrade now and keep going — your audience is waiting.",
+    body: "You had great engagement momentum before hitting your limit. Upgrade now and keep going, your audience is waiting.",
     cta: 'Keep My Momentum',
   },
   3: {
     subject: 'Last chance: upgrade and keep going',
     headline: 'Last chance to keep going ⚡',
-    body: 'This is your final nudge. Upgrade now and get instant access to more credits — plus a head start on your next viral reply.',
+    body: 'This is your final nudge. Upgrade now and get instant access to more credits, plus a head start on your next viral reply.',
     cta: 'Claim My Upgrade',
   },
 };

@@ -180,7 +180,7 @@ export function ExtensionOnboarding({ onComplete }: ExtensionOnboardingProps) {
           className="py-2 px-6 text-sm font-semibold rounded-full bg-primary hover:bg-primary/90 text-primary-foreground flex items-center justify-center gap-2"
         >
           <Lightning className="w-3.5 h-3.5" weight="fill" />
-          I'm Ready — Let's go!
+          I'm Ready, Let's go!
           <ArrowRight className="w-3.5 h-3.5" />
         </Button>
       </div>

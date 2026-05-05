@@ -22,7 +22,7 @@ import { getUserFacingError } from '../utils/userFacingErrors.js';
 import { initExtensionSentry } from '../utils/sentry.js';
 
 initExtensionSentry({ scope: 'content' });
-import { extractCanonicalComposerText, combineReplyAndCta } from './helpers/composer-text.js';
+import { extractCanonicalComposerText, combineReplyAndCta, normalizeComposerText } from './helpers/composer-text.js';
 import { injectReuseButtonsImpl } from './helpers/reuse-inject.js';
 import { createReuseModal } from './helpers/reuse-modal.js';
 import { postReframedToComposeImpl } from './helpers/post-to-compose.js';
@@ -75,6 +75,7 @@ class TwitterReplyInjector {
     this.currentReplyTargetArticle = null; // Tweet article when user clicked Reply (for scoped current-tweet extraction)
     this._replyTargetClearTimer = null;
     this.pendingReplyTarget = null; // { username, tweetId, setAt } — for counting reply only on Send click
+    this.composerRequestVersions = new Map(); // key: `${kind}:${composerKey}` => number
     this._originalTweetCache = null; // { statusId, text, author, fromDom } — survives DOM virtualization
     this.lastNonComposePath = window.location.pathname;
     this.urlTrackingInterval = setInterval(() => {
@@ -209,6 +210,42 @@ class TwitterReplyInjector {
   findTwitterTextArea(element) {
     const textArea = element.querySelector('div[data-testid^="tweetTextarea_"][role="textbox"]');
     return textArea || (element.parentElement ? this.findTwitterTextArea(element.parentElement) : null);
+  }
+
+  getComposerRequestKey(composer) {
+    if (!composer) return 'unknown';
+    if (!composer.dataset.tweetreplyComposerKey) {
+      composer.dataset.tweetreplyComposerKey = `trai_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    }
+    return composer.dataset.tweetreplyComposerKey;
+  }
+
+  nextComposerRequestVersion(composer, kind) {
+    const mapKey = `${kind}:${this.getComposerRequestKey(composer)}`;
+    const next = (this.composerRequestVersions.get(mapKey) || 0) + 1;
+    this.composerRequestVersions.set(mapKey, next);
+    return next;
+  }
+
+  isLatestComposerRequest(composer, kind, version) {
+    const mapKey = `${kind}:${this.getComposerRequestKey(composer)}`;
+    return this.composerRequestVersions.get(mapKey) === version;
+  }
+
+  getScopedTwitterInsertionTargets(composer) {
+    const textAreaSelector = 'div[data-testid^="tweetTextarea_"][role="textbox"]';
+    const textArea = composer.matches?.(textAreaSelector)
+      ? composer
+      : composer.querySelector?.(textAreaSelector) || composer.closest?.(textAreaSelector);
+
+    // Scope toolbar resolution to composer neighborhood to avoid cross-composer writes.
+    const scopeRoot =
+      composer.closest?.('[role="dialog"], [data-testid="tweetComposer"], article') ||
+      composer.parentElement ||
+      document.body;
+    const toolbar = scopeRoot.querySelector?.('[data-testid="toolBar"]') || composer.closest?.('[data-testid="toolBar"]');
+
+    return { textArea, toolbar };
   }
 
   // Insert text using Draft.js-aware path (execCommand) + DOM fallback
@@ -2276,6 +2313,7 @@ class TwitterReplyInjector {
       <div class="tweetreply-spinner" style="width: 14px; height: 14px; border: 2px solid #1d9bf0; border-top: 2px solid transparent; border-radius: 50%; animation: spin 1s linear infinite; margin-right: 4px;"></div>
       <span>Generating...</span>
     `;
+    const requestVersion = this.nextComposerRequestVersion(composer, 'suggest');
 
     try {
       // Extract additional context
@@ -2329,6 +2367,10 @@ class TwitterReplyInjector {
         conversation_context: conversationContext, // Backward compatibility
         tweet_metadata: tweetMetadata
       });
+      if (!this.isLatestComposerRequest(composer, 'suggest', requestVersion)) {
+        console.log('[TweetReplyAI] Discarding stale suggest response after mode switch');
+        return;
+      }
 
       // Log analysis results if available
       // Fix: Backend sends flat structure: { tone, sentiment, style, intention }
@@ -2544,34 +2586,8 @@ class TwitterReplyInjector {
       return;
     }
 
-    // Extract current draft text from composer
-    let draftText = '';
-    
-    // Try multiple methods to extract text
-    // Method 1: Twitter's Draft.js structure with data-text spans
-    const dataTextSpans = composer.querySelectorAll('[data-text="true"]');
-    if (dataTextSpans.length > 0) {
-      draftText = Array.from(dataTextSpans)
-        .map(span => span.textContent || span.innerText)
-        .join(' ')
-        .trim();
-    }
-    
-    // Method 2: Direct textContent or innerText
-    if (!draftText || draftText.length === 0) {
-      draftText = composer.textContent || composer.innerText || '';
-    }
-    
-    // Method 3: Try to get from contenteditable div
-    if (!draftText || draftText.length === 0) {
-      const contentEditable = composer.querySelector('[contenteditable="true"]');
-      if (contentEditable) {
-        draftText = contentEditable.textContent || contentEditable.innerText || '';
-      }
-    }
-    
-    // Clean up the text
-    draftText = draftText.trim();
+    // Use canonical extraction to avoid duplicated mirrored Draft spans.
+    let draftText = this.extractComposerPlainText(composer);
     
     // Validate draft is not empty
     if (!draftText || draftText.length === 0) {
@@ -2586,6 +2602,7 @@ class TwitterReplyInjector {
       <div class="tweetreply-spinner" style="width: 14px; height: 14px; border: 2px solid #3b82f6; border-top: 2px solid transparent; border-radius: 50%; animation: spin 1s linear infinite; margin-right: 4px;"></div>
       <span>Improving...</span>
     `;
+    const requestVersion = this.nextComposerRequestVersion(composer, 'improve');
 
     try {
       // Extract original tweet text
@@ -2598,6 +2615,10 @@ class TwitterReplyInjector {
       
       // Call API to improve draft
       const response = await this.apiClient.suggestImprovements(draftText, originalTweetText);
+      if (!this.isLatestComposerRequest(composer, 'improve', requestVersion)) {
+        console.log('[TweetReplyAI] Discarding stale improve response after mode switch');
+        return;
+      }
       
       console.log('[TweetReplyAI] API response received:', response);
       console.log('[TweetReplyAI] Response keys:', Object.keys(response || {}));
@@ -4227,15 +4248,15 @@ class TwitterReplyInjector {
           composer.getAttribute('role') === 'textbox') {
         
         try {
-          // Find the actual Twitter toolbar
-          const toolbar = document.querySelector('[data-testid="toolBar"]');
-          
-          if (toolbar) {
-            const textArea = this.findTwitterTextArea(toolbar);
-            if (textArea) {
+          const { textArea, toolbar } = this.getScopedTwitterInsertionTargets(composer);
+          if (textArea && toolbar) {
+            await this.insertTextTwitterMethod(textArea, toolbar, cleanText);
+            const inserted = normalizeComposerText(extractCanonicalComposerText(textArea));
+            if (inserted !== normalizeComposerText(cleanText)) {
+              console.warn('[TweetReplyAI] Draft mismatch after insert; retrying once with scoped Draft path');
               await this.insertTextTwitterMethod(textArea, toolbar, cleanText);
-          return;
             }
+            return;
           }
         } catch (error) {
           console.warn('[TweetReplyAI] Twitter method failed:', error);
@@ -4290,18 +4311,22 @@ class TwitterReplyInjector {
         try {
           const contentDiv = composer.querySelector('[data-contents="true"]');
           if (contentDiv) {
-            const blocks = contentDiv.querySelectorAll('[data-block="true"]');
-            if (blocks.length > 0) {
-              const textBlock = blocks[0].querySelector(".public-DraftStyleDefault-block");
-              if (textBlock) {
-                textBlock.textContent = cleanText;
-                composer.dispatchEvent(new InputEvent("input", {
-          bubbles: true,
-                  cancelable: true
-                }));
-                return;
-              }
-            }
+            const block = document.createElement('div');
+            block.setAttribute('data-block', 'true');
+            block.className = 'public-DraftStyleDefault-block public-DraftStyleDefault-ltr';
+            const offsetSpan = document.createElement('span');
+            offsetSpan.setAttribute('data-offset-key', 'trai-0-0');
+            const textSpan = document.createElement('span');
+            textSpan.setAttribute('data-text', 'true');
+            textSpan.textContent = cleanText;
+            offsetSpan.appendChild(textSpan);
+            block.appendChild(offsetSpan);
+            contentDiv.replaceChildren(block);
+            composer.dispatchEvent(new InputEvent("input", {
+              bubbles: true,
+              cancelable: true
+            }));
+            return;
           }
         } catch (error) {
           console.warn('[TweetReplyAI] Draft.js DOM manipulation failed:', error);

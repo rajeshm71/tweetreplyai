@@ -29,8 +29,8 @@ export default function UsageThresholdEmail({
   const greeting = firstName ? `Hi ${firstName},` : 'Hi there,';
   const isLimit = pct >= 100;
   const headline = isLimit
-    ? "You've hit your limit — here's what to do"
-    : "You've used 80% of your credits — heads up";
+    ? "You've hit your limit, here's what to do"
+    : "You've used 80% of your credits, heads up";
 
   return (
     <EmailLayout
@@ -57,7 +57,7 @@ export default function UsageThresholdEmail({
           You've used <strong>{used}</strong> of your <strong>{limit}</strong> credits this period.
           {isLimit
             ? " You've reached your limit and can't generate new suggestions until your credits reset."
-            : ' You have a few credits left — plan accordingly.'}
+            : ' You have a few credits left, plan accordingly.'}
         </Text>
         <Text style={{ color: emailTheme.text, fontSize: '15px', lineHeight: '24px', margin: 0 }}>
           Credits reset on <strong>{resetAt}</strong>.

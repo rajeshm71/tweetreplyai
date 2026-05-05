@@ -39,7 +39,7 @@ export default function TermsOfService() {
                   <li>AI generated reply suggestions for Twitter/X posts</li>
                   <li>Chrome extension for browser integration</li>
                   <li>Web interface for mobile and desktop access</li>
-                  <li>Subscription-based access with usage quotas</li>
+                      <li>Subscription based access with usage quotas</li>
                 </ul>
               </section>
 
@@ -100,7 +100,7 @@ export default function TermsOfService() {
                       <li>You may cancel your subscription at any time</li>
                       <li>Your subscription will remain active until the end of your billing period</li>
                       <li>No refunds are provided for partial billing periods</li>
-                      <li>Refunds for unused portions may be available on a case-by-case basis</li>
+                      <li>Refunds for unused portions may be available on a case by case basis</li>
                     </ul>
                   </div>
                 </div>

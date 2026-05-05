@@ -10,7 +10,7 @@ export interface PasswordResetEmailProps {
 }
 
 export default function PasswordResetEmail({ resetUrl }: PasswordResetEmailProps) {
-  const previewText = `Reset your ${APP_DISPLAY_NAME} password — link expires in 1 hour.`;
+  const previewText = `Reset your ${APP_DISPLAY_NAME} password. Link expires in 1 hour.`;
 
   return (
     <EmailLayout previewText={previewText} variant="transactional">

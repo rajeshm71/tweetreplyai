@@ -27,6 +27,26 @@ function buildMockComposer() {
   return { composer, textArea };
 }
 
+function buildDraftComposerWithContents() {
+  const composer = document.createElement("div");
+  composer.setAttribute("data-testid", "toolBar");
+
+  const textArea = document.createElement("div");
+  textArea.setAttribute("data-testid", "tweetTextarea_0");
+  textArea.setAttribute("role", "textbox");
+  textArea.setAttribute("contenteditable", "true");
+
+  const contents = document.createElement("div");
+  contents.setAttribute("data-contents", "true");
+  contents.innerHTML = `
+    <div data-block="true"><span data-offset-key="old-0-0"><span data-text="true">Old A</span></span></div>
+    <div data-block="true"><span data-offset-key="old-1-0"><span data-text="true">Old B</span></span></div>
+  `;
+  textArea.appendChild(contents);
+  document.body.append(composer, textArea);
+  return { composer, textArea, contents };
+}
+
 describe("insertTextIntoTwitterDraftArea", () => {
   let origExecCommand: typeof document.execCommand | undefined;
 
@@ -124,5 +144,34 @@ describe("insertTextIntoTwitterDraftArea", () => {
     expect(addRange.mock.calls.length).toBeGreaterThanOrEqual(1);
     const prePasteRange = addRange.mock.calls[0][0] as Range;
     expect(prePasteRange.collapsed).toBe(false);
+  });
+
+  it("normalizes Draft data-contents fallback to a single block", async () => {
+    const { composer, textArea, contents } = buildDraftComposerWithContents();
+    vi.spyOn(document, "execCommand").mockReturnValue(false);
+
+    await insertTextIntoTwitterDraftArea(textArea, composer, "Latest only", {
+      sleep: async () => {},
+    });
+
+    const blocks = contents.querySelectorAll('[data-block="true"]');
+    expect(blocks.length).toBe(1);
+    const textSpan = contents.querySelector('[data-text="true"]') as HTMLElement | null;
+    expect(textSpan?.textContent).toBe("Latest only");
+  });
+
+  it("updates only targeted composer when multiple composers exist", async () => {
+    const first = buildMockComposer();
+    const second = buildMockComposer();
+    vi.spyOn(document, "execCommand").mockReturnValue(false);
+
+    await insertTextIntoTwitterDraftArea(first.textArea, first.composer, "First text", {
+      sleep: async () => {},
+    });
+
+    const firstText = (first.textArea.querySelector('[data-text="true"]') as HTMLElement).textContent;
+    const secondText = (second.textArea.querySelector('[data-text="true"]') as HTMLElement).textContent;
+    expect(firstText).toBe("First text");
+    expect(secondText).toBe("");
   });
 });

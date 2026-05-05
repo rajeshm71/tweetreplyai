@@ -62,7 +62,7 @@
             </svg>
           </span>
           <div class="quota-banner-text">
-            <strong>You've used <span id="quota-banner-used">--</span> / <span id="quota-banner-limit">--</span> credits</strong>
+            <strong>You've used <span id="quota-banner-used">N/A</span> / <span id="quota-banner-limit">N/A</span> credits</strong>
             <span>Upgrade now to keep the replies flowing!</span>
           </div>
           <button id="quota-banner-btn" class="quota-banner-upgrade">Upgrade</button>
@@ -87,8 +87,8 @@
           <div id="progress-fill" class="progress-fill"></div>
         </div>
         <div class="usage-details">
-          <span id="usage-text" class="usage-numbers">-- / -- credits</span>
-          <span id="reset-text" class="reset-time">Resets in --</span>
+          <span id="usage-text" class="usage-numbers">N/A / N/A credits</span>
+          <span id="reset-text" class="reset-time">Resets in N/A</span>
         </div>
         <!-- Credit Breakdown Toggle -->
         <div id="breakdown-toggle" class="breakdown-toggle" style="display: none;">
@@ -128,7 +128,7 @@
             </svg>
           </div>
           <div class="card-content">
-            <div class="card-value" id="success-rate">--</div>
+            <div class="card-value" id="success-rate">N/A</div>
             <div class="card-label">Quality</div>
           </div>
           <div class="card-gradient-overlay"></div>
@@ -185,7 +185,7 @@
           <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zM13 17h-2v-2h2v2zm0-4h-2V7h2v6z"/>
         </svg>
         <h3>Daily limit reached</h3>
-        <p id="quota-reset-text">Resets in --</p>
+        <p id="quota-reset-text">Resets in N/A</p>
         <button id="upgrade-btn" class="primary-btn" aria-label="Upgrade to Pro plan">Upgrade plan</button>
       </div>
     </div>
@@ -239,7 +239,7 @@
                 <option value="emoji">Icon + text (check / cross)</option>
                 <option value="icon_only">Icon only</option>
               </select>
-              <small id="followBadgeIconStyleHelp">How the follows / doesn’t-follow pill appears next to author names.</small>
+              <small id="followBadgeIconStyleHelp">How the follows or does not follow pill appears next to author names.</small>
             </div>
           </div>
 
@@ -254,15 +254,15 @@
               <label for="snippetLabelInput">Label</label>
               <input type="text" id="snippetLabelInput" class="settings-input" maxlength="60" placeholder="e.g. Newsletter CTA" />
               <label for="snippetTextInput">Text</label>
-              <textarea id="snippetTextInput" rows="3" maxlength="500" class="settings-textarea" aria-describedby="snippetHelp" placeholder="e.g. Check out my newsletter - link..."></textarea>
+              <textarea id="snippetTextInput" rows="3" maxlength="500" class="settings-textarea" aria-describedby="snippetHelp" placeholder="e.g. Check out my newsletter, link..."></textarea>
               <small id="snippetHelp">New CTAs are added automatically a moment after you finish typing label and text.</small>
             </div>
             <div class="settings-card settings-section">
-              <h4 class="settings-card__title">Default &amp; auto-append</h4>
-              <p class="settings-card__hint">Choose which CTA the button inserts on X and which one (if any) is added after AI-generated replies. Changes apply immediately.</p>
+              <h4 class="settings-card__title">Default and auto append</h4>
+              <p class="settings-card__hint">Choose which CTA the button inserts on X and which one (if any) is added after AI generated replies. Changes apply immediately.</p>
               <label for="defaultSnippetSelect" class="settings-select-label">Default (CTA button)</label>
               <select id="defaultSnippetSelect" class="settings-select"></select>
-              <label for="autoAppendSnippetSelect" class="settings-select-label">Auto-append after AI</label>
+              <label for="autoAppendSnippetSelect" class="settings-select-label">Auto append after AI</label>
               <select id="autoAppendSnippetSelect" class="settings-select"></select>
             </div>
           </div>

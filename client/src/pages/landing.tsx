@@ -239,7 +239,7 @@ export default function Landing() {
     },
     {
       icon: Rocket,
-      title: "Real-time Generation",
+      title: "Real time Generation",
       description: "Get AI replies in seconds, not minutes. Our optimized models deliver contextual responses instantly, so you never miss a conversation.",
       feature: "Lightning fast replies",
       gradient: "from-cyan-500/10 via-transparent to-blue-500/10",
@@ -248,7 +248,7 @@ export default function Landing() {
     },
     {
       icon: ChatBubble,
-      title: "Context-Aware Replies",
+      title: "Context Aware Replies",
       description: "Understands conversation threads, author context, and tweet metadata. Generates replies that fit naturally into ongoing discussions.",
       feature: "Natural conversation flow",
       gradient: "from-indigo-500/10 via-transparent to-purple-500/10",
@@ -266,8 +266,8 @@ export default function Landing() {
     },
     {
       icon: GoogleChromeLogo,
-      title: "One-Click Integration",
-      description: "Seamless Chrome extension works directly on X. Click once, get instant replies without leaving your feed. No copy-paste needed.",
+      title: "One Click Integration",
+      description: "Seamless Chrome extension works directly on X. Click once, get instant replies without leaving your feed. No copy and paste needed.",
       feature: "Seamless workflow",
       gradient: "from-blue-600/10 via-transparent to-cyan-500/10",
       iconGradient: "from-blue-600 to-cyan-500",
@@ -275,8 +275,8 @@ export default function Landing() {
     },
     {
       icon: SmartphoneDevice,
-      title: "Mobile-Friendly",
-      description: "Works perfectly on desktop, tablet, and mobile. Generate replies on-the-go with our responsive web interface.",
+      title: "Mobile Friendly",
+      description: "Works perfectly on desktop, tablet, and mobile. Generate replies on the go with our responsive web interface.",
       feature: "Works everywhere",
       gradient: "from-slate-500/10 via-transparent to-gray-500/10",
       iconGradient: "from-slate-500 to-gray-500",
@@ -386,7 +386,7 @@ export default function Landing() {
     },
     {
       question: "Can I use both the extension and web app?",
-      answer: "Yes! Your subscription covers both the Chrome extension and the mobile-friendly web interface. Your quota is shared across both platforms.",
+      answer: "Yes! Your subscription covers both the Chrome extension and the mobile friendly web interface. Your quota is shared across both platforms.",
       icon: "MessageCircle",
       category: "usage",
       emoji: "🚀",
@@ -394,7 +394,7 @@ export default function Landing() {
     },
     {
       question: "How authentic are the AI generated replies?",
-      answer: "Our AI is trained to generate human-like, contextual replies. Most users post our suggestions without any edits. We avoid generic AI clichés and hashtags.",
+      answer: "Our AI is trained to generate human like, contextual replies. Most users post our suggestions without any edits. We avoid generic AI clichés and hashtags.",
       icon: "Brain",
       category: "ai",
       emoji: "🧠",

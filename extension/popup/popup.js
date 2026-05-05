@@ -1182,7 +1182,7 @@ class PopupManager {
         r[SNIPPET_STORAGE.DEFAULT_ID] === snippetId || r[SNIPPET_STORAGE.AUTO_APPEND_ID] === snippetId;
       if (inUse) {
         const ok = confirm(
-          'This snippet is set as your default or auto-append snippet. Delete it anyway?',
+          'This snippet is set as your default or auto append snippet. Delete it anyway?',
         );
         if (!ok) return;
       }
@@ -1903,7 +1903,7 @@ class PopupManager {
         this.successRate.textContent = score.toString();
       } else {
         console.warn('[WARN][QuickStats] No quality metrics available, falling back to --');
-        this.successRate.textContent = '--';
+        this.successRate.textContent = 'N/A';
       }
 
       console.log('[LOG][QuickStats] successRate text now:', this.successRate.textContent);
@@ -1911,7 +1911,7 @@ class PopupManager {
 
     // Update time saved (placeholder - would need actual data)
     if (this.timeSaved) {
-      this.timeSaved.textContent = '--';
+      this.timeSaved.textContent = 'N/A';
     }
   }
 
@@ -1934,7 +1934,7 @@ class PopupManager {
    */
   formatQualityScore(avgScore) {
     if (avgScore === null || avgScore === undefined) {
-      return '--';
+      return 'N/A';
     }
     // Format as percentage if it's a decimal (0-1), otherwise show as-is
     return avgScore < 1 ? `${Math.round(avgScore * 100)}%` : `${Math.round(avgScore)}%`;

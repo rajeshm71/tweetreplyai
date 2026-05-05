@@ -177,7 +177,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
       case "product_tips":
         return "You've been unsubscribed from product tips and engagement emails.";
       case "usage_alerts":
-        return "You've turned off usage alert emails. You can re-enable them anytime in settings.";
+        return "You've turned off usage alert emails. You can enable them again anytime in settings.";
       default:
         return "Your email preferences were updated.";
     }
@@ -2324,7 +2324,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
       if (!session?.url) {
         return res.status(501).json({
           code: 'portal_unavailable',
-          message: "Self-serve billing portal is coming soon. For card updates or invoices, email support@tweetreplyai.com.",
+          message: "Self serve billing portal is coming soon. For card updates or invoices, email support@tweetreplyai.com.",
           supportEmail: 'support@tweetreplyai.com',
         });
       }
