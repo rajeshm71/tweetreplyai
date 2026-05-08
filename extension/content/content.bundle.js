@@ -1,15 +1,15 @@
 "use strict";
 (() => {
-  // node_modules/@sentry/core/build/esm/debug-build.js
+  // ../../../node_modules/@sentry/core/build/esm/debug-build.js
   var DEBUG_BUILD = typeof __SENTRY_DEBUG__ === "undefined" || __SENTRY_DEBUG__;
 
-  // node_modules/@sentry/core/build/esm/utils/worldwide.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/worldwide.js
   var GLOBAL_OBJ = globalThis;
 
-  // node_modules/@sentry/core/build/esm/utils/version.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/version.js
   var SDK_VERSION = "10.49.0";
 
-  // node_modules/@sentry/core/build/esm/carrier.js
+  // ../../../node_modules/@sentry/core/build/esm/carrier.js
   function getMainCarrier() {
     getSentryCarrier(GLOBAL_OBJ);
     return GLOBAL_OBJ;
@@ -25,7 +25,7 @@
     return carrier[name] || (carrier[name] = creator());
   }
 
-  // node_modules/@sentry/core/build/esm/utils/debug-logger.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/debug-logger.js
   var CONSOLE_LEVELS = [
     "debug",
     "info",
@@ -106,7 +106,7 @@
     error
   };
 
-  // node_modules/@sentry/core/build/esm/utils/stacktrace.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/stacktrace.js
   var STACKTRACE_FRAME_LIMIT = 50;
   var UNKNOWN_FUNCTION = "?";
   var WEBPACK_ERROR_REGEXP = /\(error: (.*)\)/;
@@ -202,7 +202,7 @@
     return isVNode ? "[VueVNode]" : "[VueViewModel]";
   }
 
-  // node_modules/@sentry/core/build/esm/instrument/handlers.js
+  // ../../../node_modules/@sentry/core/build/esm/instrument/handlers.js
   var handlers = {};
   var instrumented = {};
   function addHandler(type, handler) {
@@ -239,7 +239,7 @@ Error:`,
     }
   }
 
-  // node_modules/@sentry/core/build/esm/instrument/globalError.js
+  // ../../../node_modules/@sentry/core/build/esm/instrument/globalError.js
   var _oldOnErrorHandler = null;
   function addGlobalErrorInstrumentationHandler(handler) {
     const type = "error";
@@ -265,7 +265,7 @@ Error:`,
     GLOBAL_OBJ.onerror.__SENTRY_INSTRUMENTED__ = true;
   }
 
-  // node_modules/@sentry/core/build/esm/instrument/globalUnhandledRejection.js
+  // ../../../node_modules/@sentry/core/build/esm/instrument/globalUnhandledRejection.js
   var _oldOnUnhandledRejectionHandler = null;
   function addGlobalUnhandledRejectionInstrumentationHandler(handler) {
     const type = "unhandledrejection";
@@ -285,7 +285,7 @@ Error:`,
     GLOBAL_OBJ.onunhandledrejection.__SENTRY_INSTRUMENTED__ = true;
   }
 
-  // node_modules/@sentry/core/build/esm/utils/is.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/is.js
   var objectToString = Object.prototype.toString;
   function isError(wat) {
     switch (objectToString.call(wat)) {
@@ -351,7 +351,7 @@ Error:`,
     return typeof Request !== "undefined" && isInstanceOf(request, Request);
   }
 
-  // node_modules/@sentry/core/build/esm/utils/browser.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/browser.js
   var WINDOW = GLOBAL_OBJ;
   var DEFAULT_MAX_STRING_LENGTH = 80;
   function htmlTreeAsString(elem, options = {}) {
@@ -454,7 +454,7 @@ Error:`,
     return null;
   }
 
-  // node_modules/@sentry/core/build/esm/utils/object.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/object.js
   function fill(source, name, replacementFactory) {
     if (!(name in source)) {
       return;
@@ -538,7 +538,7 @@ Error:`,
     return !keys[0] ? "[object has no keys]" : keys.join(", ");
   }
 
-  // node_modules/@sentry/core/build/esm/utils/randomSafeContext.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/randomSafeContext.js
   var RESOLVED_RUNNER;
   function withRandomSafeContext(cb) {
     if (RESOLVED_RUNNER !== void 0) {
@@ -560,7 +560,7 @@ Error:`,
     return withRandomSafeContext(() => Date.now());
   }
 
-  // node_modules/@sentry/core/build/esm/utils/string.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/string.js
   function truncate(str, max = 0) {
     if (typeof str !== "string" || max === 0) {
       return str;
@@ -605,7 +605,7 @@ Error:`,
     return patterns.some((pattern) => isMatchingPattern(testString, pattern, requireExactStringMatch));
   }
 
-  // node_modules/@sentry/core/build/esm/utils/misc.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/misc.js
   function getCrypto() {
     const gbl = GLOBAL_OBJ;
     return gbl.crypto || gbl.msCrypto;
@@ -690,7 +690,7 @@ Error:`,
     }
   }
 
-  // node_modules/@sentry/core/build/esm/utils/time.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/time.js
   var ONE_SECOND_IN_MS = 1e3;
   function dateTimestampInSeconds() {
     return safeDateNow() / ONE_SECOND_IN_MS;
@@ -711,7 +711,7 @@ Error:`,
     return func();
   }
 
-  // node_modules/@sentry/core/build/esm/session.js
+  // ../../../node_modules/@sentry/core/build/esm/session.js
   function makeSession(context) {
     const startingTime = timestampInSeconds();
     const session = {
@@ -815,7 +815,7 @@ Error:`,
     };
   }
 
-  // node_modules/@sentry/core/build/esm/utils/merge.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/merge.js
   function merge(initialObj, mergeObj, levels = 2) {
     if (!mergeObj || typeof mergeObj !== "object" || levels <= 0) {
       return mergeObj;
@@ -832,7 +832,7 @@ Error:`,
     return output;
   }
 
-  // node_modules/@sentry/core/build/esm/utils/propagationContext.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/propagationContext.js
   function generateTraceId() {
     return uuid4();
   }
@@ -840,7 +840,7 @@ Error:`,
     return uuid4().substring(16);
   }
 
-  // node_modules/@sentry/core/build/esm/utils/spanOnScope.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/spanOnScope.js
   var SCOPE_SPAN_FIELD = "_sentrySpan";
   function _setSpanForScope(scope, span) {
     if (span) {
@@ -853,7 +853,7 @@ Error:`,
     return scope[SCOPE_SPAN_FIELD];
   }
 
-  // node_modules/@sentry/core/build/esm/scope.js
+  // ../../../node_modules/@sentry/core/build/esm/scope.js
   var DEFAULT_MAX_BREADCRUMBS = 100;
   var Scope = class _Scope {
     /** Flag if notifying is happening. */
@@ -1417,7 +1417,7 @@ Error:`,
     }
   };
 
-  // node_modules/@sentry/core/build/esm/defaultScopes.js
+  // ../../../node_modules/@sentry/core/build/esm/defaultScopes.js
   function getDefaultCurrentScope() {
     return getGlobalSingleton("defaultCurrentScope", () => new Scope());
   }
@@ -1425,7 +1425,7 @@ Error:`,
     return getGlobalSingleton("defaultIsolationScope", () => new Scope());
   }
 
-  // node_modules/@sentry/core/build/esm/utils/chain-and-copy-promiselike.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/chain-and-copy-promiselike.js
   var isActualPromise = (p) => p instanceof Promise && !p[kChainedCopy];
   var kChainedCopy = Symbol("chained PromiseLike");
   var chainAndCopyPromiseLike = (original, onSuccess, onError) => {
@@ -1462,7 +1462,7 @@ Error:`,
     return chained;
   };
 
-  // node_modules/@sentry/core/build/esm/asyncContext/stackStrategy.js
+  // ../../../node_modules/@sentry/core/build/esm/asyncContext/stackStrategy.js
   var AsyncContextStack = class {
     constructor(scope, isolationScope) {
       let assignedScope;
@@ -1578,7 +1578,7 @@ Error:`,
     };
   }
 
-  // node_modules/@sentry/core/build/esm/asyncContext/index.js
+  // ../../../node_modules/@sentry/core/build/esm/asyncContext/index.js
   function getAsyncContextStrategy(carrier) {
     const sentry = getSentryCarrier(carrier);
     if (sentry.acs) {
@@ -1587,7 +1587,7 @@ Error:`,
     return getStackAsyncContextStrategy();
   }
 
-  // node_modules/@sentry/core/build/esm/currentScopes.js
+  // ../../../node_modules/@sentry/core/build/esm/currentScopes.js
   var _externalPropagationContextProvider;
   function getExternalPropagationContext() {
     return _externalPropagationContextProvider?.();
@@ -1637,7 +1637,7 @@ Error:`,
     return traceContext;
   }
 
-  // node_modules/@sentry/core/build/esm/semanticAttributes.js
+  // ../../../node_modules/@sentry/core/build/esm/semanticAttributes.js
   var SEMANTIC_ATTRIBUTE_SENTRY_SOURCE = "sentry.source";
   var SEMANTIC_ATTRIBUTE_SENTRY_SAMPLE_RATE = "sentry.sample_rate";
   var SEMANTIC_ATTRIBUTE_SENTRY_PREVIOUS_TRACE_SAMPLE_RATE = "sentry.previous_trace_sample_rate";
@@ -1647,11 +1647,11 @@ Error:`,
   var SEMANTIC_ATTRIBUTE_EXCLUSIVE_TIME = "sentry.exclusive_time";
   var GEN_AI_CONVERSATION_ID_ATTRIBUTE = "gen_ai.conversation.id";
 
-  // node_modules/@sentry/core/build/esm/tracing/spanstatus.js
+  // ../../../node_modules/@sentry/core/build/esm/tracing/spanstatus.js
   var SPAN_STATUS_UNSET = 0;
   var SPAN_STATUS_OK = 1;
 
-  // node_modules/@sentry/core/build/esm/utils/weakRef.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/weakRef.js
   function derefWeakRef(ref) {
     if (!ref) {
       return void 0;
@@ -1666,7 +1666,7 @@ Error:`,
     return ref;
   }
 
-  // node_modules/@sentry/core/build/esm/tracing/utils.js
+  // ../../../node_modules/@sentry/core/build/esm/tracing/utils.js
   var SCOPE_ON_START_SPAN_FIELD = "_sentryScope";
   var ISOLATION_SCOPE_ON_START_SPAN_FIELD = "_sentryIsolationScope";
   function getCapturedScopesOnSpan(span) {
@@ -1677,7 +1677,7 @@ Error:`,
     };
   }
 
-  // node_modules/@sentry/core/build/esm/utils/baggage.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/baggage.js
   var SENTRY_BAGGAGE_KEY_PREFIX = "sentry-";
   function baggageHeaderToDynamicSamplingContext(baggageHeader) {
     const baggageObject = parseBaggageHeader(baggageHeader);
@@ -1735,7 +1735,7 @@ Error:`,
     }, {});
   }
 
-  // node_modules/@sentry/core/build/esm/utils/dsn.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/dsn.js
   var ORG_ID_REGEX = /^o(\d+)\./;
   var DSN_REGEX = /^(?:(\w+):)\/\/(?:(\w+)(?::(\w+)?)?@)((?:\[[:.%\w]+\]|[\w.-]+))(?::(\d+))?\/(.+)/;
   function isValidProtocol(protocol) {
@@ -1833,7 +1833,7 @@ Error:`,
     return components;
   }
 
-  // node_modules/@sentry/core/build/esm/utils/parseSampleRate.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/parseSampleRate.js
   function parseSampleRate(sampleRate) {
     if (typeof sampleRate === "boolean") {
       return Number(sampleRate);
@@ -1845,7 +1845,7 @@ Error:`,
     return rate;
   }
 
-  // node_modules/@sentry/core/build/esm/utils/spanUtils.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/spanUtils.js
   var TRACE_FLAG_SAMPLED = 1;
   var hasShownSpanDropWarning = false;
   function spanToTraceContext(span) {
@@ -1956,7 +1956,7 @@ Error:`,
     }
   }
 
-  // node_modules/@sentry/core/build/esm/utils/hasSpansEnabled.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/hasSpansEnabled.js
   function hasSpansEnabled(maybeOptions) {
     if (typeof __SENTRY_TRACING__ === "boolean" && !__SENTRY_TRACING__) {
       return false;
@@ -1966,7 +1966,7 @@ Error:`,
     (options.tracesSampleRate != null || !!options.tracesSampler);
   }
 
-  // node_modules/@sentry/core/build/esm/utils/should-ignore-span.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/should-ignore-span.js
   function logIgnoredSpan(droppedSpan) {
     debug.log(`Ignoring span ${droppedSpan.op} - ${droppedSpan.description} because it matches \`ignoreSpans\`.`);
   }
@@ -2010,10 +2010,10 @@ Error:`,
     return typeof value === "string" || value instanceof RegExp;
   }
 
-  // node_modules/@sentry/core/build/esm/constants.js
+  // ../../../node_modules/@sentry/core/build/esm/constants.js
   var DEFAULT_ENVIRONMENT = "production";
 
-  // node_modules/@sentry/core/build/esm/tracing/dynamicSamplingContext.js
+  // ../../../node_modules/@sentry/core/build/esm/tracing/dynamicSamplingContext.js
   var FROZEN_DSC_FIELD = "_frozenDsc";
   function getDynamicSamplingContextFromClient(trace_id, client) {
     const options = client.getOptions();
@@ -2075,12 +2075,12 @@ Error:`,
     return dsc;
   }
 
-  // node_modules/@sentry/core/build/esm/tracing/spans/beforeSendSpan.js
+  // ../../../node_modules/@sentry/core/build/esm/tracing/spans/beforeSendSpan.js
   function isStreamedBeforeSendSpanCallback(callback) {
     return !!callback && typeof callback === "function" && "_streamed" in callback && !!callback._streamed;
   }
 
-  // node_modules/@sentry/core/build/esm/utils/normalize.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/normalize.js
   function normalize(input, depth = 100, maxProperties = Infinity) {
     try {
       return visit("", input, depth, maxProperties);
@@ -2210,7 +2210,7 @@ Error:`,
     return [memoize, unmemoize];
   }
 
-  // node_modules/@sentry/core/build/esm/utils/envelope.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/envelope.js
   function createEnvelope(headers, items = []) {
     return [headers, items];
   }
@@ -2327,7 +2327,7 @@ ${JSON.stringify(itemHeaders)}
     };
   }
 
-  // node_modules/@sentry/core/build/esm/envelope.js
+  // ../../../node_modules/@sentry/core/build/esm/envelope.js
   function _enhanceEventWithSdkInfo(event, newSdkInfo) {
     if (!newSdkInfo) {
       return event;
@@ -2366,7 +2366,7 @@ ${JSON.stringify(itemHeaders)}
     return createEnvelope(envelopeHeaders, [eventItem]);
   }
 
-  // node_modules/@sentry/core/build/esm/utils/scopeData.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/scopeData.js
   function applyScopeDataToEvent(event, data) {
     const { fingerprint, span, breadcrumbs, sdkProcessingMetadata } = data;
     applyDataToEvent(event, data);
@@ -2488,7 +2488,7 @@ ${JSON.stringify(itemHeaders)}
     }
   }
 
-  // node_modules/@sentry/core/build/esm/utils/syncpromise.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/syncpromise.js
   var STATE_PENDING = 0;
   var STATE_RESOLVED = 1;
   var STATE_REJECTED = 2;
@@ -2620,7 +2620,7 @@ ${JSON.stringify(itemHeaders)}
     }
   };
 
-  // node_modules/@sentry/core/build/esm/eventProcessors.js
+  // ../../../node_modules/@sentry/core/build/esm/eventProcessors.js
   function notifyEventProcessors(processors, event, hint, index = 0) {
     try {
       const result = _notifyEventProcessors(event, hint, processors, index);
@@ -2642,7 +2642,7 @@ ${JSON.stringify(itemHeaders)}
     return _notifyEventProcessors(result, hint, processors, index + 1);
   }
 
-  // node_modules/@sentry/core/build/esm/utils/debug-ids.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/debug-ids.js
   var parsedStackResults;
   var lastSentryKeysCount;
   var lastNativeKeysCount;
@@ -2696,7 +2696,7 @@ ${JSON.stringify(itemHeaders)}
     return cachedFilenameDebugIds;
   }
 
-  // node_modules/@sentry/core/build/esm/utils/prepareEvent.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/prepareEvent.js
   function prepareEvent(options, event, hint, scope, client, isolationScope) {
     const { normalizeDepth = 3, normalizeMaxBreadth = 1e3 } = options;
     const prepared = {
@@ -2889,7 +2889,7 @@ ${JSON.stringify(itemHeaders)}
     return Object.keys(hint).some((key) => captureContextKeys.includes(key));
   }
 
-  // node_modules/@sentry/core/build/esm/exports.js
+  // ../../../node_modules/@sentry/core/build/esm/exports.js
   function captureException(exception, hint) {
     return getCurrentScope().captureException(exception, parseEventHintOrCaptureContext(hint));
   }
@@ -2942,7 +2942,7 @@ ${JSON.stringify(itemHeaders)}
     _sendSessionUpdate();
   }
 
-  // node_modules/@sentry/core/build/esm/api.js
+  // ../../../node_modules/@sentry/core/build/esm/api.js
   var SENTRY_API_VERSION = "7";
   function getBaseApiEndpoint(dsn) {
     const protocol = dsn.protocol ? `${dsn.protocol}:` : "";
@@ -2968,7 +2968,7 @@ ${JSON.stringify(itemHeaders)}
     return tunnel ? tunnel : `${_getIngestEndpoint(dsn)}?${_encodedAuth(dsn, sdkInfo)}`;
   }
 
-  // node_modules/@sentry/core/build/esm/integration.js
+  // ../../../node_modules/@sentry/core/build/esm/integration.js
   var installedIntegrations = [];
   function filterDuplicates(integrations) {
     const integrationsByName = {};
@@ -3050,7 +3050,7 @@ ${JSON.stringify(itemHeaders)}
     return fn;
   }
 
-  // node_modules/@sentry/core/build/esm/logs/envelope.js
+  // ../../../node_modules/@sentry/core/build/esm/logs/envelope.js
   function createLogContainerEnvelopeItem(items) {
     return [
       {
@@ -3077,7 +3077,7 @@ ${JSON.stringify(itemHeaders)}
     return createEnvelope(headers, [createLogContainerEnvelopeItem(logs)]);
   }
 
-  // node_modules/@sentry/core/build/esm/logs/internal.js
+  // ../../../node_modules/@sentry/core/build/esm/logs/internal.js
   function _INTERNAL_flushLogsBuffer(client, maybeLogBuffer) {
     const logBuffer = maybeLogBuffer ?? _INTERNAL_getLogBuffer(client) ?? [];
     if (logBuffer.length === 0) {
@@ -3096,7 +3096,7 @@ ${JSON.stringify(itemHeaders)}
     return getGlobalSingleton("clientToLogBufferMap", () => /* @__PURE__ */ new WeakMap());
   }
 
-  // node_modules/@sentry/core/build/esm/metrics/envelope.js
+  // ../../../node_modules/@sentry/core/build/esm/metrics/envelope.js
   function createMetricContainerEnvelopeItem(items) {
     return [
       {
@@ -3123,7 +3123,7 @@ ${JSON.stringify(itemHeaders)}
     return createEnvelope(headers, [createMetricContainerEnvelopeItem(metrics)]);
   }
 
-  // node_modules/@sentry/core/build/esm/metrics/internal.js
+  // ../../../node_modules/@sentry/core/build/esm/metrics/internal.js
   function _INTERNAL_flushMetricsBuffer(client, maybeMetricBuffer) {
     const metricBuffer = maybeMetricBuffer ?? _INTERNAL_getMetricBuffer(client) ?? [];
     if (metricBuffer.length === 0) {
@@ -3142,7 +3142,7 @@ ${JSON.stringify(itemHeaders)}
     return getGlobalSingleton("clientToMetricBufferMap", () => /* @__PURE__ */ new WeakMap());
   }
 
-  // node_modules/@sentry/core/build/esm/utils/timer.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/timer.js
   function safeUnref(timer) {
     if (typeof timer === "object" && typeof timer.unref === "function") {
       timer.unref();
@@ -3150,7 +3150,7 @@ ${JSON.stringify(itemHeaders)}
     return timer;
   }
 
-  // node_modules/@sentry/core/build/esm/utils/promisebuffer.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/promisebuffer.js
   var SENTRY_BUFFER_FULL_ERROR = Symbol.for("SentryBufferFullError");
   function makePromiseBuffer(limit = 100) {
     const buffer = /* @__PURE__ */ new Set();
@@ -3195,7 +3195,7 @@ ${JSON.stringify(itemHeaders)}
     };
   }
 
-  // node_modules/@sentry/core/build/esm/utils/ratelimit.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/ratelimit.js
   var DEFAULT_RETRY_AFTER = 60 * 1e3;
   function parseRetryAfterHeader(header, now = safeDateNow()) {
     const headerDelay = parseInt(`${header}`, 10);
@@ -3247,7 +3247,7 @@ ${JSON.stringify(itemHeaders)}
     return updatedRateLimits;
   }
 
-  // node_modules/@sentry/core/build/esm/transports/base.js
+  // ../../../node_modules/@sentry/core/build/esm/transports/base.js
   var DEFAULT_TRANSPORT_BUFFER_SIZE = 64;
   function createTransport(options, makeRequest, buffer = makePromiseBuffer(
     options.bufferSize || DEFAULT_TRANSPORT_BUFFER_SIZE
@@ -3317,7 +3317,7 @@ ${JSON.stringify(itemHeaders)}
     };
   }
 
-  // node_modules/@sentry/core/build/esm/utils/clientreport.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/clientreport.js
   function createClientReportEnvelope(discarded_events, dsn, timestamp) {
     const clientReportItem = [
       { type: "client_report" },
@@ -3329,7 +3329,7 @@ ${JSON.stringify(itemHeaders)}
     return createEnvelope(dsn ? { dsn } : {}, [clientReportItem]);
   }
 
-  // node_modules/@sentry/core/build/esm/utils/eventUtils.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/eventUtils.js
   function getPossibleEventMessages(event) {
     const possibleMessages = [];
     if (event.message) {
@@ -3348,7 +3348,7 @@ ${JSON.stringify(itemHeaders)}
     return possibleMessages;
   }
 
-  // node_modules/@sentry/core/build/esm/utils/transactionEvent.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/transactionEvent.js
   function convertTransactionEventToSpanJson(event) {
     const { trace_id, parent_span_id, span_id, status, origin, data, op } = event.contexts?.trace ?? {};
     return {
@@ -3393,7 +3393,7 @@ ${JSON.stringify(itemHeaders)}
     };
   }
 
-  // node_modules/@sentry/core/build/esm/client.js
+  // ../../../node_modules/@sentry/core/build/esm/client.js
   var ALREADY_SEEN_ERROR = "Not capturing exception because it's already been captured.";
   var MISSING_RELEASE_FOR_SESSION_ERROR = "Discarded session because of missing or non-string release";
   var INTERNAL_ERROR_SYMBOL = Symbol.for("SentryInternalError");
@@ -4194,7 +4194,7 @@ Reason: ${reason}`
     return 0;
   }
 
-  // node_modules/@sentry/core/build/esm/utils/eventbuilder.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/eventbuilder.js
   function hasSentryFetchUrlHost(error2) {
     return isError(error2) && "__sentry_fetch_url_host__" in error2 && typeof error2.__sentry_fetch_url_host__ === "string";
   }
@@ -4205,7 +4205,7 @@ Reason: ${reason}`
     return error2.message;
   }
 
-  // node_modules/@sentry/core/build/esm/sdk.js
+  // ../../../node_modules/@sentry/core/build/esm/sdk.js
   function initAndBind(clientClass, options) {
     if (options.debug === true) {
       if (DEBUG_BUILD) {
@@ -4227,7 +4227,7 @@ Reason: ${reason}`
     getCurrentScope().setClient(client);
   }
 
-  // node_modules/@sentry/core/build/esm/utils/url.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/url.js
   function parseUrl(url) {
     if (!url) {
       return {};
@@ -4264,7 +4264,7 @@ Reason: ${reason}`
     return url;
   }
 
-  // node_modules/@sentry/core/build/esm/utils/ipAddress.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/ipAddress.js
   function addAutoIpAddressToSession(session) {
     if ("aggregates" in session) {
       if (session.attrs?.["ip_address"] === void 0) {
@@ -4280,7 +4280,7 @@ Reason: ${reason}`
     }
   }
 
-  // node_modules/@sentry/core/build/esm/utils/sdkMetadata.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/sdkMetadata.js
   function applySdkMetadata(options, name, names = [name], source = "npm") {
     const sdk = (options._metadata = options._metadata || {}).sdk = options._metadata.sdk || {};
     if (!sdk.name) {
@@ -4293,7 +4293,7 @@ Reason: ${reason}`
     }
   }
 
-  // node_modules/@sentry/core/build/esm/breadcrumbs.js
+  // ../../../node_modules/@sentry/core/build/esm/breadcrumbs.js
   var DEFAULT_BREADCRUMBS = 100;
   function addBreadcrumb(breadcrumb, hint) {
     const client = getClient();
@@ -4311,7 +4311,7 @@ Reason: ${reason}`
     isolationScope.addBreadcrumb(finalBreadcrumb, maxBreadcrumbs);
   }
 
-  // node_modules/@sentry/core/build/esm/integrations/functiontostring.js
+  // ../../../node_modules/@sentry/core/build/esm/integrations/functiontostring.js
   var originalFunctionToString;
   var INTEGRATION_NAME = "FunctionToString";
   var SETUP_CLIENTS = /* @__PURE__ */ new WeakMap();
@@ -4336,7 +4336,7 @@ Reason: ${reason}`
   });
   var functionToStringIntegration = defineIntegration(_functionToStringIntegration);
 
-  // node_modules/@sentry/core/build/esm/integrations/eventFilters.js
+  // ../../../node_modules/@sentry/core/build/esm/integrations/eventFilters.js
   var DEFAULT_IGNORE_ERRORS = [
     /^Script error\.?$/,
     /^Javascript error: Script error\.? on line 0$/,
@@ -4501,7 +4501,7 @@ Event: ${getEventDescription(event)}`
     );
   }
 
-  // node_modules/@sentry/core/build/esm/utils/aggregate-errors.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/aggregate-errors.js
   function applyAggregateErrorsToEvent(exceptionFromErrorImplementation, parser, key, limit, event, hint) {
     if (!event.exception?.values || !hint || !isInstanceOf(hint.originalException, Error)) {
       return;
@@ -4586,7 +4586,7 @@ Event: ${getEventDescription(event)}`
     };
   }
 
-  // node_modules/@sentry/core/build/esm/instrument/console.js
+  // ../../../node_modules/@sentry/core/build/esm/instrument/console.js
   function addConsoleInstrumentationHandler(handler) {
     const type = "console";
     addHandler(type, handler);
@@ -4612,12 +4612,12 @@ Event: ${getEventDescription(event)}`
     });
   }
 
-  // node_modules/@sentry/core/build/esm/utils/severity.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/severity.js
   function severityLevelFromString(level) {
     return level === "warn" ? "warning" : ["fatal", "error", "warning", "log", "info", "debug"].includes(level) ? level : "log";
   }
 
-  // node_modules/@sentry/core/build/esm/integrations/dedupe.js
+  // ../../../node_modules/@sentry/core/build/esm/integrations/dedupe.js
   var INTEGRATION_NAME3 = "Dedupe";
   var _dedupeIntegration = (() => {
     let previousEvent;
@@ -4732,7 +4732,7 @@ Event: ${getEventDescription(event)}`
     return event.exception?.values?.[0];
   }
 
-  // node_modules/@sentry/core/build/esm/integrations/conversationId.js
+  // ../../../node_modules/@sentry/core/build/esm/integrations/conversationId.js
   var INTEGRATION_NAME4 = "ConversationId";
   var _conversationIdIntegration = (() => {
     return {
@@ -4755,7 +4755,7 @@ Event: ${getEventDescription(event)}`
   });
   var conversationIdIntegration = defineIntegration(_conversationIdIntegration);
 
-  // node_modules/@sentry/core/build/esm/utils/breadcrumb-log-level.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/breadcrumb-log-level.js
   function getBreadcrumbLogLevelFromHttpStatusCode(statusCode) {
     if (statusCode === void 0) {
       return void 0;
@@ -4768,7 +4768,7 @@ Event: ${getEventDescription(event)}`
     }
   }
 
-  // node_modules/@sentry/core/build/esm/utils/supports.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/supports.js
   var WINDOW2 = GLOBAL_OBJ;
   function supportsHistory() {
     return "history" in WINDOW2 && !!WINDOW2.history;
@@ -4817,7 +4817,7 @@ Event: ${getEventDescription(event)}`
     return result;
   }
 
-  // node_modules/@sentry/core/build/esm/instrument/fetch.js
+  // ../../../node_modules/@sentry/core/build/esm/instrument/fetch.js
   function addFetchInstrumentationHandler(handler, skipNativeFetchCheck) {
     const type = "fetch";
     addHandler(type, handler);
@@ -4943,12 +4943,12 @@ Event: ${getEventDescription(event)}`
     return;
   }
 
-  // node_modules/@sentry/core/build/esm/utils/env.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/env.js
   function getSDKSource() {
     return "npm";
   }
 
-  // node_modules/@sentry/browser/build/npm/esm/prod/helpers.js
+  // ../../../node_modules/@sentry/browser/build/npm/esm/prod/helpers.js
   var WINDOW3 = GLOBAL_OBJ;
   var ignoreOnError = 0;
   function shouldIgnoreOnError() {
@@ -5043,7 +5043,7 @@ Event: ${getEventDescription(event)}`
     return request;
   }
 
-  // node_modules/@sentry/browser/build/npm/esm/prod/eventbuilder.js
+  // ../../../node_modules/@sentry/browser/build/npm/esm/prod/eventbuilder.js
   function exceptionFromError2(stackParser, ex) {
     const frames = parseStackFrames2(stackParser, ex);
     const exception = {
@@ -5256,7 +5256,7 @@ Event: ${getEventDescription(event)}`
     return Object.values(obj).find((v) => v instanceof Error);
   }
 
-  // node_modules/@sentry/browser/build/npm/esm/prod/client.js
+  // ../../../node_modules/@sentry/browser/build/npm/esm/prod/client.js
   var BrowserClient = class extends Client {
     /**
      * Creates a new Browser SDK instance.
@@ -5333,13 +5333,13 @@ Event: ${getEventDescription(event)}`
     };
   }
 
-  // node_modules/@sentry-internal/browser-utils/build/esm/debug-build.js
+  // ../../../node_modules/@sentry-internal/browser-utils/build/esm/debug-build.js
   var DEBUG_BUILD2 = typeof __SENTRY_DEBUG__ === "undefined" || __SENTRY_DEBUG__;
 
-  // node_modules/@sentry-internal/browser-utils/build/esm/types.js
+  // ../../../node_modules/@sentry-internal/browser-utils/build/esm/types.js
   var WINDOW4 = GLOBAL_OBJ;
 
-  // node_modules/@sentry-internal/browser-utils/build/esm/instrument/dom.js
+  // ../../../node_modules/@sentry-internal/browser-utils/build/esm/instrument/dom.js
   var DEBOUNCE_DURATION = 1e3;
   var debounceTimerID;
   var lastCapturedEventType;
@@ -5469,7 +5469,7 @@ Event: ${getEventDescription(event)}`
     }
   }
 
-  // node_modules/@sentry-internal/browser-utils/build/esm/instrument/history.js
+  // ../../../node_modules/@sentry-internal/browser-utils/build/esm/instrument/history.js
   var lastHref;
   function addHistoryInstrumentationHandler(handler) {
     const type = "history";
@@ -5518,7 +5518,7 @@ Event: ${getEventDescription(event)}`
     }
   }
 
-  // node_modules/@sentry-internal/browser-utils/build/esm/getNativeImplementation.js
+  // ../../../node_modules/@sentry-internal/browser-utils/build/esm/getNativeImplementation.js
   var cachedImplementations = {};
   function getNativeImplementation(name) {
     const cached = cachedImplementations[name];
@@ -5553,7 +5553,7 @@ Event: ${getEventDescription(event)}`
     cachedImplementations[name] = void 0;
   }
 
-  // node_modules/@sentry-internal/browser-utils/build/esm/instrument/xhr.js
+  // ../../../node_modules/@sentry-internal/browser-utils/build/esm/instrument/xhr.js
   var SENTRY_XHR_DATA_KEY = "__sentry_xhr_v3__";
   function addXhrInstrumentationHandler(handler) {
     const type = "xhr";
@@ -5653,7 +5653,7 @@ Event: ${getEventDescription(event)}`
     return void 0;
   }
 
-  // node_modules/@sentry/browser/build/npm/esm/prod/transports/fetch.js
+  // ../../../node_modules/@sentry/browser/build/npm/esm/prod/transports/fetch.js
   var DEFAULT_BROWSER_TRANSPORT_BUFFER_SIZE = 40;
   function makeFetchTransport(options, nativeFetch = getNativeImplementation("fetch")) {
     let pendingBodySize = 0;
@@ -5705,10 +5705,10 @@ Event: ${getEventDescription(event)}`
     );
   }
 
-  // node_modules/@sentry/browser/build/npm/esm/prod/debug-build.js
+  // ../../../node_modules/@sentry/browser/build/npm/esm/prod/debug-build.js
   var DEBUG_BUILD3 = typeof __SENTRY_DEBUG__ === "undefined" || __SENTRY_DEBUG__;
 
-  // node_modules/@sentry/browser/build/npm/esm/prod/stack-parsers.js
+  // ../../../node_modules/@sentry/browser/build/npm/esm/prod/stack-parsers.js
   var CHROME_PRIORITY = 30;
   var GECKO_PRIORITY = 50;
   function createFrame(filename, func, lineno, colno) {
@@ -5794,7 +5794,7 @@ Event: ${getEventDescription(event)}`
     ] : [func, filename];
   };
 
-  // node_modules/@sentry/browser/build/npm/esm/prod/integrations/breadcrumbs.js
+  // ../../../node_modules/@sentry/browser/build/npm/esm/prod/integrations/breadcrumbs.js
   var MAX_ALLOWED_STRING_LENGTH = 1024;
   var INTEGRATION_NAME5 = "Breadcrumbs";
   var _breadcrumbsIntegration = ((options = {}) => {
@@ -6035,7 +6035,7 @@ Event: ${getEventDescription(event)}`
     return !!event && !!event.target;
   }
 
-  // node_modules/@sentry/browser/build/npm/esm/prod/integrations/browserapierrors.js
+  // ../../../node_modules/@sentry/browser/build/npm/esm/prod/integrations/browserapierrors.js
   var DEFAULT_EVENT_TARGET = "EventTarget,Window,Node,ApplicationCache,AudioTrackList,BroadcastChannel,ChannelMergerNode,CryptoOperation,EventSource,FileReader,HTMLUnknownElement,IDBDatabase,IDBRequest,IDBTransaction,KeyOperation,MediaController,MessagePort,ModalWindow,Notification,SVGElementInstance,Screen,SharedWorker,TextTrack,TextTrackCue,TextTrackList,WebSocket,WebSocketWorker,Worker,XMLHttpRequest,XMLHttpRequestEventTarget,XMLHttpRequestUpload".split(
     ","
   );
@@ -6194,7 +6194,7 @@ Event: ${getEventDescription(event)}`
     }
   }
 
-  // node_modules/@sentry/browser/build/npm/esm/prod/integrations/browsersession.js
+  // ../../../node_modules/@sentry/browser/build/npm/esm/prod/integrations/browsersession.js
   var browserSessionIntegration = defineIntegration((options = {}) => {
     const lifecycle = options.lifecycle ?? "route";
     return {
@@ -6227,7 +6227,7 @@ Event: ${getEventDescription(event)}`
     };
   });
 
-  // node_modules/@sentry/browser/build/npm/esm/prod/integrations/culturecontext.js
+  // ../../../node_modules/@sentry/browser/build/npm/esm/prod/integrations/culturecontext.js
   var INTEGRATION_NAME7 = "CultureContext";
   var _cultureContextIntegration = (() => {
     return {
@@ -6261,7 +6261,7 @@ Event: ${getEventDescription(event)}`
     }
   }
 
-  // node_modules/@sentry/browser/build/npm/esm/prod/integrations/globalhandlers.js
+  // ../../../node_modules/@sentry/browser/build/npm/esm/prod/integrations/globalhandlers.js
   var INTEGRATION_NAME8 = "GlobalHandlers";
   var _globalHandlersIntegration = ((options = {}) => {
     const _options = {
@@ -6394,7 +6394,7 @@ Event: ${getEventDescription(event)}`
     return url;
   }
 
-  // node_modules/@sentry/browser/build/npm/esm/prod/integrations/httpcontext.js
+  // ../../../node_modules/@sentry/browser/build/npm/esm/prod/integrations/httpcontext.js
   var httpContextIntegration = defineIntegration(() => {
     return {
       name: "HttpContext",
@@ -6416,7 +6416,7 @@ Event: ${getEventDescription(event)}`
     };
   });
 
-  // node_modules/@sentry/browser/build/npm/esm/prod/integrations/linkederrors.js
+  // ../../../node_modules/@sentry/browser/build/npm/esm/prod/integrations/linkederrors.js
   var DEFAULT_KEY = "cause";
   var DEFAULT_LIMIT = 5;
   var INTEGRATION_NAME9 = "LinkedErrors";
@@ -6441,7 +6441,7 @@ Event: ${getEventDescription(event)}`
   });
   var linkedErrorsIntegration = defineIntegration(_linkedErrorsIntegration);
 
-  // node_modules/@sentry/browser/build/npm/esm/prod/utils/detectBrowserExtension.js
+  // ../../../node_modules/@sentry/browser/build/npm/esm/prod/utils/detectBrowserExtension.js
   function checkAndWarnIfIsEmbeddedBrowserExtension() {
     if (_isEmbeddedBrowserExtension()) {
       if (DEBUG_BUILD3) {
@@ -6472,7 +6472,7 @@ Event: ${getEventDescription(event)}`
     return !isDedicatedExtensionPage;
   }
 
-  // node_modules/@sentry/browser/build/npm/esm/prod/sdk.js
+  // ../../../node_modules/@sentry/browser/build/npm/esm/prod/sdk.js
   function getDefaultIntegrations(_options) {
     return [
       // TODO(v11): Replace with `eventFiltersIntegration` once we remove the deprecated `inboundFiltersIntegration`
@@ -6507,8 +6507,8 @@ Event: ${getEventDescription(event)}`
   }
 
   // extension/utils/sentry.js
-  var DSN = "https://05571ef5f66316725f1b1f75cbda202d@o4511239109804032.ingest.us.sentry.io/4511239112818688";
-  var ENV = "development";
+  var DSN = "";
+  var ENV = "production";
   var RELEASE = void 0;
   var initialized = false;
   function scrubUrl(url) {
@@ -7874,87 +7874,11 @@ ${cta}` : cta;
     throw new Error("Compose box did not open in time. Reframed text copied to clipboard.");
   }
 
-  // extension/content/helpers/draft-insert.js
-  async function insertTextIntoTwitterDraftArea(textArea, composer, text, deps) {
-    const { sleep } = deps;
-    composer?.click?.();
-    textArea?.focus?.();
-    await sleep(20);
-    try {
-      const range = document.createRange();
-      range.selectNodeContents(textArea);
-      const selection = window.getSelection();
-      selection?.removeAllRanges();
-      selection?.addRange(range);
-    } catch {
-    }
-    let pasted = false;
-    try {
-      const dt = new DataTransfer();
-      dt.setData("text/plain", text);
-      const pasteEvent = new ClipboardEvent("paste", {
-        bubbles: true,
-        cancelable: true,
-        clipboardData: dt
-      });
-      textArea.dispatchEvent(pasteEvent);
-      await sleep(50);
-      const dataTextSpan2 = textArea.querySelector('[data-text="true"]');
-      const prefix = text.length ? text.slice(0, Math.min(20, text.length)) : "";
-      if (prefix && dataTextSpan2?.textContent?.includes(prefix)) {
-        pasted = true;
-      }
-    } catch {
-    }
-    if (pasted) {
-      try {
-        const draftSpan = textArea.querySelector('[data-text="true"]');
-        if (draftSpan?.firstChild) {
-          const endRange = document.createRange();
-          endRange.setStart(
-            draftSpan.firstChild,
-            String(draftSpan.firstChild.textContent || "").length
-          );
-          endRange.collapse(true);
-          const sel = window.getSelection();
-          sel?.removeAllRanges();
-          sel?.addRange(endRange);
-        }
-      } catch {
-      }
-      return;
-    }
-    let inserted = false;
-    try {
-      inserted = document.execCommand("insertText", false, text);
-    } catch {
-      inserted = false;
-    }
-    if (inserted) return;
-    const dataTextSpan = textArea?.querySelector?.('[data-text="true"]');
-    const targetElement = dataTextSpan ? dataTextSpan.parentElement : textArea;
-    if (!targetElement) return;
-    const span = document.createElement("span");
-    span.dataset.text = "true";
-    span.textContent = text;
-    if (typeof targetElement.replaceChildren === "function") {
-      targetElement.replaceChildren(span);
-    } else {
-      while (targetElement.firstChild) targetElement.removeChild(targetElement.firstChild);
-      targetElement.appendChild(span);
-    }
-    targetElement.dispatchEvent(
-      new InputEvent("input", { bubbles: true, cancelable: true })
-    );
-  }
-
   // extension/content/content.js
   initExtensionSentry({ scope: "content" });
   globalThis.__tweetreplyaiExtLoggingAllowed = false;
   installConsoleGate(() => globalThis.__tweetreplyaiExtLoggingAllowed === true);
   var DIAGNOSE_THREAD_SELECTION = true;
-  var DIAG_AUTO_LIKE = false;
-  var CONTENT_SCRIPT_DIAG_REVISION = 2;
   var TwitterReplyInjector = class {
     constructor() {
       if (window.__tweetReplyInjector) {
@@ -7980,6 +7904,7 @@ ${cta}` : cta;
       this.followBadgeIconStyle = FOLLOW_BADGE_ICON_STYLE_DEFAULT;
       this.currentReplyTargetArticle = null;
       this._replyTargetClearTimer = null;
+      this.autoLikeEnabled = true;
       this.pendingReplyTarget = null;
       this._originalTweetCache = null;
       this.lastNonComposePath = window.location.pathname;
@@ -8087,11 +8012,28 @@ ${cta}` : cta;
       const textArea = element.querySelector('div[data-testid^="tweetTextarea_"][role="textbox"]');
       return textArea || (element.parentElement ? this.findTwitterTextArea(element.parentElement) : null);
     }
-    // Insert text using Draft.js-aware path (execCommand) + DOM fallback
+    // Insert text using proven Twitter approach
     async insertTextTwitterMethod(textArea, composer, text) {
-      await insertTextIntoTwitterDraftArea(textArea, composer, text, {
-        sleep: (ms) => this.sleep(ms)
-      });
+      composer.click();
+      const dataTextSpan = textArea.querySelector('[data-text="true"]');
+      const targetElement = dataTextSpan ? dataTextSpan.parentElement : textArea;
+      if (targetElement) {
+        const span = document.createElement("span");
+        span.dataset.text = "true";
+        span.textContent = text;
+        if (typeof targetElement.replaceChildren === "function") {
+          targetElement.replaceChildren(span);
+        } else {
+          while (targetElement.firstChild) {
+            targetElement.removeChild(targetElement.firstChild);
+          }
+          targetElement.appendChild(span);
+        }
+        targetElement.dispatchEvent(new InputEvent("input", {
+          bubbles: true,
+          cancelable: true
+        }));
+      }
     }
     extractComposerPlainText(composer) {
       return extractCanonicalComposerText(composer);
@@ -8181,65 +8123,6 @@ ${cta}` : cta;
       }
       return null;
     }
-    /**
-     * Session dedupe for auto-like: prefer numeric status id; else canonical /status/ path or DOM fingerprint.
-     */
-    getAutoLikeDedupeKey(tweetArticle) {
-      if (!tweetArticle) return "invalid";
-      const id = this.getTweetIdFromArticle(tweetArticle);
-      if (id) return `tid:${id}`;
-      const link = tweetArticle.querySelector('a[href*="/status/"]');
-      if (link?.href) {
-        try {
-          const u = new URL(link.href);
-          const m = u.pathname.match(/\/status\/(\d+)/);
-          if (m) return `tid:${m[1]}`;
-          return `path:${u.pathname}`;
-        } catch {
-          const m = String(link.href).match(/status\/(\d+)/);
-          if (m) return `tid:${m[1]}`;
-          return `href:${String(link.href).slice(0, 120)}`;
-        }
-      }
-      return `dom:${this._articleDomFingerprint(tweetArticle)}`;
-    }
-    _articleDomFingerprint(article) {
-      const parts = [
-        article.getAttribute("data-tweet-id") || "",
-        article.getAttribute("aria-labelledby") || ""
-      ];
-      const link = article.querySelector('a[href*="/status/"]');
-      if (link) parts.push(link.getAttribute("href") || "");
-      const s = parts.join("|");
-      let h2 = 0;
-      for (let i = 0; i < s.length; i++) h2 = (h2 << 5) - h2 + s.charCodeAt(i) | 0;
-      return String(h2);
-    }
-    isTweetArticleLiked(tweetArticle) {
-      if (!tweetArticle) return false;
-      if (tweetArticle.querySelector('[data-testid="unlike"]')) return true;
-      const like = tweetArticle.querySelector('[data-testid="like"]');
-      if (like?.getAttribute("aria-pressed") === "true") return true;
-      return false;
-    }
-    /**
-     * Narrow tweetButtonInline: only when it is clearly Reply on a tweet card (not composer/dialog send).
-     * Surfaces that still trigger auto-like: timeline + detail tweet [data-testid="reply"], aria Reply,
-     * and inline Reply when label/text indicates Reply inside article[data-testid="tweet"].
-     */
-    isTweetInlineReplyButton(target) {
-      if (!target || typeof target.closest !== "function") return false;
-      const inline = target.closest('[data-testid="tweetButtonInline"]');
-      if (!inline) return false;
-      if (inline.closest('[data-testid="tweetComposer"]') || inline.closest('[role="dialog"]')) return false;
-      const article = inline.closest('article[data-testid="tweet"]');
-      if (!article) return false;
-      const label = (inline.getAttribute("aria-label") || "").toLowerCase();
-      if (label.includes("reply") && !label.includes("unlike")) return true;
-      const text = (inline.textContent || "").trim().toLowerCase();
-      if (text === "reply" || /^reply\b/.test(text)) return true;
-      return false;
-    }
     findLikeButton(tweetArticle) {
       if (!tweetArticle) return null;
       const isAlreadyLikedOrUnlike = (btn) => {
@@ -8275,103 +8158,27 @@ ${cta}` : cta;
       }
       return null;
     }
-    /**
-     * Poll + MutationObserver until like control exists or timeout (action bar may re-render after Reply).
-     */
-    async waitForLikeButton(tweetArticle, maxWaitMs) {
-      if (!tweetArticle) return null;
-      const deadline = Date.now() + maxWaitMs;
-      const pollMs = TIMEOUTS.AUTO_LIKE_POLL_MS;
-      return new Promise((resolve) => {
-        let settled = false;
-        let obs;
-        let iv;
-        const finish = (btn) => {
-          if (settled) return;
-          settled = true;
-          try {
-            obs?.disconnect();
-          } catch {
-          }
-          clearInterval(iv);
-          resolve(btn);
-        };
-        const tick = () => {
-          if (this.isTweetArticleLiked(tweetArticle)) {
-            finish(null);
-            return;
-          }
-          const btn = this.findLikeButton(tweetArticle);
-          if (btn) {
-            finish(btn);
-            return;
-          }
-          if (Date.now() >= deadline) finish(null);
-        };
-        obs = new MutationObserver(() => tick());
-        try {
-          obs.observe(tweetArticle, {
-            childList: true,
-            subtree: true,
-            attributes: true,
-            attributeFilter: ["data-testid", "aria-pressed", "aria-label"]
-          });
-        } catch {
-        }
-        iv = setInterval(tick, pollMs);
-        tick();
-      });
-    }
-    async performAutoLike(likeButton, useMouseEvent = false) {
+    async performAutoLike(likeButton) {
       if (!likeButton) return false;
       try {
-        if (useMouseEvent) {
-          likeButton.dispatchEvent(
-            new MouseEvent("click", { bubbles: true, cancelable: true, view: window })
-          );
-        } else {
-          likeButton.click();
-        }
+        likeButton.click();
         await new Promise((resolve) => setTimeout(resolve, TIMEOUTS.DOM_DEBOUNCE_MS));
         return true;
       } catch (error2) {
         console.warn("[TweetReplyAI] Failed to auto-like:", error2);
-        return false;
-      }
-    }
-    /** One native click plus at most one MouseEvent retry; success only if liked state verifies. */
-    async performAutoLikeVerified(tweetArticle, likeButton) {
-      if (!likeButton || !tweetArticle) return false;
-      if (this.isTweetArticleLiked(tweetArticle)) return true;
-      await this.performAutoLike(likeButton, false);
-      await new Promise((r) => setTimeout(r, TIMEOUTS.DOM_DEBOUNCE_MS));
-      if (this.isTweetArticleLiked(tweetArticle)) return true;
-      await this.performAutoLike(likeButton, true);
-      await new Promise((r) => setTimeout(r, TIMEOUTS.DOM_DEBOUNCE_MS));
-      return this.isTweetArticleLiked(tweetArticle);
-    }
-    async runAutoLikeAfterReplyOpen(tweetArticle) {
-      const dedupeKey = this.getAutoLikeDedupeKey(tweetArticle);
-      if (this.autoLikedTweetIds.has(dedupeKey)) return;
-      if (this.isTweetArticleLiked(tweetArticle)) {
-        this.autoLikedTweetIds.add(dedupeKey);
-        return;
-      }
-      const likeButton = await this.waitForLikeButton(tweetArticle, TIMEOUTS.AUTO_LIKE_MAX_WAIT_MS);
-      if (this.isTweetArticleLiked(tweetArticle)) {
-        this.autoLikedTweetIds.add(dedupeKey);
-        return;
-      }
-      if (!likeButton) {
-        if (DIAG_AUTO_LIKE) {
-          console.log("[TweetReplyAI][auto-like]", { dedupeKey, foundLike: false, verifiedLiked: false });
+        try {
+          const event = new MouseEvent("click", {
+            bubbles: true,
+            cancelable: true,
+            view: window
+          });
+          likeButton.dispatchEvent(event);
+          await new Promise((resolve) => setTimeout(resolve, TIMEOUTS.DOM_DEBOUNCE_MS));
+          return true;
+        } catch (e) {
+          console.warn("[TweetReplyAI] MouseEvent simulation failed:", e);
+          return false;
         }
-        return;
-      }
-      const verified = await this.performAutoLikeVerified(tweetArticle, likeButton);
-      if (verified) this.autoLikedTweetIds.add(dedupeKey);
-      if (DIAG_AUTO_LIKE) {
-        console.log("[TweetReplyAI][auto-like]", { dedupeKey, foundLike: true, verifiedLiked: verified });
       }
     }
     setupAutoLikeOnReply() {
@@ -8419,11 +8226,9 @@ ${cta}` : cta;
             this.pendingReplyTarget = null;
             return;
           }
-          const replyByTestId = target.closest('[data-testid="reply"]');
-          const replyByAria = target.closest('button[aria-label*="Reply" i]') || target.closest('[role="button"][aria-label*="Reply" i]');
-          const inlineReply = this.isTweetInlineReplyButton(target) ? target.closest('[data-testid="tweetButtonInline"]') : null;
-          if (!replyByTestId && !replyByAria && !inlineReply) return;
-          const replyButton = replyByTestId || replyByAria || inlineReply;
+          const isReplyButton = target.matches('[data-testid="reply"]') || target.closest('[data-testid="reply"]') || target.matches('button[aria-label*="Reply" i]') || target.closest('button[aria-label*="Reply" i]') || target.matches('[role="button"][aria-label*="Reply" i]') || target.closest('[role="button"][aria-label*="Reply" i]');
+          if (!isReplyButton) return;
+          const replyButton = target.closest('[data-testid="reply"]') || target.closest('button[aria-label*="Reply" i]') || target.closest('[role="button"][aria-label*="Reply" i]') || target;
           const tweetArticle = this.findTweetArticle(replyButton);
           if (!tweetArticle) {
             return;
@@ -8439,17 +8244,39 @@ ${cta}` : cta;
           if (username && username !== "unknown") {
             this.pendingReplyTarget = { username, tweetId: tweetId || null, setAt: Date.now() };
           }
-          this.isAutoLikeEnabled().then((autoLikeEnabled) => {
-            if (autoLikeEnabled) {
-              setTimeout(() => {
-                this.runAutoLikeAfterReplyOpen(tweetArticle).catch((err) => {
+          if (this.autoLikeEnabled) {
+            setTimeout(() => {
+              const tweetId2 = this.getTweetIdFromArticle(tweetArticle);
+              if (tweetId2 !== null && this.autoLikedTweetIds.has(tweetId2)) {
+                return;
+              }
+              let liveArticle = tweetArticle;
+              if (!tweetArticle.isConnected) {
+                liveArticle = null;
+                if (tweetId2) {
+                  const articles = document.querySelectorAll('article[data-testid="tweet"]');
+                  for (const a of articles) {
+                    if (this.getTweetIdFromArticle(a) === tweetId2) {
+                      liveArticle = a;
+                      break;
+                    }
+                  }
+                }
+                if (!liveArticle) {
+                  liveArticle = document.querySelector('[role="dialog"] article[data-testid="tweet"]');
+                }
+                if (!liveArticle) return;
+              }
+              const likeButton = this.findLikeButton(liveArticle);
+              if (likeButton) {
+                this.performAutoLike(likeButton).then(() => {
+                  if (tweetId2 !== null) this.autoLikedTweetIds.add(tweetId2);
+                }).catch((err) => {
                   console.warn("[TweetReplyAI] Auto-like execution failed:", err);
                 });
-              }, 50);
-            }
-          }).catch((err) => {
-            console.warn("[TweetReplyAI] Failed to check auto-like setting:", err);
-          });
+              }
+            }, 150);
+          }
         } catch (error2) {
           console.error("[TweetReplyAI] Auto-like handler error:", error2);
         }
@@ -8457,13 +8284,6 @@ ${cta}` : cta;
       document.addEventListener("click", this.autoLikeClickHandler, true);
     }
     async initialize() {
-      try {
-        const v = chrome.runtime?.getManifest?.()?.version ?? "?";
-        console.log(
-          `[TweetReplyAI] content script revision=${CONTENT_SCRIPT_DIAG_REVISION} manifest=${v} (reload extension if this does not change after rebuild)`
-        );
-      } catch {
-      }
       this.authManager.setApiClient(this.apiClient);
       await this.loadRelationshipHintsSetting();
       this.isAuthenticated = await this.authManager.isAuthenticated(true);
@@ -8472,6 +8292,7 @@ ${cta}` : cta;
       }
       this.startObserving();
       this.setupFollowStatusFromNetwork();
+      this.autoLikeEnabled = await this.isAutoLikeEnabled();
       this.setupAutoLikeOnReply();
       this.setupReplyCountDisplay();
       if (!this.runtimeMessageHandler) {
@@ -8511,6 +8332,9 @@ ${cta}` : cta;
             }
             if (changes.replyHistory || changes.replyTrackingSettings) {
               this.updateReplyCountsOnTweets();
+            }
+            if ("tweetreply_auto_like" in changes) {
+              this.autoLikeEnabled = changes.tweetreply_auto_like.newValue !== false;
             }
           }
         };
@@ -9958,7 +9782,6 @@ ${cta}` : cta;
           return;
         }
         await this.appendCtaSnippetToComposer(actualComposer, snippetText);
-        this.showMessage(actualComposer, "Snippet inserted", "success");
       }
     }
     async handleImproveReply(composer, button) {
@@ -10030,7 +9853,6 @@ ${cta}` : cta;
         } catch (ctaErr) {
           console.warn("[TweetReplyAI] Auto-append CTA failed:", ctaErr);
         }
-        this.showMessage(composer, "\u2713 Reply improved", "success");
         if (response.usage) {
           this.usageData = {
             ...this.usageData,
@@ -11242,6 +11064,7 @@ ${cta}` : cta;
     // Handles multiple Twitter input types with comprehensive fallbacks
     async insertReplyIntoComposer(composer, replyData) {
       try {
+        console.log("[TweetReplyAI] \u{1F680} Starting Twitter text insertion method");
         if (!composer || !replyData) {
           console.log("[TweetReplyAI] \u274C Invalid parameters");
           return;
@@ -11252,20 +11075,6 @@ ${cta}` : cta;
           return;
         }
         const cleanText = this.stripReplyPrefix(replyText.replace(/<[^>]*>/g, ""));
-        const container = composer.closest?.('[data-testid^="tweetTextarea_"]');
-        const insertCtx = {
-          diagRevision: CONTENT_SCRIPT_DIAG_REVISION,
-          pathname: typeof location !== "undefined" ? location.pathname : "",
-          composerContainerTestId: container?.getAttribute?.("data-testid") ?? null,
-          composerTestId: composer.getAttribute("data-testid"),
-          composerRole: composer.getAttribute("role"),
-          contentEditable: composer.contentEditable,
-          classNamePreview: String(composer.className || "").trim().slice(0, 120) || "(none)",
-          cleanTextChars: cleanText.length
-        };
-        console.log(
-          `[TweetReplyAI] \u{1F680} Starting Twitter text insertion method ${JSON.stringify(insertCtx)}`
-        );
         if (composer.contentEditable === "true" || composer.getAttribute("data-testid")?.startsWith("tweetTextarea_") || composer.getAttribute("role") === "textbox") {
           try {
             const toolbar = document.querySelector('[data-testid="toolBar"]');
@@ -11437,25 +11246,28 @@ ${cta}` : cta;
       });
     }
     showMessage(composer, message, type = "info") {
-      const parent = composer?.parentElement;
-      const dialogEl = composer?.closest?.('[role="dialog"]') || parent?.closest?.('[role="dialog"]') || null;
-      if (dialogEl && (type === "success" || type === "error")) {
-        const existingMessage2 = parent?.querySelector?.(".tweetreply-message");
-        if (existingMessage2) existingMessage2.remove();
-        return;
-      }
-      const existingMessage = parent?.querySelector?.(".tweetreply-message");
+      const existingMessage = composer.parentElement?.querySelector(".tweetreply-message");
       if (existingMessage) {
         existingMessage.remove();
       }
       const messageEl = document.createElement("div");
       messageEl.className = `tweetreply-message tweetreply-message--${type}`;
       messageEl.textContent = message;
+      const parent = composer.parentElement;
       if (parent) {
         parent.insertBefore(messageEl, composer.nextSibling);
       }
       setTimeout(() => {
-        messageEl?.remove();
+        if (!messageEl.isConnected) return;
+        let removed = false;
+        const finalize = () => {
+          if (removed) return;
+          removed = true;
+          messageEl.remove();
+        };
+        messageEl.addEventListener("animationend", finalize, { once: true });
+        messageEl.classList.add("tweetreply-message--leaving");
+        setTimeout(finalize, 400);
       }, 3e3);
     }
     formatTimeDistance(date) {

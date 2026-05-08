@@ -12,7 +12,10 @@
     DOM_DEBOUNCE_MS: 100,
     BUTTON_THROTTLE_MS: 200,
     PLACEMENT_OBSERVER_MS: 150,
-    TELEMETRY_FLUSH_DEBOUNCE_MS: 4e3
+    TELEMETRY_FLUSH_DEBOUNCE_MS: 4e3,
+    /** Auto-like: poll interval and max wait after Reply open (bounded retry vs one-shot 50ms). */
+    AUTO_LIKE_POLL_MS: 100,
+    AUTO_LIKE_MAX_WAIT_MS: 2e3
   };
   var DEFAULTS = {
     ANALYTICS_DAYS: 30,
@@ -152,16 +155,16 @@
     return false;
   }
 
-  // node_modules/@sentry/core/build/esm/debug-build.js
+  // ../../../node_modules/@sentry/core/build/esm/debug-build.js
   var DEBUG_BUILD = typeof __SENTRY_DEBUG__ === "undefined" || __SENTRY_DEBUG__;
 
-  // node_modules/@sentry/core/build/esm/utils/worldwide.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/worldwide.js
   var GLOBAL_OBJ = globalThis;
 
-  // node_modules/@sentry/core/build/esm/utils/version.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/version.js
   var SDK_VERSION = "10.49.0";
 
-  // node_modules/@sentry/core/build/esm/carrier.js
+  // ../../../node_modules/@sentry/core/build/esm/carrier.js
   function getMainCarrier() {
     getSentryCarrier(GLOBAL_OBJ);
     return GLOBAL_OBJ;
@@ -177,7 +180,7 @@
     return carrier[name] || (carrier[name] = creator());
   }
 
-  // node_modules/@sentry/core/build/esm/utils/debug-logger.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/debug-logger.js
   var CONSOLE_LEVELS = [
     "debug",
     "info",
@@ -258,7 +261,7 @@
     error
   };
 
-  // node_modules/@sentry/core/build/esm/utils/stacktrace.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/stacktrace.js
   var STACKTRACE_FRAME_LIMIT = 50;
   var UNKNOWN_FUNCTION = "?";
   var WEBPACK_ERROR_REGEXP = /\(error: (.*)\)/;
@@ -354,7 +357,7 @@
     return isVNode ? "[VueVNode]" : "[VueViewModel]";
   }
 
-  // node_modules/@sentry/core/build/esm/instrument/handlers.js
+  // ../../../node_modules/@sentry/core/build/esm/instrument/handlers.js
   var handlers = {};
   var instrumented = {};
   function addHandler(type, handler) {
@@ -391,7 +394,7 @@ Error:`,
     }
   }
 
-  // node_modules/@sentry/core/build/esm/instrument/globalError.js
+  // ../../../node_modules/@sentry/core/build/esm/instrument/globalError.js
   var _oldOnErrorHandler = null;
   function addGlobalErrorInstrumentationHandler(handler) {
     const type = "error";
@@ -417,7 +420,7 @@ Error:`,
     GLOBAL_OBJ.onerror.__SENTRY_INSTRUMENTED__ = true;
   }
 
-  // node_modules/@sentry/core/build/esm/instrument/globalUnhandledRejection.js
+  // ../../../node_modules/@sentry/core/build/esm/instrument/globalUnhandledRejection.js
   var _oldOnUnhandledRejectionHandler = null;
   function addGlobalUnhandledRejectionInstrumentationHandler(handler) {
     const type = "unhandledrejection";
@@ -437,7 +440,7 @@ Error:`,
     GLOBAL_OBJ.onunhandledrejection.__SENTRY_INSTRUMENTED__ = true;
   }
 
-  // node_modules/@sentry/core/build/esm/utils/is.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/is.js
   var objectToString = Object.prototype.toString;
   function isError(wat) {
     switch (objectToString.call(wat)) {
@@ -503,7 +506,7 @@ Error:`,
     return typeof Request !== "undefined" && isInstanceOf(request, Request);
   }
 
-  // node_modules/@sentry/core/build/esm/utils/browser.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/browser.js
   var WINDOW = GLOBAL_OBJ;
   var DEFAULT_MAX_STRING_LENGTH = 80;
   function htmlTreeAsString(elem, options = {}) {
@@ -606,7 +609,7 @@ Error:`,
     return null;
   }
 
-  // node_modules/@sentry/core/build/esm/utils/object.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/object.js
   function fill(source, name, replacementFactory) {
     if (!(name in source)) {
       return;
@@ -690,7 +693,7 @@ Error:`,
     return !keys[0] ? "[object has no keys]" : keys.join(", ");
   }
 
-  // node_modules/@sentry/core/build/esm/utils/randomSafeContext.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/randomSafeContext.js
   var RESOLVED_RUNNER;
   function withRandomSafeContext(cb) {
     if (RESOLVED_RUNNER !== void 0) {
@@ -712,7 +715,7 @@ Error:`,
     return withRandomSafeContext(() => Date.now());
   }
 
-  // node_modules/@sentry/core/build/esm/utils/string.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/string.js
   function truncate(str, max = 0) {
     if (typeof str !== "string" || max === 0) {
       return str;
@@ -757,7 +760,7 @@ Error:`,
     return patterns.some((pattern) => isMatchingPattern(testString, pattern, requireExactStringMatch));
   }
 
-  // node_modules/@sentry/core/build/esm/utils/misc.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/misc.js
   function getCrypto() {
     const gbl = GLOBAL_OBJ;
     return gbl.crypto || gbl.msCrypto;
@@ -842,7 +845,7 @@ Error:`,
     }
   }
 
-  // node_modules/@sentry/core/build/esm/utils/time.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/time.js
   var ONE_SECOND_IN_MS = 1e3;
   function dateTimestampInSeconds() {
     return safeDateNow() / ONE_SECOND_IN_MS;
@@ -863,7 +866,7 @@ Error:`,
     return func();
   }
 
-  // node_modules/@sentry/core/build/esm/session.js
+  // ../../../node_modules/@sentry/core/build/esm/session.js
   function makeSession(context) {
     const startingTime = timestampInSeconds();
     const session = {
@@ -967,7 +970,7 @@ Error:`,
     };
   }
 
-  // node_modules/@sentry/core/build/esm/utils/merge.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/merge.js
   function merge(initialObj, mergeObj, levels = 2) {
     if (!mergeObj || typeof mergeObj !== "object" || levels <= 0) {
       return mergeObj;
@@ -984,7 +987,7 @@ Error:`,
     return output;
   }
 
-  // node_modules/@sentry/core/build/esm/utils/propagationContext.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/propagationContext.js
   function generateTraceId() {
     return uuid4();
   }
@@ -992,7 +995,7 @@ Error:`,
     return uuid4().substring(16);
   }
 
-  // node_modules/@sentry/core/build/esm/utils/spanOnScope.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/spanOnScope.js
   var SCOPE_SPAN_FIELD = "_sentrySpan";
   function _setSpanForScope(scope, span) {
     if (span) {
@@ -1005,7 +1008,7 @@ Error:`,
     return scope[SCOPE_SPAN_FIELD];
   }
 
-  // node_modules/@sentry/core/build/esm/scope.js
+  // ../../../node_modules/@sentry/core/build/esm/scope.js
   var DEFAULT_MAX_BREADCRUMBS = 100;
   var Scope = class _Scope {
     /** Flag if notifying is happening. */
@@ -1569,7 +1572,7 @@ Error:`,
     }
   };
 
-  // node_modules/@sentry/core/build/esm/defaultScopes.js
+  // ../../../node_modules/@sentry/core/build/esm/defaultScopes.js
   function getDefaultCurrentScope() {
     return getGlobalSingleton("defaultCurrentScope", () => new Scope());
   }
@@ -1577,7 +1580,7 @@ Error:`,
     return getGlobalSingleton("defaultIsolationScope", () => new Scope());
   }
 
-  // node_modules/@sentry/core/build/esm/utils/chain-and-copy-promiselike.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/chain-and-copy-promiselike.js
   var isActualPromise = (p) => p instanceof Promise && !p[kChainedCopy];
   var kChainedCopy = Symbol("chained PromiseLike");
   var chainAndCopyPromiseLike = (original, onSuccess, onError) => {
@@ -1614,7 +1617,7 @@ Error:`,
     return chained;
   };
 
-  // node_modules/@sentry/core/build/esm/asyncContext/stackStrategy.js
+  // ../../../node_modules/@sentry/core/build/esm/asyncContext/stackStrategy.js
   var AsyncContextStack = class {
     constructor(scope, isolationScope) {
       let assignedScope;
@@ -1730,7 +1733,7 @@ Error:`,
     };
   }
 
-  // node_modules/@sentry/core/build/esm/asyncContext/index.js
+  // ../../../node_modules/@sentry/core/build/esm/asyncContext/index.js
   function getAsyncContextStrategy(carrier) {
     const sentry = getSentryCarrier(carrier);
     if (sentry.acs) {
@@ -1739,7 +1742,7 @@ Error:`,
     return getStackAsyncContextStrategy();
   }
 
-  // node_modules/@sentry/core/build/esm/currentScopes.js
+  // ../../../node_modules/@sentry/core/build/esm/currentScopes.js
   var _externalPropagationContextProvider;
   function getExternalPropagationContext() {
     return _externalPropagationContextProvider?.();
@@ -1789,7 +1792,7 @@ Error:`,
     return traceContext;
   }
 
-  // node_modules/@sentry/core/build/esm/semanticAttributes.js
+  // ../../../node_modules/@sentry/core/build/esm/semanticAttributes.js
   var SEMANTIC_ATTRIBUTE_SENTRY_SOURCE = "sentry.source";
   var SEMANTIC_ATTRIBUTE_SENTRY_SAMPLE_RATE = "sentry.sample_rate";
   var SEMANTIC_ATTRIBUTE_SENTRY_PREVIOUS_TRACE_SAMPLE_RATE = "sentry.previous_trace_sample_rate";
@@ -1799,11 +1802,11 @@ Error:`,
   var SEMANTIC_ATTRIBUTE_EXCLUSIVE_TIME = "sentry.exclusive_time";
   var GEN_AI_CONVERSATION_ID_ATTRIBUTE = "gen_ai.conversation.id";
 
-  // node_modules/@sentry/core/build/esm/tracing/spanstatus.js
+  // ../../../node_modules/@sentry/core/build/esm/tracing/spanstatus.js
   var SPAN_STATUS_UNSET = 0;
   var SPAN_STATUS_OK = 1;
 
-  // node_modules/@sentry/core/build/esm/utils/weakRef.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/weakRef.js
   function derefWeakRef(ref) {
     if (!ref) {
       return void 0;
@@ -1818,7 +1821,7 @@ Error:`,
     return ref;
   }
 
-  // node_modules/@sentry/core/build/esm/tracing/utils.js
+  // ../../../node_modules/@sentry/core/build/esm/tracing/utils.js
   var SCOPE_ON_START_SPAN_FIELD = "_sentryScope";
   var ISOLATION_SCOPE_ON_START_SPAN_FIELD = "_sentryIsolationScope";
   function getCapturedScopesOnSpan(span) {
@@ -1829,7 +1832,7 @@ Error:`,
     };
   }
 
-  // node_modules/@sentry/core/build/esm/utils/baggage.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/baggage.js
   var SENTRY_BAGGAGE_KEY_PREFIX = "sentry-";
   function baggageHeaderToDynamicSamplingContext(baggageHeader) {
     const baggageObject = parseBaggageHeader(baggageHeader);
@@ -1887,7 +1890,7 @@ Error:`,
     }, {});
   }
 
-  // node_modules/@sentry/core/build/esm/utils/dsn.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/dsn.js
   var ORG_ID_REGEX = /^o(\d+)\./;
   var DSN_REGEX = /^(?:(\w+):)\/\/(?:(\w+)(?::(\w+)?)?@)((?:\[[:.%\w]+\]|[\w.-]+))(?::(\d+))?\/(.+)/;
   function isValidProtocol(protocol) {
@@ -1985,7 +1988,7 @@ Error:`,
     return components;
   }
 
-  // node_modules/@sentry/core/build/esm/utils/parseSampleRate.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/parseSampleRate.js
   function parseSampleRate(sampleRate) {
     if (typeof sampleRate === "boolean") {
       return Number(sampleRate);
@@ -1997,7 +2000,7 @@ Error:`,
     return rate;
   }
 
-  // node_modules/@sentry/core/build/esm/utils/spanUtils.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/spanUtils.js
   var TRACE_FLAG_SAMPLED = 1;
   var hasShownSpanDropWarning = false;
   function spanToTraceContext(span) {
@@ -2108,7 +2111,7 @@ Error:`,
     }
   }
 
-  // node_modules/@sentry/core/build/esm/utils/hasSpansEnabled.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/hasSpansEnabled.js
   function hasSpansEnabled(maybeOptions) {
     if (typeof __SENTRY_TRACING__ === "boolean" && !__SENTRY_TRACING__) {
       return false;
@@ -2118,7 +2121,7 @@ Error:`,
     (options.tracesSampleRate != null || !!options.tracesSampler);
   }
 
-  // node_modules/@sentry/core/build/esm/utils/should-ignore-span.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/should-ignore-span.js
   function logIgnoredSpan(droppedSpan) {
     debug.log(`Ignoring span ${droppedSpan.op} - ${droppedSpan.description} because it matches \`ignoreSpans\`.`);
   }
@@ -2162,10 +2165,10 @@ Error:`,
     return typeof value === "string" || value instanceof RegExp;
   }
 
-  // node_modules/@sentry/core/build/esm/constants.js
+  // ../../../node_modules/@sentry/core/build/esm/constants.js
   var DEFAULT_ENVIRONMENT = "production";
 
-  // node_modules/@sentry/core/build/esm/tracing/dynamicSamplingContext.js
+  // ../../../node_modules/@sentry/core/build/esm/tracing/dynamicSamplingContext.js
   var FROZEN_DSC_FIELD = "_frozenDsc";
   function getDynamicSamplingContextFromClient(trace_id, client) {
     const options = client.getOptions();
@@ -2227,12 +2230,12 @@ Error:`,
     return dsc;
   }
 
-  // node_modules/@sentry/core/build/esm/tracing/spans/beforeSendSpan.js
+  // ../../../node_modules/@sentry/core/build/esm/tracing/spans/beforeSendSpan.js
   function isStreamedBeforeSendSpanCallback(callback) {
     return !!callback && typeof callback === "function" && "_streamed" in callback && !!callback._streamed;
   }
 
-  // node_modules/@sentry/core/build/esm/utils/normalize.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/normalize.js
   function normalize(input, depth = 100, maxProperties = Infinity) {
     try {
       return visit("", input, depth, maxProperties);
@@ -2362,7 +2365,7 @@ Error:`,
     return [memoize, unmemoize];
   }
 
-  // node_modules/@sentry/core/build/esm/utils/envelope.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/envelope.js
   function createEnvelope(headers, items = []) {
     return [headers, items];
   }
@@ -2479,7 +2482,7 @@ ${JSON.stringify(itemHeaders)}
     };
   }
 
-  // node_modules/@sentry/core/build/esm/envelope.js
+  // ../../../node_modules/@sentry/core/build/esm/envelope.js
   function _enhanceEventWithSdkInfo(event, newSdkInfo) {
     if (!newSdkInfo) {
       return event;
@@ -2518,7 +2521,7 @@ ${JSON.stringify(itemHeaders)}
     return createEnvelope(envelopeHeaders, [eventItem]);
   }
 
-  // node_modules/@sentry/core/build/esm/utils/scopeData.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/scopeData.js
   function applyScopeDataToEvent(event, data) {
     const { fingerprint, span, breadcrumbs, sdkProcessingMetadata } = data;
     applyDataToEvent(event, data);
@@ -2640,7 +2643,7 @@ ${JSON.stringify(itemHeaders)}
     }
   }
 
-  // node_modules/@sentry/core/build/esm/utils/syncpromise.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/syncpromise.js
   var STATE_PENDING = 0;
   var STATE_RESOLVED = 1;
   var STATE_REJECTED = 2;
@@ -2772,7 +2775,7 @@ ${JSON.stringify(itemHeaders)}
     }
   };
 
-  // node_modules/@sentry/core/build/esm/eventProcessors.js
+  // ../../../node_modules/@sentry/core/build/esm/eventProcessors.js
   function notifyEventProcessors(processors, event, hint, index = 0) {
     try {
       const result = _notifyEventProcessors(event, hint, processors, index);
@@ -2794,7 +2797,7 @@ ${JSON.stringify(itemHeaders)}
     return _notifyEventProcessors(result, hint, processors, index + 1);
   }
 
-  // node_modules/@sentry/core/build/esm/utils/debug-ids.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/debug-ids.js
   var parsedStackResults;
   var lastSentryKeysCount;
   var lastNativeKeysCount;
@@ -2848,7 +2851,7 @@ ${JSON.stringify(itemHeaders)}
     return cachedFilenameDebugIds;
   }
 
-  // node_modules/@sentry/core/build/esm/utils/prepareEvent.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/prepareEvent.js
   function prepareEvent(options, event, hint, scope, client, isolationScope) {
     const { normalizeDepth = 3, normalizeMaxBreadth = 1e3 } = options;
     const prepared = {
@@ -3041,7 +3044,7 @@ ${JSON.stringify(itemHeaders)}
     return Object.keys(hint).some((key) => captureContextKeys.includes(key));
   }
 
-  // node_modules/@sentry/core/build/esm/exports.js
+  // ../../../node_modules/@sentry/core/build/esm/exports.js
   function captureException(exception, hint) {
     return getCurrentScope().captureException(exception, parseEventHintOrCaptureContext(hint));
   }
@@ -3094,7 +3097,7 @@ ${JSON.stringify(itemHeaders)}
     _sendSessionUpdate();
   }
 
-  // node_modules/@sentry/core/build/esm/api.js
+  // ../../../node_modules/@sentry/core/build/esm/api.js
   var SENTRY_API_VERSION = "7";
   function getBaseApiEndpoint(dsn) {
     const protocol = dsn.protocol ? `${dsn.protocol}:` : "";
@@ -3120,7 +3123,7 @@ ${JSON.stringify(itemHeaders)}
     return tunnel ? tunnel : `${_getIngestEndpoint(dsn)}?${_encodedAuth(dsn, sdkInfo)}`;
   }
 
-  // node_modules/@sentry/core/build/esm/integration.js
+  // ../../../node_modules/@sentry/core/build/esm/integration.js
   var installedIntegrations = [];
   function filterDuplicates(integrations) {
     const integrationsByName = {};
@@ -3202,7 +3205,7 @@ ${JSON.stringify(itemHeaders)}
     return fn;
   }
 
-  // node_modules/@sentry/core/build/esm/logs/envelope.js
+  // ../../../node_modules/@sentry/core/build/esm/logs/envelope.js
   function createLogContainerEnvelopeItem(items) {
     return [
       {
@@ -3229,7 +3232,7 @@ ${JSON.stringify(itemHeaders)}
     return createEnvelope(headers, [createLogContainerEnvelopeItem(logs)]);
   }
 
-  // node_modules/@sentry/core/build/esm/logs/internal.js
+  // ../../../node_modules/@sentry/core/build/esm/logs/internal.js
   function _INTERNAL_flushLogsBuffer(client, maybeLogBuffer) {
     const logBuffer = maybeLogBuffer ?? _INTERNAL_getLogBuffer(client) ?? [];
     if (logBuffer.length === 0) {
@@ -3248,7 +3251,7 @@ ${JSON.stringify(itemHeaders)}
     return getGlobalSingleton("clientToLogBufferMap", () => /* @__PURE__ */ new WeakMap());
   }
 
-  // node_modules/@sentry/core/build/esm/metrics/envelope.js
+  // ../../../node_modules/@sentry/core/build/esm/metrics/envelope.js
   function createMetricContainerEnvelopeItem(items) {
     return [
       {
@@ -3275,7 +3278,7 @@ ${JSON.stringify(itemHeaders)}
     return createEnvelope(headers, [createMetricContainerEnvelopeItem(metrics)]);
   }
 
-  // node_modules/@sentry/core/build/esm/metrics/internal.js
+  // ../../../node_modules/@sentry/core/build/esm/metrics/internal.js
   function _INTERNAL_flushMetricsBuffer(client, maybeMetricBuffer) {
     const metricBuffer = maybeMetricBuffer ?? _INTERNAL_getMetricBuffer(client) ?? [];
     if (metricBuffer.length === 0) {
@@ -3294,7 +3297,7 @@ ${JSON.stringify(itemHeaders)}
     return getGlobalSingleton("clientToMetricBufferMap", () => /* @__PURE__ */ new WeakMap());
   }
 
-  // node_modules/@sentry/core/build/esm/utils/timer.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/timer.js
   function safeUnref(timer) {
     if (typeof timer === "object" && typeof timer.unref === "function") {
       timer.unref();
@@ -3302,7 +3305,7 @@ ${JSON.stringify(itemHeaders)}
     return timer;
   }
 
-  // node_modules/@sentry/core/build/esm/utils/promisebuffer.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/promisebuffer.js
   var SENTRY_BUFFER_FULL_ERROR = Symbol.for("SentryBufferFullError");
   function makePromiseBuffer(limit = 100) {
     const buffer = /* @__PURE__ */ new Set();
@@ -3347,7 +3350,7 @@ ${JSON.stringify(itemHeaders)}
     };
   }
 
-  // node_modules/@sentry/core/build/esm/utils/ratelimit.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/ratelimit.js
   var DEFAULT_RETRY_AFTER = 60 * 1e3;
   function parseRetryAfterHeader(header, now = safeDateNow()) {
     const headerDelay = parseInt(`${header}`, 10);
@@ -3399,7 +3402,7 @@ ${JSON.stringify(itemHeaders)}
     return updatedRateLimits;
   }
 
-  // node_modules/@sentry/core/build/esm/transports/base.js
+  // ../../../node_modules/@sentry/core/build/esm/transports/base.js
   var DEFAULT_TRANSPORT_BUFFER_SIZE = 64;
   function createTransport(options, makeRequest, buffer = makePromiseBuffer(
     options.bufferSize || DEFAULT_TRANSPORT_BUFFER_SIZE
@@ -3469,7 +3472,7 @@ ${JSON.stringify(itemHeaders)}
     };
   }
 
-  // node_modules/@sentry/core/build/esm/utils/clientreport.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/clientreport.js
   function createClientReportEnvelope(discarded_events, dsn, timestamp) {
     const clientReportItem = [
       { type: "client_report" },
@@ -3481,7 +3484,7 @@ ${JSON.stringify(itemHeaders)}
     return createEnvelope(dsn ? { dsn } : {}, [clientReportItem]);
   }
 
-  // node_modules/@sentry/core/build/esm/utils/eventUtils.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/eventUtils.js
   function getPossibleEventMessages(event) {
     const possibleMessages = [];
     if (event.message) {
@@ -3500,7 +3503,7 @@ ${JSON.stringify(itemHeaders)}
     return possibleMessages;
   }
 
-  // node_modules/@sentry/core/build/esm/utils/transactionEvent.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/transactionEvent.js
   function convertTransactionEventToSpanJson(event) {
     const { trace_id, parent_span_id, span_id, status, origin, data, op } = event.contexts?.trace ?? {};
     return {
@@ -3545,7 +3548,7 @@ ${JSON.stringify(itemHeaders)}
     };
   }
 
-  // node_modules/@sentry/core/build/esm/client.js
+  // ../../../node_modules/@sentry/core/build/esm/client.js
   var ALREADY_SEEN_ERROR = "Not capturing exception because it's already been captured.";
   var MISSING_RELEASE_FOR_SESSION_ERROR = "Discarded session because of missing or non-string release";
   var INTERNAL_ERROR_SYMBOL = Symbol.for("SentryInternalError");
@@ -4346,7 +4349,7 @@ Reason: ${reason}`
     return 0;
   }
 
-  // node_modules/@sentry/core/build/esm/utils/eventbuilder.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/eventbuilder.js
   function hasSentryFetchUrlHost(error2) {
     return isError(error2) && "__sentry_fetch_url_host__" in error2 && typeof error2.__sentry_fetch_url_host__ === "string";
   }
@@ -4357,7 +4360,7 @@ Reason: ${reason}`
     return error2.message;
   }
 
-  // node_modules/@sentry/core/build/esm/sdk.js
+  // ../../../node_modules/@sentry/core/build/esm/sdk.js
   function initAndBind(clientClass, options) {
     if (options.debug === true) {
       if (DEBUG_BUILD) {
@@ -4379,7 +4382,7 @@ Reason: ${reason}`
     getCurrentScope().setClient(client);
   }
 
-  // node_modules/@sentry/core/build/esm/utils/url.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/url.js
   function parseUrl(url) {
     if (!url) {
       return {};
@@ -4416,7 +4419,7 @@ Reason: ${reason}`
     return url;
   }
 
-  // node_modules/@sentry/core/build/esm/utils/ipAddress.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/ipAddress.js
   function addAutoIpAddressToSession(session) {
     if ("aggregates" in session) {
       if (session.attrs?.["ip_address"] === void 0) {
@@ -4432,7 +4435,7 @@ Reason: ${reason}`
     }
   }
 
-  // node_modules/@sentry/core/build/esm/utils/sdkMetadata.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/sdkMetadata.js
   function applySdkMetadata(options, name, names = [name], source = "npm") {
     const sdk = (options._metadata = options._metadata || {}).sdk = options._metadata.sdk || {};
     if (!sdk.name) {
@@ -4445,7 +4448,7 @@ Reason: ${reason}`
     }
   }
 
-  // node_modules/@sentry/core/build/esm/breadcrumbs.js
+  // ../../../node_modules/@sentry/core/build/esm/breadcrumbs.js
   var DEFAULT_BREADCRUMBS = 100;
   function addBreadcrumb(breadcrumb, hint) {
     const client = getClient();
@@ -4463,7 +4466,7 @@ Reason: ${reason}`
     isolationScope.addBreadcrumb(finalBreadcrumb, maxBreadcrumbs);
   }
 
-  // node_modules/@sentry/core/build/esm/integrations/functiontostring.js
+  // ../../../node_modules/@sentry/core/build/esm/integrations/functiontostring.js
   var originalFunctionToString;
   var INTEGRATION_NAME = "FunctionToString";
   var SETUP_CLIENTS = /* @__PURE__ */ new WeakMap();
@@ -4488,7 +4491,7 @@ Reason: ${reason}`
   });
   var functionToStringIntegration = defineIntegration(_functionToStringIntegration);
 
-  // node_modules/@sentry/core/build/esm/integrations/eventFilters.js
+  // ../../../node_modules/@sentry/core/build/esm/integrations/eventFilters.js
   var DEFAULT_IGNORE_ERRORS = [
     /^Script error\.?$/,
     /^Javascript error: Script error\.? on line 0$/,
@@ -4653,7 +4656,7 @@ Event: ${getEventDescription(event)}`
     );
   }
 
-  // node_modules/@sentry/core/build/esm/utils/aggregate-errors.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/aggregate-errors.js
   function applyAggregateErrorsToEvent(exceptionFromErrorImplementation, parser, key, limit, event, hint) {
     if (!event.exception?.values || !hint || !isInstanceOf(hint.originalException, Error)) {
       return;
@@ -4738,7 +4741,7 @@ Event: ${getEventDescription(event)}`
     };
   }
 
-  // node_modules/@sentry/core/build/esm/instrument/console.js
+  // ../../../node_modules/@sentry/core/build/esm/instrument/console.js
   function addConsoleInstrumentationHandler(handler) {
     const type = "console";
     addHandler(type, handler);
@@ -4764,12 +4767,12 @@ Event: ${getEventDescription(event)}`
     });
   }
 
-  // node_modules/@sentry/core/build/esm/utils/severity.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/severity.js
   function severityLevelFromString(level) {
     return level === "warn" ? "warning" : ["fatal", "error", "warning", "log", "info", "debug"].includes(level) ? level : "log";
   }
 
-  // node_modules/@sentry/core/build/esm/integrations/dedupe.js
+  // ../../../node_modules/@sentry/core/build/esm/integrations/dedupe.js
   var INTEGRATION_NAME3 = "Dedupe";
   var _dedupeIntegration = (() => {
     let previousEvent;
@@ -4884,7 +4887,7 @@ Event: ${getEventDescription(event)}`
     return event.exception?.values?.[0];
   }
 
-  // node_modules/@sentry/core/build/esm/integrations/conversationId.js
+  // ../../../node_modules/@sentry/core/build/esm/integrations/conversationId.js
   var INTEGRATION_NAME4 = "ConversationId";
   var _conversationIdIntegration = (() => {
     return {
@@ -4907,7 +4910,7 @@ Event: ${getEventDescription(event)}`
   });
   var conversationIdIntegration = defineIntegration(_conversationIdIntegration);
 
-  // node_modules/@sentry/core/build/esm/utils/breadcrumb-log-level.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/breadcrumb-log-level.js
   function getBreadcrumbLogLevelFromHttpStatusCode(statusCode) {
     if (statusCode === void 0) {
       return void 0;
@@ -4920,7 +4923,7 @@ Event: ${getEventDescription(event)}`
     }
   }
 
-  // node_modules/@sentry/core/build/esm/utils/supports.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/supports.js
   var WINDOW2 = GLOBAL_OBJ;
   function supportsHistory() {
     return "history" in WINDOW2 && !!WINDOW2.history;
@@ -4969,7 +4972,7 @@ Event: ${getEventDescription(event)}`
     return result;
   }
 
-  // node_modules/@sentry/core/build/esm/instrument/fetch.js
+  // ../../../node_modules/@sentry/core/build/esm/instrument/fetch.js
   function addFetchInstrumentationHandler(handler, skipNativeFetchCheck) {
     const type = "fetch";
     addHandler(type, handler);
@@ -5095,12 +5098,12 @@ Event: ${getEventDescription(event)}`
     return;
   }
 
-  // node_modules/@sentry/core/build/esm/utils/env.js
+  // ../../../node_modules/@sentry/core/build/esm/utils/env.js
   function getSDKSource() {
     return "npm";
   }
 
-  // node_modules/@sentry/browser/build/npm/esm/prod/helpers.js
+  // ../../../node_modules/@sentry/browser/build/npm/esm/prod/helpers.js
   var WINDOW3 = GLOBAL_OBJ;
   var ignoreOnError = 0;
   function shouldIgnoreOnError() {
@@ -5195,7 +5198,7 @@ Event: ${getEventDescription(event)}`
     return request;
   }
 
-  // node_modules/@sentry/browser/build/npm/esm/prod/eventbuilder.js
+  // ../../../node_modules/@sentry/browser/build/npm/esm/prod/eventbuilder.js
   function exceptionFromError2(stackParser, ex) {
     const frames = parseStackFrames2(stackParser, ex);
     const exception = {
@@ -5408,7 +5411,7 @@ Event: ${getEventDescription(event)}`
     return Object.values(obj).find((v) => v instanceof Error);
   }
 
-  // node_modules/@sentry/browser/build/npm/esm/prod/client.js
+  // ../../../node_modules/@sentry/browser/build/npm/esm/prod/client.js
   var BrowserClient = class extends Client {
     /**
      * Creates a new Browser SDK instance.
@@ -5485,13 +5488,13 @@ Event: ${getEventDescription(event)}`
     };
   }
 
-  // node_modules/@sentry-internal/browser-utils/build/esm/debug-build.js
+  // ../../../node_modules/@sentry-internal/browser-utils/build/esm/debug-build.js
   var DEBUG_BUILD2 = typeof __SENTRY_DEBUG__ === "undefined" || __SENTRY_DEBUG__;
 
-  // node_modules/@sentry-internal/browser-utils/build/esm/types.js
+  // ../../../node_modules/@sentry-internal/browser-utils/build/esm/types.js
   var WINDOW4 = GLOBAL_OBJ;
 
-  // node_modules/@sentry-internal/browser-utils/build/esm/instrument/dom.js
+  // ../../../node_modules/@sentry-internal/browser-utils/build/esm/instrument/dom.js
   var DEBOUNCE_DURATION = 1e3;
   var debounceTimerID;
   var lastCapturedEventType;
@@ -5621,7 +5624,7 @@ Event: ${getEventDescription(event)}`
     }
   }
 
-  // node_modules/@sentry-internal/browser-utils/build/esm/instrument/history.js
+  // ../../../node_modules/@sentry-internal/browser-utils/build/esm/instrument/history.js
   var lastHref;
   function addHistoryInstrumentationHandler(handler) {
     const type = "history";
@@ -5670,7 +5673,7 @@ Event: ${getEventDescription(event)}`
     }
   }
 
-  // node_modules/@sentry-internal/browser-utils/build/esm/getNativeImplementation.js
+  // ../../../node_modules/@sentry-internal/browser-utils/build/esm/getNativeImplementation.js
   var cachedImplementations = {};
   function getNativeImplementation(name) {
     const cached = cachedImplementations[name];
@@ -5705,7 +5708,7 @@ Event: ${getEventDescription(event)}`
     cachedImplementations[name] = void 0;
   }
 
-  // node_modules/@sentry-internal/browser-utils/build/esm/instrument/xhr.js
+  // ../../../node_modules/@sentry-internal/browser-utils/build/esm/instrument/xhr.js
   var SENTRY_XHR_DATA_KEY = "__sentry_xhr_v3__";
   function addXhrInstrumentationHandler(handler) {
     const type = "xhr";
@@ -5805,7 +5808,7 @@ Event: ${getEventDescription(event)}`
     return void 0;
   }
 
-  // node_modules/@sentry/browser/build/npm/esm/prod/transports/fetch.js
+  // ../../../node_modules/@sentry/browser/build/npm/esm/prod/transports/fetch.js
   var DEFAULT_BROWSER_TRANSPORT_BUFFER_SIZE = 40;
   function makeFetchTransport(options, nativeFetch = getNativeImplementation("fetch")) {
     let pendingBodySize = 0;
@@ -5857,10 +5860,10 @@ Event: ${getEventDescription(event)}`
     );
   }
 
-  // node_modules/@sentry/browser/build/npm/esm/prod/debug-build.js
+  // ../../../node_modules/@sentry/browser/build/npm/esm/prod/debug-build.js
   var DEBUG_BUILD3 = typeof __SENTRY_DEBUG__ === "undefined" || __SENTRY_DEBUG__;
 
-  // node_modules/@sentry/browser/build/npm/esm/prod/stack-parsers.js
+  // ../../../node_modules/@sentry/browser/build/npm/esm/prod/stack-parsers.js
   var CHROME_PRIORITY = 30;
   var GECKO_PRIORITY = 50;
   function createFrame(filename, func, lineno, colno) {
@@ -5946,7 +5949,7 @@ Event: ${getEventDescription(event)}`
     ] : [func, filename];
   };
 
-  // node_modules/@sentry/browser/build/npm/esm/prod/integrations/breadcrumbs.js
+  // ../../../node_modules/@sentry/browser/build/npm/esm/prod/integrations/breadcrumbs.js
   var MAX_ALLOWED_STRING_LENGTH = 1024;
   var INTEGRATION_NAME5 = "Breadcrumbs";
   var _breadcrumbsIntegration = ((options = {}) => {
@@ -6187,7 +6190,7 @@ Event: ${getEventDescription(event)}`
     return !!event && !!event.target;
   }
 
-  // node_modules/@sentry/browser/build/npm/esm/prod/integrations/browserapierrors.js
+  // ../../../node_modules/@sentry/browser/build/npm/esm/prod/integrations/browserapierrors.js
   var DEFAULT_EVENT_TARGET = "EventTarget,Window,Node,ApplicationCache,AudioTrackList,BroadcastChannel,ChannelMergerNode,CryptoOperation,EventSource,FileReader,HTMLUnknownElement,IDBDatabase,IDBRequest,IDBTransaction,KeyOperation,MediaController,MessagePort,ModalWindow,Notification,SVGElementInstance,Screen,SharedWorker,TextTrack,TextTrackCue,TextTrackList,WebSocket,WebSocketWorker,Worker,XMLHttpRequest,XMLHttpRequestEventTarget,XMLHttpRequestUpload".split(
     ","
   );
@@ -6346,7 +6349,7 @@ Event: ${getEventDescription(event)}`
     }
   }
 
-  // node_modules/@sentry/browser/build/npm/esm/prod/integrations/browsersession.js
+  // ../../../node_modules/@sentry/browser/build/npm/esm/prod/integrations/browsersession.js
   var browserSessionIntegration = defineIntegration((options = {}) => {
     const lifecycle = options.lifecycle ?? "route";
     return {
@@ -6379,7 +6382,7 @@ Event: ${getEventDescription(event)}`
     };
   });
 
-  // node_modules/@sentry/browser/build/npm/esm/prod/integrations/culturecontext.js
+  // ../../../node_modules/@sentry/browser/build/npm/esm/prod/integrations/culturecontext.js
   var INTEGRATION_NAME7 = "CultureContext";
   var _cultureContextIntegration = (() => {
     return {
@@ -6413,7 +6416,7 @@ Event: ${getEventDescription(event)}`
     }
   }
 
-  // node_modules/@sentry/browser/build/npm/esm/prod/integrations/globalhandlers.js
+  // ../../../node_modules/@sentry/browser/build/npm/esm/prod/integrations/globalhandlers.js
   var INTEGRATION_NAME8 = "GlobalHandlers";
   var _globalHandlersIntegration = ((options = {}) => {
     const _options = {
@@ -6546,7 +6549,7 @@ Event: ${getEventDescription(event)}`
     return url;
   }
 
-  // node_modules/@sentry/browser/build/npm/esm/prod/integrations/httpcontext.js
+  // ../../../node_modules/@sentry/browser/build/npm/esm/prod/integrations/httpcontext.js
   var httpContextIntegration = defineIntegration(() => {
     return {
       name: "HttpContext",
@@ -6568,7 +6571,7 @@ Event: ${getEventDescription(event)}`
     };
   });
 
-  // node_modules/@sentry/browser/build/npm/esm/prod/integrations/linkederrors.js
+  // ../../../node_modules/@sentry/browser/build/npm/esm/prod/integrations/linkederrors.js
   var DEFAULT_KEY = "cause";
   var DEFAULT_LIMIT = 5;
   var INTEGRATION_NAME9 = "LinkedErrors";
@@ -6593,7 +6596,7 @@ Event: ${getEventDescription(event)}`
   });
   var linkedErrorsIntegration = defineIntegration(_linkedErrorsIntegration);
 
-  // node_modules/@sentry/browser/build/npm/esm/prod/utils/detectBrowserExtension.js
+  // ../../../node_modules/@sentry/browser/build/npm/esm/prod/utils/detectBrowserExtension.js
   function checkAndWarnIfIsEmbeddedBrowserExtension() {
     if (_isEmbeddedBrowserExtension()) {
       if (DEBUG_BUILD3) {
@@ -6624,7 +6627,7 @@ Event: ${getEventDescription(event)}`
     return !isDedicatedExtensionPage;
   }
 
-  // node_modules/@sentry/browser/build/npm/esm/prod/sdk.js
+  // ../../../node_modules/@sentry/browser/build/npm/esm/prod/sdk.js
   function getDefaultIntegrations(_options) {
     return [
       // TODO(v11): Replace with `eventFiltersIntegration` once we remove the deprecated `inboundFiltersIntegration`
@@ -6659,8 +6662,8 @@ Event: ${getEventDescription(event)}`
   }
 
   // extension/utils/sentry.js
-  var DSN = "https://05571ef5f66316725f1b1f75cbda202d@o4511239109804032.ingest.us.sentry.io/4511239112818688";
-  var ENV = "development";
+  var DSN = "";
+  var ENV = "production";
   var RELEASE = void 0;
   var initialized = false;
   function scrubUrl(url) {
