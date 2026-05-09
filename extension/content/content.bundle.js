@@ -7879,8 +7879,6 @@ ${cta}` : cta;
   globalThis.__tweetreplyaiExtLoggingAllowed = false;
   installConsoleGate(() => globalThis.__tweetreplyaiExtLoggingAllowed === true);
   var DIAGNOSE_THREAD_SELECTION = true;
-  var DIAG_AUTO_LIKE = false;
-  var CONTENT_SCRIPT_DIAG_REVISION = 2;
   var TwitterReplyInjector = class {
     constructor() {
       if (window.__tweetReplyInjector) {
@@ -7906,8 +7904,8 @@ ${cta}` : cta;
       this.followBadgeIconStyle = FOLLOW_BADGE_ICON_STYLE_DEFAULT;
       this.currentReplyTargetArticle = null;
       this._replyTargetClearTimer = null;
+      this.autoLikeEnabled = true;
       this.pendingReplyTarget = null;
-      this.composerRequestVersions = /* @__PURE__ */ new Map();
       this._originalTweetCache = null;
       this.lastNonComposePath = window.location.pathname;
       this.urlTrackingInterval = setInterval(() => {
@@ -8187,65 +8185,6 @@ ${cta}` : cta;
       }
       return null;
     }
-    /**
-     * Session dedupe for auto-like: prefer numeric status id; else canonical /status/ path or DOM fingerprint.
-     */
-    getAutoLikeDedupeKey(tweetArticle) {
-      if (!tweetArticle) return "invalid";
-      const id = this.getTweetIdFromArticle(tweetArticle);
-      if (id) return `tid:${id}`;
-      const link = tweetArticle.querySelector('a[href*="/status/"]');
-      if (link?.href) {
-        try {
-          const u = new URL(link.href);
-          const m = u.pathname.match(/\/status\/(\d+)/);
-          if (m) return `tid:${m[1]}`;
-          return `path:${u.pathname}`;
-        } catch {
-          const m = String(link.href).match(/status\/(\d+)/);
-          if (m) return `tid:${m[1]}`;
-          return `href:${String(link.href).slice(0, 120)}`;
-        }
-      }
-      return `dom:${this._articleDomFingerprint(tweetArticle)}`;
-    }
-    _articleDomFingerprint(article) {
-      const parts = [
-        article.getAttribute("data-tweet-id") || "",
-        article.getAttribute("aria-labelledby") || ""
-      ];
-      const link = article.querySelector('a[href*="/status/"]');
-      if (link) parts.push(link.getAttribute("href") || "");
-      const s = parts.join("|");
-      let h2 = 0;
-      for (let i = 0; i < s.length; i++) h2 = (h2 << 5) - h2 + s.charCodeAt(i) | 0;
-      return String(h2);
-    }
-    isTweetArticleLiked(tweetArticle) {
-      if (!tweetArticle) return false;
-      if (tweetArticle.querySelector('[data-testid="unlike"]')) return true;
-      const like = tweetArticle.querySelector('[data-testid="like"]');
-      if (like?.getAttribute("aria-pressed") === "true") return true;
-      return false;
-    }
-    /**
-     * Narrow tweetButtonInline: only when it is clearly Reply on a tweet card (not composer/dialog send).
-     * Surfaces that still trigger auto-like: timeline + detail tweet [data-testid="reply"], aria Reply,
-     * and inline Reply when label/text indicates Reply inside article[data-testid="tweet"].
-     */
-    isTweetInlineReplyButton(target) {
-      if (!target || typeof target.closest !== "function") return false;
-      const inline = target.closest('[data-testid="tweetButtonInline"]');
-      if (!inline) return false;
-      if (inline.closest('[data-testid="tweetComposer"]') || inline.closest('[role="dialog"]')) return false;
-      const article = inline.closest('article[data-testid="tweet"]');
-      if (!article) return false;
-      const label = (inline.getAttribute("aria-label") || "").toLowerCase();
-      if (label.includes("reply") && !label.includes("unlike")) return true;
-      const text = (inline.textContent || "").trim().toLowerCase();
-      if (text === "reply" || /^reply\b/.test(text)) return true;
-      return false;
-    }
     findLikeButton(tweetArticle) {
       if (!tweetArticle) return null;
       const isAlreadyLikedOrUnlike = (btn) => {
@@ -8281,103 +8220,27 @@ ${cta}` : cta;
       }
       return null;
     }
-    /**
-     * Poll + MutationObserver until like control exists or timeout (action bar may re-render after Reply).
-     */
-    async waitForLikeButton(tweetArticle, maxWaitMs) {
-      if (!tweetArticle) return null;
-      const deadline = Date.now() + maxWaitMs;
-      const pollMs = TIMEOUTS.AUTO_LIKE_POLL_MS;
-      return new Promise((resolve) => {
-        let settled = false;
-        let obs;
-        let iv;
-        const finish = (btn) => {
-          if (settled) return;
-          settled = true;
-          try {
-            obs?.disconnect();
-          } catch {
-          }
-          clearInterval(iv);
-          resolve(btn);
-        };
-        const tick = () => {
-          if (this.isTweetArticleLiked(tweetArticle)) {
-            finish(null);
-            return;
-          }
-          const btn = this.findLikeButton(tweetArticle);
-          if (btn) {
-            finish(btn);
-            return;
-          }
-          if (Date.now() >= deadline) finish(null);
-        };
-        obs = new MutationObserver(() => tick());
-        try {
-          obs.observe(tweetArticle, {
-            childList: true,
-            subtree: true,
-            attributes: true,
-            attributeFilter: ["data-testid", "aria-pressed", "aria-label"]
-          });
-        } catch {
-        }
-        iv = setInterval(tick, pollMs);
-        tick();
-      });
-    }
-    async performAutoLike(likeButton, useMouseEvent = false) {
+    async performAutoLike(likeButton) {
       if (!likeButton) return false;
       try {
-        if (useMouseEvent) {
-          likeButton.dispatchEvent(
-            new MouseEvent("click", { bubbles: true, cancelable: true, view: window })
-          );
-        } else {
-          likeButton.click();
-        }
+        likeButton.click();
         await new Promise((resolve) => setTimeout(resolve, TIMEOUTS.DOM_DEBOUNCE_MS));
         return true;
       } catch (error2) {
         console.warn("[TweetReplyAI] Failed to auto-like:", error2);
-        return false;
-      }
-    }
-    /** One native click plus at most one MouseEvent retry; success only if liked state verifies. */
-    async performAutoLikeVerified(tweetArticle, likeButton) {
-      if (!likeButton || !tweetArticle) return false;
-      if (this.isTweetArticleLiked(tweetArticle)) return true;
-      await this.performAutoLike(likeButton, false);
-      await new Promise((r) => setTimeout(r, TIMEOUTS.DOM_DEBOUNCE_MS));
-      if (this.isTweetArticleLiked(tweetArticle)) return true;
-      await this.performAutoLike(likeButton, true);
-      await new Promise((r) => setTimeout(r, TIMEOUTS.DOM_DEBOUNCE_MS));
-      return this.isTweetArticleLiked(tweetArticle);
-    }
-    async runAutoLikeAfterReplyOpen(tweetArticle) {
-      const dedupeKey = this.getAutoLikeDedupeKey(tweetArticle);
-      if (this.autoLikedTweetIds.has(dedupeKey)) return;
-      if (this.isTweetArticleLiked(tweetArticle)) {
-        this.autoLikedTweetIds.add(dedupeKey);
-        return;
-      }
-      const likeButton = await this.waitForLikeButton(tweetArticle, TIMEOUTS.AUTO_LIKE_MAX_WAIT_MS);
-      if (this.isTweetArticleLiked(tweetArticle)) {
-        this.autoLikedTweetIds.add(dedupeKey);
-        return;
-      }
-      if (!likeButton) {
-        if (DIAG_AUTO_LIKE) {
-          console.log("[TweetReplyAI][auto-like]", { dedupeKey, foundLike: false, verifiedLiked: false });
+        try {
+          const event = new MouseEvent("click", {
+            bubbles: true,
+            cancelable: true,
+            view: window
+          });
+          likeButton.dispatchEvent(event);
+          await new Promise((resolve) => setTimeout(resolve, TIMEOUTS.DOM_DEBOUNCE_MS));
+          return true;
+        } catch (e) {
+          console.warn("[TweetReplyAI] MouseEvent simulation failed:", e);
+          return false;
         }
-        return;
-      }
-      const verified = await this.performAutoLikeVerified(tweetArticle, likeButton);
-      if (verified) this.autoLikedTweetIds.add(dedupeKey);
-      if (DIAG_AUTO_LIKE) {
-        console.log("[TweetReplyAI][auto-like]", { dedupeKey, foundLike: true, verifiedLiked: verified });
       }
     }
     setupAutoLikeOnReply() {
@@ -8425,11 +8288,9 @@ ${cta}` : cta;
             this.pendingReplyTarget = null;
             return;
           }
-          const replyByTestId = target.closest('[data-testid="reply"]');
-          const replyByAria = target.closest('button[aria-label*="Reply" i]') || target.closest('[role="button"][aria-label*="Reply" i]');
-          const inlineReply = this.isTweetInlineReplyButton(target) ? target.closest('[data-testid="tweetButtonInline"]') : null;
-          if (!replyByTestId && !replyByAria && !inlineReply) return;
-          const replyButton = replyByTestId || replyByAria || inlineReply;
+          const isReplyButton = target.matches('[data-testid="reply"]') || target.closest('[data-testid="reply"]') || target.matches('button[aria-label*="Reply" i]') || target.closest('button[aria-label*="Reply" i]') || target.matches('[role="button"][aria-label*="Reply" i]') || target.closest('[role="button"][aria-label*="Reply" i]');
+          if (!isReplyButton) return;
+          const replyButton = target.closest('[data-testid="reply"]') || target.closest('button[aria-label*="Reply" i]') || target.closest('[role="button"][aria-label*="Reply" i]') || target;
           const tweetArticle = this.findTweetArticle(replyButton);
           if (!tweetArticle) {
             return;
@@ -8445,17 +8306,39 @@ ${cta}` : cta;
           if (username && username !== "unknown") {
             this.pendingReplyTarget = { username, tweetId: tweetId || null, setAt: Date.now() };
           }
-          this.isAutoLikeEnabled().then((autoLikeEnabled) => {
-            if (autoLikeEnabled) {
-              setTimeout(() => {
-                this.runAutoLikeAfterReplyOpen(tweetArticle).catch((err) => {
+          if (this.autoLikeEnabled) {
+            setTimeout(() => {
+              const tweetId2 = this.getTweetIdFromArticle(tweetArticle);
+              if (tweetId2 !== null && this.autoLikedTweetIds.has(tweetId2)) {
+                return;
+              }
+              let liveArticle = tweetArticle;
+              if (!tweetArticle.isConnected) {
+                liveArticle = null;
+                if (tweetId2) {
+                  const articles = document.querySelectorAll('article[data-testid="tweet"]');
+                  for (const a of articles) {
+                    if (this.getTweetIdFromArticle(a) === tweetId2) {
+                      liveArticle = a;
+                      break;
+                    }
+                  }
+                }
+                if (!liveArticle) {
+                  liveArticle = document.querySelector('[role="dialog"] article[data-testid="tweet"]');
+                }
+                if (!liveArticle) return;
+              }
+              const likeButton = this.findLikeButton(liveArticle);
+              if (likeButton) {
+                this.performAutoLike(likeButton).then(() => {
+                  if (tweetId2 !== null) this.autoLikedTweetIds.add(tweetId2);
+                }).catch((err) => {
                   console.warn("[TweetReplyAI] Auto-like execution failed:", err);
                 });
-              }, 50);
-            }
-          }).catch((err) => {
-            console.warn("[TweetReplyAI] Failed to check auto-like setting:", err);
-          });
+              }
+            }, 150);
+          }
         } catch (error2) {
           console.error("[TweetReplyAI] Auto-like handler error:", error2);
         }
@@ -8463,13 +8346,6 @@ ${cta}` : cta;
       document.addEventListener("click", this.autoLikeClickHandler, true);
     }
     async initialize() {
-      try {
-        const v = chrome.runtime?.getManifest?.()?.version ?? "?";
-        console.log(
-          `[TweetReplyAI] content script revision=${CONTENT_SCRIPT_DIAG_REVISION} manifest=${v} (reload extension if this does not change after rebuild)`
-        );
-      } catch {
-      }
       this.authManager.setApiClient(this.apiClient);
       await this.loadRelationshipHintsSetting();
       this.isAuthenticated = await this.authManager.isAuthenticated(true);
@@ -8478,6 +8354,7 @@ ${cta}` : cta;
       }
       this.startObserving();
       this.setupFollowStatusFromNetwork();
+      this.autoLikeEnabled = await this.isAutoLikeEnabled();
       this.setupAutoLikeOnReply();
       this.setupReplyCountDisplay();
       if (!this.runtimeMessageHandler) {
@@ -8517,6 +8394,9 @@ ${cta}` : cta;
             }
             if (changes.replyHistory || changes.replyTrackingSettings) {
               this.updateReplyCountsOnTweets();
+            }
+            if ("tweetreply_auto_like" in changes) {
+              this.autoLikeEnabled = changes.tweetreply_auto_like.newValue !== false;
             }
           }
         };
@@ -9747,7 +9627,6 @@ ${cta}` : cta;
       <div class="tweetreply-spinner" style="width: 14px; height: 14px; border: 2px solid #1d9bf0; border-top: 2px solid transparent; border-radius: 50%; animation: spin 1s linear infinite; margin-right: 4px;"></div>
       <span>Generating...</span>
     `;
-      const requestVersion = this.nextComposerRequestVersion(composer, "suggest");
       try {
         const authorInfo = this.extractAuthorInfo();
         const threadContext = this.extractThreadContext();
@@ -9796,10 +9675,6 @@ ${cta}` : cta;
           // Backward compatibility
           tweet_metadata: tweetMetadata
         });
-        if (!this.isLatestComposerRequest(composer, "suggest", requestVersion)) {
-          console.log("[TweetReplyAI] Discarding stale suggest response after mode switch");
-          return;
-        }
         if (response.analysis) {
           console.log("[TweetReplyAI] \u2705 Tweet analysis completed:", {
             tone: response.analysis.tone || "unknown",
@@ -9969,7 +9844,6 @@ ${cta}` : cta;
           return;
         }
         await this.appendCtaSnippetToComposer(actualComposer, snippetText);
-        this.showMessage(actualComposer, "Snippet inserted", "success");
       }
     }
     async handleImproveReply(composer, button) {
@@ -9981,7 +9855,21 @@ ${cta}` : cta;
         this.showMessage(composer, "You've used all your credits! Upgrade to keep the replies flowing.", "info");
         return;
       }
-      let draftText = this.extractComposerPlainText(composer);
+      let draftText = "";
+      const dataTextSpans = composer.querySelectorAll('[data-text="true"]');
+      if (dataTextSpans.length > 0) {
+        draftText = Array.from(dataTextSpans).map((span) => span.textContent || span.innerText).join(" ").trim();
+      }
+      if (!draftText || draftText.length === 0) {
+        draftText = composer.textContent || composer.innerText || "";
+      }
+      if (!draftText || draftText.length === 0) {
+        const contentEditable = composer.querySelector('[contenteditable="true"]');
+        if (contentEditable) {
+          draftText = contentEditable.textContent || contentEditable.innerText || "";
+        }
+      }
+      draftText = draftText.trim();
       if (!draftText || draftText.length === 0) {
         this.showMessage(composer, "Please write a draft reply first", "info");
         return;
@@ -9992,7 +9880,6 @@ ${cta}` : cta;
       <div class="tweetreply-spinner" style="width: 14px; height: 14px; border: 2px solid #3b82f6; border-top: 2px solid transparent; border-radius: 50%; animation: spin 1s linear infinite; margin-right: 4px;"></div>
       <span>Improving...</span>
     `;
-      const requestVersion = this.nextComposerRequestVersion(composer, "improve");
       try {
         const originalTweetText = this.extractTweetText() || "";
         console.log("[TweetReplyAI] Improving draft:", {
@@ -10000,10 +9887,6 @@ ${cta}` : cta;
           originalTweetLength: originalTweetText.length
         });
         const response = await this.apiClient.suggestImprovements(draftText, originalTweetText);
-        if (!this.isLatestComposerRequest(composer, "improve", requestVersion)) {
-          console.log("[TweetReplyAI] Discarding stale improve response after mode switch");
-          return;
-        }
         console.log("[TweetReplyAI] API response received:", response);
         console.log("[TweetReplyAI] Response keys:", Object.keys(response || {}));
         let improvedDraft = "";
@@ -10032,7 +9915,6 @@ ${cta}` : cta;
         } catch (ctaErr) {
           console.warn("[TweetReplyAI] Auto-append CTA failed:", ctaErr);
         }
-        this.showMessage(composer, "\u2713 Reply improved", "success");
         if (response.usage) {
           this.usageData = {
             ...this.usageData,
@@ -11244,6 +11126,7 @@ ${cta}` : cta;
     // Handles multiple Twitter input types with comprehensive fallbacks
     async insertReplyIntoComposer(composer, replyData) {
       try {
+        console.log("[TweetReplyAI] \u{1F680} Starting Twitter text insertion method");
         if (!composer || !replyData) {
           console.log("[TweetReplyAI] \u274C Invalid parameters");
           return;
@@ -11254,20 +11137,6 @@ ${cta}` : cta;
           return;
         }
         const cleanText = this.stripReplyPrefix(replyText.replace(/<[^>]*>/g, ""));
-        const container = composer.closest?.('[data-testid^="tweetTextarea_"]');
-        const insertCtx = {
-          diagRevision: CONTENT_SCRIPT_DIAG_REVISION,
-          pathname: typeof location !== "undefined" ? location.pathname : "",
-          composerContainerTestId: container?.getAttribute?.("data-testid") ?? null,
-          composerTestId: composer.getAttribute("data-testid"),
-          composerRole: composer.getAttribute("role"),
-          contentEditable: composer.contentEditable,
-          classNamePreview: String(composer.className || "").trim().slice(0, 120) || "(none)",
-          cleanTextChars: cleanText.length
-        };
-        console.log(
-          `[TweetReplyAI] \u{1F680} Starting Twitter text insertion method ${JSON.stringify(insertCtx)}`
-        );
         if (composer.contentEditable === "true" || composer.getAttribute("data-testid")?.startsWith("tweetTextarea_") || composer.getAttribute("role") === "textbox") {
           try {
             const toolbar = composer.closest('[data-testid="toolBar"]') || composer;
@@ -11312,22 +11181,18 @@ ${cta}` : cta;
           try {
             const contentDiv = composer.querySelector('[data-contents="true"]');
             if (contentDiv) {
-              const block = document.createElement("div");
-              block.setAttribute("data-block", "true");
-              block.className = "public-DraftStyleDefault-block public-DraftStyleDefault-ltr";
-              const offsetSpan = document.createElement("span");
-              offsetSpan.setAttribute("data-offset-key", "trai-0-0");
-              const textSpan = document.createElement("span");
-              textSpan.setAttribute("data-text", "true");
-              textSpan.textContent = cleanText;
-              offsetSpan.appendChild(textSpan);
-              block.appendChild(offsetSpan);
-              contentDiv.replaceChildren(block);
-              composer.dispatchEvent(new InputEvent("input", {
-                bubbles: true,
-                cancelable: true
-              }));
-              return;
+              const blocks = contentDiv.querySelectorAll('[data-block="true"]');
+              if (blocks.length > 0) {
+                const textBlock = blocks[0].querySelector(".public-DraftStyleDefault-block");
+                if (textBlock) {
+                  textBlock.textContent = cleanText;
+                  composer.dispatchEvent(new InputEvent("input", {
+                    bubbles: true,
+                    cancelable: true
+                  }));
+                  return;
+                }
+              }
             }
           } catch (error2) {
             console.warn("[TweetReplyAI] Draft.js DOM manipulation failed:", error2);
@@ -11438,25 +11303,28 @@ ${cta}` : cta;
       });
     }
     showMessage(composer, message, type = "info") {
-      const parent = composer?.parentElement;
-      const dialogEl = composer?.closest?.('[role="dialog"]') || parent?.closest?.('[role="dialog"]') || null;
-      if (dialogEl && (type === "success" || type === "error")) {
-        const existingMessage2 = parent?.querySelector?.(".tweetreply-message");
-        if (existingMessage2) existingMessage2.remove();
-        return;
-      }
-      const existingMessage = parent?.querySelector?.(".tweetreply-message");
+      const existingMessage = composer.parentElement?.querySelector(".tweetreply-message");
       if (existingMessage) {
         existingMessage.remove();
       }
       const messageEl = document.createElement("div");
       messageEl.className = `tweetreply-message tweetreply-message--${type}`;
       messageEl.textContent = message;
+      const parent = composer.parentElement;
       if (parent) {
         parent.insertBefore(messageEl, composer.nextSibling);
       }
       setTimeout(() => {
-        messageEl?.remove();
+        if (!messageEl.isConnected) return;
+        let removed = false;
+        const finalize = () => {
+          if (removed) return;
+          removed = true;
+          messageEl.remove();
+        };
+        messageEl.addEventListener("animationend", finalize, { once: true });
+        messageEl.classList.add("tweetreply-message--leaving");
+        setTimeout(finalize, 400);
       }, 3e3);
     }
     formatTimeDistance(date) {
