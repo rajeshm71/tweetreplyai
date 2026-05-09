@@ -12,7 +12,10 @@
     DOM_DEBOUNCE_MS: 100,
     BUTTON_THROTTLE_MS: 200,
     PLACEMENT_OBSERVER_MS: 150,
-    TELEMETRY_FLUSH_DEBOUNCE_MS: 4e3
+    TELEMETRY_FLUSH_DEBOUNCE_MS: 4e3,
+    /** Auto-like: poll interval and max wait after Reply open (bounded retry vs one-shot 50ms). */
+    AUTO_LIKE_POLL_MS: 100,
+    AUTO_LIKE_MAX_WAIT_MS: 2e3
   };
   var DEFAULTS = {
     ANALYTICS_DAYS: 30,

@@ -248,11 +248,71 @@ class TwitterReplyInjector {
     return { textArea, toolbar };
   }
 
-  // Insert text using Draft.js-aware path (execCommand) + DOM fallback
   async insertTextTwitterMethod(textArea, composer, text) {
-    await insertTextIntoTwitterDraftArea(textArea, composer, text, {
-      sleep: (ms) => this.sleep(ms),
-    });
+    console.log('[TRAI] insertTextTwitterMethod — connected:', textArea?.isConnected, 'len:', text?.length);
+    try { composer?.click?.(); } catch {}
+    try { textArea?.focus?.(); } catch {}
+    await this.sleep(20);
+
+    // Primary: delegate React fiber walk to MAIN world via postMessage.
+    // Content scripts run in an isolated JS world where __reactFiber$ keys on DOM elements
+    // are not enumerable. follow-network-interceptor.js runs in MAIN world and handles
+    // 'TRAI_INSERT_TEXT' messages, walks the fiber, and calls props.onChange(newEditorState).
+    try {
+      const markerId = 'trai-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+      textArea.dataset.traiMarker = markerId;
+
+      const result = await new Promise((resolve) => {
+        const timeout = setTimeout(() => {
+          window.removeEventListener('message', handler);
+          resolve({ success: false, reason: 'timeout' });
+        }, 3000);
+        function handler(event) {
+          if (event.data?.type === 'TRAI_INSERT_TEXT_RESULT' && event.data?.markerId === markerId) {
+            clearTimeout(timeout);
+            window.removeEventListener('message', handler);
+            resolve(event.data);
+          }
+        }
+        window.addEventListener('message', handler);
+        window.postMessage({ type: 'TRAI_INSERT_TEXT', text, markerId }, '*');
+      });
+
+      delete textArea.dataset.traiMarker;
+
+      if (result.success) {
+        await this.sleep(100);
+        console.log('[TRAI] React fiber insert done via MAIN world');
+        return;
+      }
+      console.warn('[TRAI] MAIN world fiber insert failed:', result.reason, 'hops:', result.hops);
+    } catch (e) {
+      console.warn('[TRAI] postMessage fiber approach threw:', e);
+    }
+
+    // Fallback: DOM rewrite, no input event (no crash, but Reply button may stay disabled).
+    const contentRoot = textArea?.querySelector?.('[data-contents="true"]');
+    if (contentRoot) {
+      const block = document.createElement('div');
+      block.setAttribute('data-block', 'true');
+      block.className = 'public-DraftStyleDefault-block public-DraftStyleDefault-ltr';
+      const offsetSpan = document.createElement('span');
+      offsetSpan.setAttribute('data-offset-key', 'trai-0-0');
+      const textSpan = document.createElement('span');
+      textSpan.dataset.text = 'true';
+      textSpan.textContent = text;
+      offsetSpan.appendChild(textSpan);
+      block.appendChild(offsetSpan);
+      contentRoot.replaceChildren(block);
+      return;
+    }
+
+    const span = document.createElement('span');
+    span.dataset.text = 'true';
+    span.textContent = text;
+    if (typeof textArea?.replaceChildren === 'function') {
+      textArea.replaceChildren(span);
+    }
   }
 
   extractComposerPlainText(composer) {
@@ -4243,21 +4303,14 @@ class TwitterReplyInjector {
       );
 
       // Strategy 1: Twitter Method (PRIMARY METHOD)
-      if (composer.contentEditable === 'true' || 
+      if (composer.contentEditable === 'true' ||
           composer.getAttribute('data-testid')?.startsWith('tweetTextarea_') ||
           composer.getAttribute('role') === 'textbox') {
-        
+
         try {
-          const { textArea, toolbar } = this.getScopedTwitterInsertionTargets(composer);
-          if (textArea && toolbar) {
-            await this.insertTextTwitterMethod(textArea, toolbar, cleanText);
-            const inserted = normalizeComposerText(extractCanonicalComposerText(textArea));
-            if (inserted !== normalizeComposerText(cleanText)) {
-              console.warn('[TweetReplyAI] Draft mismatch after insert; retrying once with scoped Draft path');
-              await this.insertTextTwitterMethod(textArea, toolbar, cleanText);
-            }
-            return;
-          }
+          const toolbar = composer.closest('[data-testid="toolBar"]') || composer;
+          await this.insertTextTwitterMethod(composer, toolbar, cleanText);
+          return;
         } catch (error) {
           console.warn('[TweetReplyAI] Twitter method failed:', error);
         }

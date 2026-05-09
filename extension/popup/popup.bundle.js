@@ -7982,7 +7982,7 @@ Event: ${getEventDescription(event)}`
         const inUse = r[SNIPPET_STORAGE.DEFAULT_ID] === snippetId || r[SNIPPET_STORAGE.AUTO_APPEND_ID] === snippetId;
         if (inUse) {
           const ok = confirm(
-            "This snippet is set as your default or auto-append snippet. Delete it anyway?"
+            "This snippet is set as your default or auto append snippet. Delete it anyway?"
           );
           if (!ok) return;
         }
@@ -8575,12 +8575,12 @@ Event: ${getEventDescription(event)}`
           this.successRate.textContent = score.toString();
         } else {
           console.warn("[WARN][QuickStats] No quality metrics available, falling back to --");
-          this.successRate.textContent = "--";
+          this.successRate.textContent = "N/A";
         }
         console.log("[LOG][QuickStats] successRate text now:", this.successRate.textContent);
       }
       if (this.timeSaved) {
-        this.timeSaved.textContent = "--";
+        this.timeSaved.textContent = "N/A";
       }
     }
     formatTimeSaved(minutes) {
@@ -8601,7 +8601,7 @@ Event: ${getEventDescription(event)}`
      */
     formatQualityScore(avgScore) {
       if (avgScore === null || avgScore === void 0) {
-        return "--";
+        return "N/A";
       }
       return avgScore < 1 ? `${Math.round(avgScore * 100)}%` : `${Math.round(avgScore)}%`;
     }

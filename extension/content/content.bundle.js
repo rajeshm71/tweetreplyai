@@ -7874,80 +7874,6 @@ ${cta}` : cta;
     throw new Error("Compose box did not open in time. Reframed text copied to clipboard.");
   }
 
-  // extension/content/helpers/draft-insert.js
-  async function insertTextIntoTwitterDraftArea(textArea, composer, text, deps) {
-    const { sleep } = deps;
-    composer?.click?.();
-    textArea?.focus?.();
-    await sleep(20);
-    try {
-      const range = document.createRange();
-      range.selectNodeContents(textArea);
-      const selection = window.getSelection();
-      selection?.removeAllRanges();
-      selection?.addRange(range);
-    } catch {
-    }
-    let pasted = false;
-    try {
-      const dt = new DataTransfer();
-      dt.setData("text/plain", text);
-      const pasteEvent = new ClipboardEvent("paste", {
-        bubbles: true,
-        cancelable: true,
-        clipboardData: dt
-      });
-      textArea.dispatchEvent(pasteEvent);
-      await sleep(50);
-      const dataTextSpan2 = textArea.querySelector('[data-text="true"]');
-      const prefix = text.length ? text.slice(0, Math.min(20, text.length)) : "";
-      if (prefix && dataTextSpan2?.textContent?.includes(prefix)) {
-        pasted = true;
-      }
-    } catch {
-    }
-    if (pasted) {
-      try {
-        const draftSpan = textArea.querySelector('[data-text="true"]');
-        if (draftSpan?.firstChild) {
-          const endRange = document.createRange();
-          endRange.setStart(
-            draftSpan.firstChild,
-            String(draftSpan.firstChild.textContent || "").length
-          );
-          endRange.collapse(true);
-          const sel = window.getSelection();
-          sel?.removeAllRanges();
-          sel?.addRange(endRange);
-        }
-      } catch {
-      }
-      return;
-    }
-    let inserted = false;
-    try {
-      inserted = document.execCommand("insertText", false, text);
-    } catch {
-      inserted = false;
-    }
-    if (inserted) return;
-    const dataTextSpan = textArea?.querySelector?.('[data-text="true"]');
-    const targetElement = dataTextSpan ? dataTextSpan.parentElement : textArea;
-    if (!targetElement) return;
-    const span = document.createElement("span");
-    span.dataset.text = "true";
-    span.textContent = text;
-    if (typeof targetElement.replaceChildren === "function") {
-      targetElement.replaceChildren(span);
-    } else {
-      while (targetElement.firstChild) targetElement.removeChild(targetElement.firstChild);
-      targetElement.appendChild(span);
-    }
-    targetElement.dispatchEvent(
-      new InputEvent("input", { bubbles: true, cancelable: true })
-    );
-  }
-
   // extension/content/content.js
   initExtensionSentry({ scope: "content" });
   globalThis.__tweetreplyaiExtLoggingAllowed = false;
@@ -7981,6 +7907,7 @@ ${cta}` : cta;
       this.currentReplyTargetArticle = null;
       this._replyTargetClearTimer = null;
       this.pendingReplyTarget = null;
+      this.composerRequestVersions = /* @__PURE__ */ new Map();
       this._originalTweetCache = null;
       this.lastNonComposePath = window.location.pathname;
       this.urlTrackingInterval = setInterval(() => {
@@ -8087,11 +8014,90 @@ ${cta}` : cta;
       const textArea = element.querySelector('div[data-testid^="tweetTextarea_"][role="textbox"]');
       return textArea || (element.parentElement ? this.findTwitterTextArea(element.parentElement) : null);
     }
-    // Insert text using Draft.js-aware path (execCommand) + DOM fallback
+    getComposerRequestKey(composer) {
+      if (!composer) return "unknown";
+      if (!composer.dataset.tweetreplyComposerKey) {
+        composer.dataset.tweetreplyComposerKey = `trai_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      }
+      return composer.dataset.tweetreplyComposerKey;
+    }
+    nextComposerRequestVersion(composer, kind) {
+      const mapKey = `${kind}:${this.getComposerRequestKey(composer)}`;
+      const next = (this.composerRequestVersions.get(mapKey) || 0) + 1;
+      this.composerRequestVersions.set(mapKey, next);
+      return next;
+    }
+    isLatestComposerRequest(composer, kind, version) {
+      const mapKey = `${kind}:${this.getComposerRequestKey(composer)}`;
+      return this.composerRequestVersions.get(mapKey) === version;
+    }
+    getScopedTwitterInsertionTargets(composer) {
+      const textAreaSelector = 'div[data-testid^="tweetTextarea_"][role="textbox"]';
+      const textArea = composer.matches?.(textAreaSelector) ? composer : composer.querySelector?.(textAreaSelector) || composer.closest?.(textAreaSelector);
+      const scopeRoot = composer.closest?.('[role="dialog"], [data-testid="tweetComposer"], article') || composer.parentElement || document.body;
+      const toolbar = scopeRoot.querySelector?.('[data-testid="toolBar"]') || composer.closest?.('[data-testid="toolBar"]');
+      return { textArea, toolbar };
+    }
     async insertTextTwitterMethod(textArea, composer, text) {
-      await insertTextIntoTwitterDraftArea(textArea, composer, text, {
-        sleep: (ms) => this.sleep(ms)
-      });
+      console.log("[TRAI] insertTextTwitterMethod \u2014 connected:", textArea?.isConnected, "len:", text?.length);
+      try {
+        composer?.click?.();
+      } catch {
+      }
+      try {
+        textArea?.focus?.();
+      } catch {
+      }
+      await this.sleep(20);
+      try {
+        const markerId = "trai-" + Date.now() + "-" + Math.random().toString(36).slice(2);
+        textArea.dataset.traiMarker = markerId;
+        const result = await new Promise((resolve) => {
+          const timeout = setTimeout(() => {
+            window.removeEventListener("message", handler);
+            resolve({ success: false, reason: "timeout" });
+          }, 3e3);
+          function handler(event) {
+            if (event.data?.type === "TRAI_INSERT_TEXT_RESULT" && event.data?.markerId === markerId) {
+              clearTimeout(timeout);
+              window.removeEventListener("message", handler);
+              resolve(event.data);
+            }
+          }
+          window.addEventListener("message", handler);
+          window.postMessage({ type: "TRAI_INSERT_TEXT", text, markerId }, "*");
+        });
+        delete textArea.dataset.traiMarker;
+        if (result.success) {
+          await this.sleep(100);
+          console.log("[TRAI] React fiber insert done via MAIN world");
+          return;
+        }
+        console.warn("[TRAI] MAIN world fiber insert failed:", result.reason, "hops:", result.hops);
+      } catch (e) {
+        console.warn("[TRAI] postMessage fiber approach threw:", e);
+      }
+      const contentRoot = textArea?.querySelector?.('[data-contents="true"]');
+      if (contentRoot) {
+        const block = document.createElement("div");
+        block.setAttribute("data-block", "true");
+        block.className = "public-DraftStyleDefault-block public-DraftStyleDefault-ltr";
+        const offsetSpan = document.createElement("span");
+        offsetSpan.setAttribute("data-offset-key", "trai-0-0");
+        const textSpan = document.createElement("span");
+        textSpan.dataset.text = "true";
+        textSpan.textContent = text;
+        offsetSpan.appendChild(textSpan);
+        block.appendChild(offsetSpan);
+        contentRoot.replaceChildren(block);
+        return;
+      }
+      const span = document.createElement("span");
+      span.dataset.text = "true";
+      span.textContent = text;
+      if (typeof textArea?.replaceChildren === "function") {
+        textArea.replaceChildren(span);
+      }
     }
     extractComposerPlainText(composer) {
       return extractCanonicalComposerText(composer);
@@ -9741,6 +9747,7 @@ ${cta}` : cta;
       <div class="tweetreply-spinner" style="width: 14px; height: 14px; border: 2px solid #1d9bf0; border-top: 2px solid transparent; border-radius: 50%; animation: spin 1s linear infinite; margin-right: 4px;"></div>
       <span>Generating...</span>
     `;
+      const requestVersion = this.nextComposerRequestVersion(composer, "suggest");
       try {
         const authorInfo = this.extractAuthorInfo();
         const threadContext = this.extractThreadContext();
@@ -9789,6 +9796,10 @@ ${cta}` : cta;
           // Backward compatibility
           tweet_metadata: tweetMetadata
         });
+        if (!this.isLatestComposerRequest(composer, "suggest", requestVersion)) {
+          console.log("[TweetReplyAI] Discarding stale suggest response after mode switch");
+          return;
+        }
         if (response.analysis) {
           console.log("[TweetReplyAI] \u2705 Tweet analysis completed:", {
             tone: response.analysis.tone || "unknown",
@@ -9970,21 +9981,7 @@ ${cta}` : cta;
         this.showMessage(composer, "You've used all your credits! Upgrade to keep the replies flowing.", "info");
         return;
       }
-      let draftText = "";
-      const dataTextSpans = composer.querySelectorAll('[data-text="true"]');
-      if (dataTextSpans.length > 0) {
-        draftText = Array.from(dataTextSpans).map((span) => span.textContent || span.innerText).join(" ").trim();
-      }
-      if (!draftText || draftText.length === 0) {
-        draftText = composer.textContent || composer.innerText || "";
-      }
-      if (!draftText || draftText.length === 0) {
-        const contentEditable = composer.querySelector('[contenteditable="true"]');
-        if (contentEditable) {
-          draftText = contentEditable.textContent || contentEditable.innerText || "";
-        }
-      }
-      draftText = draftText.trim();
+      let draftText = this.extractComposerPlainText(composer);
       if (!draftText || draftText.length === 0) {
         this.showMessage(composer, "Please write a draft reply first", "info");
         return;
@@ -9995,6 +9992,7 @@ ${cta}` : cta;
       <div class="tweetreply-spinner" style="width: 14px; height: 14px; border: 2px solid #3b82f6; border-top: 2px solid transparent; border-radius: 50%; animation: spin 1s linear infinite; margin-right: 4px;"></div>
       <span>Improving...</span>
     `;
+      const requestVersion = this.nextComposerRequestVersion(composer, "improve");
       try {
         const originalTweetText = this.extractTweetText() || "";
         console.log("[TweetReplyAI] Improving draft:", {
@@ -10002,6 +10000,10 @@ ${cta}` : cta;
           originalTweetLength: originalTweetText.length
         });
         const response = await this.apiClient.suggestImprovements(draftText, originalTweetText);
+        if (!this.isLatestComposerRequest(composer, "improve", requestVersion)) {
+          console.log("[TweetReplyAI] Discarding stale improve response after mode switch");
+          return;
+        }
         console.log("[TweetReplyAI] API response received:", response);
         console.log("[TweetReplyAI] Response keys:", Object.keys(response || {}));
         let improvedDraft = "";
@@ -11268,14 +11270,9 @@ ${cta}` : cta;
         );
         if (composer.contentEditable === "true" || composer.getAttribute("data-testid")?.startsWith("tweetTextarea_") || composer.getAttribute("role") === "textbox") {
           try {
-            const toolbar = document.querySelector('[data-testid="toolBar"]');
-            if (toolbar) {
-              const textArea = this.findTwitterTextArea(toolbar);
-              if (textArea) {
-                await this.insertTextTwitterMethod(textArea, toolbar, cleanText);
-                return;
-              }
-            }
+            const toolbar = composer.closest('[data-testid="toolBar"]') || composer;
+            await this.insertTextTwitterMethod(composer, toolbar, cleanText);
+            return;
           } catch (error2) {
             console.warn("[TweetReplyAI] Twitter method failed:", error2);
           }
@@ -11315,18 +11312,22 @@ ${cta}` : cta;
           try {
             const contentDiv = composer.querySelector('[data-contents="true"]');
             if (contentDiv) {
-              const blocks = contentDiv.querySelectorAll('[data-block="true"]');
-              if (blocks.length > 0) {
-                const textBlock = blocks[0].querySelector(".public-DraftStyleDefault-block");
-                if (textBlock) {
-                  textBlock.textContent = cleanText;
-                  composer.dispatchEvent(new InputEvent("input", {
-                    bubbles: true,
-                    cancelable: true
-                  }));
-                  return;
-                }
-              }
+              const block = document.createElement("div");
+              block.setAttribute("data-block", "true");
+              block.className = "public-DraftStyleDefault-block public-DraftStyleDefault-ltr";
+              const offsetSpan = document.createElement("span");
+              offsetSpan.setAttribute("data-offset-key", "trai-0-0");
+              const textSpan = document.createElement("span");
+              textSpan.setAttribute("data-text", "true");
+              textSpan.textContent = cleanText;
+              offsetSpan.appendChild(textSpan);
+              block.appendChild(offsetSpan);
+              contentDiv.replaceChildren(block);
+              composer.dispatchEvent(new InputEvent("input", {
+                bubbles: true,
+                cancelable: true
+              }));
+              return;
             }
           } catch (error2) {
             console.warn("[TweetReplyAI] Draft.js DOM manipulation failed:", error2);

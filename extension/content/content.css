@@ -570,6 +570,9 @@
   background: rgba(0, 0, 0, 0.45);
   box-sizing: border-box;
 }
+.tweetreply-reuse-past-sheet[hidden] {
+  display: none;
+}
 
 .tweetreply-reuse-past-panel {
   width: 100%;
@@ -736,6 +739,9 @@
   display: flex;
   align-items: center;
   gap: 10px;
+}
+.tweetreply-reuse-error[hidden] {
+  display: none;
 }
 
 .tweetreply-reuse-upgrade {

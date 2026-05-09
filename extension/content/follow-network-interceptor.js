@@ -81,6 +81,70 @@
     }
   });
 
+  // React fiber text insertion — runs in MAIN world so __reactFiber$ keys are accessible.
+  window.addEventListener('message', function (event) {
+    if (event.source !== window || !event.data || event.data.type !== 'TRAI_INSERT_TEXT') return;
+    var markerId = event.data.markerId;
+    var text = event.data.text;
+
+    var textArea = document.querySelector('[data-trai-marker="' + markerId + '"]');
+    if (!textArea) {
+      window.postMessage({ type: 'TRAI_INSERT_TEXT_RESULT', markerId: markerId, success: false, reason: 'not_found' }, '*');
+      return;
+    }
+
+    var fiberKey = null;
+    for (var k in textArea) {
+      if (k.startsWith('__reactFiber$') || k.startsWith('__reactInternalInstance$')) {
+        fiberKey = k;
+        break;
+      }
+    }
+    var fiber = fiberKey ? textArea[fiberKey] : (textArea._reactInternalFiber || textArea._reactInternalInstance || null);
+
+    if (!fiber) {
+      window.postMessage({ type: 'TRAI_INSERT_TEXT_RESULT', markerId: markerId, success: false, reason: 'no_fiber' }, '*');
+      return;
+    }
+
+    var node = fiber;
+    var hops = 0;
+    var success = false;
+
+    while (node && hops < 50) {
+      try {
+        var p = node.memoizedProps;
+        if (p && p.editorState && typeof p.editorState.getCurrentContent === 'function' && typeof p.onChange === 'function') {
+          var es = p.editorState;
+          var CS = es.getCurrentContent().constructor;
+          var ES = es.constructor;
+          var newCS = CS.createFromText(text);
+          var newES = ES.createWithContent(newCS);
+          try { newES = ES.moveFocusToEnd(newES); } catch (e) {}
+          p.onChange(newES);
+          success = true;
+          break;
+        }
+        var sp = node.stateNode && node.stateNode.props;
+        if (sp && sp.editorState && typeof sp.editorState.getCurrentContent === 'function' && typeof sp.onChange === 'function') {
+          var es2 = sp.editorState;
+          var CS2 = es2.getCurrentContent().constructor;
+          var ES2 = es2.constructor;
+          var newCS2 = CS2.createFromText(text);
+          var newES2 = ES2.createWithContent(newCS2);
+          try { newES2 = ES2.moveFocusToEnd(newES2); } catch (e) {}
+          sp.onChange(newES2);
+          success = true;
+          break;
+        }
+      } catch (e) { /* skip bad nodes */ }
+      node = node.return;
+      hops++;
+    }
+
+    window.postMessage({ type: 'TRAI_INSERT_TEXT_RESULT', markerId: markerId, success: success, hops: hops }, '*');
+  });
+
   function findUsers(obj, users, depth) {
     if (depth > 25 || !obj || typeof obj !== 'object') return;
 
