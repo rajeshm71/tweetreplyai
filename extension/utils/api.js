@@ -166,7 +166,6 @@ export class ApiClient {
     degree,
     source_author,
     source_tweet_url,
-    prompt_variation,
     model_key,
     allow_long,
   }) {
@@ -177,7 +176,6 @@ export class ApiClient {
         degree,
         source_author,
         source_tweet_url,
-        prompt_variation,
         model_key,
         allow_long,
       },

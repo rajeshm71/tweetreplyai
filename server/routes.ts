@@ -8,6 +8,7 @@ import { setupGoogleAuth } from "./googleAuth.js";
 import { aiRouter } from "./services/ai-router.js";
 import { getAvailablePrompts } from "./services/prompts.js";
 import { getDegreeBand } from "./services/reframe-prompts.js";
+import { checkReframeQuality } from "./services/reframe-quality-checker.js";
 import { dodoPaymentsService, PLANS } from "./services/dodo-payments.js";
 import { usageService } from "./services/usage.js";
 import { whitelistService } from "./services/whitelistService.js";
@@ -3571,6 +3572,11 @@ User draft reply: ${draft_reply}`;
 
       const body = schema.parse(req.body);
 
+      // Review fix: prompt_variation is deprecated; kept in schema for backward compat only.
+      if (body.prompt_variation) {
+        console.warn('[API] /api/reframe-tweet: prompt_variation is deprecated and ignored');
+      }
+
       // Quota gate applies to everyone (matches /api/generate-reply).
       const { canUse, reason } = await usageService.canUseReply(userId);
       if (!canUse) {
@@ -3686,7 +3692,6 @@ User draft reply: ${draft_reply}`;
           meta: {
             modelKey: friendly.modelKey,
             latencyMs: friendly.latencyMs,
-            promptVariation: body.prompt_variation || 'default',
             safetyOutcome: 'violation_friendly_reply',
           },
         });
@@ -3697,12 +3702,124 @@ User draft reply: ${draft_reply}`;
       // intentionally matches /api/generate-reply and /api/suggest-improvements.
       const updatedCounter = await usageService.consumeReply(userId, 'reframe');
 
+      const reframeOpts = {
+        allowLong: body.allow_long,
+        modelPreference: body.model_key,
+      };
+
       let generation;
+      let retriedForOriginality = false;
+      let firstGeneration;
+      let retryGeneration;
       try {
-        generation = await aiRouter.reframeTweet(body.source_tweet, body.degree, {
-          allowLong: body.allow_long,
-          promptVariation: body.prompt_variation,
-          modelPreference: body.model_key,
+        generation = await aiRouter.reframeTweet(body.source_tweet, body.degree, reframeOpts);
+        firstGeneration = generation;
+        let qualityResult = checkReframeQuality(
+          body.source_tweet,
+          generation.reply,
+          band,
+          body.allow_long,
+        );
+
+        if (!qualityResult.originality.passed) {
+          retriedForOriginality = true;
+          try {
+            retryGeneration = await aiRouter.reframeTweet(body.source_tweet, body.degree, {
+              ...reframeOpts,
+              retryBoost: true,
+            });
+            const retryQuality = checkReframeQuality(
+              body.source_tweet,
+              retryGeneration.reply,
+              band,
+              body.allow_long,
+            );
+            // Review fix: prefer a passing retry; otherwise keep whichever scores higher.
+            const retryPassesFirstFails =
+              retryQuality.originality.passed && !qualityResult.originality.passed;
+            const retryScoresHigher =
+              retryQuality.originalityScore > qualityResult.originalityScore;
+            if (retryPassesFirstFails || retryScoresHigher) {
+              generation = retryGeneration;
+              qualityResult = retryQuality;
+            }
+          } catch (retryError) {
+            console.warn('[API] /api/reframe-tweet originality retry failed', retryError);
+          }
+        }
+
+        const historyEntry = await storage.createReplyHistory({
+          id: crypto.randomUUID(),
+          userId,
+          originalTweet: body.source_tweet,
+          generatedReply: generation.reply,
+          modelKey: generation.modelKey,
+          promptKey: 'reframe',
+          qualityScore: qualityResult.totalScore,
+          replyMode: 'reframe',
+          tweetUrl: body.source_tweet_url,
+          performance: {
+            latencyMs: generation.latencyMs,
+            degree: body.degree,
+            band,
+            originalityScore: qualityResult.originalityScore,
+            retriedForOriginality,
+          },
+        });
+
+        const buildReframeStage = (
+          stage: string,
+          gen: typeof generation,
+        ) => {
+          const promptTokens = gen.tokensIn ?? 0;
+          const completionTokens = gen.tokensOut ?? 0;
+          return {
+            stage,
+            modelKey: gen.modelKey,
+            promptTokens,
+            completionTokens,
+            totalTokens: promptTokens + completionTokens,
+            cost: aiRouter.estimateCost(gen.modelKey, promptTokens, completionTokens),
+            latencyMs: gen.latencyMs,
+          };
+        };
+
+        // Review fix: log both attempts when retry runs so token/cost metrics stay accurate.
+        const stageBreakdown = [
+          ...guardrailClassificationStage,
+          buildReframeStage('reframe_generation', firstGeneration ?? generation),
+        ];
+        if (retriedForOriginality && retryGeneration) {
+          stageBreakdown.push(buildReframeStage('reframe_generation_retry', retryGeneration));
+        }
+
+        await storage.createReplyTokens({
+          id: crypto.randomUUID(),
+          userId,
+          replyHistoryId: historyEntry.id,
+          stageBreakdown,
+          totalPromptTokens: stageBreakdown.reduce((s, e) => s + e.promptTokens, 0),
+          totalCompletionTokens: stageBreakdown.reduce((s, e) => s + e.completionTokens, 0),
+          totalTokens: stageBreakdown.reduce((s, e) => s + e.totalTokens, 0),
+          totalCost: stageBreakdown.reduce((s, e) => s + e.cost, 0),
+        });
+
+        return res.json({
+          reframed: generation.reply,
+          qualityScore: qualityResult.totalScore,
+          originalityScore: qualityResult.originalityScore,
+          qualityParameters: qualityResult.parameters,
+          degree: body.degree,
+          band,
+          used: updatedCounter.creditsUsed,
+          limit: updatedCounter.limit,
+          resetAt: updatedCounter.resetAt,
+          meta: {
+            modelKey: generation.modelKey,
+            latencyMs: generation.latencyMs,
+            originalityScore: qualityResult.originalityScore,
+            retriedForOriginality,
+          },
         });
       } catch (error) {
         console.error('[API] /api/reframe-tweet generation error', error);
@@ -3713,68 +3830,6 @@ User draft reply: ${draft_reply}`;
         });
         return res.status(500).json(getClientErrorBody(error, "Failed to reframe tweet"));
       }
-
-      const qualityResult = qualityChecker.checkQuality(generation.reply, body.source_tweet);
-
-      const historyEntry = await storage.createReplyHistory({
-        id: crypto.randomUUID(),
-        userId,
-        originalTweet: body.source_tweet,
-        generatedReply: generation.reply,
-        modelKey: generation.modelKey,
-        promptKey: 'reframe',
-        qualityScore: qualityResult.totalScore,
-        replyMode: 'reframe',
-        tweetUrl: body.source_tweet_url,
-        performance: {
-          latencyMs: generation.latencyMs,
-          degree: body.degree,
-          band,
-        },
-      });
-
-      const tokensIn = generation.tokensIn ?? 0;
-      const tokensOut = generation.tokensOut ?? 0;
-      const reframeCost = aiRouter.estimateCost(generation.modelKey, tokensIn, tokensOut);
-      const stageBreakdown = [
-        ...guardrailClassificationStage,
-        {
-          stage: 'reframe_generation',
-          modelKey: generation.modelKey,
-          promptTokens: tokensIn,
-          completionTokens: tokensOut,
-          totalTokens: tokensIn + tokensOut,
-          cost: reframeCost,
-          latencyMs: generation.latencyMs,
-        },
-      ];
-
-      await storage.createReplyTokens({
-        id: crypto.randomUUID(),
-        userId,
-        replyHistoryId: historyEntry.id,
-        stageBreakdown,
-        totalPromptTokens: stageBreakdown.reduce((s, e) => s + e.promptTokens, 0),
-        totalCompletionTokens: stageBreakdown.reduce((s, e) => s + e.completionTokens, 0),
-        totalTokens: stageBreakdown.reduce((s, e) => s + e.totalTokens, 0),
-        totalCost: stageBreakdown.reduce((s, e) => s + e.cost, 0),
-      });
-
-      return res.json({
-        reframed: generation.reply,
-        qualityScore: qualityResult.totalScore,
-        qualityParameters: qualityResult.parameters,
-        degree: body.degree,
-        band,
-        used: updatedCounter.creditsUsed,
-        limit: updatedCounter.limit,
-        resetAt: updatedCounter.resetAt,
-        meta: {
-          modelKey: generation.modelKey,
-          latencyMs: generation.latencyMs,
-          promptVariation: body.prompt_variation || 'default',
-        },
-      });
     } catch (error) {
       console.error("Error reframing tweet:", error);
       if (error instanceof ZodError) {

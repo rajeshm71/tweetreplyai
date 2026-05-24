@@ -180,7 +180,7 @@ describe('AI Reframe Tweet Route - Unit Tests', () => {
       .raw()
       .post('/api/reframe-tweet')
       .set('Authorization', `Bearer ${authToken}`)
-      .send({ source_tweet: validSource, degree: 80, prompt_variation: 'direct' });
+      .send({ source_tweet: validSource, degree: 80 });
 
     expectJsonResponse(res, 200, {
       reframed: mockReframeResponse.reply,
@@ -188,20 +188,94 @@ describe('AI Reframe Tweet Route - Unit Tests', () => {
       band: 'heavy',
     });
     expect(res.body).toHaveProperty('qualityScore');
+    expect(res.body).toHaveProperty('originalityScore');
     expect(res.body).toHaveProperty('used');
     expect(res.body).toHaveProperty('limit');
     expect(res.body).toHaveProperty('resetAt');
     expect(res.body.meta).toMatchObject({
       modelKey: mockReframeResponse.modelKey,
-      promptVariation: 'direct',
+      originalityScore: expect.any(Number),
     });
 
     const { aiRouter } = await import('../../../server/services/ai-router');
     expect(vi.mocked(aiRouter.reframeTweet)).toHaveBeenCalledWith(
       validSource,
       80,
-      expect.objectContaining({ allowLong: false, promptVariation: 'direct' }),
+      expect.objectContaining({ allowLong: false }),
     );
+  });
+
+  it('retries once with retryBoost when first draft fails originality at heavy band', async () => {
+    const { aiRouter } = await import('../../../server/services/ai-router');
+    vi.mocked(aiRouter.reframeTweet)
+      .mockResolvedValueOnce({
+        ...mockReframeResponse,
+        reply: validSource,
+      })
+      .mockResolvedValueOnce({
+        ...mockReframeResponse,
+        reply: 'A completely fresh take on why TypeScript still matters for web teams.',
+      });
+
+    const res = await app
+      .raw()
+      .post('/api/reframe-tweet')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({ source_tweet: validSource, degree: 75 });
+
+    expect(res.status).toBe(200);
+    expect(res.body.reframed).toContain('fresh take');
+    expect(vi.mocked(aiRouter.reframeTweet)).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(aiRouter.reframeTweet).mock.calls[1]?.[2]).toMatchObject({
+      retryBoost: true,
+    });
+    expect(res.body.meta.retriedForOriginality).toBe(true);
+  });
+
+  it('logs both generation stages in reply_tokens when originality retry runs', async () => {
+    const { aiRouter } = await import('../../../server/services/ai-router');
+    vi.mocked(aiRouter.reframeTweet)
+      .mockResolvedValueOnce({
+        ...mockReframeResponse,
+        reply: validSource,
+        tokensIn: 30,
+        tokensOut: 40,
+      })
+      .mockResolvedValueOnce({
+        ...mockReframeResponse,
+        reply: 'A completely fresh take on why TypeScript still matters for web teams.',
+        tokensIn: 35,
+        tokensOut: 45,
+      });
+
+    await app
+      .raw()
+      .post('/api/reframe-tweet')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({ source_tweet: validSource, degree: 75 });
+
+    const { storage } = await import('../../../server/storage');
+    const tokensCall = vi.mocked(storage.createReplyTokens).mock.calls[0]?.[0];
+    expect(tokensCall?.stageBreakdown).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ stage: 'reframe_generation' }),
+        expect.objectContaining({ stage: 'reframe_generation_retry' }),
+      ]),
+    );
+    expect(tokensCall?.totalPromptTokens).toBe(65);
+    expect(tokensCall?.totalCompletionTokens).toBe(85);
+  });
+
+  it('returns qualityScore on 0–100 scale from reframe quality checker', async () => {
+    const res = await app
+      .raw()
+      .post('/api/reframe-tweet')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({ source_tweet: validSource, degree: 50 });
+
+    expect(res.status).toBe(200);
+    expect(res.body.qualityScore).toBeGreaterThanOrEqual(0);
+    expect(res.body.qualityScore).toBeLessThanOrEqual(100);
   });
 
   it('preserves newlines from the AI response in the API response body', async () => {

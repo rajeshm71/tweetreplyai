@@ -714,6 +714,7 @@
 }
 
 .tweetreply-reuse-quality,
+.tweetreply-reuse-originality,
 .tweetreply-reuse-safety {
   font-size: 12px;
   font-weight: 600;
@@ -724,6 +725,18 @@
 .tweetreply-reuse-quality {
   background: rgba(29, 155, 240, 0.12);
   color: rgb(29, 155, 240);
+}
+
+.tweetreply-reuse-originality {
+  background: rgba(16, 185, 129, 0.12);
+  color: rgb(5, 150, 105);
+}
+
+.tweetreply-reuse-degree-hint {
+  font-size: 12px;
+  color: rgb(113, 118, 123);
+  margin-top: 4px;
+  line-height: 1.35;
 }
 
 .tweetreply-reuse-safety {

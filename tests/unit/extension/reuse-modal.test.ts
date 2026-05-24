@@ -20,7 +20,6 @@ function makeDeps(overrides: any = {}) {
   });
   const apiClient = {
     reframeTweet: vi.fn(),
-    getPrompts: vi.fn().mockResolvedValue([{ key: "default", name: "Default" }, { key: "direct", name: "Direct" }]),
   };
   const postToCompose = vi.fn().mockResolvedValue(true);
   const onUsageUpdated = vi.fn();
@@ -51,7 +50,7 @@ describe("createReuseModal (extension helper)", () => {
     vi.restoreAllMocks();
   });
 
-  it("renders preview, slider defaults to 50 / Balanced, and shows a close button", async () => {
+  it("renders preview, slider defaults to 50 / Balanced, degree hint, and shows a close button", async () => {
     const deps = makeDeps();
     const handle = createReuseModal(
       { text: "Source tweet goes here with enough content to reuse.", author: "alice" },
@@ -64,6 +63,8 @@ describe("createReuseModal (extension helper)", () => {
     const slider = modal.querySelector<HTMLInputElement>(".tweetreply-reuse-slider")!;
     expect(slider.value).toBe("50");
     expect(modal.querySelector(".tweetreply-reuse-degree-band")?.textContent).toBe("Balanced");
+    expect(modal.querySelector(".tweetreply-reuse-degree-hint")?.textContent).toMatch(/Clearer takeaway/);
+    expect(modal.querySelector(".tweetreply-reuse-style-select")).toBeNull();
 
     handle.close();
     expect(document.getElementById(REUSE.MODAL_ID)).toBeNull();
@@ -91,25 +92,20 @@ describe("createReuseModal (extension helper)", () => {
     deps.apiClient.reframeTweet.mockResolvedValueOnce({
       reframed: "A reframed tweet!",
       qualityScore: 82,
+      originalityScore: 74,
       degree: 85,
       band: "reimagined",
-      meta: { modelKey: "gpt-4o-mini", latencyMs: 200, promptVariation: "default" },
+      meta: { modelKey: "gpt-4o-mini", latencyMs: 200, originalityScore: 74 },
     });
-    // Wait for style select to load before asserting prompt_variation value.
     const handle = createReuseModal(
       { text: "This is the source tweet text.", author: "alice", tweetUrl: "https://x.com/alice/status/1" },
       deps,
     );
-    await Promise.resolve();
-    await Promise.resolve();
 
     const modal = document.getElementById(REUSE.MODAL_ID)!;
     const slider = modal.querySelector<HTMLInputElement>(".tweetreply-reuse-slider")!;
     slider.value = "85";
     slider.dispatchEvent(new Event("input"));
-
-    const styleSelect = modal.querySelector<HTMLSelectElement>(".tweetreply-reuse-style-select")!;
-    styleSelect.value = "direct";
 
     const generate = modal.querySelector<HTMLButtonElement>(".tweetreply-reuse-generate")!;
     generate.click();
@@ -122,15 +118,40 @@ describe("createReuseModal (extension helper)", () => {
         degree: 85,
         source_author: "alice",
         source_tweet_url: "https://x.com/alice/status/1",
-        prompt_variation: "direct",
         allow_long: false,
       }),
     );
+    expect(deps.apiClient.reframeTweet.mock.calls[0][0]).not.toHaveProperty("prompt_variation");
 
     const textarea = modal.querySelector<HTMLTextAreaElement>(".tweetreply-reuse-result")!;
     expect(textarea.value).toBe("A reframed tweet!");
     expect(modal.querySelector(".tweetreply-reuse-quality")?.textContent).toBe("Quality 82");
+    expect(modal.querySelector(".tweetreply-reuse-originality")?.textContent).toBe("Originality 74");
     expect(deps.onUsageUpdated).toHaveBeenCalled();
+    handle.close();
+  });
+
+  it("shows Originality chip when score is 0 (not hidden by falsy check)", async () => {
+    const deps = makeDeps();
+    deps.apiClient.reframeTweet.mockResolvedValueOnce({
+      reframed: "Reframed output text here.",
+      qualityScore: 65,
+      originalityScore: 0,
+      degree: 50,
+      band: "balanced",
+      meta: { modelKey: "gpt-4o-mini", latencyMs: 200, originalityScore: 0 },
+    });
+    const handle = createReuseModal(
+      { text: "Source tweet with enough characters to reuse.", author: "alice" },
+      deps,
+    );
+
+    const modal = document.getElementById(REUSE.MODAL_ID)!;
+    modal.querySelector<HTMLButtonElement>(".tweetreply-reuse-generate")!.click();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(modal.querySelector(".tweetreply-reuse-originality")?.textContent).toBe("Originality 0");
     handle.close();
   });
 
@@ -325,16 +346,18 @@ describe("createReuseModal (extension helper)", () => {
       .mockResolvedValueOnce({
         reframed: "First variation text",
         qualityScore: 80,
+        originalityScore: 70,
         degree: 50,
         band: "balanced",
-        meta: { promptVariation: "default" },
+        meta: {},
       })
       .mockResolvedValueOnce({
         reframed: "Second variation text",
         qualityScore: 81,
+        originalityScore: 72,
         degree: 60,
         band: "balanced",
-        meta: { promptVariation: "direct" },
+        meta: {},
       });
 
     const handle = createReuseModal({ text: "This source tweet is long enough.", author: "alice" }, deps);
@@ -498,34 +521,5 @@ describe("createReuseModal (extension helper)", () => {
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith("Already have this");
 
     handle.close();
-  });
-
-  it("filters /api/prompts results to reframe-relevant keys only (drops improve / guardrail_violation)", async () => {
-    const deps = makeDeps({
-      apiClient: {
-        reframeTweet: vi.fn(),
-        getPrompts: vi.fn().mockResolvedValue([
-          { key: "default", name: "Default" },
-          { key: "improve", name: "Improve" },
-          { key: "guardrail_violation", name: "Guardrail" },
-          { key: "humorous", name: "Humorous" },
-          { key: "direct", name: "Direct" },
-        ]),
-      },
-    });
-    createReuseModal({ text: "This source tweet is long enough.", author: "alice" }, deps);
-    await Promise.resolve();
-    await Promise.resolve();
-
-    const modal = document.getElementById(REUSE.MODAL_ID)!;
-    const options = Array.from(
-      modal.querySelectorAll<HTMLOptionElement>(".tweetreply-reuse-style-select option"),
-    ).map((o) => o.value);
-
-    expect(options).toContain("default");
-    expect(options).toContain("humorous");
-    expect(options).toContain("direct");
-    expect(options).not.toContain("improve");
-    expect(options).not.toContain("guardrail_violation");
   });
 });

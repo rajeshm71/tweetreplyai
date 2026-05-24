@@ -6940,7 +6940,6 @@ Event: ${getEventDescription(event)}`
       degree,
       source_author,
       source_tweet_url,
-      prompt_variation,
       model_key,
       allow_long
     }) {
@@ -6951,7 +6950,6 @@ Event: ${getEventDescription(event)}`
           degree,
           source_author,
           source_tweet_url,
-          prompt_variation,
           model_key,
           allow_long
         }
@@ -7305,14 +7303,14 @@ ${cta}` : cta;
     if (!text) return "";
     return text.length > max ? `${text.slice(0, max - 1)}\u2026` : text;
   }
-  var REFRAME_PROMPT_KEYS = /* @__PURE__ */ new Set([
-    "default",
-    "conversational",
-    "direct",
-    "analytical",
-    "humorous",
-    "supportive"
-  ]);
+  var DEGREE_HINTS = {
+    Minimal: "Copy-edit; same idea, light reword",
+    Light: "Fresher phrasing; same shape",
+    Balanced: "Clearer takeaway; mostly new wording",
+    Heavy: "New packaging; same thesis",
+    Reimagined: "Fresh angle; core insight only"
+  };
+  var REUSE_DEGREE_STORAGE_KEY = "tweetreply_reuse_degree";
   var MAX_VARIATIONS = 10;
   function createReuseModal(payload, deps) {
     const {
@@ -7322,8 +7320,7 @@ ${cta}` : cta;
       emitTelemetry: emitTelemetry2,
       getUserFacingError: getUserFacingError2,
       constants,
-      loginUrl = "https://tweetreplyai.vercel.app/login",
-      getPromptVariations
+      loginUrl = "https://tweetreplyai.vercel.app/login"
     } = deps || {};
     const MODAL_ID = constants?.MODAL_ID || "tweetreply-reuse-modal";
     const BANDS = constants?.DEGREE_BANDS || DEFAULT_BANDS;
@@ -7424,53 +7421,38 @@ ${cta}` : cta;
     });
     const sliderValue = h("span", { class: "tweetreply-reuse-degree-value" }, `${DEFAULT_DEGREE}`);
     const sliderLabel = h("span", { class: "tweetreply-reuse-degree-band" }, bandLabelFor(DEFAULT_DEGREE, BANDS));
+    const degreeHint = h("div", { class: "tweetreply-reuse-degree-hint" }, DEGREE_HINTS.Balanced);
     slider.addEventListener("input", () => {
       const d = Number(slider.value) || 0;
       sliderValue.textContent = String(d);
-      sliderLabel.textContent = bandLabelFor(d, BANDS);
+      const label = bandLabelFor(d, BANDS);
+      sliderLabel.textContent = label;
+      degreeHint.textContent = DEGREE_HINTS[label] || "";
+      try {
+        chrome?.storage?.local?.set?.({ [REUSE_DEGREE_STORAGE_KEY]: d });
+      } catch {
+      }
     });
     card.appendChild(h("label", { class: "tweetreply-reuse-field" }, [
       h("div", { class: "tweetreply-reuse-field-label" }, [
         h("span", {}, "Degree of change"),
         h("span", { class: "tweetreply-reuse-degree-readout" }, [sliderValue, " \xB7 ", sliderLabel])
       ]),
-      slider
+      slider,
+      degreeHint
     ]));
-    const styleSelect = h("select", { class: "tweetreply-reuse-style-select", disabled: true });
-    styleSelect.appendChild(h("option", { value: "" }, "Loading styles\u2026"));
-    card.appendChild(h("label", { class: "tweetreply-reuse-field" }, [
-      h("div", { class: "tweetreply-reuse-field-label" }, "Style"),
-      styleSelect
-    ]));
-    const loadStyles = async () => {
-      const fetchFn = typeof getPromptVariations === "function" ? () => getPromptVariations() : () => apiClient?.getPrompts?.();
-      try {
-        const list = await fetchFn();
-        if (!Array.isArray(list) || list.length === 0) throw new Error("no-prompts");
-        const filtered = list.filter((p) => {
-          const k = p?.key || p?.id;
-          return typeof k === "string" && REFRAME_PROMPT_KEYS.has(k);
-        });
-        const final = filtered.length > 0 ? filtered : [{ key: "default", name: "Default" }];
-        styleSelect.innerHTML = "";
-        for (const p of final) {
-          const opt = document.createElement("option");
-          opt.value = p.key || p.id || "default";
-          opt.textContent = p.name || p.label || opt.value;
-          if (p.description) opt.title = p.description;
-          styleSelect.appendChild(opt);
-        }
-        styleSelect.disabled = false;
-      } catch {
-        styleSelect.innerHTML = "";
-        const opt = document.createElement("option");
-        opt.value = "default";
-        opt.textContent = "Default";
-        styleSelect.appendChild(opt);
-        styleSelect.disabled = false;
-      }
-    };
-    loadStyles();
+    try {
+      chrome?.storage?.local?.get?.([REUSE_DEGREE_STORAGE_KEY], (result) => {
+        const saved = Number(result?.[REUSE_DEGREE_STORAGE_KEY]);
+        if (!Number.isFinite(saved) || saved < 0 || saved > 100) return;
+        slider.value = String(saved);
+        sliderValue.textContent = String(saved);
+        const label = bandLabelFor(saved, BANDS);
+        sliderLabel.textContent = label;
+        degreeHint.textContent = DEGREE_HINTS[label] || "";
+      });
+    } catch {
+    }
     const allowLongCheckbox = h("input", { type: "checkbox", class: "tweetreply-reuse-allow-long" });
     card.appendChild(h("label", { class: "tweetreply-reuse-field tweetreply-reuse-inline" }, [
       allowLongCheckbox,
@@ -7490,6 +7472,7 @@ ${cta}` : cta;
       placeholder: "The reframed tweet will appear here after Generate."
     });
     const qualityChip = h("span", { class: "tweetreply-reuse-quality", hidden: true });
+    const originalityChip = h("span", { class: "tweetreply-reuse-originality", hidden: true });
     const safetyBadge = h("span", { class: "tweetreply-reuse-safety", hidden: true }, "Safety rewrite");
     const errorBox = h("div", { class: "tweetreply-reuse-error", hidden: true, role: "alert" });
     const pastVariationsBtn = h("button", {
@@ -7498,7 +7481,7 @@ ${cta}` : cta;
       hidden: true
     }, "Past variations");
     card.appendChild(h("div", { class: "tweetreply-reuse-result-wrap" }, [
-      h("div", { class: "tweetreply-reuse-result-header" }, [qualityChip, safetyBadge]),
+      h("div", { class: "tweetreply-reuse-result-header" }, [qualityChip, originalityChip, safetyBadge]),
       pastVariationsBtn,
       resultTextarea,
       errorBox
@@ -7520,15 +7503,15 @@ ${cta}` : cta;
       variationSeq += 1;
       return `reuse-var-${variationSeq}`;
     }
-    function buildVariationEntry(res, { degree, promptVariationKey }) {
+    function buildVariationEntry(res, { degree }) {
       const safety = res?.meta?.safetyOutcome === "violation_friendly_reply" ? "violation_friendly_reply" : null;
       return {
         id: newVariationId(),
         reframed: res?.reframed || "",
         qualityScore: res?.qualityScore || 0,
+        originalityScore: res?.originalityScore ?? res?.meta?.originalityScore ?? 0,
         degree: res?.degree ?? degree,
         band: res?.band,
-        promptVariation: promptVariationKey || "",
         safetyOutcome: safety,
         createdAt: Date.now()
       };
@@ -7569,9 +7552,10 @@ ${cta}` : cta;
       reversed.forEach((entry, idxFromNew) => {
         const metaLine = [
           new Date(entry.createdAt).toLocaleString([], { dateStyle: "short", timeStyle: "short" }),
-          entry.promptVariation || "default",
-          `Q ${Math.round(entry.qualityScore || 0)}`
-        ].join(" \xB7 ");
+          `Q ${Math.round(entry.qualityScore || 0)}`,
+          // Review fix: show O chip even when score is 0 (falsy check hid valid scores).
+          entry.originalityScore != null ? `O ${Math.round(entry.originalityScore)}` : null
+        ].filter(Boolean).join(" \xB7 ");
         const meta = h("div", { class: "tweetreply-reuse-past-meta" }, metaLine);
         const preview2 = h("div", { class: "tweetreply-reuse-past-preview" }, truncate2(entry.reframed, 200));
         const useBtn = h("button", { type: "button", class: "tweetreply-reuse-past-use-btn" }, "Use this");
@@ -7635,6 +7619,7 @@ ${cta}` : cta;
       const sel = getSelected();
       if (!sel) {
         qualityChip.hidden = true;
+        originalityChip.hidden = true;
         safetyBadge.hidden = true;
         resultTextarea.value = "";
         copyBtn.disabled = true;
@@ -7643,6 +7628,12 @@ ${cta}` : cta;
       }
       qualityChip.hidden = false;
       qualityChip.textContent = `Quality ${Math.round(sel.qualityScore || 0)}`;
+      if (sel.originalityScore != null) {
+        originalityChip.hidden = false;
+        originalityChip.textContent = `Originality ${Math.round(sel.originalityScore)}`;
+      } else {
+        originalityChip.hidden = true;
+      }
       safetyBadge.hidden = !sel.safetyOutcome;
       resultTextarea.value = sel.reframed;
       copyBtn.disabled = false;
@@ -7693,18 +7684,16 @@ ${cta}` : cta;
       setState("generating");
       const charLimit = allowLong ? LONG_TWEET_CHAR_LIMIT : TWITTER_CHAR_LIMIT;
       const startedAt = Date.now();
-      const promptVariationKey = styleSelect.value || "";
       try {
         const res = await apiClient.reframeTweet({
           source_tweet: sourceText,
           degree,
           source_author: author || void 0,
           source_tweet_url: tweetUrl,
-          prompt_variation: promptVariationKey || void 0,
           allow_long: allowLong
         });
         if (token !== requestToken) return;
-        const entry = buildVariationEntry(res, { degree, promptVariationKey });
+        const entry = buildVariationEntry(res, { degree });
         generationHistory.push(entry);
         trimHistoryIfNeeded();
         selectedId = entry.id;

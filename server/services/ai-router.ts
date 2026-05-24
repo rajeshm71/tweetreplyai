@@ -71,7 +71,7 @@ export class UnifiedAIRouter {
   async reframeTweet(
     source: string,
     degree: number,
-    opts: { allowLong?: boolean; promptVariation?: string; modelPreference?: string } = {},
+    opts: { allowLong?: boolean; retryBoost?: boolean; modelPreference?: string } = {},
   ): Promise<ReplyResponse> {
     const preferFallbackAsPrimary =
       !opts.modelPreference ||

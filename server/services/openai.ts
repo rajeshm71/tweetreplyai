@@ -253,7 +253,7 @@ Write a clean, natural reply based on the user's draft idea. Keep it under ${REP
     const modelKey = this.getModel(opts.modelPreference);
     const config = getReframePromptConfig(degree, {
       allowLong: opts.allowLong,
-      promptVariation: opts.promptVariation,
+      retryBoost: opts.retryBoost,
     });
 
     console.log(`🚀 [OpenAI] Reframe start — model: ${modelKey}, degree: ${config.degree} (${config.band})`);

@@ -239,7 +239,7 @@ Write a clean, natural reply based on the user's draft idea. Keep it under ${REP
       : AI_MODELS.DEFAULT;
     const config = getReframePromptConfig(degree, {
       allowLong: opts.allowLong,
-      promptVariation: opts.promptVariation,
+      retryBoost: opts.retryBoost,
     });
 
     console.log(`🚀 [Groq] Reframe start — model: ${modelKey}, degree: ${config.degree} (${config.band})`);
