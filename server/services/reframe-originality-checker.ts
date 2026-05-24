@@ -111,6 +111,16 @@ function getFirstLine(text: string): string {
   return (text ?? '').split(/\n/)[0]?.trim() || '';
 }
 
+/** True when the first line is a lead question (ends with ? or clear interrogative open). */
+export function openingIsQuestion(text: string): boolean {
+  const line = getFirstLine(text);
+  if (!line) return false;
+  if (line.endsWith('?')) return true;
+  return /^(what|why|how|when|where|who|which|is|are|do|does|did|can|could|would|should|will|have|has)\b/i.test(
+    line,
+  );
+}
+
 /** Longest run of identical consecutive tokens shared between source and output. */
 export function longestSharedWordSpan(source: string, output: string): number {
   const srcTokens = tokenize(source);
@@ -176,6 +186,10 @@ export function checkReframeOriginality(
     issues.push('verbatim_opening');
   }
 
+  if (!openingIsQuestion(src) && openingIsQuestion(out)) {
+    issues.push('invented_lead_question');
+  }
+
   const openingOverlap = jaccard(contentWords(srcOpening), contentWords(outOpening));
   const openingMax = OPENING_OVERLAP_MAX[band];
   if (openingMax !== null && openingOverlap > openingMax) {
@@ -204,22 +218,35 @@ export function checkReframeOriginality(
   const openPenalty = openingOverlap * 25;
   const bodyPenalty = bodyOverlap * 35;
   const mirrorPenalty = Math.max(lineMirrorAvg, lineMirrorPeak) * 20;
+  const inventedQuestionPenalty = issues.includes('invented_lead_question') ? 20 : 0;
   const verbatimPenalty = issues.includes('verbatim_opening') ? 15 : 0;
   const originalityScore = Math.max(
     0,
-    Math.round(100 - spanPenalty - openPenalty - bodyPenalty - mirrorPenalty - verbatimPenalty),
+    Math.round(
+      100 -
+        spanPenalty -
+        openPenalty -
+        bodyPenalty -
+        mirrorPenalty -
+        inventedQuestionPenalty -
+        verbatimPenalty,
+    ),
   );
 
   const hardFail =
     issues.some((i) => i.startsWith('longest_shared')) ||
     issues.includes('verbatim_opening') ||
+    issues.includes('invented_lead_question') ||
     issues.some((i) => i.startsWith('opening_overlap')) ||
     issues.some((i) => i.startsWith('body_overlap')) ||
     issues.some((i) => i.startsWith('line_mirror'));
 
   if (band === 'minimal' || band === 'light') {
     const lightIssues = issues.filter(
-      (i) => i.startsWith('longest_shared') || i === 'verbatim_opening',
+      (i) =>
+        i.startsWith('longest_shared') ||
+        i === 'verbatim_opening' ||
+        i === 'invented_lead_question',
     );
     return {
       passed: lightIssues.length === 0,

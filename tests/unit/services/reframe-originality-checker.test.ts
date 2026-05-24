@@ -3,6 +3,7 @@ import {
   checkReframeOriginality,
   lineMirrorScore,
   longestSharedWordSpan,
+  openingIsQuestion,
 } from "../../../server/services/reframe-originality-checker";
 
 describe("reframe-originality-checker", () => {
@@ -13,6 +14,17 @@ describe("reframe-originality-checker", () => {
     const result = checkReframeOriginality(source, output, "balanced");
     expect(result.passed).toBe(false);
     expect(result.issues.some((i) => i.startsWith("longest_shared"))).toBe(true);
+  });
+
+  it("fails when output invents a lead question on a declarative source", () => {
+    const source = "ANDREJ KARPATHY COULD HAVE CHARGED $2,000 FOR THIS COURSE.\nHe put it on YouTube.";
+    const output =
+      "What's the real value of a comprehensive course on large language models?\nKarpathy released it free on YouTube.";
+    expect(openingIsQuestion(source)).toBe(false);
+    expect(openingIsQuestion(output)).toBe(true);
+    const result = checkReframeOriginality(source, output, "heavy");
+    expect(result.passed).toBe(false);
+    expect(result.issues).toContain("invented_lead_question");
   });
 
   it("fails verbatim opening at any band", () => {

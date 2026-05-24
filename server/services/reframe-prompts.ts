@@ -30,6 +30,7 @@ const RETRY_BOOST = [
   'Your last draft mirrored the source line-by-line. Reorder the claims.',
   "Change how each point is written—do not reuse the source's sentence shapes or clause patterns.",
   'Keep factual claims accurate; rewrite delivery. Illustrative numbers and examples may change.',
+  'If the source opened with a statement, do not start the retry with a question.',
 ].join('\n');
 
 export function getDegreeBand(degree: number): DegreeBand {
@@ -78,7 +79,7 @@ const BAND_INSTRUCTIONS: Record<DegreeBand, string> = {
     '- Keep the thesis/insight. Use fresh phrasing throughout; if the source opens with a question, rephrase it but it must stay a question with the same intent (see hard rules). Originality comes from list items and body lines, not from a different prompt or a statement lead.',
     '- Do not walk the source line-by-line or stanza-by-stanza; merge, split, or reorder claims.',
     '- Keep core factual claims (real names, cited stats, dates, verifiable milestones) but express each in new sentence grammar, not the same rhetorical template with swapped words.',
-    '- If a source line uses a recognizable rhetorical shape (contrast pair, repeated clause pattern, setup→punchline), do not echo that same shape in your output—choose a different way to deliver the same point (single thesis, compact list, cause→effect, grouped facts, etc.).',
+    '- If a source line uses a recognizable rhetorical shape (contrast pair, repeated clause pattern, setup→punchline), do not echo that same shape in your output—choose a different way to deliver the same point (single thesis, compact list, cause→effect, grouped facts, etc.). Do not convert a declarative opening into a question hook.',
     '- You may change list markers and line order; do not map each source paragraph to one output line with the same role.',
     '- Illustrative / example details may change: round numbers, hypothetical quantities, placeholder counts, and teaching examples that are not the core factual claim may be rephrased or swapped for similar examples (same scale and role). Do not change factual numbers or invent new verifiable facts.',
     '- List markers may change freely (dashes, bullets, quotes, questions vs statements). Add or remove lines that serve the thesis—merge near-duplicates, drop weak points, add clarifying lines—so the output feels original, not copied.',
@@ -92,7 +93,7 @@ const BAND_INSTRUCTIONS: Record<DegreeBand, string> = {
     '- Stance must be preserved (do not flip pro to con or vice versa).',
     '- Do not walk the source line-by-line or stanza-by-stanza; merge, split, or reorder claims.',
     '- Keep core factual claims (real names, cited stats, dates, verifiable milestones) but express each in new sentence grammar, not the same rhetorical template with swapped words.',
-    '- If a source line uses a recognizable rhetorical shape (contrast pair, repeated clause pattern, setup→punchline), do not echo that same shape in your output—choose a different way to deliver the same point (single thesis, compact list, cause→effect, grouped facts, etc.).',
+    '- If a source line uses a recognizable rhetorical shape (contrast pair, repeated clause pattern, setup→punchline), do not echo that same shape in your output—choose a different way to deliver the same point (single thesis, compact list, cause→effect, grouped facts, etc.). Do not convert a declarative opening into a question hook.',
     '- You may change tweet shape entirely (prose ↔ bullets ↔ short stanzas) as long as core facts and stance stay. Reader should not be able to follow the source line-by-line through your output.',
     '- Actively refresh illustrative examples and non-core numbers so the post reads newly written, not lightly edited.',
     '- Actively add, drop, or replace lines around the core insight (obey hard rules on invented specifics) so it does not read as copied. List markers may change freely.',
@@ -116,7 +117,8 @@ function buildSharedRules(degree: number, allowLong: boolean): string {
     '- Do not add hashtags unless the source used them.',
     '- Do not wrap the output in quotes or code fences. No markdown syntax (no **bold**, _italic_, or #headings). Plain line breaks are allowed and encouraged.',
     '- Structural pattern: If the source is list-like or multiline, keep the same break rhythm—one main idea per line as in the source, preserve blank lines between stanzas, and do not concatenate multiple source lines into one paragraph. List markers may change (dashes, bullets, numbers, quoted lines vs plain lines). Do not collapse list-like sources into one or two narrative paragraphs. If the source is already continuous prose, short paragraphs and line breaks between ideas are fine.',
-    '- Lead question (when applicable): If the first substantive line of the source ends with ? or is clearly interrogative, the output must open with a question that preserves the same meaning and framing (who it is for, what is being asked). Light rephrase only—do not replace with a statement lead or a different question. This rule does not apply when the source does not open as a question; do not invent a question for purely declarative opens. List items and lines after the opening stanza may still be added, removed, merged, or rephrased per the band instructions.',
+    '- Lead question (when applicable): If the first substantive line of the source ends with ? or is clearly interrogative, the output must open with a question that preserves the same meaning and framing (who it is for, what is being asked). Light rephrase only—do not replace with a statement lead or a different question.',
+    '- Declarative opening (when applicable): If the source does NOT open with a question, the output must NOT open with a question either—use a statement, claim, or headline-style opening. Do not invent a question hook for engagement. This applies at every degree, including heavy and reimagined rewrites.',
     '',
     'Anti-duplicate (all bands):',
     '- Never copy the source opening line verbatim; rephrase the hook.',
@@ -139,6 +141,7 @@ function buildSharedRules(degree: number, allowLong: boolean): string {
       "- Do not preserve the source's sentence order or rhetorical templates.",
       '- If an output line maps 1:1 to a source line with the same grammatical shape, rewrite that line again using a different structure.',
       '- Factual claims stay accurate; illustrative numbers and example quantities may be changed or replaced with similar non-factual examples.',
+      '- Do not convert a declarative source opening into a question; keep statement opens as statements.',
     );
   }
 
@@ -203,7 +206,7 @@ export function getReframePromptConfig(
       '"""',
       '',
       `Rewrite the tweet above as your own standalone tweet at degree ${clamped}/100 (${band}).`,
-      'Match the source layout: preserve line breaks and blank-line gaps; list markers may change. If the source opens with a question, keep that question’s intent in the opening line; change list/options below as needed. Add or drop related lines as needed so it does not read as copied. For English sources, use simple everyday words—avoid fancy or academic wording unless the source requires a term. List-like sources stay list-like; prose stays prose-shaped. Output only the rewritten tweet text, no quotes, no preamble.',
+      'Match the source layout: preserve line breaks and blank-line gaps; list markers may change. If the source opens with a question, keep that question’s intent in the opening line. If the source opens with a statement or headline, keep a statement opening—do not invent a question hook. Change list/options below as needed. Add or drop related lines as needed so it does not read as copied. For English sources, use simple everyday words—avoid fancy or academic wording unless the source requires a term. List-like sources stay list-like; prose stays prose-shaped. Output only the rewritten tweet text, no quotes, no preamble.',
     ];
 
     if (band === 'heavy' || band === 'reimagined') {

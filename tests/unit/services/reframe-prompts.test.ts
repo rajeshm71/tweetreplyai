@@ -113,7 +113,15 @@ describe("reframe-prompts Service - Unit Tests", () => {
     it("includes lead-question preservation at every degree", () => {
       for (const d of [0, 50, 100]) {
         expect(getReframePromptConfig(d).systemPrompt).toMatch(/Lead question \(when applicable\)/i);
+        expect(getReframePromptConfig(d).systemPrompt).toMatch(/Declarative opening \(when applicable\)/i);
+        expect(getReframePromptConfig(d).systemPrompt).toMatch(/Do not invent a question hook/i);
       }
+    });
+
+    it("user prompt forbids invented question hooks on statement opens", () => {
+      const prompt = getReframePromptConfig(75).userPrompt("Karpathy released a free course on YouTube.");
+      expect(prompt).toMatch(/If the source opens with a statement or headline, keep a statement opening/i);
+      expect(prompt).toMatch(/do not invent a question hook/i);
     });
   });
 });
