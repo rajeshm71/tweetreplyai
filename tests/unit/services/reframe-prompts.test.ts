@@ -1,10 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  buildNumberRules,
-  buildOriginalityRules,
-  getDegreeBand,
-  getReframePromptConfig,
-} from "../../../server/services/reframe-prompts";
+import { getDegreeBand, getReframePromptConfig } from "../../../server/services/reframe-prompts";
 
 describe("reframe-prompts Service - Unit Tests", () => {
   describe("getDegreeBand boundaries", () => {
@@ -32,21 +27,33 @@ describe("reframe-prompts Service - Unit Tests", () => {
     });
   });
 
-  describe("insight-first prompt content", () => {
-    it("includes INSIGHT_SHARPENING and DEFAULT_VOICE at every degree", () => {
-      for (const d of [10, 35, 50, 75, 95]) {
-        const sys = getReframePromptConfig(d).systemPrompt;
-        expect(sys).toMatch(/Insight first:/i);
-        expect(sys).toMatch(/Default voice \(always on\)/i);
-        expect(sys).toMatch(/plain everyday language/i);
-      }
+  describe("restored prompt structure", () => {
+    it("uses original band phrasing at every degree", () => {
+      expect(getReframePromptConfig(15).systemPrompt).toMatch(/This is a MINIMAL rewrite/i);
+      expect(getReframePromptConfig(35).systemPrompt).toMatch(/This is a LIGHT rewrite/i);
+      expect(getReframePromptConfig(50).systemPrompt).toMatch(/This is a BALANCED rewrite/i);
+      expect(getReframePromptConfig(75).systemPrompt).toMatch(/This is a HEAVY rewrite/i);
+      expect(getReframePromptConfig(95).systemPrompt).toMatch(/This is a FULLY REIMAGINED rewrite/i);
     });
 
-    it("includes originality rules scaled by band", () => {
-      expect(getReframePromptConfig(50).systemPrompt).toMatch(/balanced:/i);
-      expect(getReframePromptConfig(75).systemPrompt).toMatch(/heavy:/i);
-      expect(getReframePromptConfig(95).systemPrompt).toMatch(/reimagined:/i);
-      expect(getReframePromptConfig(15).systemPrompt).not.toMatch(/\nbalanced:/i);
+    it("includes anti-duplicate rules in shared hard rules", () => {
+      const sys = getReframePromptConfig(50).systemPrompt;
+      expect(sys).toMatch(/Anti-duplicate \(all bands\)/i);
+      expect(sys).toMatch(/Never copy the source opening line verbatim/i);
+      expect(sys).toMatch(/8\+ words identical to the source/i);
+    });
+
+    it("includes tweet output formatting rules", () => {
+      const sys = getReframePromptConfig(50).systemPrompt;
+      expect(sys).toMatch(/Tweet output formatting/i);
+      expect(sys).toMatch(/line break after each sentence or list item/i);
+      expect(sys).toMatch(/Do not stack multiple questions/i);
+    });
+
+    it("does not include rewrite-era insight checklist or DEFAULT_VOICE blocks", () => {
+      const sys = getReframePromptConfig(50).systemPrompt;
+      expect(sys).not.toMatch(/Insight first:/i);
+      expect(sys).not.toMatch(/Default voice \(always on\)/i);
     });
 
     it("appends retry boost when retryBoost is true", () => {
@@ -54,33 +61,13 @@ describe("reframe-prompts Service - Unit Tests", () => {
       expect(cfg.systemPrompt).toMatch(/RETRY — prior draft was too similar/i);
     });
 
-    it("user prompt includes insight checklist", () => {
+    it("user prompt is a single task paragraph without A/B/C checklist", () => {
       const prompt = getReframePromptConfig(50).userPrompt("Example source tweet");
-      expect(prompt).toMatch(/Core insight:/i);
-      expect(prompt).toMatch(/Tweet shape:/i);
-      expect(prompt).toMatch(/never copy verbatim/i);
-      expect(prompt).toMatch(/Degree: 50\/100/i);
-    });
-  });
-
-  describe("buildNumberRules", () => {
-    it("preserves all numbers at minimal/light", () => {
-      expect(buildNumberRules("minimal")).toMatch(/preserve ALL numbers exactly/i);
-      expect(buildNumberRules("light")).toMatch(/preserve ALL numbers exactly/i);
-    });
-
-    it("allows illustrative swaps at reimagined", () => {
-      expect(buildNumberRules("reimagined")).toMatch(/SHOULD swap illustrative numbers/i);
-    });
-  });
-
-  describe("buildOriginalityRules", () => {
-    it("always forbids verbatim opening and 8-word spans", () => {
-      for (const band of ["minimal", "balanced", "heavy", "reimagined"] as const) {
-        const rules = buildOriginalityRules(band);
-        expect(rules).toMatch(/8\+ words/i);
-        expect(rules).toMatch(/opening line verbatim/i);
-      }
+      expect(prompt).toMatch(/Rewrite the tweet above as your own standalone tweet at degree 50\/100 \(balanced\)/);
+      expect(prompt).toMatch(/Match the source layout/i);
+      expect(prompt).not.toMatch(/Core insight:/i);
+      expect(prompt).not.toMatch(/Before you write \(mental only\)/i);
+      expect(prompt).not.toMatch(/Checklist:/i);
     });
   });
 
@@ -88,8 +75,8 @@ describe("reframe-prompts Service - Unit Tests", () => {
     it("minimal band contains anti-plagiarism floor", () => {
       const cfg = getReframePromptConfig(15);
       expect(cfg.band).toBe("minimal");
-      expect(cfg.systemPrompt).toMatch(/8\+ words/i);
-      expect(cfg.systemPrompt).toMatch(/MINIMAL rewrite/i);
+      expect(cfg.systemPrompt).toMatch(/8 or more words identical to the source/i);
+      expect(cfg.systemPrompt).toMatch(/This is a MINIMAL rewrite/i);
     });
 
     it("allowLong raises char limit to 4000", () => {
