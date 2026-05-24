@@ -71,6 +71,30 @@ describe("reframe-prompts Service - Unit Tests", () => {
     });
   });
 
+  describe("high-degree structural rewrite rules", () => {
+    it("includes structural rewrite block at heavy and reimagined only", () => {
+      expect(getReframePromptConfig(75).systemPrompt).toMatch(/Structural rewrite \(heavy \/ reimagined only\)/i);
+      expect(getReframePromptConfig(95).systemPrompt).toMatch(/line-by-line/i);
+      expect(getReframePromptConfig(50).systemPrompt).not.toMatch(/Structural rewrite \(heavy \/ reimagined only\)/i);
+    });
+
+    it("includes illustrative number flexibility at heavy+", () => {
+      expect(getReframePromptConfig(75).systemPrompt).toMatch(/Illustrative \/ example details may change/i);
+      expect(getReframePromptConfig(95).systemPrompt).toMatch(/Actively refresh illustrative examples/i);
+    });
+
+    it("appends heavy+ user instruction only at degree 75+", () => {
+      expect(getReframePromptConfig(75).userPrompt("Source")).toMatch(/do not mirror the source's sentence order/i);
+      expect(getReframePromptConfig(50).userPrompt("Source")).not.toMatch(/do not mirror the source's sentence order/i);
+    });
+
+    it("retry boost includes structural rewrite guidance", () => {
+      const cfg = getReframePromptConfig(75, { retryBoost: true });
+      expect(cfg.systemPrompt).toMatch(/mirrored the source line-by-line/i);
+      expect(cfg.systemPrompt).toMatch(/Illustrative numbers and examples may change/i);
+    });
+  });
+
   describe("getReframePromptConfig shared rules", () => {
     it("minimal band contains anti-plagiarism floor", () => {
       const cfg = getReframePromptConfig(15);

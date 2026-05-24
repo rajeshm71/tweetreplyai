@@ -41,6 +41,57 @@ const BODY_OVERLAP_MAX: Record<DegreeBand, number | null> = {
   reimagined: 0.40,
 };
 
+/** Max average best-line Jaccard (heavy / reimagined only). */
+const LINE_MIRROR_AVG_MAX: Record<DegreeBand, number | null> = {
+  minimal: null,
+  light: null,
+  balanced: null,
+  heavy: 0.42,
+  reimagined: 0.35,
+};
+
+/** Max single source-line best match (catches one mirrored sentence). */
+const LINE_MIRROR_PEAK_MAX: Record<DegreeBand, number | null> = {
+  minimal: null,
+  light: null,
+  balanced: null,
+  heavy: 0.55,
+  reimagined: 0.45,
+};
+
+export interface LineMirrorStats {
+  average: number;
+  peak: number;
+}
+
+function computeLineMirrorStats(source: string, output: string): LineMirrorStats {
+  const srcLines = splitLines(source);
+  const outLines = splitLines(output);
+  if (srcLines.length === 0 || outLines.length === 0) {
+    return { average: 0, peak: 0 };
+  }
+
+  let total = 0;
+  let peak = 0;
+  for (const srcLine of srcLines) {
+    const srcWords = contentWords(srcLine);
+    let best = 0;
+    for (const outLine of outLines) {
+      best = Math.max(best, jaccard(srcWords, contentWords(outLine)));
+    }
+    total += best;
+    peak = Math.max(peak, best);
+  }
+  return { average: total / srcLines.length, peak };
+}
+
+function splitLines(text: string): string[] {
+  return (text ?? '')
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
 function normalize(text: string): string {
   return (text ?? '').toLowerCase().replace(/\s+/g, ' ').trim();
 }
@@ -93,6 +144,18 @@ function jaccard(a: string[], b: string[]): number {
   return union === 0 ? 0 : intersection / union;
 }
 
+/**
+ * Average of each source line's best content-word Jaccard match in the output.
+ * High scores indicate line-by-line structural mirroring.
+ */
+export function lineMirrorScore(source: string, output: string): number {
+  return computeLineMirrorStats(source, output).average;
+}
+
+export function lineMirrorPeakScore(source: string, output: string): number {
+  return computeLineMirrorStats(source, output).peak;
+}
+
 export function checkReframeOriginality(
   source: string,
   output: string,
@@ -125,20 +188,34 @@ export function checkReframeOriginality(
     issues.push(`body_overlap_${bodyOverlap.toFixed(2)}`);
   }
 
+  const mirrorStats = computeLineMirrorStats(src, out);
+  const lineMirrorAvg = mirrorStats.average;
+  const lineMirrorPeak = mirrorStats.peak;
+  const lineMirrorAvgMax = LINE_MIRROR_AVG_MAX[band];
+  if (lineMirrorAvgMax !== null && lineMirrorAvg > lineMirrorAvgMax) {
+    issues.push(`line_mirror_avg_${lineMirrorAvg.toFixed(2)}`);
+  }
+  const lineMirrorPeakMax = LINE_MIRROR_PEAK_MAX[band];
+  if (lineMirrorPeakMax !== null && lineMirrorPeak > lineMirrorPeakMax) {
+    issues.push(`line_mirror_peak_${lineMirrorPeak.toFixed(2)}`);
+  }
+
   const spanPenalty = Math.min(longestSpan / 8, 1) * 30;
   const openPenalty = openingOverlap * 25;
   const bodyPenalty = bodyOverlap * 35;
+  const mirrorPenalty = Math.max(lineMirrorAvg, lineMirrorPeak) * 20;
   const verbatimPenalty = issues.includes('verbatim_opening') ? 15 : 0;
   const originalityScore = Math.max(
     0,
-    Math.round(100 - spanPenalty - openPenalty - bodyPenalty - verbatimPenalty),
+    Math.round(100 - spanPenalty - openPenalty - bodyPenalty - mirrorPenalty - verbatimPenalty),
   );
 
   const hardFail =
     issues.some((i) => i.startsWith('longest_shared')) ||
     issues.includes('verbatim_opening') ||
     issues.some((i) => i.startsWith('opening_overlap')) ||
-    issues.some((i) => i.startsWith('body_overlap'));
+    issues.some((i) => i.startsWith('body_overlap')) ||
+    issues.some((i) => i.startsWith('line_mirror'));
 
   if (band === 'minimal' || band === 'light') {
     const lightIssues = issues.filter(

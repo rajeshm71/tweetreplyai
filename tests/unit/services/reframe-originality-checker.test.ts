@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   checkReframeOriginality,
+  lineMirrorScore,
   longestSharedWordSpan,
 } from "../../../server/services/reframe-originality-checker";
 
@@ -48,6 +49,60 @@ describe("reframe-originality-checker", () => {
     const near = checkReframeOriginality(source, nearCopy, "heavy");
     const distinct = checkReframeOriginality(source, fresh, "heavy");
     expect(distinct.originalityScore).toBeGreaterThan(near.originalityScore);
+  });
+
+  describe("lineMirrorScore", () => {
+    it("returns high score for line-by-line structural mirrors", () => {
+      const source = "The gap between those two groups is not 3 hours.";
+      const mirror = "The gap between these two groups is huge.";
+      expect(lineMirrorScore(source, mirror)).toBeGreaterThan(0.42);
+    });
+
+    it("returns lower score when lines use different structures", () => {
+      const source = [
+        "The gap between those two groups is not 3 hours.",
+        "The engineers who understand this build things the ones who only use tools cannot conceive of.",
+      ].join("\n");
+      const restructured = [
+        "Understanding how models work changes what you can build.",
+        "Tool-only users miss the design space entirely.",
+      ].join("\n");
+      expect(lineMirrorScore(source, restructured)).toBeLessThan(0.35);
+    });
+  });
+
+  describe("structural mirror fixtures", () => {
+    it("fails line-by-line paraphrase at heavy (degree 75)", () => {
+      const source = [
+        "The gap between those two groups is not 3 hours.",
+        "It is everything those 3 hours quietly unlock for the rest of your career.",
+        "The engineers who understand this build things the ones who only use the tools cannot even conceive of.",
+      ].join("\n");
+      const mirror = [
+        "The gap between these two groups is huge.",
+        "Those three hours can unlock a lifetime of career opportunities.",
+        "The engineers who grasp this build groundbreaking tech.",
+      ].join("\n");
+      const result = checkReframeOriginality(source, mirror, "heavy");
+      expect(result.passed).toBe(false);
+      expect(result.issues.some((i) => i.startsWith("line_mirror"))).toBe(true);
+    });
+
+    it("passes restructured delivery with same core facts at heavy", () => {
+      const source = [
+        "ANDREJ KARPATHY COULD HAVE CHARGED $2,000 FOR THIS COURSE.",
+        "He put it on YouTube.",
+        "3 hours of the most comprehensive LLM education that exists anywhere at any price.",
+      ].join("\n");
+      const restructured = [
+        "Karpathy released a full LLM stack walkthrough on YouTube for free.",
+        "Tokenization, RLHF, tool use, DeepSeek, AlphaGo — roughly three hours.",
+        "Worth more than most paid masterclasses.",
+      ].join("\n");
+      const result = checkReframeOriginality(source, restructured, "heavy");
+      expect(result.passed).toBe(true);
+      expect(result.issues.some((i) => i.startsWith("line_mirror"))).toBe(false);
+    });
   });
 
   // Golden fixtures from plan Step 11 — deterministic pass/fail at target degrees.

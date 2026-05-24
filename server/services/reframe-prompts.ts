@@ -27,6 +27,9 @@ const RETRY_BOOST = [
   'Rephrase the opening with a different structure.',
   'Replace at least two body/list lines with fresh wording.',
   'Keep the same insight and stance.',
+  'Your last draft mirrored the source line-by-line. Reorder the claims.',
+  "Change how each point is written—do not reuse the source's sentence shapes or clause patterns.",
+  'Keep factual claims accurate; rewrite delivery. Illustrative numbers and examples may change.',
 ].join('\n');
 
 export function getDegreeBand(degree: number): DegreeBand {
@@ -73,6 +76,11 @@ const BAND_INSTRUCTIONS: Record<DegreeBand, string> = {
   heavy: [
     'This is a HEAVY rewrite.',
     '- Keep the thesis/insight. Use fresh phrasing throughout; if the source opens with a question, rephrase it but it must stay a question with the same intent (see hard rules). Originality comes from list items and body lines, not from a different prompt or a statement lead.',
+    '- Do not walk the source line-by-line or stanza-by-stanza; merge, split, or reorder claims.',
+    '- Keep core factual claims (real names, cited stats, dates, verifiable milestones) but express each in new sentence grammar, not the same rhetorical template with swapped words.',
+    '- If a source line uses a recognizable rhetorical shape (contrast pair, repeated clause pattern, setup→punchline), do not echo that same shape in your output—choose a different way to deliver the same point (single thesis, compact list, cause→effect, grouped facts, etc.).',
+    '- You may change list markers and line order; do not map each source paragraph to one output line with the same role.',
+    '- Illustrative / example details may change: round numbers, hypothetical quantities, placeholder counts, and teaching examples that are not the core factual claim may be rephrased or swapped for similar examples (same scale and role). Do not change factual numbers or invent new verifiable facts.',
     '- List markers may change freely (dashes, bullets, quotes, questions vs statements). Add or remove lines that serve the thesis—merge near-duplicates, drop weak points, add clarifying lines—so the output feels original, not copied.',
     '- Preserve multiline break rhythm: line breaks between items, blank lines between stanzas as in the source; do not collapse list-like sources into one narrative paragraph. Continuous prose may use a hook plus short stanzas.',
     '- Formatting: short, punchy lines; keep vertical spacing aligned with the source pattern.',
@@ -82,6 +90,11 @@ const BAND_INSTRUCTIONS: Record<DegreeBand, string> = {
     '- Keep only the core insight or claim of the source.',
     "- Invent a new angle and voice in the options, list items, and body—not by replacing a lead question with a different premise or statement hook. If the source opens with a question, preserve that question's intent in the opening (rephrase allowed; see hard rules).",
     '- Stance must be preserved (do not flip pro to con or vice versa).',
+    '- Do not walk the source line-by-line or stanza-by-stanza; merge, split, or reorder claims.',
+    '- Keep core factual claims (real names, cited stats, dates, verifiable milestones) but express each in new sentence grammar, not the same rhetorical template with swapped words.',
+    '- If a source line uses a recognizable rhetorical shape (contrast pair, repeated clause pattern, setup→punchline), do not echo that same shape in your output—choose a different way to deliver the same point (single thesis, compact list, cause→effect, grouped facts, etc.).',
+    '- You may change tweet shape entirely (prose ↔ bullets ↔ short stanzas) as long as core facts and stance stay. Reader should not be able to follow the source line-by-line through your output.',
+    '- Actively refresh illustrative examples and non-core numbers so the post reads newly written, not lightly edited.',
     '- Actively add, drop, or replace lines around the core insight (obey hard rules on invented specifics) so it does not read as copied. List markers may change freely.',
     '- When the source is list-like or multiline, preserve line breaks and blank-line rhythm between items or stanzas; do not merge into one prose block. Continuous prose may use a new structure with short lines and stanza breaks.',
   ].join('\n'),
@@ -117,6 +130,17 @@ function buildSharedRules(degree: number, allowLong: boolean): string {
     '- Do not stack multiple questions; if the source opens with one question, keep that single lead question only.',
     '- Short, scannable lines — like a real X post people scroll past.',
   ];
+
+  if (band === 'heavy' || band === 'reimagined') {
+    lines.push(
+      '',
+      'Structural rewrite (heavy / reimagined only):',
+      '- Same core facts and stance; different way of writing—not a synonym pass.',
+      "- Do not preserve the source's sentence order or rhetorical templates.",
+      '- If an output line maps 1:1 to a source line with the same grammatical shape, rewrite that line again using a different structure.',
+      '- Factual claims stay accurate; illustrative numbers and example quantities may be changed or replaced with similar non-factual examples.',
+    );
+  }
 
   if (band === 'minimal' || band === 'light') {
     lines.push('- Anti-plagiarism floor: never emit any contiguous span of 8 or more words identical to the source.');
@@ -172,7 +196,7 @@ export function getReframePromptConfig(
 
   const userPrompt = (source: string) => {
     const trimmed = (source ?? '').trim();
-    return [
+    const baseTask = [
       'Source tweet:',
       '"""',
       trimmed,
@@ -180,7 +204,15 @@ export function getReframePromptConfig(
       '',
       `Rewrite the tweet above as your own standalone tweet at degree ${clamped}/100 (${band}).`,
       'Match the source layout: preserve line breaks and blank-line gaps; list markers may change. If the source opens with a question, keep that question’s intent in the opening line; change list/options below as needed. Add or drop related lines as needed so it does not read as copied. For English sources, use simple everyday words—avoid fancy or academic wording unless the source requires a term. List-like sources stay list-like; prose stays prose-shaped. Output only the rewritten tweet text, no quotes, no preamble.',
-    ].join('\n');
+    ];
+
+    if (band === 'heavy' || band === 'reimagined') {
+      baseTask.push(
+        "At this degree: keep core facts and stance but do not mirror the source's sentence order or rhetorical shapes—write it as your own post, not a rearranged paraphrase. Illustrative numbers and examples may change; factual claims must stay accurate.",
+      );
+    }
+
+    return baseTask.join('\n');
   };
 
   return { systemPrompt, userPrompt, band, degree: clamped };
