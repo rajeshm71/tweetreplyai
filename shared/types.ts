@@ -291,6 +291,94 @@ export interface InsertEmailCampaign {
   createdBy?: string;
 }
 
+export type XProfileSyncStatus = 'idle' | 'running' | 'completed' | 'failed';
+export type XFollowEventType = 'follow' | 'unfollow';
+
+export interface XProfile {
+  id: string;
+  userId: string;
+  xUsername: string;
+  xRestId?: string | null;
+  displayName?: string | null;
+  avatarUrl?: string | null;
+  followerCount: number;
+  followingCount: number;
+  lastSyncAt?: Date | null;
+  lastSyncStatus: XProfileSyncStatus;
+  syncCursor?: string | null;
+  syncJobId?: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface XFollowerState {
+  id: string;
+  xProfileId: string;
+  followerXUserId: string;
+  followerUsername: string;
+  displayName?: string | null;
+  avatarUrl?: string | null;
+  followerCount?: number | null;
+  verified: boolean;
+  firstSeenAt: Date;
+  lastSeenAt: Date;
+  isActive: boolean;
+}
+
+export interface XFollowEvent {
+  id: string;
+  xProfileId: string;
+  followerXUserId: string;
+  followerUsername: string;
+  eventType: XFollowEventType;
+  detectedAt: Date;
+  followDurationDays?: number | null;
+  syncJobId?: string | null;
+}
+
+export interface XFollowStatsDaily {
+  id: string;
+  xProfileId: string;
+  date: string;
+  newFollowers: number;
+  unfollowers: number;
+  netChange: number;
+  totalActive: number;
+}
+
+export interface XFollowerSyncInput {
+  xUserId: string;
+  username: string;
+  displayName?: string;
+  avatarUrl?: string;
+  followerCount?: number;
+  verified?: boolean;
+}
+
+export interface XFollowerDiffResult {
+  newFollows: XFollowerSyncInput[];
+  unfollows: Array<{ followerXUserId: string; followerUsername: string; firstSeenAt?: Date }>;
+  totalActive: number;
+}
+
+export interface XFollowerStatsResponse {
+  xUsername: string;
+  followerCount: number;
+  lastSyncAt: string | null;
+  lastSyncStatus: XProfileSyncStatus;
+  summary: {
+    unfollowersToday: number;
+    unfollowers7d: number;
+    unfollowers30d: number;
+    newFollowersToday: number;
+    newFollowers7d: number;
+    netChange7d: number;
+    avgFollowDurationDays: number | null;
+  };
+  dailyTrend: Array<{ date: string; unfollowers: number; newFollowers: number; netChange: number }>;
+  dayOfWeekPattern: Array<{ day: number; label: string; count: number }>;
+}
+
 export interface SimpleAnalytics {
   summary: {
     avgQuality: number;

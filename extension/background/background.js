@@ -6,6 +6,7 @@ import {
   captureExtensionError,
   setExtensionUser,
 } from '../utils/sentry.js';
+import { FollowerSyncManager } from './follower-sync.js';
 
 initExtensionSentry({ scope: 'background' });
 
@@ -22,6 +23,7 @@ class BackgroundManager {
     this.setupAuthHandlers();
     this.refreshDebugAllowed();
     this.telemetryFlushTimer = null;
+    this.followerSyncManager = new FollowerSyncManager(this);
   }
 
   log(message, ...args) {
@@ -82,6 +84,22 @@ class BackgroundManager {
 
         case 'telemetryEvent':
           void this.handleTelemetryEvent(message.event, sendResponse);
+          return true;
+
+        case 'startFollowerSync':
+          void this.followerSyncManager.startSync().then(sendResponse);
+          return true;
+
+        case 'followerSyncBatch':
+          void this.followerSyncManager.uploadBatch(message).then(sendResponse);
+          return true;
+
+        case 'followerSyncComplete':
+          void this.followerSyncManager.completeSync(message).then(sendResponse);
+          return true;
+
+        case 'followerSyncFail':
+          void this.followerSyncManager.failSync(message.syncJobId, message.error).then(() => sendResponse({ success: true }));
           return true;
           
         default:

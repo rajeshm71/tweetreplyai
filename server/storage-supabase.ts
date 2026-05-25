@@ -33,8 +33,60 @@ import type {
   EmailSendLog,
   EmailCampaign,
   InsertEmailCampaign,
+  XProfile,
+  XFollowerState,
+  XFollowEvent,
+  XFollowStatsDaily,
+  XFollowerSyncInput,
+  XProfileSyncStatus,
+  XFollowEventType,
 } from "../shared/types.js";
 import type { IStorage } from "./storage.js";
+import { daysBetween } from './services/x-follower-sync.js';
+
+function mapXProfile(row: any): XProfile {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    xUsername: row.x_username,
+    xRestId: row.x_rest_id ?? null,
+    displayName: row.display_name ?? null,
+    avatarUrl: row.avatar_url ?? null,
+    followerCount: row.follower_count ?? 0,
+    followingCount: row.following_count ?? 0,
+    lastSyncAt: row.last_sync_at ? new Date(row.last_sync_at) : null,
+    lastSyncStatus: row.last_sync_status as XProfileSyncStatus,
+    syncCursor: row.sync_cursor ?? null,
+    syncJobId: row.sync_job_id ?? null,
+    createdAt: new Date(row.created_at),
+    updatedAt: new Date(row.updated_at),
+  };
+}
+
+function mapXFollowEvent(row: any): XFollowEvent {
+  return {
+    id: row.id,
+    xProfileId: row.x_profile_id,
+    followerXUserId: row.follower_x_user_id,
+    followerUsername: row.follower_username,
+    eventType: row.event_type as XFollowEventType,
+    detectedAt: new Date(row.detected_at),
+    followDurationDays: row.follow_duration_days ?? null,
+    syncJobId: row.sync_job_id ?? null,
+  };
+}
+
+function mapXFollowStatsDaily(row: any): XFollowStatsDaily {
+  return {
+    id: row.id,
+    xProfileId: row.x_profile_id,
+    date: row.date,
+    newFollowers: row.new_followers ?? 0,
+    unfollowers: row.unfollowers ?? 0,
+    netChange: row.net_change ?? 0,
+    totalActive: row.total_active ?? 0,
+  };
+}
 
 export class SupabaseStorage implements IStorage {
   // User operations
@@ -1644,6 +1696,410 @@ export class SupabaseStorage implements IStorage {
       clientTimestamp: row.client_timestamp,
       receivedAt: row.received_at,
     }));
+  }
+
+  async getXProfileByUserId(userId: string): Promise<XProfile | undefined> {
+    const { data, error } = await supabase
+      .from('x_profiles')
+      .select('*')
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (error || !data) return undefined;
+    return mapXProfile(data);
+  }
+
+  async upsertXProfile(userId: string, xUsername: string): Promise<XProfile> {
+    const normalized = xUsername.trim().replace(/^@+/, '');
+    const { data, error } = await supabase
+      .from('x_profiles')
+      .upsert(
+        {
+          user_id: userId,
+          x_username: normalized,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'user_id' },
+      )
+      .select('*')
+      .single();
+    if (error || !data) throw new Error(error?.message || 'Failed to upsert x profile');
+    return mapXProfile(data);
+  }
+
+  async updateXProfile(profileId: string, updates: Partial<XProfile>): Promise<XProfile> {
+    const payload: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    if (updates.xUsername !== undefined) payload.x_username = updates.xUsername;
+    if (updates.xRestId !== undefined) payload.x_rest_id = updates.xRestId;
+    if (updates.displayName !== undefined) payload.display_name = updates.displayName;
+    if (updates.avatarUrl !== undefined) payload.avatar_url = updates.avatarUrl;
+    if (updates.followerCount !== undefined) payload.follower_count = updates.followerCount;
+    if (updates.followingCount !== undefined) payload.following_count = updates.followingCount;
+    if (updates.lastSyncAt !== undefined) payload.last_sync_at = updates.lastSyncAt?.toISOString() ?? null;
+    if (updates.lastSyncStatus !== undefined) payload.last_sync_status = updates.lastSyncStatus;
+    if (updates.syncCursor !== undefined) payload.sync_cursor = updates.syncCursor;
+    if (updates.syncJobId !== undefined) payload.sync_job_id = updates.syncJobId;
+
+    const { data, error } = await supabase
+      .from('x_profiles')
+      .update(payload)
+      .eq('id', profileId)
+      .select('*')
+      .single();
+    if (error || !data) throw new Error(error?.message || 'Failed to update x profile');
+    return mapXProfile(data);
+  }
+
+  async insertFollowerSyncStaging(
+    syncJobId: string,
+    xProfileId: string,
+    followers: XFollowerSyncInput[],
+  ): Promise<number> {
+    if (!followers.length) return 0;
+    const rows = followers.map((f) => ({
+      sync_job_id: syncJobId,
+      x_profile_id: xProfileId,
+      follower_x_user_id: f.xUserId,
+      follower_username: f.username,
+      display_name: f.displayName ?? null,
+      avatar_url: f.avatarUrl ?? null,
+      follower_count: f.followerCount ?? null,
+      verified: !!f.verified,
+    }));
+    const { error } = await supabase
+      .from('x_follow_sync_staging')
+      .upsert(rows, { onConflict: 'sync_job_id,follower_x_user_id' });
+    if (error) throw new Error(error.message);
+    return rows.length;
+  }
+
+  async getStagingFollowerIds(syncJobId: string): Promise<string[]> {
+    const { data, error } = await supabase
+      .from('x_follow_sync_staging')
+      .select('follower_x_user_id')
+      .eq('sync_job_id', syncJobId);
+    if (error) throw new Error(error.message);
+    return (data ?? []).map((row: any) => row.follower_x_user_id);
+  }
+
+  async getStagingFollowers(syncJobId: string): Promise<XFollowerSyncInput[]> {
+    const { data, error } = await supabase
+      .from('x_follow_sync_staging')
+      .select('*')
+      .eq('sync_job_id', syncJobId);
+    if (error) throw new Error(error.message);
+    return (data ?? []).map((row: any) => ({
+      xUserId: row.follower_x_user_id,
+      username: row.follower_username,
+      displayName: row.display_name ?? undefined,
+      avatarUrl: row.avatar_url ?? undefined,
+      followerCount: row.follower_count ?? undefined,
+      verified: !!row.verified,
+    }));
+  }
+
+  async getActiveFollowerIds(xProfileId: string): Promise<string[]> {
+    const { data, error } = await supabase
+      .from('x_follower_states')
+      .select('follower_x_user_id')
+      .eq('x_profile_id', xProfileId)
+      .eq('is_active', true);
+    if (error) throw new Error(error.message);
+    return (data ?? []).map((row: any) => row.follower_x_user_id);
+  }
+
+  async getActiveFollowerStatesByIds(
+    xProfileId: string,
+    followerXUserIds: string[],
+  ): Promise<XFollowerState[]> {
+    if (!followerXUserIds.length) return [];
+    const { data, error } = await supabase
+      .from('x_follower_states')
+      .select('*')
+      .eq('x_profile_id', xProfileId)
+      .in('follower_x_user_id', followerXUserIds);
+    if (error) throw new Error(error.message);
+    return (data ?? []).map((row: any) => ({
+      id: row.id,
+      xProfileId: row.x_profile_id,
+      followerXUserId: row.follower_x_user_id,
+      followerUsername: row.follower_username,
+      displayName: row.display_name ?? null,
+      avatarUrl: row.avatar_url ?? null,
+      followerCount: row.follower_count ?? null,
+      verified: !!row.verified,
+      firstSeenAt: new Date(row.first_seen_at),
+      lastSeenAt: new Date(row.last_seen_at),
+      isActive: !!row.is_active,
+    }));
+  }
+
+  async establishFollowerBaseline(
+    xProfileId: string,
+    followers: XFollowerSyncInput[],
+    totalActive: number,
+  ): Promise<void> {
+    const nowIso = new Date().toISOString();
+    const today = nowIso.slice(0, 10);
+
+    if (followers.length) {
+      const rows = followers.map((f) => ({
+        x_profile_id: xProfileId,
+        follower_x_user_id: f.xUserId,
+        follower_username: f.username,
+        display_name: f.displayName ?? null,
+        avatar_url: f.avatarUrl ?? null,
+        follower_count: f.followerCount ?? null,
+        verified: !!f.verified,
+        first_seen_at: nowIso,
+        last_seen_at: nowIso,
+        is_active: true,
+      }));
+      const { error } = await supabase
+        .from('x_follower_states')
+        .upsert(rows, { onConflict: 'x_profile_id,follower_x_user_id' });
+      if (error) throw new Error(error.message);
+    }
+
+    // Baseline sync: record total only — no follow events (review fix).
+    const { error: dailyError } = await supabase
+      .from('x_follow_stats_daily')
+      .upsert(
+        {
+          x_profile_id: xProfileId,
+          date: today,
+          new_followers: 0,
+          unfollowers: 0,
+          net_change: 0,
+          total_active: totalActive,
+        },
+        { onConflict: 'x_profile_id,date' },
+      );
+    if (dailyError) throw new Error(dailyError.message);
+  }
+
+  async applyFollowerDiff(
+    xProfileId: string,
+    syncJobId: string,
+    newFollows: XFollowerSyncInput[],
+    unfollows: Array<{ followerXUserId: string; followerUsername: string; firstSeenAt?: Date }>,
+    totalActive: number,
+  ): Promise<{ newFollowers: number; unfollowers: number }> {
+    const now = new Date();
+    const nowIso = now.toISOString();
+    const today = nowIso.slice(0, 10);
+    let followEventCount = 0;
+
+    if (newFollows.length) {
+      const newIds = newFollows.map((f) => f.xUserId);
+      const { data: existingRows, error: existingError } = await supabase
+        .from('x_follower_states')
+        .select('follower_x_user_id, is_active')
+        .eq('x_profile_id', xProfileId)
+        .in('follower_x_user_id', newIds);
+      if (existingError) throw new Error(existingError.message);
+      const existingById = new Map(
+        (existingRows ?? []).map((row: any) => [row.follower_x_user_id, !!row.is_active]),
+      );
+
+      const brandNew: XFollowerSyncInput[] = [];
+      const reactivated: XFollowerSyncInput[] = [];
+      for (const f of newFollows) {
+        if (!existingById.has(f.xUserId)) brandNew.push(f);
+        else if (existingById.get(f.xUserId) === false) reactivated.push(f);
+      }
+
+      if (brandNew.length) {
+        const rows = brandNew.map((f) => ({
+          x_profile_id: xProfileId,
+          follower_x_user_id: f.xUserId,
+          follower_username: f.username,
+          display_name: f.displayName ?? null,
+          avatar_url: f.avatarUrl ?? null,
+          follower_count: f.followerCount ?? null,
+          verified: !!f.verified,
+          first_seen_at: nowIso,
+          last_seen_at: nowIso,
+          is_active: true,
+        }));
+        const { error } = await supabase.from('x_follower_states').insert(rows);
+        if (error) throw new Error(error.message);
+
+        const followEvents = brandNew.map((f) => ({
+          x_profile_id: xProfileId,
+          follower_x_user_id: f.xUserId,
+          follower_username: f.username,
+          event_type: 'follow',
+          detected_at: nowIso,
+          sync_job_id: syncJobId,
+        }));
+        const { error: followEventError } = await supabase.from('x_follow_events').insert(followEvents);
+        if (followEventError) throw new Error(followEventError.message);
+      }
+
+      // Re-follows: reactivate without resetting first_seen_at (review fix).
+      for (const f of reactivated) {
+        const { error } = await supabase
+          .from('x_follower_states')
+          .update({
+            is_active: true,
+            last_seen_at: nowIso,
+            follower_username: f.username,
+            display_name: f.displayName ?? null,
+            avatar_url: f.avatarUrl ?? null,
+            follower_count: f.followerCount ?? null,
+            verified: !!f.verified,
+          })
+          .eq('x_profile_id', xProfileId)
+          .eq('follower_x_user_id', f.xUserId);
+        if (error) throw new Error(error.message);
+      }
+
+      if (reactivated.length) {
+        const followEvents = reactivated.map((f) => ({
+          x_profile_id: xProfileId,
+          follower_x_user_id: f.xUserId,
+          follower_username: f.username,
+          event_type: 'follow',
+          detected_at: nowIso,
+          sync_job_id: syncJobId,
+        }));
+        const { error: reFollowEventError } = await supabase.from('x_follow_events').insert(followEvents);
+        if (reFollowEventError) throw new Error(reFollowEventError.message);
+      }
+
+      followEventCount = brandNew.length + reactivated.length;
+    }
+
+    if (unfollows.length) {
+      const unfollowIds = unfollows.map((u) => u.followerXUserId);
+      const { error: unfollowStateError } = await supabase
+        .from('x_follower_states')
+        .update({ is_active: false, last_seen_at: nowIso })
+        .eq('x_profile_id', xProfileId)
+        .in('follower_x_user_id', unfollowIds);
+      if (unfollowStateError) throw new Error(unfollowStateError.message);
+
+      const unfollowEvents = unfollows.map((u) => ({
+        x_profile_id: xProfileId,
+        follower_x_user_id: u.followerXUserId,
+        follower_username: u.followerUsername,
+        event_type: 'unfollow',
+        detected_at: nowIso,
+        follow_duration_days: u.firstSeenAt ? daysBetween(u.firstSeenAt, now) : null,
+        sync_job_id: syncJobId,
+      }));
+      const { error: unfollowEventError } = await supabase.from('x_follow_events').insert(unfollowEvents);
+      if (unfollowEventError) throw new Error(unfollowEventError.message);
+    }
+
+    const { data: existingDaily, error: dailyFetchError } = await supabase
+      .from('x_follow_stats_daily')
+      .select('*')
+      .eq('x_profile_id', xProfileId)
+      .eq('date', today)
+      .maybeSingle();
+    if (dailyFetchError) throw new Error(dailyFetchError.message);
+
+    const dailyPayload = {
+      x_profile_id: xProfileId,
+      date: today,
+      new_followers: (existingDaily?.new_followers ?? 0) + followEventCount,
+      unfollowers: (existingDaily?.unfollowers ?? 0) + unfollows.length,
+      net_change: (existingDaily?.net_change ?? 0) + followEventCount - unfollows.length,
+      total_active: totalActive,
+    };
+    const { error: dailyError } = await supabase
+      .from('x_follow_stats_daily')
+      .upsert(dailyPayload, { onConflict: 'x_profile_id,date' });
+    if (dailyError) throw new Error(dailyError.message);
+
+    return {
+      newFollowers: followEventCount,
+      unfollowers: unfollows.length,
+    };
+  }
+
+  async clearFollowerSyncStaging(syncJobId: string): Promise<void> {
+    const { error } = await supabase
+      .from('x_follow_sync_staging')
+      .delete()
+      .eq('sync_job_id', syncJobId);
+    if (error) throw new Error(error.message);
+  }
+
+  async getFollowEvents(
+    xProfileId: string,
+    options: { eventType?: XFollowEventType; since?: Date; limit?: number },
+  ): Promise<XFollowEvent[]> {
+    let query = supabase
+      .from('x_follow_events')
+      .select('*')
+      .eq('x_profile_id', xProfileId)
+      .order('detected_at', { ascending: false })
+      .limit(options.limit ?? 50);
+    if (options.eventType) query = query.eq('event_type', options.eventType);
+    if (options.since) query = query.gte('detected_at', options.since.toISOString());
+    const { data, error } = await query;
+    if (error) throw new Error(error.message);
+    return (data ?? []).map(mapXFollowEvent);
+  }
+
+  async getFollowStatsDaily(xProfileId: string, since: Date): Promise<XFollowStatsDaily[]> {
+    const { data, error } = await supabase
+      .from('x_follow_stats_daily')
+      .select('*')
+      .eq('x_profile_id', xProfileId)
+      .gte('date', since.toISOString().slice(0, 10))
+      .order('date', { ascending: true });
+    if (error) throw new Error(error.message);
+    return (data ?? []).map(mapXFollowStatsDaily);
+  }
+
+  async countFollowEventsSince(
+    xProfileId: string,
+    eventType: XFollowEventType,
+    since: Date,
+  ): Promise<number> {
+    const { count, error } = await supabase
+      .from('x_follow_events')
+      .select('*', { count: 'exact', head: true })
+      .eq('x_profile_id', xProfileId)
+      .eq('event_type', eventType)
+      .gte('detected_at', since.toISOString());
+    if (error) throw new Error(error.message);
+    return count ?? 0;
+  }
+
+  async getUnfollowDayOfWeekPattern(
+    xProfileId: string,
+    since: Date,
+  ): Promise<Array<{ day: number; count: number }>> {
+    const events = await this.getFollowEvents(xProfileId, {
+      eventType: 'unfollow',
+      since,
+      limit: 1000,
+    });
+    const counts = new Array(7).fill(0);
+    for (const event of events) {
+      counts[event.detectedAt.getUTCDay()] += 1;
+    }
+    return counts.map((count, day) => ({ day, count }));
+  }
+
+  async getAvgUnfollowDurationDays(xProfileId: string, since: Date): Promise<number | null> {
+    const { data, error } = await supabase
+      .from('x_follow_events')
+      .select('follow_duration_days')
+      .eq('x_profile_id', xProfileId)
+      .eq('event_type', 'unfollow')
+      .gte('detected_at', since.toISOString())
+      .not('follow_duration_days', 'is', null);
+    if (error) throw new Error(error.message);
+    const values = (data ?? [])
+      .map((row: any) => row.follow_duration_days)
+      .filter((v: number | null) => typeof v === 'number');
+    if (!values.length) return null;
+    return Math.round(values.reduce((sum: number, v: number) => sum + v, 0) / values.length);
   }
 }
 

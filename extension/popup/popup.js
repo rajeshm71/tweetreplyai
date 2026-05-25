@@ -42,6 +42,8 @@ class PopupManager {
     this.visibilityHandler = null;
     this.beforeunloadHandler = null;
     
+    this.followerSyncInProgress = false;
+
     this.initializeElements();
     this.checkoutInProgress = false;
     this.attachEventListeners();
@@ -55,6 +57,9 @@ class PopupManager {
     chrome.runtime.onMessage.addListener((message) => {
       if (message.action === 'authUpdated') {
         this.initialize(); // Refresh UI when auth syncs
+      }
+      if (message.action === 'followerSyncProgress') {
+        this.handleFollowerSyncProgress(message);
       }
     });
   }
@@ -231,6 +236,8 @@ class PopupManager {
     this.signinBtn = document.getElementById('signin-btn');
     this.historyBtn = document.getElementById('history-btn');
     this.analyticsBtn = document.getElementById('analytics-btn');
+    this.unfollowersBtn = document.getElementById('unfollowers-btn');
+    this.unfollowersBadge = document.getElementById('unfollowers-badge');
     this.webAppBtn = document.getElementById('web-app-btn');
     this.billingBtn = document.getElementById('billing-btn');
     this.upgradeBtn = document.getElementById('upgrade-btn');
@@ -274,6 +281,12 @@ class PopupManager {
     // Panels
     this.historyPanel = document.getElementById('history-panel');
     this.analyticsPanel = document.getElementById('analytics-panel');
+    this.unfollowersPanel = document.getElementById('unfollowers-panel');
+    this.unfollowersBackBtn = document.getElementById('unfollowers-back-btn');
+    this.unfollowersSyncBtn = document.getElementById('unfollowers-sync-btn');
+    this.unfollowersLoading = document.getElementById('unfollowers-loading');
+    this.unfollowersError = document.getElementById('unfollowers-error');
+    this.unfollowersData = document.getElementById('unfollowers-data');
     
     // Analytics panel elements
     this.analyticsBackBtn = document.getElementById('analytics-back-btn');
@@ -291,6 +304,7 @@ class PopupManager {
     this.signinBtn?.addEventListener('click', () => this.handleSignIn());
     this.historyBtn?.addEventListener('click', () => this.showHistory());
     this.analyticsBtn?.addEventListener('click', () => this.showAnalytics());
+    this.unfollowersBtn?.addEventListener('click', () => this.showUnfollowers());
     this.webAppBtn?.addEventListener('click', () => this.handleOpenWebApp());
     this.billingBtn?.addEventListener('click', () => this.handleManageBilling());
     this.upgradeBtn?.addEventListener('click', () => this.handleUpgrade());
@@ -304,6 +318,8 @@ class PopupManager {
     // Panel close buttons
     this.closeHistoryBtn?.addEventListener('click', () => this.hideHistory());
     this.analyticsBackBtn?.addEventListener('click', () => this.hideAnalytics());
+    this.unfollowersBackBtn?.addEventListener('click', () => this.hideUnfollowers());
+    this.unfollowersSyncBtn?.addEventListener('click', () => this.handleFollowerSync());
     this.analyticsRetryBtn?.addEventListener('click', () => this.loadAnalytics());
     
     const snippetLabelInput = document.getElementById('snippetLabelInput');
@@ -355,6 +371,8 @@ class PopupManager {
           this.hideHistory();
         } else if (!this.analyticsPanel?.classList.contains('hidden')) {
           this.hideAnalytics();
+        } else if (!this.unfollowersPanel?.classList.contains('hidden')) {
+          this.hideUnfollowers();
         }
       }
     });
@@ -442,6 +460,7 @@ class PopupManager {
       this.updateUsageDisplay();
       // Fix: Update quick stats cards (Today card) after usage refresh
       this.updateQuickStats();
+      this.loadUnfollowerBadge();
 
     } catch (error) {
       console.error('Failed to initialize popup:', error);
@@ -975,6 +994,7 @@ class PopupManager {
   }
 
   async showSettings() {
+    this.hideAllPanels();
     this.settingsPanel?.classList.remove('hidden');
     if (this.settingsPanel) {
       this.settingsPanel.style.display = '';
@@ -1429,6 +1449,7 @@ class PopupManager {
     this.settingsPanel?.classList.add('hidden');
     this.historyPanel?.classList.add('hidden');
     this.analyticsPanel?.classList.add('hidden');
+    this.unfollowersPanel?.classList.add('hidden');
     
     // Force hide with inline styles
     if (this.settingsPanel) {
@@ -1442,6 +1463,10 @@ class PopupManager {
     if (this.analyticsPanel) {
       this.analyticsPanel.style.display = 'none';
       this.analyticsPanel.setAttribute('aria-hidden', 'true');
+    }
+    if (this.unfollowersPanel) {
+      this.unfollowersPanel.style.display = 'none';
+      this.unfollowersPanel.setAttribute('aria-hidden', 'true');
     }
   }
 
@@ -1938,6 +1963,244 @@ class PopupManager {
     }
     // Format as percentage if it's a decimal (0-1), otherwise show as-is
     return avgScore < 1 ? `${Math.round(avgScore * 100)}%` : `${Math.round(avgScore)}%`;
+  }
+
+  async loadUnfollowerBadge() {
+    try {
+      const stats = await this.apiClient.getFollowerStats('7d');
+      if (this.unfollowersBadge) {
+        this.unfollowersBadge.textContent = String(stats?.summary?.unfollowersToday ?? 0);
+      }
+    } catch (_error) {
+      if (this.unfollowersBadge) this.unfollowersBadge.textContent = '0';
+    }
+  }
+
+  showUnfollowers() {
+    this.hideAllPanels();
+    this.unfollowersPanel?.classList.remove('hidden');
+    if (this.unfollowersPanel) {
+      this.unfollowersPanel.style.display = 'flex';
+      this.unfollowersPanel.setAttribute('aria-hidden', 'false');
+      this.unfollowersBackBtn?.focus();
+    }
+    this.loadUnfollowerPanel();
+  }
+
+  hideUnfollowers() {
+    this.unfollowersPanel?.classList.add('hidden');
+    if (this.unfollowersPanel) {
+      this.unfollowersPanel.style.display = 'none';
+      this.unfollowersPanel.setAttribute('aria-hidden', 'true');
+    }
+    this.unfollowersBtn?.focus();
+  }
+
+  setUnfollowersPanelState(state, message) {
+    if (this.unfollowersLoading) {
+      this.unfollowersLoading.classList.toggle('hidden', state !== 'loading');
+    }
+    if (this.unfollowersError) {
+      this.unfollowersError.classList.toggle('hidden', state !== 'error');
+      if (state === 'error') this.unfollowersError.textContent = message || 'Something went wrong';
+    }
+    if (this.unfollowersData) {
+      this.unfollowersData.classList.toggle('hidden', state !== 'ready');
+    }
+  }
+
+  formatRelativeSyncTime(iso) {
+    if (!iso) return 'Not synced yet';
+    const diffMs = Date.now() - new Date(iso).getTime();
+    const mins = Math.floor(diffMs / 60000);
+    if (mins < 1) return 'Synced just now';
+    if (mins < 60) return `Synced ${mins}m ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `Synced ${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    return `Synced ${days}d ago`;
+  }
+
+  renderUnfollowersList(events) {
+    const list = document.getElementById('unfollowers-list');
+    if (!list) return;
+    list.innerHTML = '';
+    if (!events?.length) {
+      const empty = document.createElement('div');
+      empty.className = 'empty-state';
+      empty.textContent = 'No unfollows recorded yet. Run a sync to establish a baseline.';
+      list.appendChild(empty);
+      return;
+    }
+    events.forEach((event) => {
+      const item = document.createElement('div');
+      item.className = 'unfollowers-item';
+
+      const avatar = document.createElement('div');
+      avatar.className = 'unfollowers-item-avatar';
+      avatar.textContent = (event.followerUsername || '?').charAt(0).toUpperCase();
+      avatar.setAttribute('aria-hidden', 'true');
+
+      const main = document.createElement('div');
+      main.className = 'unfollowers-item-main';
+      const title = document.createElement('strong');
+      title.textContent = `@${event.followerUsername}`;
+      const subtitle = document.createElement('small');
+      const duration = event.followDurationDays != null ? `${event.followDurationDays}d tracked` : 'Tracked since unknown';
+      subtitle.textContent = `Unfollowed ${new Date(event.detectedAt).toLocaleDateString()} · ${duration}`;
+      main.appendChild(title);
+      main.appendChild(subtitle);
+
+      const link = document.createElement('a');
+      link.href = `https://x.com/${encodeURIComponent(event.followerUsername)}`;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.textContent = 'View';
+
+      item.appendChild(avatar);
+      item.appendChild(main);
+      item.appendChild(link);
+      list.appendChild(item);
+    });
+  }
+
+  renderDailyTrend(dailyTrend) {
+    const container = document.getElementById('unfollowers-daily-trend');
+    if (!container) return;
+    container.innerHTML = '';
+    const rows = (dailyTrend || []).slice(-7);
+    if (!rows.length) {
+      const empty = document.createElement('div');
+      empty.className = 'empty-state';
+      empty.textContent = 'No daily changes yet.';
+      container.appendChild(empty);
+      return;
+    }
+    rows.forEach((row) => {
+      const el = document.createElement('div');
+      el.className = 'unfollowers-daily-row';
+      const label = document.createElement('span');
+      label.textContent = row.date;
+      const value = document.createElement('strong');
+      const net = row.netChange ?? 0;
+      value.textContent = `${net >= 0 ? '+' : ''}${net} (${row.unfollowers ?? 0} unfollows)`;
+      el.appendChild(label);
+      el.appendChild(value);
+      container.appendChild(el);
+    });
+  }
+
+  renderDayOfWeekPattern(pattern) {
+    const container = document.getElementById('unfollowers-dow');
+    if (!container) return;
+    container.innerHTML = '';
+    const max = Math.max(1, ...(pattern || []).map((p) => p.count));
+    (pattern || []).forEach((entry) => {
+      const col = document.createElement('div');
+      col.className = 'unfollowers-dow-col';
+      const bar = document.createElement('div');
+      bar.className = 'unfollowers-dow-bar';
+      bar.style.height = `${Math.max(4, Math.round((entry.count / max) * 48))}px`;
+      bar.title = `${entry.label}: ${entry.count}`;
+      const label = document.createElement('span');
+      label.textContent = entry.label;
+      col.appendChild(bar);
+      col.appendChild(label);
+      container.appendChild(col);
+    });
+  }
+
+  async loadUnfollowerPanel() {
+    this.setUnfollowersPanelState('loading');
+    try {
+      const [stats, eventsRes] = await Promise.all([
+        this.apiClient.getFollowerStats('30d'),
+        this.apiClient.getFollowerEvents('unfollow', 30, 20),
+      ]);
+
+      const handleEl = document.getElementById('unfollowers-handle');
+      const lastSyncEl = document.getElementById('unfollowers-last-sync');
+      if (handleEl) handleEl.textContent = stats.xUsername ? `@${stats.xUsername}` : 'Set X username in settings';
+      if (lastSyncEl) {
+        lastSyncEl.textContent = `${this.formatRelativeSyncTime(stats.lastSyncAt)} · ${stats.followerCount || 0} followers`;
+      }
+
+      const setText = (id, val) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = String(val ?? 0);
+      };
+      setText('uf-today', stats.summary?.unfollowersToday);
+      setText('uf-7d', stats.summary?.unfollowers7d);
+      setText('uf-30d', stats.summary?.unfollowers30d);
+      setText('uf-new', stats.summary?.newFollowers7d);
+      setText('uf-net', stats.summary?.netChange7d);
+
+      this.renderUnfollowersList(eventsRes.events);
+      this.renderDayOfWeekPattern(stats.dayOfWeekPattern);
+      this.renderDailyTrend(stats.dailyTrend);
+      if (this.unfollowersBadge) {
+        this.unfollowersBadge.textContent = String(stats.summary?.unfollowersToday ?? 0);
+      }
+      this.setUnfollowersPanelState('ready');
+    } catch (error) {
+      this.setUnfollowersPanelState('error', getUserFacingError(error, 'Failed to load unfollower stats').message);
+    }
+  }
+
+  setFollowerSyncProgress(visible, text, percent) {
+    const wrap = document.getElementById('unfollowers-progress');
+    const fill = document.getElementById('unfollowers-progress-fill');
+    const label = document.getElementById('unfollowers-progress-text');
+    if (wrap) wrap.classList.toggle('hidden', !visible);
+    if (fill) fill.style.width = `${Math.min(100, Math.max(0, percent || 0))}%`;
+    if (label && text) label.textContent = text;
+    if (this.unfollowersSyncBtn) this.unfollowersSyncBtn.disabled = !!visible;
+  }
+
+  handleFollowerSyncProgress(message) {
+    const panelOpen = this.unfollowersPanel && !this.unfollowersPanel.classList.contains('hidden');
+
+    if (message.status === 'collecting' || message.status === 'uploading' || message.status === 'starting') {
+      const collected = message.collected || 0;
+      const uploaded = message.uploaded || 0;
+      const pct = collected > 0 ? Math.min(95, Math.round((uploaded / collected) * 100) || 10) : 15;
+      if (panelOpen) {
+        this.setFollowerSyncProgress(true, `Syncing… ${collected} collected`, pct);
+      }
+    } else if (message.status === 'completing') {
+      if (panelOpen) this.setFollowerSyncProgress(true, 'Finalizing…', 98);
+    } else if (message.status === 'completed') {
+      this.followerSyncInProgress = false;
+      if (panelOpen) this.setFollowerSyncProgress(false);
+      this.loadUnfollowerBadge();
+      if (panelOpen) this.loadUnfollowerPanel();
+    } else if (message.status === 'error') {
+      this.followerSyncInProgress = false;
+      if (panelOpen) {
+        this.setFollowerSyncProgress(false);
+        if (this.unfollowersError) {
+          this.unfollowersError.textContent = message.error || 'Sync failed';
+          this.unfollowersError.classList.remove('hidden');
+        }
+      }
+    }
+  }
+
+  async handleFollowerSync() {
+    if (this.followerSyncInProgress) return;
+    this.followerSyncInProgress = true;
+    this.setFollowerSyncProgress(true, 'Starting sync…', 5);
+    if (this.unfollowersError) this.unfollowersError.classList.add('hidden');
+    try {
+      await this.apiClient.startFollowerSync();
+    } catch (error) {
+      this.followerSyncInProgress = false;
+      this.setFollowerSyncProgress(false);
+      if (this.unfollowersError) {
+        this.unfollowersError.textContent = getUserFacingError(error, 'Sync failed').message;
+        this.unfollowersError.classList.remove('hidden');
+      }
+    }
   }
 }
 

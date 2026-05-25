@@ -20,6 +20,13 @@ import type {
   EmailSendLog,
   EmailCampaign,
   InsertEmailCampaign,
+  XProfile,
+  XFollowerState,
+  XFollowEvent,
+  XFollowStatsDaily,
+  XFollowerSyncInput,
+  XProfileSyncStatus,
+  XFollowEventType,
 } from "../shared/types.js";
 
 export interface IStorage {
@@ -93,6 +100,52 @@ export interface IStorage {
   // Extension telemetry
   insertExtensionTelemetryEvents(events: InsertExtensionTelemetryEvent[]): Promise<number>;
   listExtensionTelemetryEvents(sinceMs: number, limit?: number): Promise<ExtensionTelemetryRow[]>;
+
+  // X follower tracking
+  getXProfileByUserId(userId: string): Promise<XProfile | undefined>;
+  upsertXProfile(userId: string, xUsername: string): Promise<XProfile>;
+  updateXProfile(profileId: string, updates: Partial<XProfile>): Promise<XProfile>;
+  insertFollowerSyncStaging(
+    syncJobId: string,
+    xProfileId: string,
+    followers: XFollowerSyncInput[],
+  ): Promise<number>;
+  getStagingFollowerIds(syncJobId: string): Promise<string[]>;
+  getStagingFollowers(syncJobId: string): Promise<XFollowerSyncInput[]>;
+  getActiveFollowerIds(xProfileId: string): Promise<string[]>;
+  getActiveFollowerStatesByIds(
+    xProfileId: string,
+    followerXUserIds: string[],
+  ): Promise<XFollowerState[]>;
+  /** First sync: seed follower states without generating follow/unfollow events. */
+  establishFollowerBaseline(
+    xProfileId: string,
+    followers: XFollowerSyncInput[],
+    totalActive: number,
+  ): Promise<void>;
+  applyFollowerDiff(
+    xProfileId: string,
+    syncJobId: string,
+    newFollows: XFollowerSyncInput[],
+    unfollows: Array<{ followerXUserId: string; followerUsername: string; firstSeenAt?: Date }>,
+    totalActive: number,
+  ): Promise<{ newFollowers: number; unfollowers: number }>;
+  clearFollowerSyncStaging(syncJobId: string): Promise<void>;
+  getFollowEvents(
+    xProfileId: string,
+    options: { eventType?: XFollowEventType; since?: Date; limit?: number },
+  ): Promise<XFollowEvent[]>;
+  getFollowStatsDaily(
+    xProfileId: string,
+    since: Date,
+  ): Promise<XFollowStatsDaily[]>;
+  countFollowEventsSince(
+    xProfileId: string,
+    eventType: XFollowEventType,
+    since: Date,
+  ): Promise<number>;
+  getUnfollowDayOfWeekPattern(xProfileId: string, since: Date): Promise<Array<{ day: number; count: number }>>;
+  getAvgUnfollowDurationDays(xProfileId: string, since: Date): Promise<number | null>;
 }
 
 export interface InsertExtensionTelemetryEvent {

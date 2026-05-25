@@ -680,7 +680,7 @@ body {
 .modern-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  grid-template-rows: repeat(2, 1fr);
+  grid-template-rows: repeat(3, auto);
   gap: var(--spacing-5);
   margin-bottom: var(--spacing-7);
   width: 100%;
@@ -2650,4 +2650,207 @@ body[data-theme="dark"] {
 }
 [data-theme="dark"] .quota-banner-icon {
   color: #fbbf24;
+}
+
+/* Unfollowers panel */
+.card-value--badge {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+}
+
+.modern-card[data-theme="unfollowers"] .card-icon-wrapper {
+  background: linear-gradient(135deg, #f97316 0%, #ef4444 100%);
+}
+
+.unfollowers-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.unfollowers-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+}
+
+.unfollowers-handle {
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-md);
+}
+
+.unfollowers-meta {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  margin-top: 2px;
+}
+
+.unfollowers-sync-btn {
+  flex-shrink: 0;
+  padding: var(--spacing-2) var(--spacing-3);
+  font-size: var(--font-size-xs);
+}
+
+.unfollowers-progress {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.unfollowers-progress-bar {
+  height: 6px;
+  background: var(--color-border);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.unfollowers-progress-bar > div {
+  height: 100%;
+  width: 0%;
+  background: var(--color-primary);
+  transition: width 0.3s ease;
+}
+
+.unfollowers-summary {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: var(--spacing-2);
+}
+
+.unfollowers-stat {
+  background: var(--color-surface-secondary);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-2);
+  text-align: center;
+}
+
+.unfollowers-stat span {
+  display: block;
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-md);
+}
+
+.unfollowers-stat small {
+  color: var(--color-text-muted);
+  font-size: 10px;
+}
+
+.unfollowers-section h4 {
+  margin: 0 0 var(--spacing-2);
+  font-size: var(--font-size-sm);
+}
+
+.unfollowers-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.unfollowers-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.unfollowers-item-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: var(--color-surface-secondary);
+}
+
+.unfollowers-daily-trend {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.unfollowers-daily-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--color-text-muted);
+  border-bottom: 1px dashed var(--color-border);
+  padding-bottom: 2px;
+}
+
+.unfollowers-daily-row strong {
+  color: var(--color-text);
+  font-size: 11px;
+}
+
+.unfollowers-item-main {
+  min-width: 0;
+}
+
+.unfollowers-item-main strong {
+  display: block;
+  font-size: var(--font-size-sm);
+}
+
+.unfollowers-item-main small {
+  color: var(--color-text-muted);
+  font-size: 10px;
+}
+
+.unfollowers-item a {
+  font-size: var(--font-size-xs);
+  color: var(--color-primary);
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+.unfollowers-dow {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  align-items: end;
+  min-height: 56px;
+}
+
+.unfollowers-dow-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.unfollowers-dow-bar {
+  width: 100%;
+  min-height: 4px;
+  background: var(--color-primary);
+  border-radius: 2px;
+}
+
+.unfollowers-dow-col span {
+  font-size: 9px;
+  color: var(--color-text-muted);
+}
+
+.unfollowers-footnote {
+  font-size: 10px;
+  color: var(--color-text-muted);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.unfollowers-loading,
+.unfollowers-error {
+  font-size: var(--font-size-sm);
+  padding: var(--spacing-3);
+}
+
+.unfollowers-error {
+  color: var(--color-danger);
+  background: rgba(239, 68, 68, 0.08);
+  border-radius: var(--radius-md);
 }

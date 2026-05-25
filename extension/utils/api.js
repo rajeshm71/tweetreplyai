@@ -204,4 +204,37 @@ export class ApiClient {
     console.log('[ApiClient] getSimpleAnalytics result:', result);
     return result;
   }
+
+  async getFollowerStatus() {
+    return this.makeRequest('/api/x-followers/status');
+  }
+
+  async getFollowerStats(range = '7d') {
+    return this.makeRequest(`/api/x-followers/stats?range=${encodeURIComponent(range)}`);
+  }
+
+  async getFollowerEvents(type = 'unfollow', sinceDays = 30, limit = 30) {
+    const params = new URLSearchParams({
+      type,
+      sinceDays: String(sinceDays),
+      limit: String(limit),
+    });
+    return this.makeRequest(`/api/x-followers/events?${params.toString()}`);
+  }
+
+  startFollowerSync() {
+    return new Promise((resolve, reject) => {
+      chrome.runtime.sendMessage({ action: 'startFollowerSync' }, (response) => {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+          return;
+        }
+        if (!response?.success) {
+          reject(new Error(response?.error || 'Failed to start sync'));
+          return;
+        }
+        resolve(response);
+      });
+    });
+  }
 }

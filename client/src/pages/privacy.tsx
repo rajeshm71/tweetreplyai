@@ -64,6 +64,16 @@ export default function PrivacyPolicy() {
                       <li><strong>Error Logs:</strong> Technical error information to help us debug and improve the extension</li>
                     </ul>
                   </div>
+
+                  <div className="bg-purple-50 p-4 rounded-lg">
+                    <h3 className="text-lg font-semibold text-purple-800 mb-2">Follower Tracking (Optional)</h3>
+                    <ul className="list-disc list-inside text-gray-700 space-y-1">
+                      <li><strong>User-initiated sync:</strong> If you use Unfollowers in the extension popup, we collect your public follower list while you are logged into X in your browser</li>
+                      <li><strong>Stored data:</strong> Follower IDs, usernames, and basic public profile fields needed to show unfollow stats in the popup</li>
+                      <li><strong>Not automatic:</strong> Follower lists are only collected when you tap Sync now; we do not run background follower scraping</li>
+                      <li><strong>Your account only:</strong> We only sync the X account that matches the username saved in your TweetReply profile</li>
+                    </ul>
+                  </div>
                 </div>
               </section>
 
@@ -109,6 +119,7 @@ export default function PrivacyPolicy() {
                     <h3 className="text-lg font-semibold text-gray-800 mb-2">Server Storage</h3>
                     <ul className="list-disc list-inside text-gray-700 space-y-1">
                       <li><strong>Minimal Server Data:</strong> We store minimal data on our servers, primarily for authentication and quota management</li>
+                      <li><strong>Follower snapshots:</strong> If you use Unfollowers, follower snapshots and change history are stored in our database for up to 90 days</li>
                       <li><strong>Secure Infrastructure:</strong> Our servers use industry standard security measures</li>
                       <li><strong>Data Retention:</strong> We retain data only as long as necessary for service provision</li>
                     </ul>

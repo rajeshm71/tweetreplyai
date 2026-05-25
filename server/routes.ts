@@ -3935,6 +3935,372 @@ User draft reply: ${draft_reply}`;
   });
 
   // ---------------------------------------------------------------------------
+  // X follower tracking (extension popup)
+  // ---------------------------------------------------------------------------
+  app.post('/api/x-followers/sync/start', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const user = await storage.getUser(userId);
+      if (!user?.xUsername) {
+        return res.status(400).json({ message: 'X username is required. Complete your profile first.' });
+      }
+
+      const loggedInXUsername = String(req.body?.loggedInXUsername || '').trim();
+      const {
+        normalizeXUsername,
+        X_FOLLOWER_SYNC_COOLDOWN_MS,
+      } = await import('./services/x-follower-sync.js');
+
+      if (!loggedInXUsername) {
+        return res.status(400).json({ message: 'loggedInXUsername is required' });
+      }
+      if (normalizeXUsername(loggedInXUsername) !== normalizeXUsername(user.xUsername)) {
+        return res.status(403).json({
+          message: `Logged into X as @${loggedInXUsername}, but your TweetReply account is @${user.xUsername}.`,
+        });
+      }
+
+      let profile = await storage.getXProfileByUserId(userId);
+      if (!profile) {
+        profile = await storage.upsertXProfile(userId, user.xUsername);
+      }
+
+      if (
+        profile.lastSyncStatus === 'running' &&
+        profile.syncJobId &&
+        profile.lastSyncAt &&
+        Date.now() - profile.lastSyncAt.getTime() < 30 * 60 * 1000
+      ) {
+        return res.status(409).json({
+          message: 'A sync is already in progress',
+          syncJobId: profile.syncJobId,
+        });
+      }
+
+      if (
+        profile.lastSyncAt &&
+        profile.lastSyncStatus === 'completed' &&
+        Date.now() - profile.lastSyncAt.getTime() < X_FOLLOWER_SYNC_COOLDOWN_MS
+      ) {
+        const retryAfterMs = X_FOLLOWER_SYNC_COOLDOWN_MS - (Date.now() - profile.lastSyncAt.getTime());
+        return res.status(429).json({
+          message: 'Please wait before syncing again',
+          retryAfterMs,
+        });
+      }
+
+      const syncJobId = crypto.randomUUID();
+      profile = await storage.updateXProfile(profile.id, {
+        lastSyncStatus: 'running',
+        syncJobId,
+        lastSyncAt: new Date(),
+        syncCursor: null,
+      });
+
+      res.json({
+        syncJobId,
+        xUsername: profile.xUsername,
+        xProfileId: profile.id,
+      });
+    } catch (error) {
+      console.error('Error starting follower sync:', error);
+      reportRouteError(error, { route: 'POST /api/x-followers/sync/start', httpStatus: 500 });
+      res.status(500).json({ message: 'Failed to start follower sync' });
+    }
+  });
+
+  app.post('/api/x-followers/sync-batch', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const syncJobId = String(req.body?.syncJobId || '');
+      const followers = Array.isArray(req.body?.followers) ? req.body.followers : [];
+      const chunkIndex = Number(req.body?.chunkIndex ?? 0);
+
+      if (!syncJobId) {
+        return res.status(400).json({ message: 'syncJobId is required' });
+      }
+
+      const profile = await storage.getXProfileByUserId(userId);
+      if (!profile || profile.syncJobId !== syncJobId || profile.lastSyncStatus !== 'running') {
+        return res.status(409).json({ message: 'Invalid or expired sync job' });
+      }
+
+      const {
+        dedupeFollowersByRestId,
+        isValidXRestId,
+      } = await import('./services/x-follower-sync.js');
+
+      const normalized = followers
+        .map((f: any) => ({
+          xUserId: String(f.xUserId || f.x_user_id || '').trim(),
+          username: String(f.username || '').trim().replace(/^@+/, ''),
+          displayName: f.displayName ? String(f.displayName) : undefined,
+          avatarUrl: f.avatarUrl ? String(f.avatarUrl) : undefined,
+          followerCount: typeof f.followerCount === 'number' ? f.followerCount : undefined,
+          verified: !!f.verified,
+        }))
+        .filter((f: any) => f.xUserId && f.username && isValidXRestId(f.xUserId));
+
+      const deduped = dedupeFollowersByRestId(normalized);
+      const inserted = await storage.insertFollowerSyncStaging(syncJobId, profile.id, deduped);
+      res.json({ ok: true, chunkIndex, inserted, totalStaged: inserted });
+    } catch (error) {
+      console.error('Error uploading follower batch:', error);
+      reportRouteError(error, { route: 'POST /api/x-followers/sync-batch', httpStatus: 500 });
+      res.status(500).json({ message: 'Failed to upload follower batch' });
+    }
+  });
+
+  app.post('/api/x-followers/sync/complete', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const syncJobId = String(req.body?.syncJobId || '');
+      const followerCount = typeof req.body?.followerCount === 'number' ? req.body.followerCount : undefined;
+
+      if (!syncJobId) {
+        return res.status(400).json({ message: 'syncJobId is required' });
+      }
+
+      const profile = await storage.getXProfileByUserId(userId);
+      if (!profile || profile.syncJobId !== syncJobId || profile.lastSyncStatus !== 'running') {
+        return res.status(409).json({ message: 'Invalid or expired sync job' });
+      }
+
+      const {
+        computeFollowerDiff,
+        isSyncCoverageSufficient,
+        dedupeFollowersByRestId,
+      } = await import('./services/x-follower-sync.js');
+
+      const stagingFollowers = dedupeFollowersByRestId(await storage.getStagingFollowers(syncJobId));
+      const previousActiveIds = await storage.getActiveFollowerIds(profile.id);
+      const isFirstSync = previousActiveIds.length === 0;
+
+      if (
+        !isFirstSync &&
+        !isSyncCoverageSufficient(stagingFollowers.length, previousActiveIds.length)
+      ) {
+        await storage.updateXProfile(profile.id, { lastSyncStatus: 'failed', syncJobId: null });
+        await storage.clearFollowerSyncStaging(syncJobId);
+        return res.status(400).json({
+          message: 'Sync collected too few followers. Try again when X finishes loading your list.',
+          collected: stagingFollowers.length,
+          expected: previousActiveIds.length,
+        });
+      }
+
+      let result = { newFollowers: 0, unfollowers: 0 };
+      if (isFirstSync) {
+        // Baseline only — no follow/unfollow events on first sync (review fix).
+        await storage.establishFollowerBaseline(profile.id, stagingFollowers, stagingFollowers.length);
+      } else {
+        const unfollowIds = previousActiveIds.filter(
+          (id) => !stagingFollowers.some((f) => f.xUserId === id),
+        );
+        const previousStates = await storage.getActiveFollowerStatesByIds(profile.id, unfollowIds);
+        const previousStatesById = new Map(
+          previousStates.map((s) => [
+            s.followerXUserId,
+            { followerUsername: s.followerUsername, firstSeenAt: s.firstSeenAt },
+          ]),
+        );
+
+        const diff = computeFollowerDiff(previousActiveIds, stagingFollowers, previousStatesById);
+        result = await storage.applyFollowerDiff(
+          profile.id,
+          syncJobId,
+          diff.newFollows,
+          diff.unfollows,
+          diff.totalActive,
+        );
+      }
+
+      await storage.clearFollowerSyncStaging(syncJobId);
+
+      await storage.updateXProfile(profile.id, {
+        lastSyncStatus: 'completed',
+        lastSyncAt: new Date(),
+        followerCount: followerCount ?? stagingFollowers.length,
+        syncJobId: null,
+        syncCursor: null,
+      });
+
+      res.json({
+        ok: true,
+        ...result,
+        totalActive: stagingFollowers.length,
+        isFirstSync,
+      });
+    } catch (error) {
+      console.error('Error completing follower sync:', error);
+      reportRouteError(error, { route: 'POST /api/x-followers/sync/complete', httpStatus: 500 });
+      res.status(500).json({ message: 'Failed to complete follower sync' });
+    }
+  });
+
+  app.post('/api/x-followers/sync/fail', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const syncJobId = String(req.body?.syncJobId || '');
+      const profile = await storage.getXProfileByUserId(userId);
+      if (profile && (!syncJobId || profile.syncJobId === syncJobId)) {
+        await storage.updateXProfile(profile.id, { lastSyncStatus: 'failed', syncJobId: null });
+        if (syncJobId) await storage.clearFollowerSyncStaging(syncJobId);
+      }
+      res.json({ ok: true });
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to mark sync as failed' });
+    }
+  });
+
+  app.get('/api/x-followers/status', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const user = await storage.getUser(userId);
+      const profile = await storage.getXProfileByUserId(userId);
+      if (!profile) {
+        return res.json({
+          hasProfile: false,
+          xUsername: user?.xUsername ?? null,
+          lastSyncAt: null,
+          lastSyncStatus: 'idle',
+          followerCount: 0,
+        });
+      }
+      res.json({
+        hasProfile: true,
+        xUsername: profile.xUsername,
+        lastSyncAt: profile.lastSyncAt?.toISOString() ?? null,
+        lastSyncStatus: profile.lastSyncStatus,
+        followerCount: profile.followerCount,
+        syncJobId: profile.syncJobId,
+      });
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to fetch follower status' });
+    }
+  });
+
+  app.get('/api/x-followers/events', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const profile = await storage.getXProfileByUserId(userId);
+      if (!profile) return res.json({ events: [] });
+
+      const eventType = req.query.type === 'follow' || req.query.type === 'unfollow'
+        ? req.query.type
+        : undefined;
+      const limit = Math.min(parseInt(String(req.query.limit || '30'), 10) || 30, 100);
+      const sinceDays = parseInt(String(req.query.sinceDays || '30'), 10) || 30;
+      const since = new Date();
+      since.setUTCDate(since.getUTCDate() - sinceDays);
+
+      const events = await storage.getFollowEvents(profile.id, { eventType, since, limit });
+      res.json({
+        events: events.map((e) => ({
+          id: e.id,
+          followerXUserId: e.followerXUserId,
+          followerUsername: e.followerUsername,
+          eventType: e.eventType,
+          detectedAt: e.detectedAt.toISOString(),
+          followDurationDays: e.followDurationDays,
+        })),
+      });
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to fetch follower events' });
+    }
+  });
+
+  app.get('/api/x-followers/stats', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const profile = await storage.getXProfileByUserId(userId);
+      if (!profile) {
+        return res.json({
+          xUsername: null,
+          followerCount: 0,
+          lastSyncAt: null,
+          lastSyncStatus: 'idle',
+          summary: {
+            unfollowersToday: 0,
+            unfollowers7d: 0,
+            unfollowers30d: 0,
+            newFollowersToday: 0,
+            newFollowers7d: 0,
+            netChange7d: 0,
+            avgFollowDurationDays: null,
+          },
+          dailyTrend: [],
+          dayOfWeekPattern: [],
+        });
+      }
+
+      const range = String(req.query.range || '7d');
+      const rangeDays = range === '30d' ? 30 : range === '90d' ? 90 : 7;
+      const since = new Date();
+      since.setUTCDate(since.getUTCDate() - rangeDays);
+      const todayStart = new Date();
+      todayStart.setUTCHours(0, 0, 0, 0);
+
+      const [
+        unfollowersToday,
+        unfollowers7d,
+        unfollowers30d,
+        newFollowersToday,
+        newFollowers7d,
+        dailyTrend,
+        dayOfWeekPattern,
+        avgFollowDurationDays,
+      ] = await Promise.all([
+        storage.countFollowEventsSince(profile.id, 'unfollow', todayStart),
+        storage.countFollowEventsSince(profile.id, 'unfollow', new Date(Date.now() - 7 * 86400000)),
+        storage.countFollowEventsSince(profile.id, 'unfollow', new Date(Date.now() - 30 * 86400000)),
+        storage.countFollowEventsSince(profile.id, 'follow', todayStart),
+        storage.countFollowEventsSince(profile.id, 'follow', new Date(Date.now() - 7 * 86400000)),
+        storage.getFollowStatsDaily(profile.id, since),
+        storage.getUnfollowDayOfWeekPattern(profile.id, since),
+        storage.getAvgUnfollowDurationDays(profile.id, since),
+      ]);
+
+      const netChange7d = dailyTrend
+        .filter((d) => new Date(d.date) >= new Date(Date.now() - 7 * 86400000))
+        .reduce((sum, d) => sum + d.netChange, 0);
+
+      const { DAY_OF_WEEK_LABELS } = await import('./services/x-follower-sync.js');
+
+      res.json({
+        xUsername: profile.xUsername,
+        followerCount: profile.followerCount,
+        lastSyncAt: profile.lastSyncAt?.toISOString() ?? null,
+        lastSyncStatus: profile.lastSyncStatus,
+        summary: {
+          unfollowersToday,
+          unfollowers7d,
+          unfollowers30d,
+          newFollowersToday,
+          newFollowers7d,
+          netChange7d,
+          avgFollowDurationDays,
+        },
+        dailyTrend: dailyTrend.map((d) => ({
+          date: d.date,
+          unfollowers: d.unfollowers,
+          newFollowers: d.newFollowers,
+          netChange: d.netChange,
+        })),
+        dayOfWeekPattern: dayOfWeekPattern.map(({ day, count }) => ({
+          day,
+          label: DAY_OF_WEEK_LABELS[day],
+          count,
+        })),
+      });
+    } catch (error) {
+      console.error('Error fetching follower stats:', error);
+      reportRouteError(error, { route: 'GET /api/x-followers/stats', httpStatus: 500 });
+      res.status(500).json({ message: 'Failed to fetch follower stats' });
+    }
+  });
+
+  // ---------------------------------------------------------------------------
   // FIX (fix7): Reusable cron auth middleware — extracted from duplicated inline blocks.
   // CRON_SECRET is REQUIRED in production (returns 503 when unset).
   // In development the check is advisory only (logs a warning and continues).
