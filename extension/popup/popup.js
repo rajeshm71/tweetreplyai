@@ -20,6 +20,8 @@ const SETTINGS_TAB_IDS = ['account', 'x', 'cta', 'billing', 'tracking'];
 const SETTINGS_ACTIVE_TAB_KEY = 'settingsActiveTab';
 const SNIPPET_FORM_AUTOSAVE_MS = 550;
 const TRACKING_DAYS_AUTOSAVE_MS = 350;
+/** Temporarily hide unfollower tracking UI while backend/sync logic is refined. */
+const UNFOLLOWERS_UI_ENABLED = false;
 
 globalThis.__tweetreplyaiExtLoggingAllowed = false;
 installConsoleGate(() => globalThis.__tweetreplyaiExtLoggingAllowed === true);
@@ -460,7 +462,7 @@ class PopupManager {
       this.updateUsageDisplay();
       // Fix: Update quick stats cards (Today card) after usage refresh
       this.updateQuickStats();
-      this.loadUnfollowerBadge();
+      if (UNFOLLOWERS_UI_ENABLED) this.loadUnfollowerBadge();
 
     } catch (error) {
       console.error('Failed to initialize popup:', error);
@@ -1971,6 +1973,7 @@ class PopupManager {
   }
 
   async loadUnfollowerBadge() {
+    if (!UNFOLLOWERS_UI_ENABLED) return;
     try {
       const stats = await this.apiClient.getFollowerStats('7d');
       if (this.unfollowersBadge) {
@@ -1982,6 +1985,7 @@ class PopupManager {
   }
 
   showUnfollowers() {
+    if (!UNFOLLOWERS_UI_ENABLED) return;
     this.hideAllPanels();
     this.unfollowersPanel?.classList.remove('hidden');
     if (this.unfollowersPanel) {
@@ -2116,6 +2120,7 @@ class PopupManager {
   }
 
   async loadUnfollowerPanel() {
+    if (!UNFOLLOWERS_UI_ENABLED) return;
     this.setUnfollowersPanelState('loading');
     try {
       const [stats, eventsRes] = await Promise.all([
@@ -2191,6 +2196,7 @@ class PopupManager {
   }
 
   handleFollowerSyncProgress(message) {
+    if (!UNFOLLOWERS_UI_ENABLED) return;
     console.log('[TweetReply Followers][popup]', message.status + ':', message);
     const panelOpen = this.unfollowersPanel && !this.unfollowersPanel.classList.contains('hidden');
 
@@ -2221,6 +2227,7 @@ class PopupManager {
   }
 
   async handleFollowerSync() {
+    if (!UNFOLLOWERS_UI_ENABLED) return;
     if (this.followerSyncInProgress) return;
     this.followerSyncInProgress = true;
     console.log('[TweetReply Followers][popup] sync-start: User clicked Sync now');

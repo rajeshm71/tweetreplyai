@@ -7110,6 +7110,7 @@ Event: ${getEventDescription(event)}`
   var SETTINGS_ACTIVE_TAB_KEY = "settingsActiveTab";
   var SNIPPET_FORM_AUTOSAVE_MS = 550;
   var TRACKING_DAYS_AUTOSAVE_MS = 350;
+  var UNFOLLOWERS_UI_ENABLED = false;
   globalThis.__tweetreplyaiExtLoggingAllowed = false;
   installConsoleGate(() => globalThis.__tweetreplyaiExtLoggingAllowed === true);
   var PopupManager = class {
@@ -7425,7 +7426,7 @@ Event: ${getEventDescription(event)}`
         }
         this.updateUsageDisplay();
         this.updateQuickStats();
-        this.loadUnfollowerBadge();
+        if (UNFOLLOWERS_UI_ENABLED) this.loadUnfollowerBadge();
       } catch (error2) {
         console.error("Failed to initialize popup:", error2);
         this.reportTelemetry("unknown_runtime_error", error2, "popup_initialize");
@@ -8679,6 +8680,7 @@ Event: ${getEventDescription(event)}`
       return Number(n).toLocaleString();
     }
     async loadUnfollowerBadge() {
+      if (!UNFOLLOWERS_UI_ENABLED) return;
       try {
         const stats = await this.apiClient.getFollowerStats("7d");
         if (this.unfollowersBadge) {
@@ -8689,6 +8691,7 @@ Event: ${getEventDescription(event)}`
       }
     }
     showUnfollowers() {
+      if (!UNFOLLOWERS_UI_ENABLED) return;
       this.hideAllPanels();
       this.unfollowersPanel?.classList.remove("hidden");
       if (this.unfollowersPanel) {
@@ -8812,6 +8815,7 @@ Event: ${getEventDescription(event)}`
       });
     }
     async loadUnfollowerPanel() {
+      if (!UNFOLLOWERS_UI_ENABLED) return;
       this.setUnfollowersPanelState("loading");
       try {
         const [stats, eventsRes] = await Promise.all([
@@ -8878,6 +8882,7 @@ Event: ${getEventDescription(event)}`
       if (this.unfollowersSyncBtn) this.unfollowersSyncBtn.disabled = !!visible;
     }
     handleFollowerSyncProgress(message) {
+      if (!UNFOLLOWERS_UI_ENABLED) return;
       console.log("[TweetReply Followers][popup]", message.status + ":", message);
       const panelOpen = this.unfollowersPanel && !this.unfollowersPanel.classList.contains("hidden");
       if (message.status === "collecting" || message.status === "uploading" || message.status === "starting") {
@@ -8906,6 +8911,7 @@ Event: ${getEventDescription(event)}`
       }
     }
     async handleFollowerSync() {
+      if (!UNFOLLOWERS_UI_ENABLED) return;
       if (this.followerSyncInProgress) return;
       this.followerSyncInProgress = true;
       console.log("[TweetReply Followers][popup] sync-start: User clicked Sync now");
