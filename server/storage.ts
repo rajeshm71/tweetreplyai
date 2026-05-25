@@ -127,9 +127,10 @@ export interface IStorage {
     xProfileId: string,
     syncJobId: string,
     newFollows: XFollowerSyncInput[],
-    unfollows: Array<{ followerXUserId: string; followerUsername: string; firstSeenAt?: Date }>,
+    candidateUnfollows: Array<{ followerXUserId: string; followerUsername: string; firstSeenAt?: Date }>,
+    stagingFollowerIds: string[],
     totalActive: number,
-  ): Promise<{ newFollowers: number; unfollowers: number }>;
+  ): Promise<{ newFollowers: number; unfollowers: number; pendingUnfollows: number }>;
   clearFollowerSyncStaging(syncJobId: string): Promise<void>;
   getFollowEvents(
     xProfileId: string,

@@ -1881,9 +1881,11 @@ export class SupabaseStorage implements IStorage {
     xProfileId: string,
     syncJobId: string,
     newFollows: XFollowerSyncInput[],
-    unfollows: Array<{ followerXUserId: string; followerUsername: string; firstSeenAt?: Date }>,
+    candidateUnfollows: Array<{ followerXUserId: string; followerUsername: string; firstSeenAt?: Date }>,
+    stagingFollowerIds: string[],
     totalActive: number,
-  ): Promise<{ newFollowers: number; unfollowers: number }> {
+  ): Promise<{ newFollowers: number; unfollowers: number; pendingUnfollows: number }> {
+    const { X_FOLLOWER_UNFOLLOW_STRIKE_THRESHOLD } = await import('./services/x-follower-sync.js');
     const now = new Date();
     const nowIso = now.toISOString();
     const today = nowIso.slice(0, 10);
@@ -1920,6 +1922,7 @@ export class SupabaseStorage implements IStorage {
           first_seen_at: nowIso,
           last_seen_at: nowIso,
           is_active: true,
+          missing_strike_count: 0,
         }));
         const { error } = await supabase.from('x_follower_states').insert(rows);
         if (error) throw new Error(error.message);
@@ -1943,6 +1946,7 @@ export class SupabaseStorage implements IStorage {
           .update({
             is_active: true,
             last_seen_at: nowIso,
+            missing_strike_count: 0,
             follower_username: f.username,
             display_name: f.displayName ?? null,
             avatar_url: f.avatarUrl ?? null,
@@ -1970,26 +1974,89 @@ export class SupabaseStorage implements IStorage {
       followEventCount = brandNew.length + reactivated.length;
     }
 
-    if (unfollows.length) {
-      const unfollowIds = unfollows.map((u) => u.followerXUserId);
-      const { error: unfollowStateError } = await supabase
-        .from('x_follower_states')
-        .update({ is_active: false, last_seen_at: nowIso })
-        .eq('x_profile_id', xProfileId)
-        .in('follower_x_user_id', unfollowIds);
-      if (unfollowStateError) throw new Error(unfollowStateError.message);
+    // Re-sight: any active follower we observed this sync gets last_seen bumped and
+    // strike counter reset. Idempotent for brand-new rows we just inserted.
+    if (stagingFollowerIds.length) {
+      const CHUNK = 500;
+      for (let i = 0; i < stagingFollowerIds.length; i += CHUNK) {
+        const slice = stagingFollowerIds.slice(i, i + CHUNK);
+        const { error } = await supabase
+          .from('x_follower_states')
+          .update({ last_seen_at: nowIso, missing_strike_count: 0 })
+          .eq('x_profile_id', xProfileId)
+          .in('follower_x_user_id', slice);
+        if (error) throw new Error(error.message);
+      }
+    }
 
-      const unfollowEvents = unfollows.map((u) => ({
-        x_profile_id: xProfileId,
-        follower_x_user_id: u.followerXUserId,
-        follower_username: u.followerUsername,
-        event_type: 'unfollow',
-        detected_at: nowIso,
-        follow_duration_days: u.firstSeenAt ? daysBetween(u.firstSeenAt, now) : null,
-        sync_job_id: syncJobId,
-      }));
-      const { error: unfollowEventError } = await supabase.from('x_follow_events').insert(unfollowEvents);
-      if (unfollowEventError) throw new Error(unfollowEventError.message);
+    // Two-strike unfollow confirmation: only flip is_active=false and emit an
+    // unfollow event when a previously-active follower has been missing from
+    // X_FOLLOWER_UNFOLLOW_STRIKE_THRESHOLD consecutive syncs.
+    let confirmedUnfollows: typeof candidateUnfollows = [];
+    let pendingUnfollows = 0;
+    if (candidateUnfollows.length) {
+      const candidateIds = candidateUnfollows.map((u) => u.followerXUserId);
+      const { data: strikeRows, error: strikeError } = await supabase
+        .from('x_follower_states')
+        .select('follower_x_user_id, missing_strike_count')
+        .eq('x_profile_id', xProfileId)
+        .in('follower_x_user_id', candidateIds);
+      if (strikeError) throw new Error(strikeError.message);
+      const strikeById = new Map<string, number>(
+        (strikeRows ?? []).map((row: any) => [
+          String(row.follower_x_user_id),
+          Number(row.missing_strike_count ?? 0),
+        ]),
+      );
+
+      const toConfirm: typeof candidateUnfollows = [];
+      const toBumpIds: string[] = [];
+      for (const u of candidateUnfollows) {
+        const nextStrike = (strikeById.get(u.followerXUserId) ?? 0) + 1;
+        if (nextStrike >= X_FOLLOWER_UNFOLLOW_STRIKE_THRESHOLD) {
+          toConfirm.push(u);
+        } else {
+          toBumpIds.push(u.followerXUserId);
+        }
+      }
+
+      if (toBumpIds.length) {
+        // Individual updates so we can store the new strike count without a stored proc.
+        for (const id of toBumpIds) {
+          const next = (strikeById.get(id) ?? 0) + 1;
+          const { error } = await supabase
+            .from('x_follower_states')
+            .update({ missing_strike_count: next })
+            .eq('x_profile_id', xProfileId)
+            .eq('follower_x_user_id', id);
+          if (error) throw new Error(error.message);
+        }
+        pendingUnfollows = toBumpIds.length;
+      }
+
+      if (toConfirm.length) {
+        const confirmIds = toConfirm.map((u) => u.followerXUserId);
+        const { error: stateErr } = await supabase
+          .from('x_follower_states')
+          .update({ is_active: false, last_seen_at: nowIso, missing_strike_count: 0 })
+          .eq('x_profile_id', xProfileId)
+          .in('follower_x_user_id', confirmIds);
+        if (stateErr) throw new Error(stateErr.message);
+
+        const unfollowEvents = toConfirm.map((u) => ({
+          x_profile_id: xProfileId,
+          follower_x_user_id: u.followerXUserId,
+          follower_username: u.followerUsername,
+          event_type: 'unfollow',
+          detected_at: nowIso,
+          follow_duration_days: u.firstSeenAt ? daysBetween(u.firstSeenAt, now) : null,
+          sync_job_id: syncJobId,
+        }));
+        const { error: evtErr } = await supabase.from('x_follow_events').insert(unfollowEvents);
+        if (evtErr) throw new Error(evtErr.message);
+
+        confirmedUnfollows = toConfirm;
+      }
     }
 
     const { data: existingDaily, error: dailyFetchError } = await supabase
@@ -2004,8 +2071,8 @@ export class SupabaseStorage implements IStorage {
       x_profile_id: xProfileId,
       date: today,
       new_followers: (existingDaily?.new_followers ?? 0) + followEventCount,
-      unfollowers: (existingDaily?.unfollowers ?? 0) + unfollows.length,
-      net_change: (existingDaily?.net_change ?? 0) + followEventCount - unfollows.length,
+      unfollowers: (existingDaily?.unfollowers ?? 0) + confirmedUnfollows.length,
+      net_change: (existingDaily?.net_change ?? 0) + followEventCount - confirmedUnfollows.length,
       total_active: totalActive,
     };
     const { error: dailyError } = await supabase
@@ -2015,7 +2082,8 @@ export class SupabaseStorage implements IStorage {
 
     return {
       newFollowers: followEventCount,
-      unfollowers: unfollows.length,
+      unfollowers: confirmedUnfollows.length,
+      pendingUnfollows,
     };
   }
 

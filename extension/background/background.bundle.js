@@ -6876,6 +6876,21 @@ Event: ${getEventDescription(event)}`
       log2("page-ready", "Followers page timeout", { elapsedMs: Date.now() - start });
       return false;
     }
+    async focusSyncTab(tabId) {
+      try {
+        const tab = await chrome.tabs.get(tabId);
+        await chrome.tabs.update(tabId, { active: true });
+        if (tab.windowId != null) {
+          try {
+            await chrome.windows.update(tab.windowId, { focused: true });
+          } catch (_e) {
+          }
+        }
+        log2("tab", "Focused sync tab", { tabId, windowId: tab.windowId });
+      } catch (err) {
+        log2("tab", "Could not focus sync tab", { tabId, error: err.message });
+      }
+    }
     async sendRunFollowerSync(tabId, payload, retryOnDisconnect = true) {
       log2("content-message", "Sending runFollowerSync", {
         tabId,
@@ -6953,12 +6968,14 @@ Event: ${getEventDescription(event)}`
           status: "starting",
           xUsername: startData.xUsername
         });
+        await this.focusSyncTab(tab.id);
         let response = await this.sendRunFollowerSync(tab.id, startData);
         if (response.navigating) {
           log2("start", "Navigating to followers page, waiting\u2026");
           await this.waitForTabLoad(tab.id, 25e3);
           await this.waitForFollowersPageReady(tab.id, startData.xUsername, 2e4);
           await new Promise((r) => setTimeout(r, 4500));
+          await this.focusSyncTab(tab.id);
           response = await this.sendRunFollowerSync(tab.id, startData);
         }
         if (!response.success) {

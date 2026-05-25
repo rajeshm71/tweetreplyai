@@ -156,9 +156,10 @@ describe('X follower routes', () => {
       syncJobId: 'job-1',
       lastSyncStatus: 'running',
     });
-    mockStorage.getStagingFollowers.mockResolvedValue([
-      { xUserId: '100', username: 'fan1' },
-    ]);
+    // 90% coverage of profileFollowerCount=10 -> 9 staged followers passes the gate.
+    mockStorage.getStagingFollowers.mockResolvedValue(
+      Array.from({ length: 9 }, (_, i) => ({ xUserId: String(100 + i), username: `fan${i}` })),
+    );
     mockStorage.getActiveFollowerIds.mockResolvedValue([]);
     mockStorage.establishFollowerBaseline.mockResolvedValue(undefined);
     mockStorage.clearFollowerSyncStaging.mockResolvedValue(undefined);
@@ -169,17 +170,52 @@ describe('X follower routes', () => {
       .set('Authorization', `Bearer ${authToken}`)
       .send({
         syncJobId: 'job-1',
-        syncedCount: 1,
-        profileFollowerCount: 500,
+        syncedCount: 9,
+        profileFollowerCount: 10,
       });
 
     expect(res.status).toBe(200);
     expect(mockStorage.updateXProfile).toHaveBeenCalledWith(
       'profile-1',
-      expect.objectContaining({ followerCount: 500 }),
+      expect.objectContaining({ followerCount: 10 }),
     );
-    expect(res.body.profileFollowerCount).toBe(500);
-    expect(res.body.syncedCount).toBe(1);
+    expect(res.body.profileFollowerCount).toBe(10);
+    expect(res.body.syncedCount).toBe(9);
+  });
+
+  it('rejects sync complete when coverage is below 85% of profileFollowerCount', async () => {
+    mockStorage.getXProfileByUserId.mockResolvedValue({
+      id: 'profile-1',
+      userId: 'test-user',
+      xUsername: 'alice',
+      syncJobId: 'job-1',
+      lastSyncStatus: 'running',
+    });
+    mockStorage.getStagingFollowers.mockResolvedValue(
+      Array.from({ length: 51 }, (_, i) => ({ xUserId: String(1000 + i), username: `fan${i}` })),
+    );
+    mockStorage.getActiveFollowerIds.mockResolvedValue([]);
+    mockStorage.clearFollowerSyncStaging.mockResolvedValue(undefined);
+    mockStorage.updateXProfile.mockResolvedValue({});
+
+    const res = await app.raw()
+      .post('/api/x-followers/sync/complete')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({
+        syncJobId: 'job-1',
+        syncedCount: 51,
+        profileFollowerCount: 1007,
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.collected).toBe(51);
+    expect(res.body.expected).toBe(1007);
+    expect(mockStorage.establishFollowerBaseline).not.toHaveBeenCalled();
+    expect(mockStorage.applyFollowerDiff).not.toHaveBeenCalled();
+    expect(mockStorage.updateXProfile).toHaveBeenCalledWith(
+      'profile-1',
+      expect.objectContaining({ lastSyncStatus: 'failed' }),
+    );
   });
 
   it('rejects sync complete when job is not running', async () => {
@@ -221,7 +257,7 @@ describe('X follower routes', () => {
     const res = await app.raw()
       .post('/api/x-followers/sync/complete')
       .set('Authorization', `Bearer ${authToken}`)
-      .send({ syncJobId: 'job-1', followerCount: 2 });
+      .send({ syncJobId: 'job-1', followerCount: 2, profileFollowerCount: 2 });
 
     expect(res.status).toBe(200);
     expect(mockStorage.establishFollowerBaseline).toHaveBeenCalledWith(
@@ -232,6 +268,51 @@ describe('X follower routes', () => {
       2,
     );
     expect(mockStorage.applyFollowerDiff).not.toHaveBeenCalled();
+  });
+
+  it('applies two-strike rule by passing staging IDs to applyFollowerDiff', async () => {
+    mockStorage.getXProfileByUserId.mockResolvedValue({
+      id: 'profile-1',
+      userId: 'test-user',
+      xUsername: 'alice',
+      syncJobId: 'job-1',
+      lastSyncStatus: 'running',
+    });
+    // Previously had 100 active followers; current sync sees 95 of them plus 5 new.
+    mockStorage.getStagingFollowers.mockResolvedValue([
+      ...Array.from({ length: 95 }, (_, i) => ({ xUserId: String(100 + i), username: `fan${i}` })),
+      ...Array.from({ length: 5 }, (_, i) => ({ xUserId: String(900 + i), username: `new${i}` })),
+    ]);
+    mockStorage.getActiveFollowerIds.mockResolvedValue(
+      Array.from({ length: 100 }, (_, i) => String(100 + i)),
+    );
+    mockStorage.getActiveFollowerStatesByIds.mockResolvedValue([]);
+    mockStorage.applyFollowerDiff.mockResolvedValue({
+      newFollowers: 5,
+      unfollowers: 0,
+      pendingUnfollows: 5,
+    });
+    mockStorage.clearFollowerSyncStaging.mockResolvedValue(undefined);
+    mockStorage.updateXProfile.mockResolvedValue({});
+
+    const res = await app.raw()
+      .post('/api/x-followers/sync/complete')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({ syncJobId: 'job-1', profileFollowerCount: 100, syncedCount: 100 });
+
+    expect(res.status).toBe(200);
+    expect(mockStorage.applyFollowerDiff).toHaveBeenCalledTimes(1);
+    const [profileId, jobId, newFollows, candidateUnfollows, stagingIds] =
+      mockStorage.applyFollowerDiff.mock.calls[0];
+    expect(profileId).toBe('profile-1');
+    expect(jobId).toBe('job-1');
+    expect(newFollows).toHaveLength(5);
+    expect(candidateUnfollows).toHaveLength(5);
+    expect(stagingIds).toHaveLength(100);
+    expect(stagingIds).toContain('100');
+    expect(stagingIds).toContain('900');
+    expect(res.body.pendingUnfollows).toBe(5);
+    expect(res.body.unfollowers).toBe(0);
   });
 
   it('filters non-numeric follower ids from sync batches', async () => {

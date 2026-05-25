@@ -2,6 +2,12 @@ import type { XFollowerDiffResult, XFollowerSyncInput } from '../../shared/types
 
 export const X_FOLLOWER_SYNC_BATCH_SIZE = 250;
 export const X_FOLLOWER_SYNC_MIN_COVERAGE_RATIO = 0.85;
+/**
+ * A follower must be absent from this many consecutive syncs before we record
+ * an unfollow event. Guards against spurious unfollows from a single
+ * under-scrolled sync or a transient X pagination glitch.
+ */
+export const X_FOLLOWER_UNFOLLOW_STRIKE_THRESHOLD = 2;
 
 export function normalizeXUsername(username: string): string {
   return username.trim().replace(/^@+/, '').toLowerCase();
@@ -126,6 +132,25 @@ function userFromGraphResult(result: unknown): XFollowerSyncInput | null {
   return null;
 }
 
+/**
+ * True iff an entry is a follower-list TimelineUser entry. X identifies real follower
+ * rows with `entryId` prefix `user-` and `itemContent.itemType === 'TimelineUser'`.
+ * Suggestion modules use `connect-module-*`, embedded tweets are `TimelineTweet`, etc.
+ */
+export function isFollowerListTimelineEntry(entry: unknown): boolean {
+  if (!entry || typeof entry !== 'object') return false;
+  const e = entry as Record<string, unknown>;
+  const entryId = typeof e.entryId === 'string' ? e.entryId : '';
+  if (!entryId.startsWith('user-')) return false;
+  const content = e.content as Record<string, unknown> | undefined;
+  if (!content || typeof content !== 'object') return false;
+  const itemContent = content.itemContent as Record<string, unknown> | undefined;
+  if (!itemContent || typeof itemContent !== 'object') return false;
+  if (itemContent.itemType && itemContent.itemType !== 'TimelineUser') return false;
+  if (itemContent.__typename && itemContent.__typename !== 'TimelineUser') return false;
+  return true;
+}
+
 /** Extract followers from X GraphQL timeline JSON (used by extension + tests). */
 export function extractFollowersFromGraphqlResponse(data: unknown): XFollowerSyncInput[] {
   const users: XFollowerSyncInput[] = [];
@@ -138,9 +163,10 @@ export function extractFollowersFromGraphqlResponse(data: unknown): XFollowerSyn
       for (const inst of record.instructions as Array<Record<string, unknown>>) {
         if (Array.isArray(inst.entries)) {
           for (const entry of inst.entries as Array<Record<string, unknown>>) {
-            const content = entry.content as Record<string, unknown> | undefined;
-            const itemContent = content?.itemContent as Record<string, unknown> | undefined;
-            const userResults = itemContent?.user_results as Record<string, unknown> | undefined;
+            if (!isFollowerListTimelineEntry(entry)) continue;
+            const content = entry.content as Record<string, unknown>;
+            const itemContent = content.itemContent as Record<string, unknown>;
+            const userResults = itemContent.user_results as Record<string, unknown> | undefined;
             const user = userFromGraphResult(userResults?.result);
             if (user && isValidXRestId(user.xUserId)) users.push(user);
           }

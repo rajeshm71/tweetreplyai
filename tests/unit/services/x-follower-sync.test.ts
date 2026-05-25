@@ -4,9 +4,11 @@ import {
   daysBetween,
   dedupeFollowersByRestId,
   extractFollowersFromGraphqlResponse,
+  isFollowerListTimelineEntry,
   isSyncCoverageSufficient,
   isValidXRestId,
   normalizeXUsername,
+  X_FOLLOWER_UNFOLLOW_STRIKE_THRESHOLD,
 } from '../../../server/services/x-follower-sync';
 
 describe('x-follower-sync', () => {
@@ -90,8 +92,11 @@ describe('x-follower-sync', () => {
                   {
                     entries: [
                       {
+                        entryId: 'user-999001',
                         content: {
                           itemContent: {
+                            itemType: 'TimelineUser',
+                            __typename: 'TimelineUser',
                             user_results: {
                               result: {
                                 rest_id: '999001',
@@ -103,8 +108,11 @@ describe('x-follower-sync', () => {
                         },
                       },
                       {
+                        entryId: 'user-999002',
                         content: {
                           itemContent: {
+                            itemType: 'TimelineUser',
+                            __typename: 'TimelineUser',
                             user_results: {
                               result: {
                                 rest_id: '999002',
@@ -132,5 +140,119 @@ describe('x-follower-sync', () => {
     expect(followers).toHaveLength(2);
     expect(followers[0]).toMatchObject({ xUserId: '999001', username: 'fan_one' });
     expect(followers[1]).toMatchObject({ xUserId: '999002', username: 'fan_two' });
+  });
+
+  it('ignores suggestion modules, embedded tweet authors, and viewer info', () => {
+    const fixture = {
+      data: {
+        viewer: {
+          user_results: {
+            result: {
+              rest_id: '777',
+              core: { screen_name: 'me', name: 'Me' },
+            },
+          },
+        },
+        user: {
+          result: {
+            timeline: {
+              timeline: {
+                instructions: [
+                  {
+                    entries: [
+                      // Real follower entry — should be kept
+                      {
+                        entryId: 'user-111',
+                        content: {
+                          itemContent: {
+                            itemType: 'TimelineUser',
+                            user_results: {
+                              result: {
+                                rest_id: '111',
+                                core: { screen_name: 'real_follower' },
+                              },
+                            },
+                          },
+                        },
+                      },
+                      // who-to-follow / Connect module — should be rejected
+                      {
+                        entryId: 'connect-module-1',
+                        content: {
+                          entryType: 'TimelineTimelineModule',
+                          itemContent: {
+                            itemType: 'TimelineUser',
+                            user_results: {
+                              result: {
+                                rest_id: '222',
+                                core: { screen_name: 'suggestion' },
+                              },
+                            },
+                          },
+                        },
+                      },
+                      // Embedded tweet entry (different itemType) — should be rejected
+                      {
+                        entryId: 'tweet-333',
+                        content: {
+                          itemContent: {
+                            itemType: 'TimelineTweet',
+                            tweet_results: {
+                              result: {
+                                rest_id: '333',
+                                core: { user_results: { result: { rest_id: '444', core: { screen_name: 'pinned_author' } } } },
+                              },
+                            },
+                          },
+                        },
+                      },
+                      // Cursor entry — should be rejected
+                      {
+                        entryId: 'cursor-bottom-555',
+                        content: {
+                          itemContent: { itemType: 'TimelineTimelineCursor', value: 'next' },
+                        },
+                      },
+                    ],
+                  },
+                ],
+              },
+            },
+          },
+        },
+      },
+    };
+
+    const followers = extractFollowersFromGraphqlResponse(fixture);
+    expect(followers).toHaveLength(1);
+    expect(followers[0].xUserId).toBe('111');
+    expect(followers[0].username).toBe('real_follower');
+  });
+
+  it('isFollowerListTimelineEntry rejects non-TimelineUser entries', () => {
+    expect(
+      isFollowerListTimelineEntry({
+        entryId: 'user-1',
+        content: { itemContent: { itemType: 'TimelineUser', user_results: { result: {} } } },
+      }),
+    ).toBe(true);
+    expect(
+      isFollowerListTimelineEntry({
+        entryId: 'connect-module-1',
+        content: { itemContent: { itemType: 'TimelineUser' } },
+      }),
+    ).toBe(false);
+    expect(
+      isFollowerListTimelineEntry({
+        entryId: 'user-1',
+        content: { itemContent: { itemType: 'TimelineTweet' } },
+      }),
+    ).toBe(false);
+    expect(isFollowerListTimelineEntry(null)).toBe(false);
+    expect(isFollowerListTimelineEntry({})).toBe(false);
+  });
+
+  it('exports a two-strike unfollow threshold', () => {
+    expect(X_FOLLOWER_UNFOLLOW_STRIKE_THRESHOLD).toBe(2);
   });
 });

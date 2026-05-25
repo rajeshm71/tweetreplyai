@@ -274,6 +274,72 @@
     }
   }
 
+  function isFollowerTimelineEntry(entry) {
+    if (!entry || typeof entry !== 'object') return false;
+    var entryId = typeof entry.entryId === 'string' ? entry.entryId : '';
+    if (entryId.indexOf('user-') !== 0) return false;
+    var content = entry.content;
+    if (!content || typeof content !== 'object') return false;
+    var itemContent = content.itemContent;
+    if (!itemContent || typeof itemContent !== 'object') return false;
+    if (itemContent.itemType && itemContent.itemType !== 'TimelineUser') return false;
+    if (itemContent.__typename && itemContent.__typename !== 'TimelineUser') return false;
+    return true;
+  }
+
+  function userFromTimelineResult(result) {
+    if (!result || typeof result !== 'object') return null;
+    if (result.__typename === 'UserUnavailable') return null;
+    var restId = result.rest_id;
+    if (!restId || !/^\d+$/.test(String(restId))) return null;
+    var core = result.core;
+    var legacy = result.legacy;
+    var avatar = result.avatar;
+    var username = (core && core.screen_name) || (legacy && legacy.screen_name);
+    if (!username) return null;
+    return {
+      restId: String(restId),
+      username: String(username),
+      displayName: (core && core.name) || (legacy && legacy.name) || undefined,
+      avatarUrl:
+        (avatar && avatar.image_url) ||
+        (legacy && legacy.profile_image_url_https) ||
+        undefined,
+    };
+  }
+
+  function extractFollowerEntryUsers(data) {
+    var users = [];
+    if (!data || typeof data !== 'object') return users;
+
+    function walk(obj, depth) {
+      if (depth > 30 || !obj || typeof obj !== 'object') return;
+      if (obj.instructions && Array.isArray(obj.instructions)) {
+        for (var i = 0; i < obj.instructions.length; i++) {
+          var inst = obj.instructions[i];
+          if (inst.entries && Array.isArray(inst.entries)) {
+            for (var j = 0; j < inst.entries.length; j++) {
+              var entry = inst.entries[j];
+              if (!isFollowerTimelineEntry(entry)) continue;
+              var userResults = entry.content.itemContent.user_results;
+              var user = userFromTimelineResult(userResults && userResults.result);
+              if (user) users.push(user);
+            }
+          }
+        }
+      }
+      if (Array.isArray(obj)) {
+        for (var a = 0; a < obj.length; a++) walk(obj[a], depth + 1);
+      } else {
+        var keys = Object.keys(obj);
+        for (var b = 0; b < keys.length; b++) walk(obj[keys[b]], depth + 1);
+      }
+    }
+
+    walk(data, 0);
+    return users;
+  }
+
   function processResponse(url, text) {
     try {
       var data = JSON.parse(text);
@@ -311,33 +377,12 @@
       users = deduplicatedUsers;
 
       var seenUsernames = {};
-      var emittedGraphUsers = 0;
       for (var k = 0; k < users.length; k++) {
         var u2 = users[k];
         if (!u2.username) continue;
         var normalizedUsername = u2.username.toLowerCase();
         if (seenUsernames[normalizedUsername]) continue;
         seenUsernames[normalizedUsername] = true;
-
-        // Emit graph users for follower-list responses even without relationship flags.
-        if (fromFollowerList && u2.restId && /^\d+$/.test(String(u2.restId))) {
-          var graphUser = {
-            restId: String(u2.restId),
-            username: u2.username,
-            displayName: u2.displayName,
-            avatarUrl: u2.avatarUrl,
-          };
-          bufferFollowerGraphUser(graphUser);
-          window.postMessage({
-            type: MSG_FOLLOWER_GRAPH,
-            restId: graphUser.restId,
-            username: graphUser.username,
-            displayName: graphUser.displayName,
-            avatarUrl: graphUser.avatarUrl,
-            verified: false,
-          }, '*');
-          emittedGraphUsers++;
-        }
 
         if (u2.hasRelationshipData) {
           var cachedStatus = globalFollowCache[normalizedUsername];
@@ -362,8 +407,32 @@
           });
         }
       }
-      if (fromFollowerList && emittedGraphUsers > 0) {
-        log('graphql-emit', 'Emitted graph users from follower list', { emitted: emittedGraphUsers });
+
+      // Strict follower-list emission: only users that appear as TimelineUser entries
+      // in /Followers responses become candidate followers. This rejects suggestion
+      // modules, embedded tweet authors, and other nested user references.
+      if (fromFollowerList) {
+        var followerEntryUsers = extractFollowerEntryUsers(data);
+        var seenEmit = {};
+        var emittedGraphUsers = 0;
+        for (var e = 0; e < followerEntryUsers.length; e++) {
+          var fu = followerEntryUsers[e];
+          if (!fu || !fu.restId || seenEmit[fu.restId]) continue;
+          seenEmit[fu.restId] = true;
+          bufferFollowerGraphUser(fu);
+          window.postMessage({
+            type: MSG_FOLLOWER_GRAPH,
+            restId: fu.restId,
+            username: fu.username,
+            displayName: fu.displayName,
+            avatarUrl: fu.avatarUrl,
+            verified: false,
+          }, '*');
+          emittedGraphUsers++;
+        }
+        if (emittedGraphUsers > 0) {
+          log('graphql-emit', 'Emitted graph users from follower list', { emitted: emittedGraphUsers });
+        }
       }
     } catch (_e) {
       /* ignore */

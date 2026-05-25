@@ -4069,35 +4069,48 @@ User draft reply: ${draft_reply}`;
 
       const {
         computeFollowerDiff,
-        isSyncCoverageSufficient,
         dedupeFollowersByRestId,
+        X_FOLLOWER_SYNC_MIN_COVERAGE_RATIO,
       } = await import('./services/x-follower-sync.js');
 
       const stagingFollowers = dedupeFollowersByRestId(await storage.getStagingFollowers(syncJobId));
       const previousActiveIds = await storage.getActiveFollowerIds(profile.id);
       const isFirstSync = previousActiveIds.length === 0;
 
+      // Coverage gate uses the X UI follower count (profileFollowerCount) when available.
+      // This blocks both the partial-baseline failure on first sync and the spurious
+      // unfollow burst on subsequent syncs that under-scrolled the list.
+      const expectedCoverageTarget =
+        (typeof profileFollowerCount === 'number' && profileFollowerCount > 0
+          ? profileFollowerCount
+          : typeof followerCount === 'number' && followerCount > 0
+            ? followerCount
+            : previousActiveIds.length);
+
       if (
-        !isFirstSync &&
-        !isSyncCoverageSufficient(stagingFollowers.length, previousActiveIds.length)
+        expectedCoverageTarget > 0 &&
+        stagingFollowers.length / expectedCoverageTarget < X_FOLLOWER_SYNC_MIN_COVERAGE_RATIO
       ) {
         await storage.updateXProfile(profile.id, { lastSyncStatus: 'failed', syncJobId: null });
         await storage.clearFollowerSyncStaging(syncJobId);
         return res.status(400).json({
-          message: 'Sync collected too few followers. Try again when X finishes loading your list.',
+          message: 'Sync collected too few followers. Keep the X followers tab open and try again.',
           collected: stagingFollowers.length,
-          expected: previousActiveIds.length,
+          expected: expectedCoverageTarget,
         });
       }
 
-      let result = { newFollowers: 0, unfollowers: 0 };
+      let result: { newFollowers: number; unfollowers: number; pendingUnfollows: number } = {
+        newFollowers: 0,
+        unfollowers: 0,
+        pendingUnfollows: 0,
+      };
       if (isFirstSync) {
         // Baseline only — no follow/unfollow events on first sync (review fix).
         await storage.establishFollowerBaseline(profile.id, stagingFollowers, stagingFollowers.length);
       } else {
-        const unfollowIds = previousActiveIds.filter(
-          (id) => !stagingFollowers.some((f) => f.xUserId === id),
-        );
+        const stagingIdSet = new Set(stagingFollowers.map((f) => f.xUserId));
+        const unfollowIds = previousActiveIds.filter((id) => !stagingIdSet.has(id));
         const previousStates = await storage.getActiveFollowerStatesByIds(profile.id, unfollowIds);
         const previousStatesById = new Map(
           previousStates.map((s) => [
@@ -4112,6 +4125,7 @@ User draft reply: ${draft_reply}`;
           syncJobId,
           diff.newFollows,
           diff.unfollows,
+          stagingFollowers.map((f) => f.xUserId),
           diff.totalActive,
         );
       }

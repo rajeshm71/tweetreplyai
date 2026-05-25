@@ -33,6 +33,24 @@
   var collected = [];
   var graphUsersReceived = false;
   var graphIngestCount = 0;
+  var cachedScrollContainer = null;
+  var cachedScrollContainerMisses = 0;
+  var viewerRestId = null;
+
+  function getViewerRestIdFromCookie() {
+    try {
+      var cookies = String(document.cookie || '').split(';');
+      for (var i = 0; i < cookies.length; i++) {
+        var parts = cookies[i].split('=');
+        var name = (parts[0] || '').trim();
+        if (name !== 'twid') continue;
+        var raw = decodeURIComponent((parts[1] || '').trim());
+        var match = raw.match(/u=(\d+)/);
+        if (match && /^\d+$/.test(match[1])) return match[1];
+      }
+    } catch (_e) {}
+    return null;
+  }
 
   function isValidRestId(id) {
     return /^\d+$/.test(String(id || '').trim());
@@ -76,6 +94,7 @@
   function upsertFollower(follower) {
     if (!follower || !follower.xUserId || !isValidRestId(follower.xUserId) || !follower.username) return false;
     var restId = String(follower.xUserId).trim();
+    if (viewerRestId && restId === viewerRestId) return false;
     var usernameKey = String(follower.username).toLowerCase();
     usernameToRestId[usernameKey] = restId;
     if (seenRestIds[restId]) {
@@ -123,6 +142,19 @@
     return null;
   }
 
+  function isFollowerTimelineEntry(entry) {
+    if (!entry || typeof entry !== 'object') return false;
+    var entryId = typeof entry.entryId === 'string' ? entry.entryId : '';
+    if (entryId.indexOf('user-') !== 0) return false;
+    var content = entry.content;
+    if (!content || typeof content !== 'object') return false;
+    var itemContent = content.itemContent;
+    if (!itemContent || typeof itemContent !== 'object') return false;
+    if (itemContent.itemType && itemContent.itemType !== 'TimelineUser') return false;
+    if (itemContent.__typename && itemContent.__typename !== 'TimelineUser') return false;
+    return true;
+  }
+
   function parseTimelineEntries(data) {
     var users = [];
     if (!data || typeof data !== 'object') return users;
@@ -135,22 +167,10 @@
           if (inst.entries && Array.isArray(inst.entries)) {
             for (var j = 0; j < inst.entries.length; j++) {
               var entry = inst.entries[j];
-              var content = entry && entry.content;
-              var itemContent = content && content.itemContent;
-              var userResults = itemContent && itemContent.user_results;
+              if (!isFollowerTimelineEntry(entry)) continue;
+              var userResults = entry.content.itemContent.user_results;
               var user = userFromResult(userResults && userResults.result);
               if (user) users.push(user);
-            }
-          }
-          if (inst.moduleItems && Array.isArray(inst.moduleItems)) {
-            for (var k = 0; k < inst.moduleItems.length; k++) {
-              var mod = inst.moduleItems[k];
-              var modUser = userFromResult(
-                mod && mod.item && mod.item.itemContent && mod.item.itemContent.user_results
-                  ? mod.item.itemContent.user_results.result
-                  : null,
-              );
-              if (modUser) users.push(modUser);
             }
           }
         }
@@ -167,25 +187,10 @@
     return users;
   }
 
-  function parseUserFromGraph(obj, out, depth) {
-    if (depth > 25 || !obj || typeof obj !== 'object') return;
-    var direct = userFromResult(obj);
-    if (direct) out.push(direct);
-    if (Array.isArray(obj)) {
-      for (var i = 0; i < obj.length; i++) parseUserFromGraph(obj[i], out, depth + 1);
-    } else {
-      var keys = Object.keys(obj);
-      for (var j = 0; j < keys.length; j++) parseUserFromGraph(obj[keys[j]], out, depth + 1);
-    }
-  }
-
   function ingestGraphText(text, url) {
     try {
       var data = JSON.parse(text);
       var users = parseTimelineEntries(data);
-      if (!users.length) {
-        parseUserFromGraph(data, users, 0);
-      }
       var added = 0;
       for (var i = 0; i < users.length; i++) {
         if (upsertFollower(users[i])) added++;
@@ -395,10 +400,16 @@
     return enriched;
   }
 
-  function forceRefreshList() {
-    var container = getScrollContainer();
-    if (container) container.scrollTop = 0;
-    window.scrollTo(0, 0);
+  function isScrollableElement(el) {
+    if (!el || el === document.body || el === document.documentElement) return false;
+    try {
+      var style = window.getComputedStyle(el);
+      var overflowY = style.overflowY;
+      if (overflowY !== 'auto' && overflowY !== 'scroll' && overflowY !== 'overlay') return false;
+      return el.scrollHeight > el.clientHeight + 10;
+    } catch (_e) {
+      return false;
+    }
   }
 
   function getScrollContainer() {
@@ -406,49 +417,91 @@
     if (cell) {
       var el = cell.parentElement;
       while (el && el !== document.body) {
-        try {
-          var style = window.getComputedStyle(el);
-          var overflowY = style.overflowY;
-          if (
-            (overflowY === 'auto' || overflowY === 'scroll') &&
-            el.scrollHeight > el.clientHeight + 40
-          ) {
-            return el;
-          }
-        } catch (_e) {}
+        if (isScrollableElement(el)) return el;
         el = el.parentElement;
       }
     }
-    return (
-      document.querySelector('[data-testid="primaryColumn"]') ||
-      document.querySelector('[role="dialog"]') ||
-      document.scrollingElement ||
-      document.documentElement
-    );
+
+    var primary = document.querySelector('[data-testid="primaryColumn"]');
+    if (primary) {
+      var best = null;
+      var bestDelta = 0;
+      var nodes = primary.querySelectorAll('*');
+      for (var i = 0; i < nodes.length; i++) {
+        var node = nodes[i];
+        if (!isScrollableElement(node)) continue;
+        var delta = node.scrollHeight - node.clientHeight;
+        if (delta > bestDelta) {
+          bestDelta = delta;
+          best = node;
+        }
+      }
+      if (best) return best;
+      if (isScrollableElement(primary)) return primary;
+    }
+
+    var region = document.querySelector('[aria-label*="Followers"], [aria-label*="followers"]');
+    if (region && isScrollableElement(region)) return region;
+
+    return document.scrollingElement || document.documentElement;
+  }
+
+  function resolveScrollContainer(forceRefresh) {
+    if (!forceRefresh && cachedScrollContainer && document.contains(cachedScrollContainer)) {
+      return cachedScrollContainer;
+    }
+    cachedScrollContainer = getScrollContainer();
+    return cachedScrollContainer;
   }
 
   function scrollFollowersViewport(container) {
+    var step = 700;
+    if (container && container.clientHeight) {
+      step = Math.max(500, Math.floor(container.clientHeight * 0.82));
+    }
+
+    var prevTop = container ? container.scrollTop : window.scrollY;
+
+    if (container && container !== document.documentElement && container !== document.body) {
+      container.scrollTop = Math.min(container.scrollTop + step, container.scrollHeight);
+      try {
+        container.dispatchEvent(new Event('scroll', { bubbles: true }));
+      } catch (_e) {}
+    }
+
+    window.scrollBy(0, step);
+
     var cells = document.querySelectorAll('[data-testid="UserCell"]');
     var lastCell = cells.length ? cells[cells.length - 1] : null;
     if (lastCell) {
       try {
-        lastCell.scrollIntoView({ block: 'end', inline: 'nearest', behavior: 'instant' });
+        lastCell.scrollIntoView({ block: 'end', behavior: 'auto' });
       } catch (_e) {
         try {
           lastCell.scrollIntoView(false);
         } catch (_e2) {}
       }
     }
-    if (container) {
-      container.scrollTop = container.scrollHeight;
-      try {
-        container.dispatchEvent(new Event('scroll', { bubbles: true }));
-      } catch (_e) {}
+
+    if (container && container !== document.documentElement && container !== document.body) {
+      container.scrollTop = Math.min(container.scrollTop + step, container.scrollHeight);
     }
-    window.scrollTo(0, document.body.scrollHeight);
+
     try {
-      window.dispatchEvent(new WheelEvent('wheel', { deltaY: 800, bubbles: true, cancelable: true }));
+      window.dispatchEvent(new WheelEvent('wheel', { deltaY: step, bubbles: true, cancelable: true }));
     } catch (_e) {}
+    try {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'PageDown', code: 'PageDown', bubbles: true }));
+    } catch (_e) {}
+
+    var nextTop = container ? container.scrollTop : window.scrollY;
+    return {
+      step: step,
+      moved: Math.abs(nextTop - prevTop) > 1,
+      scrollTop: nextTop,
+      scrollHeight: container ? container.scrollHeight : document.body.scrollHeight,
+      userCells: cells.length,
+    };
   }
 
   function computeMaxStaleRounds(targetCount) {
@@ -512,9 +565,11 @@
     });
 
     while (collecting && rounds < maxRounds && staleRounds < maxStale) {
-      var container = getScrollContainer();
-      scrollFollowersViewport(container);
-      await sleep(jitter(1500, 2800));
+      var container = resolveScrollContainer(cachedScrollContainerMisses >= 2);
+      var scrollMeta = scrollFollowersViewport(container);
+      if (!scrollMeta.moved) cachedScrollContainerMisses++;
+      else cachedScrollContainerMisses = 0;
+      await sleep(jitter(1200, 2200));
       scrapeUserCells();
 
       if (collected.length === prevSize) staleRounds++;
@@ -522,13 +577,16 @@
       prevSize = collected.length;
       rounds++;
 
-      if (rounds === 1 || rounds % 10 === 0 || staleRounds >= maxStale - 2) {
+      if (rounds === 1 || rounds % 5 === 0 || staleRounds >= maxStale - 2) {
         log('scroll', 'Scroll round', {
           round: rounds,
           collected: collected.length,
           staleRounds: staleRounds,
           maxStale: maxStale,
-          userCellsVisible: document.querySelectorAll('[data-testid="UserCell"]').length,
+          userCellsVisible: scrollMeta.userCells,
+          scrollMoved: scrollMeta.moved,
+          scrollTop: scrollMeta.scrollTop,
+          scrollHeight: scrollMeta.scrollHeight,
         });
       }
 
@@ -565,6 +623,10 @@
     collected = [];
     graphUsersReceived = false;
     graphIngestCount = 0;
+    cachedScrollContainer = null;
+    cachedScrollContainerMisses = 0;
+    viewerRestId = getViewerRestIdFromCookie();
+    log('viewer-id', 'Viewer rest_id detection', { viewerRestId: viewerRestId || null });
     var batchSize = options && options.batchSize ? options.batchSize : 250;
     var profileFollowerCount = scrapeProfileFollowerCount();
     var computedMaxRounds = computeMaxScrollRounds(profileFollowerCount || 0);
@@ -582,11 +644,6 @@
       await sleep(200);
       scrapeUserCells();
       log('replay-wait', 'After buffer replay wait', { collected: collected.length });
-
-      forceRefreshList();
-      log('force-refresh', 'Scrolled list to top');
-      await sleep(1200);
-      scrapeUserCells();
 
       var ready = await waitForFirstSignal(15000);
       if (!ready) {
