@@ -1,6 +1,5 @@
 import type { XFollowerDiffResult, XFollowerSyncInput } from '../../shared/types.js';
 
-export const X_FOLLOWER_SYNC_COOLDOWN_MS = 6 * 60 * 60 * 1000;
 export const X_FOLLOWER_SYNC_BATCH_SIZE = 500;
 export const X_FOLLOWER_SYNC_MIN_COVERAGE_RATIO = 0.85;
 
