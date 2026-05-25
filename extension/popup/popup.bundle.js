@@ -7098,6 +7098,9 @@ Event: ${getEventDescription(event)}`
     if (raw.includes("timeout") || raw.includes("network")) {
       return { message: "Network issue. Please retry.", action: "retry" };
     }
+    if (raw.includes("429") || raw.includes("cooldown") || raw.includes("please wait before syncing")) {
+      return { message: error2?.message || "Sync cooldown active. Please wait before syncing again.", action: "retry" };
+    }
     return { message: fallback, action: "retry" };
   }
 
@@ -8875,6 +8878,7 @@ Event: ${getEventDescription(event)}`
       if (this.unfollowersSyncBtn) this.unfollowersSyncBtn.disabled = !!visible;
     }
     handleFollowerSyncProgress(message) {
+      console.log("[TweetReply Followers][popup]", message.status + ":", message);
       const panelOpen = this.unfollowersPanel && !this.unfollowersPanel.classList.contains("hidden");
       if (message.status === "collecting" || message.status === "uploading" || message.status === "starting") {
         const collected = message.collected || 0;
@@ -8892,23 +8896,26 @@ Event: ${getEventDescription(event)}`
         if (panelOpen) this.loadUnfollowerPanel();
       } else if (message.status === "error") {
         this.followerSyncInProgress = false;
-        if (panelOpen) {
-          this.setFollowerSyncProgress(false);
-          if (this.unfollowersError) {
-            this.unfollowersError.textContent = message.error || "Sync failed";
-            this.unfollowersError.classList.remove("hidden");
-          }
+        this.setFollowerSyncProgress(false);
+        if (this.unfollowersError) {
+          this.unfollowersError.textContent = message.error || "Sync failed";
+          this.unfollowersError.classList.remove("hidden");
         }
+        if (this.unfollowersData) this.unfollowersData.classList.remove("hidden");
+        if (this.unfollowersLoading) this.unfollowersLoading.classList.add("hidden");
       }
     }
     async handleFollowerSync() {
       if (this.followerSyncInProgress) return;
       this.followerSyncInProgress = true;
+      console.log("[TweetReply Followers][popup] sync-start: User clicked Sync now");
       this.setFollowerSyncProgress(true, "Starting sync\u2026", 5);
       if (this.unfollowersError) this.unfollowersError.classList.add("hidden");
       try {
         await this.apiClient.startFollowerSync();
+        console.log("[TweetReply Followers][popup] sync-start: Background accepted sync job");
       } catch (error2) {
+        console.log("[TweetReply Followers][popup] sync-error:", getUserFacingError(error2, "Sync failed").message);
         this.followerSyncInProgress = false;
         this.setFollowerSyncProgress(false);
         if (this.unfollowersError) {

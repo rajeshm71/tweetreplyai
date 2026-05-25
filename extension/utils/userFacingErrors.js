@@ -13,5 +13,8 @@ export function getUserFacingError(error, fallback = 'Something went wrong. Try 
   if (raw.includes('timeout') || raw.includes('network')) {
     return { message: 'Network issue. Please retry.', action: 'retry' };
   }
+  if (raw.includes('429') || raw.includes('cooldown') || raw.includes('please wait before syncing')) {
+    return { message: error?.message || 'Sync cooldown active. Please wait before syncing again.', action: 'retry' };
+  }
   return { message: fallback, action: 'retry' };
 }

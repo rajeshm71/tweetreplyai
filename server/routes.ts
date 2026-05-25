@@ -3969,7 +3969,7 @@ User draft reply: ${draft_reply}`;
         profile.lastSyncStatus === 'running' &&
         profile.syncJobId &&
         profile.lastSyncAt &&
-        Date.now() - profile.lastSyncAt.getTime() < 30 * 60 * 1000
+        Date.now() - profile.lastSyncAt.getTime() < 2 * 60 * 1000
       ) {
         return res.status(409).json({
           message: 'A sync is already in progress',
@@ -3977,16 +3977,30 @@ User draft reply: ${draft_reply}`;
         });
       }
 
+      if (profile.lastSyncStatus === 'running' && profile.syncJobId) {
+        await storage.clearFollowerSyncStaging(profile.syncJobId);
+        await storage.updateXProfile(profile.id, { lastSyncStatus: 'failed', syncJobId: null });
+      }
+
       if (
         profile.lastSyncAt &&
         profile.lastSyncStatus === 'completed' &&
         Date.now() - profile.lastSyncAt.getTime() < X_FOLLOWER_SYNC_COOLDOWN_MS
       ) {
-        const retryAfterMs = X_FOLLOWER_SYNC_COOLDOWN_MS - (Date.now() - profile.lastSyncAt.getTime());
-        return res.status(429).json({
-          message: 'Please wait before syncing again',
-          retryAfterMs,
-        });
+        const { X_FOLLOWER_SYNC_MIN_COVERAGE_RATIO } = await import('./services/x-follower-sync.js');
+        const syncedCount = await storage.countActiveFollowers(profile.id);
+        const profileCount = profile.followerCount || 0;
+        const hasLowCoverage =
+          profileCount > 0 &&
+          syncedCount / profileCount < X_FOLLOWER_SYNC_MIN_COVERAGE_RATIO;
+
+        if (!hasLowCoverage) {
+          const retryAfterMs = X_FOLLOWER_SYNC_COOLDOWN_MS - (Date.now() - profile.lastSyncAt.getTime());
+          return res.status(429).json({
+            message: 'Please wait before syncing again',
+            retryAfterMs,
+          });
+        }
       }
 
       const syncJobId = crypto.randomUUID();

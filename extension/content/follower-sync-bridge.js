@@ -9,11 +9,20 @@
   var chunkIndex = 0;
   var uploadQueue = Promise.resolve();
   var syncFailed = false;
+  var LOG_PREFIX = '[TweetReply Followers][bridge]';
+
+  function log(stage, message, data) {
+    try {
+      if (data !== undefined) console.log(LOG_PREFIX, stage + ':', message, data);
+      else console.log(LOG_PREFIX, stage + ':', message);
+    } catch (_e) {}
+  }
 
   function enqueueUpload(fn) {
     uploadQueue = uploadQueue
       .then(fn)
       .catch(function (err) {
+        log('upload-error', 'Upload queue failed', { error: err && err.message ? err.message : String(err) });
         if (!syncFailed && pendingJob) {
           syncFailed = true;
           var jobId = pendingJob.syncJobId;
@@ -60,6 +69,12 @@
   function uploadBatch(followers, partial) {
     if (!pendingJob || !followers.length || syncFailed) return Promise.resolve();
     chunkIndex += 1;
+    log('batch-upload', 'Uploading batch to background', {
+      syncJobId: pendingJob.syncJobId,
+      chunkIndex: chunkIndex,
+      count: followers.length,
+      partial: !!partial,
+    });
     return new Promise(function (resolve, reject) {
       chrome.runtime.sendMessage(
         {
@@ -78,6 +93,7 @@
             reject(new Error((response && response.error) || 'Batch upload failed'));
             return;
           }
+          log('batch-upload', 'Batch uploaded successfully', { chunkIndex: chunkIndex });
           resolve(response);
         },
       );
@@ -90,6 +106,7 @@
 
     if (data.type === 'TRAI_FOLLOWER_BATCH') {
       if (data.progress) {
+        log('batch-received', 'Progress from main', data.progress);
         postProgress({
           syncJobId: pendingJob.syncJobId,
           status: 'collecting',
@@ -98,6 +115,7 @@
         });
       }
       if (data.followers && data.followers.length) {
+        log('batch-received', 'Follower batch from main', { count: data.followers.length, partial: !!data.partial });
         enqueueUpload(function () {
           return uploadBatch(data.followers, !!data.partial);
         });
@@ -106,6 +124,10 @@
     }
 
     if (data.type === 'TRAI_FOLLOWER_SYNC_DONE') {
+      log('complete', 'Main finished collection', {
+        total: data.total,
+        profileFollowerCount: data.profileFollowerCount,
+      });
       postProgress({
         syncJobId: pendingJob.syncJobId,
         status: 'completing',
@@ -134,6 +156,7 @@
                 reject(new Error((response && response.error) || 'Failed to complete sync'));
                 return;
               }
+              log('complete', 'Sync completed via API', { jobId: jobId, result: response && response.result });
               postProgress({
                 syncJobId: jobId,
                 status: 'completed',
@@ -149,6 +172,7 @@
     }
 
     if (data.type === 'TRAI_FOLLOWER_SYNC_ERROR') {
+      log('sync-error', 'Error from main', { message: data.message });
       syncFailed = true;
       var failJobId = pendingJob ? pendingJob.syncJobId : null;
       pendingJob = null;
@@ -167,22 +191,31 @@
 
     (async function () {
       try {
+        log('run-request', 'Received runFollowerSync', {
+          syncJobId: message.syncJobId,
+          xUsername: message.xUsername,
+          path: location.pathname,
+        });
         var xUsername = message.xUsername;
         var loggedIn = getLoggedInUsername();
         if (!loggedIn) {
+          log('auth-check', 'Failed — not logged in');
           sendResponse({ success: false, error: 'Could not detect logged-in X account. Open x.com while logged in.' });
           return;
         }
         if (loggedIn.toLowerCase() !== String(xUsername || '').toLowerCase()) {
+          log('auth-check', 'Failed — username mismatch', { loggedIn: loggedIn, expected: xUsername });
           sendResponse({
             success: false,
             error: 'Logged into X as @' + loggedIn + ', expected @' + xUsername,
           });
           return;
         }
+        log('auth-check', 'Passed', { loggedIn: loggedIn });
 
         var followersPath = '/' + xUsername + '/followers';
         if (location.pathname.toLowerCase() !== followersPath.toLowerCase()) {
+          log('navigate', 'Redirecting to followers page', { target: followersPath });
           location.href = 'https://x.com' + followersPath;
           sendResponse({ success: true, navigating: true });
           return;
@@ -195,16 +228,18 @@
         chunkIndex = 0;
         syncFailed = false;
 
+        log('job-started', 'Posting TRAI_FOLLOWER_SYNC_START to main world', { syncJobId: message.syncJobId });
         window.postMessage(
           {
             type: 'TRAI_FOLLOWER_SYNC_START',
-            options: { batchSize: message.batchSize || 500, maxRounds: message.maxRounds || 120 },
+            options: { batchSize: message.batchSize || 500 },
           },
           '*',
         );
 
         sendResponse({ success: true, started: true });
       } catch (err) {
+        log('run-error', 'Failed to start sync', { error: err.message || String(err) });
         sendResponse({ success: false, error: err.message || 'Failed to start follower sync' });
       }
     })();
@@ -212,4 +247,4 @@
     return true;
   });
 })();
-
+

@@ -13,7 +13,17 @@
 
   var globalFollowCache = {};
   var followStatusBuffer = [];
+  var followerGraphUserBuffer = [];
+  var FOLLOWER_GRAPH_BUFFER_MAX = 5000;
   var BUFFER_MAX_SIZE = 200;
+  var LOG_PREFIX = '[TweetReply Followers][interceptor]';
+
+  function log(stage, message, data) {
+    try {
+      if (data !== undefined) console.log(LOG_PREFIX, stage + ':', message, data);
+      else console.log(LOG_PREFIX, stage + ':', message);
+    } catch (_e) {}
+  }
 
   /**
    * Substrings of GraphQL operation paths (see Network tab on x.com). Update when X renames routes.
@@ -88,11 +98,53 @@
     window.postMessage(message, '*');
   }
 
+  function bufferFollowerGraphUser(user) {
+    if (!user.restId || !user.username || !/^\d+$/.test(String(user.restId))) return;
+    var restId = String(user.restId);
+    for (var i = 0; i < followerGraphUserBuffer.length; i++) {
+      if (followerGraphUserBuffer[i].restId === restId) {
+        followerGraphUserBuffer[i] = user;
+        return;
+      }
+    }
+    followerGraphUserBuffer.push(user);
+    if (followerGraphUserBuffer.length > FOLLOWER_GRAPH_BUFFER_MAX) {
+      followerGraphUserBuffer.shift();
+    }
+    if (followerGraphUserBuffer.length === 1 || followerGraphUserBuffer.length % 50 === 0) {
+      log('buffer', 'Buffered follower graph user', {
+        bufferSize: followerGraphUserBuffer.length,
+        latest: '@' + user.username,
+      });
+    }
+  }
+
+  function replayFollowerGraphBuffer() {
+    log('buffer-replay', 'Replaying buffered graph users', { count: followerGraphUserBuffer.length });
+    for (var i = 0; i < followerGraphUserBuffer.length; i++) {
+      var u = followerGraphUserBuffer[i];
+      window.postMessage({
+        type: MSG_FOLLOWER_GRAPH,
+        restId: u.restId,
+        username: u.username,
+        displayName: u.displayName,
+        avatarUrl: u.avatarUrl,
+        verified: false,
+      }, '*');
+    }
+  }
+
   window.addEventListener('message', function (event) {
     if (event.source !== window || !event.data || event.data.type !== MSG_BUFFER_REPLAY) return;
     for (var i = 0; i < followStatusBuffer.length; i++) {
       window.postMessage(followStatusBuffer[i], '*');
     }
+  });
+
+  window.addEventListener('message', function (event) {
+    if (event.source !== window || !event.data || event.data.type !== 'TRAI_FOLLOWER_SYNC_START') return;
+    // Defer so follower-sync-main can set collecting=true first.
+    setTimeout(replayFollowerGraphBuffer, 0);
   });
 
   // React fiber text insertion — runs in MAIN world so __reactFiber$ keys are accessible.
@@ -227,6 +279,10 @@
       var data = JSON.parse(text);
       var users = [];
       findUsers(data, users, 0);
+      var fromFollowerList = isFollowerListUrl(url);
+      if (fromFollowerList) {
+        log('graphql-response', 'Follower-list response', { url: url.slice(0, 120), usersFound: users.length });
+      }
 
       var userMap = {};
       for (var i = 0; i < users.length; i++) {
@@ -255,7 +311,7 @@
       users = deduplicatedUsers;
 
       var seenUsernames = {};
-      var fromFollowerList = isFollowerListUrl(url);
+      var emittedGraphUsers = 0;
       for (var k = 0; k < users.length; k++) {
         var u2 = users[k];
         if (!u2.username) continue;
@@ -265,14 +321,22 @@
 
         // Emit graph users for follower-list responses even without relationship flags.
         if (fromFollowerList && u2.restId && /^\d+$/.test(String(u2.restId))) {
-          window.postMessage({
-            type: MSG_FOLLOWER_GRAPH,
+          var graphUser = {
             restId: String(u2.restId),
             username: u2.username,
             displayName: u2.displayName,
             avatarUrl: u2.avatarUrl,
+          };
+          bufferFollowerGraphUser(graphUser);
+          window.postMessage({
+            type: MSG_FOLLOWER_GRAPH,
+            restId: graphUser.restId,
+            username: graphUser.username,
+            displayName: graphUser.displayName,
+            avatarUrl: graphUser.avatarUrl,
             verified: false,
           }, '*');
+          emittedGraphUsers++;
         }
 
         if (u2.hasRelationshipData) {
@@ -297,6 +361,9 @@
             hasRelationshipData: true,
           });
         }
+      }
+      if (fromFollowerList && emittedGraphUsers > 0) {
+        log('graphql-emit', 'Emitted graph users from follower list', { emitted: emittedGraphUsers });
       }
     } catch (_e) {
       /* ignore */

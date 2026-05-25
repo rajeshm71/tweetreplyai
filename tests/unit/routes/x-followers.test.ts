@@ -148,6 +148,40 @@ describe('X follower routes', () => {
     expect(res.body.coveragePercent).toBe(85);
   });
 
+  it('allows sync start during cooldown when coverage is low', async () => {
+    mockStorage.getXProfileByUserId.mockResolvedValue({
+      id: 'profile-1',
+      userId: 'test-user',
+      xUsername: 'alice',
+      followerCount: 1000,
+      followingCount: 0,
+      lastSyncAt: new Date(),
+      lastSyncStatus: 'completed',
+      syncJobId: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    mockStorage.countActiveFollowers.mockResolvedValue(51);
+    mockStorage.updateXProfile.mockImplementation(async (_id, updates) => ({
+      id: 'profile-1',
+      userId: 'test-user',
+      xUsername: 'alice',
+      followerCount: 1000,
+      lastSyncStatus: updates.lastSyncStatus || 'running',
+      syncJobId: updates.syncJobId || 'job-new',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }));
+
+    const res = await app.raw()
+      .post('/api/x-followers/sync/start')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({ loggedInXUsername: 'alice' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.syncJobId).toBeTruthy();
+  });
+
   it('persists profileFollowerCount on sync complete', async () => {
     mockStorage.getXProfileByUserId.mockResolvedValue({
       id: 'profile-1',

@@ -4315,12 +4315,12 @@ Reason: ${reason}`
     weight += 8;
     return weight + estimateAttributesSizeInBytes(metric.attributes);
   }
-  function estimateLogSizeInBytes(log2) {
+  function estimateLogSizeInBytes(log3) {
     let weight = 0;
-    if (log2.message) {
-      weight += log2.message.length * 2;
+    if (log3.message) {
+      weight += log3.message.length * 2;
     }
-    return weight + estimateAttributesSizeInBytes(log2.attributes);
+    return weight + estimateAttributesSizeInBytes(log3.attributes);
   }
   function estimateAttributesSizeInBytes(attributes) {
     if (!attributes) {
@@ -4760,8 +4760,8 @@ Event: ${getEventDescription(event)}`
         return function(...args) {
           const handlerData = { args, level };
           triggerHandlers("console", handlerData);
-          const log2 = originalConsoleMethods[level];
-          log2?.apply(GLOBAL_OBJ.console, args);
+          const log3 = originalConsoleMethods[level];
+          log3?.apply(GLOBAL_OBJ.console, args);
         };
       });
     });
@@ -6749,26 +6749,59 @@ Event: ${getEventDescription(event)}`
 
   // extension/background/follower-sync.js
   var BATCH_SIZE = 500;
+  var LOG_PREFIX = "[TweetReply Followers][background]";
+  function parseApiError(error2, status) {
+    if (!error2) return "API request failed";
+    const raw = String(error2);
+    try {
+      const parsed = JSON.parse(raw);
+      const message = parsed.message || raw;
+      if (message === "Please wait before syncing again" && typeof parsed.retryAfterMs === "number") {
+        const mins = Math.ceil(parsed.retryAfterMs / 6e4);
+        if (mins >= 60) {
+          const hours = Math.ceil(mins / 60);
+          return `Sync cooldown active. Try again in about ${hours} hour(s).`;
+        }
+        return `Sync cooldown active. Try again in about ${mins} minute(s).`;
+      }
+      return message;
+    } catch (_e) {
+      if (status === 429) return "Too many requests. Please wait and try again.";
+      return raw;
+    }
+  }
+  function log2(stage, message, data) {
+    try {
+      if (data !== void 0) console.log(LOG_PREFIX, stage + ":", message, data);
+      else console.log(LOG_PREFIX, stage + ":", message);
+    } catch (_e) {
+    }
+  }
   var FollowerSyncManager = class {
     constructor(backgroundManager) {
       this.bg = backgroundManager;
       this.activeJob = null;
     }
     async apiRequest(endpoint, method, body) {
+      log2("api-request", `${method || "GET"} ${endpoint}`, body ? { bodyKeys: Object.keys(body) } : void 0);
       return new Promise((resolve, reject) => {
         this.bg.handleApiRequest(
           { endpoint, method: method || "GET", body, headers: {} },
           (response) => {
             if (!response || !response.success) {
-              reject(new Error(response?.error || "API request failed"));
+              const errMsg = parseApiError(response?.error, response?.status);
+              log2("api-error", `${method || "GET"} ${endpoint} failed`, { error: errMsg, status: response?.status });
+              reject(new Error(errMsg));
               return;
             }
+            log2("api-success", `${method || "GET"} ${endpoint} ok`);
             resolve(response.data);
           }
         );
       });
     }
     broadcastProgress(payload) {
+      log2("progress", "Broadcasting", { status: payload.status, syncJobId: payload.syncJobId });
       try {
         chrome.runtime.sendMessage(Object.assign({ action: "followerSyncProgress" }, payload));
       } catch (_e) {
@@ -6793,24 +6826,35 @@ Event: ${getEventDescription(event)}`
           return null;
         }
       });
+      log2("auth-check", "Logged-in X user from tab", { username: result || null });
       return result || null;
     }
     async findOrOpenXTab() {
       const tabs = await chrome.tabs.query({ url: ["https://x.com/*", "https://twitter.com/*"] });
-      if (tabs.length) return tabs[0];
+      if (tabs.length) {
+        log2("tab", "Using existing X tab", { tabId: tabs[0].id, url: tabs[0].url });
+        return tabs[0];
+      }
+      log2("tab", "Opening new X tab");
       return chrome.tabs.create({ url: "https://x.com/home", active: false });
     }
     async waitForTabLoad(tabId, timeoutMs = 2e4) {
+      log2("tab-load", "Waiting for tab load", { tabId, timeoutMs });
       const start = Date.now();
       while (Date.now() - start < timeoutMs) {
         const tab = await chrome.tabs.get(tabId);
-        if (tab.status === "complete") return tab;
+        if (tab.status === "complete") {
+          log2("tab-load", "Tab loaded", { tabId, elapsedMs: Date.now() - start });
+          return tab;
+        }
         await new Promise((r) => setTimeout(r, 400));
       }
+      log2("tab-load", "Tab load timeout", { tabId, elapsedMs: Date.now() - start });
       return chrome.tabs.get(tabId);
     }
     async waitForFollowersPageReady(tabId, xUsername, timeoutMs = 2e4) {
       const followersPath = `/${xUsername}/followers`.toLowerCase();
+      log2("page-ready", "Waiting for followers page", { tabId, followersPath, timeoutMs });
       const start = Date.now();
       while (Date.now() - start < timeoutMs) {
         const [{ result }] = await chrome.scripting.executeScript({
@@ -6818,16 +6862,27 @@ Event: ${getEventDescription(event)}`
           func: (expectedPath) => {
             const onFollowersPage = location.pathname.toLowerCase() === expectedPath;
             const hasCells = !!document.querySelector('[data-testid="UserCell"]');
-            return { onFollowersPage, hasCells };
+            const hasPrimary = !!document.querySelector('[data-testid="primaryColumn"]');
+            return { onFollowersPage, hasCells, hasPrimary };
           },
           args: [followersPath]
         });
-        if (result?.onFollowersPage && result?.hasCells) return true;
+        if (result?.onFollowersPage && (result?.hasCells || result?.hasPrimary)) {
+          log2("page-ready", "Followers page ready", { ...result, elapsedMs: Date.now() - start });
+          return true;
+        }
         await new Promise((r) => setTimeout(r, 500));
       }
+      log2("page-ready", "Followers page timeout", { elapsedMs: Date.now() - start });
       return false;
     }
-    async sendRunFollowerSync(tabId, payload) {
+    async sendRunFollowerSync(tabId, payload, retryOnDisconnect = true) {
+      log2("content-message", "Sending runFollowerSync", {
+        tabId,
+        syncJobId: payload.syncJobId,
+        xUsername: payload.xUsername,
+        retryOnDisconnect
+      });
       return new Promise((resolve) => {
         chrome.tabs.sendMessage(
           tabId,
@@ -6837,11 +6892,28 @@ Event: ${getEventDescription(event)}`
             xUsername: payload.xUsername,
             batchSize: BATCH_SIZE
           },
-          (response) => {
+          async (response) => {
             if (chrome.runtime.lastError) {
-              resolve({ success: false, error: chrome.runtime.lastError.message });
+              const errMsg = chrome.runtime.lastError.message || "";
+              log2("content-message", "sendMessage failed", { error: errMsg, retryOnDisconnect });
+              if (retryOnDisconnect && (errMsg.includes("Receiving end") || errMsg.includes("Could not establish"))) {
+                try {
+                  log2("content-message", "Reloading tab and retrying", { tabId });
+                  await chrome.tabs.reload(tabId);
+                  await this.waitForTabLoad(tabId, 25e3);
+                  await this.waitForFollowersPageReady(tabId, payload.xUsername, 2e4);
+                  await new Promise((r) => setTimeout(r, 3e3));
+                  resolve(await this.sendRunFollowerSync(tabId, payload, false));
+                  return;
+                } catch (_e) {
+                  resolve({ success: false, error: errMsg });
+                  return;
+                }
+              }
+              resolve({ success: false, error: errMsg });
               return;
             }
+            log2("content-message", "runFollowerSync response", response || {});
             resolve(response || { success: false, error: "No response from content script" });
           }
         );
@@ -6849,22 +6921,28 @@ Event: ${getEventDescription(event)}`
     }
     async startSync() {
       if (this.activeJob) {
+        log2("start", "Rejected \u2014 sync already in progress", this.activeJob);
         return { success: false, error: "Sync already in progress" };
       }
+      log2("start", "Sync requested");
       try {
         const user = await this.apiRequest("/api/auth/user", "GET");
         if (!user?.xUsername) {
+          log2("start", "Failed \u2014 no X username in settings");
           return { success: false, error: "Set your X username in TweetReply settings first." };
         }
+        log2("start", "User loaded", { xUsername: user.xUsername });
         const tab = await this.findOrOpenXTab();
         await this.waitForTabLoad(tab.id);
         const loggedInXUsername = await this.getLoggedInXUsername(tab.id);
         if (!loggedInXUsername) {
+          log2("start", "Failed \u2014 X login not detected");
           return { success: false, error: "Log into X in your browser, then try again." };
         }
         const startData = await this.apiRequest("/api/x-followers/sync/start", "POST", {
           loggedInXUsername
         });
+        log2("start", "API sync job created", { syncJobId: startData.syncJobId, xUsername: startData.xUsername });
         this.activeJob = {
           syncJobId: startData.syncJobId,
           xUsername: startData.xUsername,
@@ -6877,17 +6955,21 @@ Event: ${getEventDescription(event)}`
         });
         let response = await this.sendRunFollowerSync(tab.id, startData);
         if (response.navigating) {
+          log2("start", "Navigating to followers page, waiting\u2026");
           await this.waitForTabLoad(tab.id, 25e3);
           await this.waitForFollowersPageReady(tab.id, startData.xUsername, 2e4);
           await new Promise((r) => setTimeout(r, 4500));
           response = await this.sendRunFollowerSync(tab.id, startData);
         }
         if (!response.success) {
+          log2("start", "Failed to start content sync", { error: response.error });
           await this.failSync(startData.syncJobId, response.error);
           return { success: false, error: response.error };
         }
+        log2("start", "Content sync started successfully", { syncJobId: startData.syncJobId });
         return { success: true, syncJobId: startData.syncJobId };
       } catch (err) {
+        log2("start", "Unexpected error", { error: err.message });
         if (this.activeJob?.syncJobId) {
           await this.failSync(this.activeJob.syncJobId, err.message);
         }
@@ -6897,9 +6979,18 @@ Event: ${getEventDescription(event)}`
     }
     async uploadBatch(message) {
       if (!this.activeJob || this.activeJob.syncJobId !== message.syncJobId) {
+        log2("batch", "Rejected \u2014 no active job", {
+          syncJobId: message.syncJobId,
+          activeJob: this.activeJob?.syncJobId || null
+        });
         return { success: false, error: "No active sync job" };
       }
       try {
+        log2("batch", "Uploading batch", {
+          syncJobId: message.syncJobId,
+          chunkIndex: message.chunkIndex,
+          count: message.followers?.length || 0
+        });
         await this.apiRequest("/api/x-followers/sync-batch", "POST", {
           syncJobId: message.syncJobId,
           chunkIndex: message.chunkIndex,
@@ -6912,17 +7003,29 @@ Event: ${getEventDescription(event)}`
           uploaded: message.chunkIndex * BATCH_SIZE + (message.followers?.length || 0),
           collected: message.collected
         });
+        log2("batch", "Batch uploaded");
         return { success: true };
       } catch (err) {
+        log2("batch", "Batch upload failed", { error: err.message });
         await this.failSync(message.syncJobId, err.message);
         return { success: false, error: err.message };
       }
     }
     async completeSync(message) {
       if (!this.activeJob || this.activeJob.syncJobId !== message.syncJobId) {
+        log2("complete", "Rejected \u2014 no active job", {
+          syncJobId: message.syncJobId,
+          activeJob: this.activeJob?.syncJobId || null
+        });
         return { success: false, error: "No active sync job" };
       }
       try {
+        log2("complete", "Completing sync", {
+          syncJobId: message.syncJobId,
+          followerCount: message.followerCount,
+          profileFollowerCount: message.profileFollowerCount,
+          syncedCount: message.syncedCount
+        });
         const result = await this.apiRequest("/api/x-followers/sync/complete", "POST", {
           syncJobId: message.syncJobId,
           followerCount: message.followerCount,
@@ -6935,17 +7038,21 @@ Event: ${getEventDescription(event)}`
           status: "completed",
           result
         });
+        log2("complete", "Sync completed", { result });
         return { success: true, result };
       } catch (err) {
+        log2("complete", "Complete failed", { error: err.message });
         await this.failSync(message.syncJobId, err.message);
         return { success: false, error: err.message };
       }
     }
     async failSync(syncJobId, error2) {
+      log2("fail", "Sync failed", { syncJobId, error: error2 });
       this.activeJob = null;
       try {
         await this.apiRequest("/api/x-followers/sync/fail", "POST", { syncJobId, error: error2 });
-      } catch (_e) {
+      } catch (e) {
+        log2("fail", "Failed to report sync failure to API", { error: e.message });
       }
       this.broadcastProgress({ syncJobId, status: "error", error: error2 });
     }
