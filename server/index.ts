@@ -9,6 +9,7 @@ import { corsApiOptions } from "./config/cors.js";
 import { redactForLogs, safeStringifyForLogs } from "./utils/logging.js";
 import { registerCrashHandlers } from "./utils/crashHandlers.js";
 import { initSentry, Sentry } from "./utils/sentry.js";
+import { HTTP } from "./config/constants.js";
 
 initSentry();
 registerCrashHandlers();
@@ -24,7 +25,7 @@ app.use('/api/dodo/webhook', express.raw({ type: 'application/json' }));
 app.use('/api/webhooks/resend', express.raw({ type: 'application/json' }));
 
 // Apply JSON parser for all other routes
-app.use(express.json());
+app.use(express.json({ limit: HTTP.JSON_BODY_LIMIT }));
 app.use(express.urlencoded({ extended: false }));
 
 app.use('/api', cors(corsApiOptions));

@@ -6748,7 +6748,7 @@ Event: ${getEventDescription(event)}`
   }
 
   // extension/background/follower-sync.js
-  var BATCH_SIZE = 500;
+  var BATCH_SIZE = 250;
   var LOG_PREFIX = "[TweetReply Followers][background]";
   function parseApiError(error2, status) {
     if (!error2) return "API request failed";

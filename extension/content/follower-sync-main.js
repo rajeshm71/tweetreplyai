@@ -565,7 +565,7 @@
     collected = [];
     graphUsersReceived = false;
     graphIngestCount = 0;
-    var batchSize = options && options.batchSize ? options.batchSize : 500;
+    var batchSize = options && options.batchSize ? options.batchSize : 250;
     var profileFollowerCount = scrapeProfileFollowerCount();
     var computedMaxRounds = computeMaxScrollRounds(profileFollowerCount || 0);
     var maxRounds = Math.max(computedMaxRounds, (options && options.maxRounds) || 0);

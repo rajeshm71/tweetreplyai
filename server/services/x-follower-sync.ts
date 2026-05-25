@@ -1,6 +1,6 @@
 import type { XFollowerDiffResult, XFollowerSyncInput } from '../../shared/types.js';
 
-export const X_FOLLOWER_SYNC_BATCH_SIZE = 500;
+export const X_FOLLOWER_SYNC_BATCH_SIZE = 250;
 export const X_FOLLOWER_SYNC_MIN_COVERAGE_RATIO = 0.85;
 
 export function normalizeXUsername(username: string): string {

@@ -105,3 +105,8 @@ export const RATE_LIMIT = {
   GENERATE_REPLY_WINDOW_MS: 60 * 1000,
   GENERATE_REPLY_MAX: 30,
 } as const;
+
+/** Express body-parser limits (follower sync batches can exceed the default 100kb). */
+export const HTTP = {
+  JSON_BODY_LIMIT: '2mb',
+} as const;

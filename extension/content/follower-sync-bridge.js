@@ -232,7 +232,7 @@
         window.postMessage(
           {
             type: 'TRAI_FOLLOWER_SYNC_START',
-            options: { batchSize: message.batchSize || 500 },
+            options: { batchSize: message.batchSize || 250 },
           },
           '*',
         );

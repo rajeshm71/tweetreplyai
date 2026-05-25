@@ -4018,7 +4018,14 @@ User draft reply: ${draft_reply}`;
       const {
         dedupeFollowersByRestId,
         isValidXRestId,
+        X_FOLLOWER_SYNC_BATCH_SIZE,
       } = await import('./services/x-follower-sync.js');
+
+      if (followers.length > X_FOLLOWER_SYNC_BATCH_SIZE) {
+        return res.status(400).json({
+          message: `Batch exceeds maximum size of ${X_FOLLOWER_SYNC_BATCH_SIZE} followers`,
+        });
+      }
 
       const normalized = followers
         .map((f: any) => ({

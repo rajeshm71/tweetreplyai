@@ -1,6 +1,6 @@
 import { API } from '../config/constants.js';
 
-const BATCH_SIZE = 500;
+const BATCH_SIZE = 250;
 const LOG_PREFIX = '[TweetReply Followers][background]';
 
 function parseApiError(error, status) {

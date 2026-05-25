@@ -1,6 +1,7 @@
 import express, { type Express } from "express";
 import cookieParser from "cookie-parser";
 import { setupRoutes } from "../../server/routes.js";
+import { HTTP } from "../../server/config/constants.js";
 
 /**
  * Express app wired like production: raw body for Dodo + Resend webhooks before JSON parser, fully awaited route registration.
@@ -12,7 +13,7 @@ export async function createIntegrationApp(): Promise<Express> {
   app.use("/api/dodo/webhook", express.raw({ type: "application/json" }));
   app.use("/api/webhooks/resend", express.raw({ type: "application/json" }));
   app.use(cookieParser());
-  app.use(express.json());
+  app.use(express.json({ limit: HTTP.JSON_BODY_LIMIT }));
   app.use(express.urlencoded({ extended: false }));
   await setupRoutes(app);
   return app;
