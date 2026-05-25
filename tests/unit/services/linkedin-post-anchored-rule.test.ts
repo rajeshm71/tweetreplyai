@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   LINKEDIN_POST_ANCHORED_RULE,
   LINKEDIN_PROMPT_VARIATIONS,
+  LINKEDIN_USER_PROMPT_SUFFIX,
   getLinkedInPromptConfig,
 } from "../../../server/services/prompts-linkedin.js";
 import { getLinkedInOriginalAuthorPromptConfig } from "../../../server/services/prompts-linkedin-original-author.js";
@@ -19,15 +20,18 @@ describe("LinkedIn post-anchored rule", () => {
     expect(config.systemPrompt).toContain(LINKEDIN_POST_ANCHORED_RULE.trim().slice(0, 40));
   });
 
-  it("default variation no longer asks for relevant experience", () => {
-    const base = LINKEDIN_PROMPT_VARIATIONS.default.systemPrompt;
-    expect(base).not.toContain("relevant experience");
-    expect(base).toContain("no imported stories");
+  it("uses positive-framed post-anchored guidance without phrase ban lists", () => {
+    expect(LINKEDIN_POST_ANCHORED_RULE).toContain("Write one short statement in your own words");
+    expect(LINKEDIN_POST_ANCHORED_RULE).toContain("Speak as a commenter");
+    expect(LINKEDIN_POST_ANCHORED_RULE).not.toContain("Do NOT open with");
+    expect(LINKEDIN_POST_ANCHORED_RULE).not.toContain("I've seen");
   });
 
-  it("default user prompt asks for post-specific reply without workplace mention", () => {
-    const userPrompt = getLinkedInPromptConfig("default").userPrompt("Sample post.");
-    expect(userPrompt).toContain("one specific thing");
-    expect(userPrompt).toContain("Do not mention your own experience");
+  it("default variation uses commenter voice and shared user prompt suffix", () => {
+    const base = LINKEDIN_PROMPT_VARIATIONS.default.systemPrompt;
+    expect(base).toContain("Write like a commenter, not a summarizer");
+    expect(getLinkedInPromptConfig("default").userPrompt("Sample post.")).toContain(
+      LINKEDIN_USER_PROMPT_SUFFIX,
+    );
   });
 });

@@ -1,4 +1,5 @@
 import { LINKEDIN_REPLY_LIMITS } from "../config/constants.js";
+import { checkPostRewrite } from "./linkedin-reply-similarity.js";
 
 interface LinkedInQualityParameter {
   name: string;
@@ -71,9 +72,6 @@ export const SELF_REFERENTIAL_PATTERNS = [
   /^spot on/i,
 ];
 
-const SELF_REFERENTIAL_RETRY_HINT =
-  'Do not open with "I agree" or personal anecdotes ("I\'ve seen", "In our courses"). Short agreement like "True", "Exactly", "Yeah", or "Same here" is fine. Do not use "Spot on".';
-
 function countWords(text: string): number {
   return text
     .trim()
@@ -84,10 +82,6 @@ function countWords(text: string): number {
 export function hasSelfReferentialFraming(reply: string): boolean {
   const trimmed = reply.trim();
   return SELF_REFERENTIAL_PATTERNS.some((p) => p.test(trimmed));
-}
-
-export function getSelfReferentialRetryHint(): string {
-  return SELF_REFERENTIAL_RETRY_HINT;
 }
 
 function checkWordCount(reply: string): LinkedInQualityParameter {
@@ -155,25 +149,25 @@ function checkNoSelfReferentialFraming(reply: string): LinkedInQualityParameter 
   };
 }
 
-function checkSubstance(reply: string, postText: string): LinkedInQualityParameter {
-  const replyLower = reply.toLowerCase();
-  const postWords = postText
-    .toLowerCase()
-    .split(/\s+/)
-    .filter((w) => w.length > 4);
-
-  const overlap = postWords.filter((w) => replyLower.includes(w)).length;
-  const overlapRatio = postWords.length > 0 ? overlap / postWords.length : 0;
-
-  if (overlapRatio > 0.6) {
+function checkOriginalWording(reply: string, postText: string): LinkedInQualityParameter {
+  const rewrite = checkPostRewrite(reply, postText);
+  if (rewrite.isLikelyRewrite) {
     return {
-      name: "substance",
-      score: 5,
+      name: "original_wording",
+      score: 0,
       maxScore: 20,
-      reason: "Reply mostly repeats the post — lacks original substance",
+      reason: rewrite.reason,
     };
   }
+  return {
+    name: "original_wording",
+    score: 20,
+    maxScore: 20,
+    reason: "Reply uses original wording",
+  };
+}
 
+function checkSubstance(reply: string): LinkedInQualityParameter {
   const words = countWords(reply);
   if (words >= 8) {
     return { name: "substance", score: 20, maxScore: 20, reason: "Reply adds substance" };
@@ -200,14 +194,17 @@ export const linkedInQualityChecker = {
       checkNoHollowOpener(reply),
       checkNoMetaCommentary(reply),
       checkNoSelfReferentialFraming(reply),
-      checkSubstance(reply, postText),
+      checkOriginalWording(reply, postText),
+      checkSubstance(reply),
     ];
 
     const totalScore = parameters.reduce((sum, p) => sum + p.score, 0);
     const selfRefParam = parameters.find((p) => p.name === "no_self_referential_framing");
+    const originalWordingParam = parameters.find((p) => p.name === "original_wording");
     const passed =
       totalScore >= LINKEDIN_QUALITY_PASS_SCORE &&
-      (selfRefParam?.score ?? 20) > 0;
+      (selfRefParam?.score ?? 20) > 0 &&
+      (originalWordingParam?.score ?? 20) > 0;
 
     return { passed, totalScore, parameters };
   },

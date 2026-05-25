@@ -79,14 +79,49 @@ describe("LinkedIn Quality Checker Service - Unit Tests", () => {
   });
 
   describe("substance parameter (substance)", () => {
-    it("penalises a reply that copies more than 60% of the post's words verbatim", () => {
-      // Near-verbatim copy — should have high word overlap
-      const post = "Leadership requires listening adapting and continuously learning from those around you every day";
-      const reply = "Leadership requires listening adapting and continuously learning from those around you";
-      const result = linkedInQualityChecker.checkQuality(reply, post);
+    it("rewards replies with enough words", () => {
+      const reply =
+        "Building explicit communication norms is what makes distributed teams actually work in practice.";
+      const result = linkedInQualityChecker.checkQuality(reply, GENERIC_POST);
       const substanceParam = result.parameters.find((p) => p.name === "substance");
       expect(substanceParam).toBeDefined();
-      expect(substanceParam!.score).toBeLessThan(20);
+      expect(substanceParam!.score).toBe(20);
+    });
+  });
+
+  describe("original wording (original_wording)", () => {
+    const VM_AGENTS_POST =
+      "The industry is shifting from prompts and API calls to agents running 24/7 on dedicated cloud VMs.";
+
+    const VM_AGENTS_BAD_REPLY =
+      "The shift from prompts or API calls to agents running 24/7 on dedicated cloud VMs is a significant one, highlighting a major architectural change";
+
+    const FRONTIER_POST =
+      "Frontier intelligence used to mean paying frontier prices. Advanced AI capabilities are becoming more accessible to everyone.";
+
+    const FRONTIER_BAD_REPLY =
+      "The assertion that before: frontier intelligence meant paying frontier prices is particularly striking, as it highlights the significant shift towards making advanced AI capabilities more accessible";
+
+    it("fails VM/agents post rewrite", () => {
+      const result = linkedInQualityChecker.checkQuality(VM_AGENTS_BAD_REPLY, VM_AGENTS_POST);
+      const wordingParam = result.parameters.find((p) => p.name === "original_wording");
+      expect(wordingParam!.score).toBe(0);
+      expect(result.passed).toBe(false);
+    });
+
+    it("fails frontier intelligence post rewrite", () => {
+      const result = linkedInQualityChecker.checkQuality(FRONTIER_BAD_REPLY, FRONTIER_POST);
+      const wordingParam = result.parameters.find((p) => p.name === "original_wording");
+      expect(wordingParam!.score).toBe(0);
+      expect(result.passed).toBe(false);
+    });
+
+    it("passes concise original-word reaction", () => {
+      const reply =
+        "Yeah — running agents around the clock changes the economics compared to one-off API calls.";
+      const result = linkedInQualityChecker.checkQuality(reply, VM_AGENTS_POST);
+      const wordingParam = result.parameters.find((p) => p.name === "original_wording");
+      expect(wordingParam!.score).toBe(20);
     });
   });
 

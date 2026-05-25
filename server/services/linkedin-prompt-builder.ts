@@ -100,3 +100,22 @@ export function buildLinkedInUserPrompt(
   });
   return options.baseConfig.userPrompt(postText);
 }
+
+/** Text to compare replies against for rewrite detection — matches the comment/post the model replies to. */
+export function resolveLinkedInQualityTargetText(
+  postText: string,
+  threadContext?: LinkedInThreadContext,
+): string {
+  if (threadContext?.isReply && (threadContext.threadLength ?? 0) > 1) {
+    const chain = threadContext.threadChain ?? [];
+    const commentEntry =
+      chain.find((t) => t.isCurrent) ??
+      chain[threadContext.currentTweetIndex] ??
+      chain[chain.length - 1];
+    const commentText = commentEntry?.text?.trim();
+    if (commentText) {
+      return commentText;
+    }
+  }
+  return postText;
+}

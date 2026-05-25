@@ -7,14 +7,16 @@ import {
 import {
   buildLinkedInSystemPrompt,
   buildLinkedInUserPrompt,
+  resolveLinkedInQualityTargetText,
   type LinkedInThreadContext,
 } from "./linkedin-prompt-builder.js";
-import { getLinkedInPromptConfig, LINKEDIN_SIMPLE_LANGUAGE_RULE } from "./prompts-linkedin.js";
+import { getLinkedInPromptConfig, LINKEDIN_ENHANCED_OBSERVATION_RULE, LINKEDIN_SIMPLE_LANGUAGE_RULE } from "./prompts-linkedin.js";
 import { getLinkedInOriginalAuthorPromptConfig } from "./prompts-linkedin-original-author.js";
 import { applyReplyModeToPrompt } from "./prompts.js";
 import { getDynamicReplyMaxWords } from "./oa-dynamic-reply-length.js";
 import { replyPostProcessor } from "./reply-postprocessor.js";
-import { linkedInQualityChecker, getSelfReferentialRetryHint, hasSelfReferentialFraming } from "./linkedin-quality-checker.js";
+import { linkedInQualityChecker, type LinkedInQualityResult } from "./linkedin-quality-checker.js";
+import { isLikelyPostRewrite, POST_REWRITE_RETRY_HINT } from "./linkedin-reply-similarity.js";
 
 // Lazy-init to keep unit tests fast and avoid Groq constructor work at import time.
 let groqClient: Groq | null | undefined;
@@ -72,8 +74,37 @@ function applyLinkedInReplyModeToPrompt(
       ...promptConfig,
       systemPrompt: promptConfig.systemPrompt + LINKEDIN_SIMPLE_LANGUAGE_RULE,
     };
+  } else {
+    promptConfig = {
+      ...promptConfig,
+      systemPrompt: promptConfig.systemPrompt + LINKEDIN_ENHANCED_OBSERVATION_RULE,
+    };
   }
   return promptConfig;
+}
+
+/** Review fix: only accept retry when it passes or clearly improves original wording — not score alone. */
+export function shouldAcceptLinkedInRetryQuality(
+  retryQuality: LinkedInQualityResult,
+  originalQuality: LinkedInQualityResult,
+): boolean {
+  if (retryQuality.passed) {
+    return true;
+  }
+
+  const retryOriginalScore =
+    retryQuality.parameters.find((p) => p.name === "original_wording")?.score ?? 0;
+  const originalOriginalScore =
+    originalQuality.parameters.find((p) => p.name === "original_wording")?.score ?? 0;
+
+  if (retryOriginalScore > 0 && retryOriginalScore > originalOriginalScore) {
+    return true;
+  }
+
+  return (
+    retryQuality.totalScore > originalQuality.totalScore &&
+    retryOriginalScore > 0
+  );
 }
 
 const CONCISE_LINKEDIN_ANALYSIS: LinkedInPostAnalysis = {
@@ -120,7 +151,7 @@ async function callGroq(
   const groq = getGroqClient();
   if (!groq) {
     return {
-      text: "Interesting perspective. The professional context here really resonates with how many practitioners think about this challenge.",
+      text: "Yeah — that point about listening before acting is the part most teams still skip.",
       tokensIn: 0,
       tokensOut: 0,
     };
@@ -217,7 +248,12 @@ export async function generateLinkedInReply(
     maxWordsOverride,
   );
 
-  const quality = linkedInQualityChecker.checkQuality(processed, options.postText);
+  const qualityTargetText = resolveLinkedInQualityTargetText(
+    options.postText,
+    options.threadContext,
+  );
+
+  const quality = linkedInQualityChecker.checkQuality(processed, qualityTargetText);
 
   if (!quality.passed) {
     console.log(`[LinkedIn] Quality check failed (score: ${quality.totalScore}), retrying...`);
@@ -247,9 +283,18 @@ export async function generateLinkedInReply(
         threadContext: options.threadContext,
       });
 
+      const retryHints: string[] = [];
+      // Review fix: single positive retry hint for rewrite or self-ref framing failures.
+      if (
+        isLikelyPostRewrite(processed, qualityTargetText) ||
+        (quality.parameters.find((p) => p.name === "no_self_referential_framing")?.score ?? 20) === 0
+      ) {
+        retryHints.push(POST_REWRITE_RETRY_HINT);
+      }
+
       const retryUserPrompt =
-        hasSelfReferentialFraming(processed)
-          ? `${retryUserPromptBase}\n\n${getSelfReferentialRetryHint()}`
+        retryHints.length > 0
+          ? `${retryUserPromptBase}\n\n${retryHints.join("\n\n")}`
           : retryUserPromptBase;
 
       const retryResult = await callGroq(retrySystemPrompt, retryUserPrompt);
@@ -258,9 +303,9 @@ export async function generateLinkedInReply(
         options.replyMode,
         maxWordsOverride,
       );
-      const retryQuality = linkedInQualityChecker.checkQuality(retryProcessed, options.postText);
+      const retryQuality = linkedInQualityChecker.checkQuality(retryProcessed, qualityTargetText);
 
-      if (retryQuality.totalScore > quality.totalScore) {
+      if (shouldAcceptLinkedInRetryQuality(retryQuality, quality)) {
         console.log(
           `[LinkedIn] Retry improved quality (${retryQuality.totalScore} vs ${quality.totalScore})`,
         );

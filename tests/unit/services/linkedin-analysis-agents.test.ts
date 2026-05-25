@@ -9,11 +9,10 @@ const analysisAgentsPath = join(
 );
 
 describe("LinkedIn analysis agents enriched guidance", () => {
-  it("does not instruct sharing related experience in contentTypeGuidance", () => {
+  it("uses positive reply guidance about original wording", () => {
     const source = readFileSync(analysisAgentsPath, "utf8");
     expect(source).not.toContain("share related experience");
     expect(source).not.toContain("based on your experience");
-    expect(source).not.toContain("add your perspective");
-    expect(source).toContain('short agreement ("True", "Exactly", "Yeah", "Same here") is fine');
+    expect(source).toContain("Write one original comment in your own words about a specific detail from the post");
   });
 });

@@ -50,6 +50,9 @@ vi.mock("../../../server/services/linkedin-analysis-agents", () => ({
 vi.mock("../../../server/services/linkedin-prompt-builder", () => ({
   buildLinkedInSystemPrompt: vi.fn().mockResolvedValue("LinkedIn system prompt"),
   buildLinkedInUserPrompt: vi.fn().mockReturnValue("LinkedIn user prompt"),
+  resolveLinkedInQualityTargetText: vi.fn(
+    (postText: string) => postText,
+  ),
 }));
 
 const processReplyMock = vi.fn((text: string) => text);

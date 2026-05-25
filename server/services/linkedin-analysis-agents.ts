@@ -230,7 +230,7 @@ function generateEnrichedContextPrompt(understanding: LinkedInPostUnderstanding,
     parts.push('- The author is seeking input — give a direct, useful answer');
   }
 
-  parts.push('- Anchor your reply to a specific detail from the post text; short agreement ("True", "Exactly", "Yeah", "Same here") is fine — avoid "I agree", "Spot on", or personal anecdotes');
+  parts.push('- Write one original comment in your own words about a specific detail from the post');
 
   return parts.join('\n');
 }
