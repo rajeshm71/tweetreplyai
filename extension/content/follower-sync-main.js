@@ -10,11 +10,20 @@
   var MSG_DONE = 'TRAI_FOLLOWER_SYNC_DONE';
   var MSG_ERROR = 'TRAI_FOLLOWER_SYNC_ERROR';
   var MSG_START = 'TRAI_FOLLOWER_SYNC_START';
+  var MSG_GRAPH_USER = 'TRAI_FOLLOWER_GRAPH_USER';
+
+  var FOLLOWER_LIST_PATTERNS = [
+    '/Followers',
+    '/BlueVerifiedFollowers',
+    '/FollowersYouKnow',
+    '/Following',
+  ];
 
   var collecting = false;
   var seenRestIds = {};
   var usernameToRestId = {};
   var collected = [];
+  var graphUsersReceived = false;
 
   function isValidRestId(id) {
     return /^\d+$/.test(String(id || '').trim());
@@ -28,6 +37,31 @@
 
   function jitter(min, max) {
     return min + Math.floor(Math.random() * (max - min + 1));
+  }
+
+  function normalizeUrl(url) {
+    if (!url || typeof url !== 'string') return '';
+    try {
+      return new URL(url, location.href).href;
+    } catch (_e) {
+      return url;
+    }
+  }
+
+  function normalizeFetchInput(input) {
+    if (typeof input === 'string') return normalizeUrl(input);
+    if (typeof URL !== 'undefined' && input instanceof URL) return normalizeUrl(input.href);
+    if (input && typeof input === 'object' && typeof input.url === 'string') return normalizeUrl(input.url);
+    return '';
+  }
+
+  function isFollowerListUrl(url) {
+    var abs = normalizeUrl(url);
+    if (!abs) return false;
+    for (var i = 0; i < FOLLOWER_LIST_PATTERNS.length; i++) {
+      if (abs.indexOf(FOLLOWER_LIST_PATTERNS[i]) !== -1) return true;
+    }
+    return abs.indexOf('/i/api/graphql/') !== -1;
   }
 
   function upsertFollower(follower) {
@@ -54,27 +88,80 @@
     return true;
   }
 
+  function userFromResult(result) {
+    if (!result || typeof result !== 'object') return null;
+    if (result.__typename === 'UserUnavailable') return null;
+    if (result.rest_id && result.core && result.core.screen_name) {
+      return {
+        xUserId: String(result.rest_id),
+        username: String(result.core.screen_name),
+        displayName: result.core.name ? String(result.core.name) : undefined,
+        avatarUrl: result.avatar && result.avatar.image_url ? String(result.avatar.image_url) : undefined,
+        followerCount: result.legacy && typeof result.legacy.followers_count === 'number' ? result.legacy.followers_count : undefined,
+        verified: !!(result.is_blue_verified || (result.verification && result.verification.verified)),
+      };
+    }
+    if (result.rest_id && result.legacy && result.legacy.screen_name) {
+      return {
+        xUserId: String(result.rest_id),
+        username: String(result.legacy.screen_name),
+        displayName: result.legacy.name ? String(result.legacy.name) : undefined,
+        avatarUrl: result.legacy.profile_image_url_https ? String(result.legacy.profile_image_url_https) : undefined,
+        followerCount: typeof result.legacy.followers_count === 'number' ? result.legacy.followers_count : undefined,
+        verified: !!result.legacy.verified,
+      };
+    }
+    return null;
+  }
+
+  function parseTimelineEntries(data) {
+    var users = [];
+    if (!data || typeof data !== 'object') return users;
+
+    function walkInstructions(obj, depth) {
+      if (depth > 30 || !obj || typeof obj !== 'object') return;
+      if (obj.instructions && Array.isArray(obj.instructions)) {
+        for (var i = 0; i < obj.instructions.length; i++) {
+          var inst = obj.instructions[i];
+          if (inst.entries && Array.isArray(inst.entries)) {
+            for (var j = 0; j < inst.entries.length; j++) {
+              var entry = inst.entries[j];
+              var content = entry && entry.content;
+              var itemContent = content && content.itemContent;
+              var userResults = itemContent && itemContent.user_results;
+              var user = userFromResult(userResults && userResults.result);
+              if (user) users.push(user);
+            }
+          }
+          if (inst.moduleItems && Array.isArray(inst.moduleItems)) {
+            for (var k = 0; k < inst.moduleItems.length; k++) {
+              var mod = inst.moduleItems[k];
+              var modUser = userFromResult(
+                mod && mod.item && mod.item.itemContent && mod.item.itemContent.user_results
+                  ? mod.item.itemContent.user_results.result
+                  : null,
+              );
+              if (modUser) users.push(modUser);
+            }
+          }
+        }
+      }
+      if (Array.isArray(obj)) {
+        for (var a = 0; a < obj.length; a++) walkInstructions(obj[a], depth + 1);
+      } else {
+        var keys = Object.keys(obj);
+        for (var b = 0; b < keys.length; b++) walkInstructions(obj[keys[b]], depth + 1);
+      }
+    }
+
+    walkInstructions(data, 0);
+    return users;
+  }
+
   function parseUserFromGraph(obj, out, depth) {
     if (depth > 25 || !obj || typeof obj !== 'object') return;
-    if (obj.rest_id && obj.core && obj.core.screen_name) {
-      out.push({
-        xUserId: String(obj.rest_id),
-        username: String(obj.core.screen_name),
-        displayName: obj.core.name ? String(obj.core.name) : undefined,
-        avatarUrl: obj.avatar && obj.avatar.image_url ? String(obj.avatar.image_url) : undefined,
-        followerCount: obj.legacy && typeof obj.legacy.followers_count === 'number' ? obj.legacy.followers_count : undefined,
-        verified: !!(obj.is_blue_verified || (obj.verification && obj.verification.verified)),
-      });
-    } else if (obj.rest_id && obj.legacy && obj.legacy.screen_name) {
-      out.push({
-        xUserId: String(obj.rest_id),
-        username: String(obj.legacy.screen_name),
-        displayName: obj.legacy.name ? String(obj.legacy.name) : undefined,
-        avatarUrl: obj.legacy.profile_image_url_https ? String(obj.legacy.profile_image_url_https) : undefined,
-        followerCount: typeof obj.legacy.followers_count === 'number' ? obj.legacy.followers_count : undefined,
-        verified: !!obj.legacy.verified,
-      });
-    }
+    var direct = userFromResult(obj);
+    if (direct) out.push(direct);
     if (Array.isArray(obj)) {
       for (var i = 0; i < obj.length; i++) parseUserFromGraph(obj[i], out, depth + 1);
     } else {
@@ -83,33 +170,69 @@
     }
   }
 
-  function ingestGraphText(text) {
+  function ingestGraphText(text, url) {
     try {
       var data = JSON.parse(text);
-      var users = [];
-      parseUserFromGraph(data, users, 0);
+      var users = parseTimelineEntries(data);
+      if (!users.length) {
+        parseUserFromGraph(data, users, 0);
+      }
       var added = 0;
       for (var i = 0; i < users.length; i++) {
         if (upsertFollower(users[i])) added++;
       }
+      if (added > 0) graphUsersReceived = true;
       return added;
     } catch (_e) {
       return 0;
     }
   }
 
+  function ingestGraphResponse(url, text) {
+    if (!collecting) return;
+    if (!isFollowerListUrl(url)) return;
+    ingestGraphText(text, url);
+  }
+
+  // Chain fetch — originalFetch is already wrapped by follow-network-interceptor.
   var originalFetch = window.fetch;
   window.fetch = function () {
     var args = arguments;
-    var url = typeof args[0] === 'string' ? args[0] : args[0] && args[0].url ? args[0].url : '';
+    var url = normalizeFetchInput(args[0]);
     return originalFetch.apply(this, args).then(function (response) {
-      if (collecting && url.indexOf('/Followers') !== -1) {
+      if (collecting && isFollowerListUrl(url)) {
         response.clone().text().then(function (text) {
-          ingestGraphText(text);
+          ingestGraphResponse(url, text);
         }).catch(function () {});
       }
       return response;
     });
+  };
+
+  // Chain XHR — interceptor may have already patched open/send.
+  var originalXHROpen = XMLHttpRequest.prototype.open;
+  var originalXHRSend = XMLHttpRequest.prototype.send;
+
+  XMLHttpRequest.prototype.open = function (method, url) {
+    this._traiFollowerSyncUrl = url != null ? normalizeUrl(String(url)) : '';
+    return originalXHROpen.apply(this, arguments);
+  };
+
+  XMLHttpRequest.prototype.send = function () {
+    var xhr = this;
+    xhr.addEventListener(
+      'load',
+      function () {
+        try {
+          var u = xhr._traiFollowerSyncUrl || '';
+          if (xhr.responseText && collecting && isFollowerListUrl(u)) {
+            ingestGraphResponse(u, xhr.responseText);
+          }
+        } catch (_e) {}
+      },
+      { once: true },
+    );
+    return originalXHRSend.apply(this, arguments);
   };
 
   function extractRestIdFromCell(cell) {
@@ -117,6 +240,50 @@
     if (el) {
       var id = el.getAttribute('data-user-id');
       if (isValidRestId(id)) return String(id).trim();
+    }
+    var userLink = cell.querySelector('a[href*="/i/user/"]');
+    if (userLink) {
+      var href = userLink.getAttribute('href') || '';
+      var match = href.match(/\/i\/user\/(\d+)/);
+      if (match && isValidRestId(match[1])) return match[1];
+    }
+    return null;
+  }
+
+  function parseCountText(text) {
+    if (!text) return null;
+    var cleaned = String(text).replace(/,/g, '').trim();
+    var match = cleaned.match(/(\d+(?:\.\d+)?)\s*([KkMm])?/);
+    if (!match) return null;
+    var num = parseFloat(match[1]);
+    if (isNaN(num)) return null;
+    var suffix = match[2] ? match[2].toUpperCase() : '';
+    if (suffix === 'K') num *= 1000;
+    if (suffix === 'M') num *= 1000000;
+    return Math.round(num);
+  }
+
+  function scrapeProfileFollowerCount() {
+    var selectors = [
+      'a[href$="/followers"] span',
+      'a[href*="/followers"] span',
+      '[data-testid="primaryColumn"] a[href*="followers"]',
+    ];
+    for (var s = 0; s < selectors.length; s++) {
+      var nodes = document.querySelectorAll(selectors[s]);
+      for (var i = 0; i < nodes.length; i++) {
+        var text = nodes[i].textContent || '';
+        if (text.toLowerCase().indexOf('follower') === -1 && !/\d/.test(text)) continue;
+        var count = parseCountText(text);
+        if (count != null && count >= 0) return count;
+      }
+    }
+    var allLinks = document.querySelectorAll('a[href*="followers"]');
+    for (var j = 0; j < allLinks.length; j++) {
+      var linkText = allLinks[j].textContent || '';
+      if (linkText.toLowerCase().indexOf('follower') === -1) continue;
+      var parsed = parseCountText(linkText);
+      if (parsed != null) return parsed;
     }
     return null;
   }
@@ -130,7 +297,7 @@
       if (!link) continue;
       var href = link.getAttribute('href') || '';
       var parts = href.split('/').filter(Boolean);
-      if (!parts.length || parts[0].indexOf('?') !== -1) continue;
+      if (!parts.length || parts[0].indexOf('?') !== -1 || parts[0] === 'i') continue;
       var username = parts[0];
       var usernameKey = username.toLowerCase();
       var nameEl = cell.querySelector('[dir="ltr"] span');
@@ -157,6 +324,17 @@
       document.scrollingElement ||
       document.documentElement
     );
+  }
+
+  async function waitForFirstSignal(timeoutMs) {
+    var start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      scrapeUserCells();
+      if (collected.length > 0 || graphUsersReceived) return true;
+      if (document.querySelector('[data-testid="UserCell"]')) return true;
+      await sleep(500);
+    }
+    return collected.length > 0 || !!document.querySelector('[data-testid="UserCell"]');
   }
 
   async function scrollFollowersList(maxRounds) {
@@ -190,11 +368,21 @@
     seenRestIds = {};
     usernameToRestId = {};
     collected = [];
+    graphUsersReceived = false;
     var batchSize = options && options.batchSize ? options.batchSize : 500;
     var maxRounds = options && options.maxRounds ? options.maxRounds : 120;
 
     try {
-      await sleep(1500);
+      var ready = await waitForFirstSignal(15000);
+      if (!ready) {
+        window.postMessage({
+          type: MSG_ERROR,
+          message: 'Followers page did not load. Log into X, disable privacy blockers on x.com, and try again.',
+        }, '*');
+        return;
+      }
+
+      await sleep(1000);
       scrapeUserCells();
       await scrollFollowersList(maxRounds);
       scrapeUserCells();
@@ -206,6 +394,8 @@
         }, '*');
         return;
       }
+
+      var profileFollowerCount = scrapeProfileFollowerCount();
 
       for (var i = 0; i < collected.length; i += batchSize) {
         window.postMessage({
@@ -219,6 +409,7 @@
       window.postMessage({
         type: MSG_DONE,
         total: collected.length,
+        profileFollowerCount: profileFollowerCount,
         followers: collected,
       }, '*');
     } catch (err) {
@@ -235,6 +426,21 @@
     if (event.source !== window || !event.data) return;
     if (event.data.type === MSG_START) {
       runSync(event.data.options || {});
+      return;
+    }
+    if (event.data.type === MSG_GRAPH_USER && collecting) {
+      var g = event.data;
+      if (g.restId && g.username && isValidRestId(g.restId)) {
+        if (upsertFollower({
+          xUserId: String(g.restId),
+          username: String(g.username),
+          displayName: g.displayName,
+          avatarUrl: g.avatarUrl,
+          verified: g.verified,
+        })) {
+          graphUsersReceived = true;
+        }
+      }
     }
   });
 })();

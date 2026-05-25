@@ -139,6 +139,11 @@ export interface IStorage {
     xProfileId: string,
     since: Date,
   ): Promise<XFollowStatsDaily[]>;
+  getFollowStatsDailyForDate(
+    xProfileId: string,
+    date: string,
+  ): Promise<XFollowStatsDaily | undefined>;
+  countActiveFollowers(xProfileId: string): Promise<number>;
   countFollowEventsSince(
     xProfileId: string,
     eventType: XFollowEventType,

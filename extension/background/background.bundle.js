@@ -6809,6 +6809,24 @@ Event: ${getEventDescription(event)}`
       }
       return chrome.tabs.get(tabId);
     }
+    async waitForFollowersPageReady(tabId, xUsername, timeoutMs = 2e4) {
+      const followersPath = `/${xUsername}/followers`.toLowerCase();
+      const start = Date.now();
+      while (Date.now() - start < timeoutMs) {
+        const [{ result }] = await chrome.scripting.executeScript({
+          target: { tabId },
+          func: (expectedPath) => {
+            const onFollowersPage = location.pathname.toLowerCase() === expectedPath;
+            const hasCells = !!document.querySelector('[data-testid="UserCell"]');
+            return { onFollowersPage, hasCells };
+          },
+          args: [followersPath]
+        });
+        if (result?.onFollowersPage && result?.hasCells) return true;
+        await new Promise((r) => setTimeout(r, 500));
+      }
+      return false;
+    }
     async sendRunFollowerSync(tabId, payload) {
       return new Promise((resolve) => {
         chrome.tabs.sendMessage(
@@ -6860,7 +6878,8 @@ Event: ${getEventDescription(event)}`
         let response = await this.sendRunFollowerSync(tab.id, startData);
         if (response.navigating) {
           await this.waitForTabLoad(tab.id, 25e3);
-          await new Promise((r) => setTimeout(r, 2e3));
+          await this.waitForFollowersPageReady(tab.id, startData.xUsername, 2e4);
+          await new Promise((r) => setTimeout(r, 4500));
           response = await this.sendRunFollowerSync(tab.id, startData);
         }
         if (!response.success) {
@@ -6906,7 +6925,9 @@ Event: ${getEventDescription(event)}`
       try {
         const result = await this.apiRequest("/api/x-followers/sync/complete", "POST", {
           syncJobId: message.syncJobId,
-          followerCount: message.followerCount
+          followerCount: message.followerCount,
+          profileFollowerCount: message.profileFollowerCount,
+          syncedCount: message.syncedCount
         });
         this.activeJob = null;
         this.broadcastProgress({

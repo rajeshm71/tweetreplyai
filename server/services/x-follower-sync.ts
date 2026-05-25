@@ -90,3 +90,72 @@ export function isSyncCoverageSufficient(
 }
 
 export const DAY_OF_WEEK_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+function userFromGraphResult(result: unknown): XFollowerSyncInput | null {
+  if (!result || typeof result !== 'object') return null;
+  const r = result as Record<string, unknown>;
+  if (r.__typename === 'UserUnavailable') return null;
+
+  const core = r.core as Record<string, unknown> | undefined;
+  const legacy = r.legacy as Record<string, unknown> | undefined;
+  const avatar = r.avatar as Record<string, unknown> | undefined;
+
+  if (r.rest_id && core?.screen_name) {
+    return {
+      xUserId: String(r.rest_id),
+      username: String(core.screen_name),
+      displayName: core.name ? String(core.name) : undefined,
+      avatarUrl: avatar?.image_url ? String(avatar.image_url) : undefined,
+      followerCount:
+        legacy && typeof legacy.followers_count === 'number' ? legacy.followers_count : undefined,
+      verified: !!(r.is_blue_verified || (r.verification as Record<string, unknown>)?.verified),
+    };
+  }
+  if (r.rest_id && legacy?.screen_name) {
+    return {
+      xUserId: String(r.rest_id),
+      username: String(legacy.screen_name),
+      displayName: legacy.name ? String(legacy.name) : undefined,
+      avatarUrl: legacy.profile_image_url_https
+        ? String(legacy.profile_image_url_https)
+        : undefined,
+      followerCount:
+        typeof legacy.followers_count === 'number' ? legacy.followers_count : undefined,
+      verified: !!legacy.verified,
+    };
+  }
+  return null;
+}
+
+/** Extract followers from X GraphQL timeline JSON (used by extension + tests). */
+export function extractFollowersFromGraphqlResponse(data: unknown): XFollowerSyncInput[] {
+  const users: XFollowerSyncInput[] = [];
+
+  function walkInstructions(obj: unknown, depth: number) {
+    if (depth > 30 || !obj || typeof obj !== 'object') return;
+    const record = obj as Record<string, unknown>;
+
+    if (Array.isArray(record.instructions)) {
+      for (const inst of record.instructions as Array<Record<string, unknown>>) {
+        if (Array.isArray(inst.entries)) {
+          for (const entry of inst.entries as Array<Record<string, unknown>>) {
+            const content = entry.content as Record<string, unknown> | undefined;
+            const itemContent = content?.itemContent as Record<string, unknown> | undefined;
+            const userResults = itemContent?.user_results as Record<string, unknown> | undefined;
+            const user = userFromGraphResult(userResults?.result);
+            if (user && isValidXRestId(user.xUserId)) users.push(user);
+          }
+        }
+      }
+    }
+
+    if (Array.isArray(obj)) {
+      for (const item of obj) walkInstructions(item, depth + 1);
+    } else {
+      for (const key of Object.keys(record)) walkInstructions(record[key], depth + 1);
+    }
+  }
+
+  walkInstructions(data, 0);
+  return dedupeFollowersByRestId(users);
+}

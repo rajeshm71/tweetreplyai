@@ -8,6 +8,7 @@
   window.__TWEETREPLY_FOLLOW_INTERCEPTOR__ = true;
 
   var MSG_STATUS = 'TWEETREPLY_FOLLOW_STATUS';
+  var MSG_FOLLOWER_GRAPH = 'TRAI_FOLLOWER_GRAPH_USER';
   var MSG_BUFFER_REPLAY = 'TWEETREPLY_REQUEST_BUFFER_REPLAY';
 
   var globalFollowCache = {};
@@ -26,6 +27,8 @@
     '/HomeLatestTimeline',
     '/TweetDetail',
     '/Followers',
+    '/BlueVerifiedFollowers',
+    '/FollowersYouKnow',
     '/Following',
     '/UserTweets',
     '/ListLatestTweetsTimeline',
@@ -66,6 +69,17 @@
       if (abs.indexOf(INTERCEPT_PATTERNS[i]) !== -1) return true;
     }
     return false;
+  }
+
+  function isFollowerListUrl(url) {
+    if (!url || typeof url !== 'string') return false;
+    var abs = normalizeUrlString(url);
+    return (
+      abs.indexOf('/Followers') !== -1 ||
+      abs.indexOf('/BlueVerifiedFollowers') !== -1 ||
+      abs.indexOf('/FollowersYouKnow') !== -1 ||
+      abs.indexOf('/Following') !== -1
+    );
   }
 
   function sendFollowStatusMessage(message) {
@@ -172,6 +186,8 @@
       users.push({
         username: obj.core.screen_name,
         restId: obj.rest_id,
+        displayName: obj.core.name ? String(obj.core.name) : undefined,
+        avatarUrl: obj.avatar && obj.avatar.image_url ? String(obj.avatar.image_url) : undefined,
         following: following,
         followedBy: followedBy,
         hasRelationshipData: hasRelationshipData,
@@ -182,6 +198,8 @@
       users.push({
         username: obj.legacy.screen_name,
         restId: obj.rest_id,
+        displayName: obj.legacy.name ? String(obj.legacy.name) : undefined,
+        avatarUrl: obj.legacy.profile_image_url_https ? String(obj.legacy.profile_image_url_https) : undefined,
         following: !!obj.legacy.following,
         followedBy: !!obj.legacy.followed_by,
         hasRelationshipData: hasLegacyRelationship,
@@ -237,12 +255,25 @@
       users = deduplicatedUsers;
 
       var seenUsernames = {};
+      var fromFollowerList = isFollowerListUrl(url);
       for (var k = 0; k < users.length; k++) {
         var u2 = users[k];
         if (!u2.username) continue;
         var normalizedUsername = u2.username.toLowerCase();
         if (seenUsernames[normalizedUsername]) continue;
         seenUsernames[normalizedUsername] = true;
+
+        // Emit graph users for follower-list responses even without relationship flags.
+        if (fromFollowerList && u2.restId && /^\d+$/.test(String(u2.restId))) {
+          window.postMessage({
+            type: MSG_FOLLOWER_GRAPH,
+            restId: String(u2.restId),
+            username: u2.username,
+            displayName: u2.displayName,
+            avatarUrl: u2.avatarUrl,
+            verified: false,
+          }, '*');
+        }
 
         if (u2.hasRelationshipData) {
           var cachedStatus = globalFollowCache[normalizedUsername];

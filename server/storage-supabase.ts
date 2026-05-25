@@ -2055,6 +2055,30 @@ export class SupabaseStorage implements IStorage {
     return (data ?? []).map(mapXFollowStatsDaily);
   }
 
+  async getFollowStatsDailyForDate(
+    xProfileId: string,
+    date: string,
+  ): Promise<XFollowStatsDaily | undefined> {
+    const { data, error } = await supabase
+      .from('x_follow_stats_daily')
+      .select('*')
+      .eq('x_profile_id', xProfileId)
+      .eq('date', date)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return data ? mapXFollowStatsDaily(data) : undefined;
+  }
+
+  async countActiveFollowers(xProfileId: string): Promise<number> {
+    const { count, error } = await supabase
+      .from('x_follower_states')
+      .select('*', { count: 'exact', head: true })
+      .eq('x_profile_id', xProfileId)
+      .eq('is_active', true);
+    if (error) throw new Error(error.message);
+    return count ?? 0;
+  }
+
   async countFollowEventsSince(
     xProfileId: string,
     eventType: XFollowEventType,

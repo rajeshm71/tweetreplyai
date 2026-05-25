@@ -4056,6 +4056,10 @@ User draft reply: ${draft_reply}`;
       const userId = getUserId(req);
       const syncJobId = String(req.body?.syncJobId || '');
       const followerCount = typeof req.body?.followerCount === 'number' ? req.body.followerCount : undefined;
+      const profileFollowerCount =
+        typeof req.body?.profileFollowerCount === 'number' ? req.body.profileFollowerCount : undefined;
+      const syncedCount =
+        typeof req.body?.syncedCount === 'number' ? req.body.syncedCount : undefined;
 
       if (!syncJobId) {
         return res.status(400).json({ message: 'syncJobId is required' });
@@ -4117,10 +4121,13 @@ User draft reply: ${draft_reply}`;
 
       await storage.clearFollowerSyncStaging(syncJobId);
 
+      const stagedCount = stagingFollowers.length;
+      const xUiFollowerCount = profileFollowerCount ?? followerCount ?? stagedCount;
+
       await storage.updateXProfile(profile.id, {
         lastSyncStatus: 'completed',
         lastSyncAt: new Date(),
-        followerCount: followerCount ?? stagingFollowers.length,
+        followerCount: xUiFollowerCount,
         syncJobId: null,
         syncCursor: null,
       });
@@ -4128,7 +4135,9 @@ User draft reply: ${draft_reply}`;
       res.json({
         ok: true,
         ...result,
-        totalActive: stagingFollowers.length,
+        totalActive: syncedCount ?? stagedCount,
+        profileFollowerCount: xUiFollowerCount,
+        syncedCount: syncedCount ?? stagedCount,
         isFirstSync,
       });
     } catch (error) {
@@ -4218,6 +4227,9 @@ User draft reply: ${draft_reply}`;
         return res.json({
           xUsername: null,
           followerCount: 0,
+          syncedFollowerCount: 0,
+          yesterdayFollowerCount: null,
+          coveragePercent: null,
           lastSyncAt: null,
           lastSyncStatus: 'idle',
           summary: {
@@ -4241,6 +4253,10 @@ User draft reply: ${draft_reply}`;
       const todayStart = new Date();
       todayStart.setUTCHours(0, 0, 0, 0);
 
+      const yesterday = new Date();
+      yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+      const yesterdayDate = yesterday.toISOString().slice(0, 10);
+
       const [
         unfollowersToday,
         unfollowers7d,
@@ -4250,6 +4266,8 @@ User draft reply: ${draft_reply}`;
         dailyTrend,
         dayOfWeekPattern,
         avgFollowDurationDays,
+        syncedFollowerCount,
+        yesterdayStats,
       ] = await Promise.all([
         storage.countFollowEventsSince(profile.id, 'unfollow', todayStart),
         storage.countFollowEventsSince(profile.id, 'unfollow', new Date(Date.now() - 7 * 86400000)),
@@ -4259,17 +4277,27 @@ User draft reply: ${draft_reply}`;
         storage.getFollowStatsDaily(profile.id, since),
         storage.getUnfollowDayOfWeekPattern(profile.id, since),
         storage.getAvgUnfollowDurationDays(profile.id, since),
+        storage.countActiveFollowers(profile.id),
+        storage.getFollowStatsDailyForDate(profile.id, yesterdayDate),
       ]);
 
       const netChange7d = dailyTrend
         .filter((d) => new Date(d.date) >= new Date(Date.now() - 7 * 86400000))
         .reduce((sum, d) => sum + d.netChange, 0);
 
+      const coveragePercent =
+        profile.followerCount > 0 && syncedFollowerCount > 0
+          ? Math.round((syncedFollowerCount / profile.followerCount) * 100)
+          : null;
+
       const { DAY_OF_WEEK_LABELS } = await import('./services/x-follower-sync.js');
 
       res.json({
         xUsername: profile.xUsername,
         followerCount: profile.followerCount,
+        syncedFollowerCount,
+        yesterdayFollowerCount: yesterdayStats?.totalActive ?? null,
+        coveragePercent,
         lastSyncAt: profile.lastSyncAt?.toISOString() ?? null,
         lastSyncStatus: profile.lastSyncStatus,
         summary: {

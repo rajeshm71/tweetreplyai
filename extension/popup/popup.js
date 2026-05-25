@@ -1965,6 +1965,11 @@ class PopupManager {
     return avgScore < 1 ? `${Math.round(avgScore * 100)}%` : `${Math.round(avgScore)}%`;
   }
 
+  formatFollowerCount(n) {
+    if (n == null || Number.isNaN(n)) return '0';
+    return Number(n).toLocaleString();
+  }
+
   async loadUnfollowerBadge() {
     try {
       const stats = await this.apiClient.getFollowerStats('7d');
@@ -2119,10 +2124,38 @@ class PopupManager {
       ]);
 
       const handleEl = document.getElementById('unfollowers-handle');
-      const lastSyncEl = document.getElementById('unfollowers-last-sync');
+      const countsEl = document.getElementById('unfollowers-counts');
+      const yesterdayEl = document.getElementById('unfollowers-yesterday');
+      const coverageEl = document.getElementById('unfollowers-coverage-warning');
       if (handleEl) handleEl.textContent = stats.xUsername ? `@${stats.xUsername}` : 'Set X username in settings';
-      if (lastSyncEl) {
-        lastSyncEl.textContent = `${this.formatRelativeSyncTime(stats.lastSyncAt)} · ${stats.followerCount || 0} followers`;
+      if (countsEl) {
+        const onX = this.formatFollowerCount(stats.followerCount);
+        const synced = this.formatFollowerCount(stats.syncedFollowerCount);
+        const syncTime = this.formatRelativeSyncTime(stats.lastSyncAt);
+        countsEl.textContent = `${onX} on X · ${synced} synced · ${syncTime}`;
+      }
+      if (yesterdayEl) {
+        if (stats.yesterdayFollowerCount != null) {
+          yesterdayEl.textContent = `Yesterday: ${this.formatFollowerCount(stats.yesterdayFollowerCount)} tracked`;
+          yesterdayEl.classList.remove('hidden');
+        } else {
+          yesterdayEl.textContent = 'Yesterday: not available yet';
+          yesterdayEl.classList.remove('hidden');
+        }
+      }
+      if (coverageEl) {
+        const lowCoverage =
+          stats.coveragePercent != null &&
+          stats.followerCount > 0 &&
+          stats.coveragePercent < 85;
+        if (lowCoverage) {
+          coverageEl.textContent =
+            `Only ${stats.coveragePercent}% of your followers were captured. Keep the followers tab open and sync again.`;
+          coverageEl.classList.remove('hidden');
+        } else {
+          coverageEl.classList.add('hidden');
+          coverageEl.textContent = '';
+        }
       }
 
       const setText = (id, val) => {

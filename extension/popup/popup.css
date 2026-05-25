@@ -2688,6 +2688,17 @@ body[data-theme="dark"] {
   margin-top: 2px;
 }
 
+.unfollowers-coverage-warning {
+  margin-top: var(--spacing-2);
+  padding: var(--spacing-2);
+  border-radius: var(--radius-md);
+  background: rgba(255, 193, 7, 0.12);
+  border: 1px solid rgba(255, 193, 7, 0.35);
+  color: var(--color-text);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
 .unfollowers-sync-btn {
   flex-shrink: 0;
   padding: var(--spacing-2) var(--spacing-3);

@@ -338,10 +338,12 @@
           <div class="unfollowers-header">
             <div>
               <div id="unfollowers-handle" class="unfollowers-handle">@username</div>
-              <div id="unfollowers-last-sync" class="unfollowers-meta">Not synced yet</div>
+              <div id="unfollowers-counts" class="unfollowers-meta">Not synced yet</div>
+              <div id="unfollowers-yesterday" class="unfollowers-meta hidden"></div>
             </div>
             <button id="unfollowers-sync-btn" class="primary-btn unfollowers-sync-btn" type="button">Sync now</button>
           </div>
+          <div id="unfollowers-coverage-warning" class="unfollowers-coverage-warning hidden" role="status"></div>
           <div id="unfollowers-progress" class="unfollowers-progress hidden" role="status" aria-live="polite">
             <div class="unfollowers-progress-bar"><div id="unfollowers-progress-fill"></div></div>
             <span id="unfollowers-progress-text">Syncing...</span>

@@ -364,6 +364,9 @@ export interface XFollowerDiffResult {
 export interface XFollowerStatsResponse {
   xUsername: string;
   followerCount: number;
+  syncedFollowerCount: number;
+  yesterdayFollowerCount: number | null;
+  coveragePercent: number | null;
   lastSyncAt: string | null;
   lastSyncStatus: XProfileSyncStatus;
   summary: {
