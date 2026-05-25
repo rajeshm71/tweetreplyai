@@ -208,13 +208,13 @@ function generateEnrichedContextPrompt(understanding: LinkedInPostUnderstanding,
   parts.push('Reply Guidance:');
 
   const contentTypeGuidance: Record<string, string> = {
-    thought_leadership: 'This is a thought leadership post — engage with the idea, add your perspective, or offer a constructive counterpoint',
-    question: 'The author is asking a question — provide a helpful, direct answer based on your experience',
+    thought_leadership: 'This is a thought leadership post — engage with one specific idea from the post or offer a constructive counterpoint',
+    question: 'The author is asking a question — provide a helpful, direct answer anchored to what they wrote',
     announcement: 'This is an announcement — acknowledge what was shared and respond to the substance',
-    personal_story: 'This is a personal story — respond with empathy and genuine engagement',
-    industry_insight: 'This is an industry insight — engage with the substance, add context, or share related experience',
-    job_related: 'This is job-related content — respond professionally and constructively',
-    other: 'Engage naturally with the professional content'
+    personal_story: 'This is a personal story — respond with empathy to what they shared, without importing your own story',
+    industry_insight: 'This is an industry insight — engage with one specific substance point from the post',
+    job_related: 'This is job-related content — respond professionally and constructively to what they said',
+    other: 'Engage naturally with one specific detail from the professional content'
   };
 
   const guidance = contentTypeGuidance[understanding.contentType];
@@ -229,6 +229,8 @@ function generateEnrichedContextPrompt(understanding: LinkedInPostUnderstanding,
   if (intention.actionVerbs.includes('questioning') || intention.actionVerbs.includes('asking')) {
     parts.push('- The author is seeking input — give a direct, useful answer');
   }
+
+  parts.push('- Anchor your reply to a specific detail from the post text; short agreement ("True", "Exactly", "Yeah", "Same here") is fine — avoid "I agree", "Spot on", or personal anecdotes');
 
   return parts.join('\n');
 }

@@ -120,6 +120,29 @@
     PLATFORM: "linkedin",
     MAX_REPLY_WORDS: 60
   };
+  var LI_REPLY_MODES = [
+    { value: "single-sentence", label: "Concise", tooltip: "Fast one-sentence reply" },
+    { value: "enhanced", label: "Enhanced", tooltip: "Context-aware with deep analysis" }
+  ];
+  var LI_PROMPT_OPTIONS = [
+    { value: "default", label: "Default" },
+    { value: "professional", label: "Professional" },
+    { value: "insightful", label: "Insightful" },
+    { value: "conversational", label: "Conversational" },
+    { value: "supportive", label: "Supportive" },
+    { value: "direct", label: "Direct" },
+    { value: "x_default", label: "X Default", popupLabel: "X Default (same as Twitter)" }
+  ];
+  var LI_STORAGE_KEYS = {
+    REPLY_MODE: "liReplyMode",
+    PROMPT_VARIATION: "liPromptVariation"
+  };
+  var VALID_REPLY_MODE_VALUES = new Set(LI_REPLY_MODES.map((m) => m.value));
+  var VALID_PROMPT_VALUES = new Set(LI_PROMPT_OPTIONS.map((p) => p.value));
+  function normalizePromptVariation(value) {
+    if (typeof value === "string" && VALID_PROMPT_VALUES.has(value)) return value;
+    return "default";
+  }
 
   // extension-linkedin/utils/api.js
   var ApiClient = class {
@@ -330,6 +353,20 @@
         settingsPlanName: document.getElementById("settings-plan-name"),
         openLinkedInBtn: document.getElementById("open-linkedin-btn")
       };
+      this.populatePromptSelectOptions();
+    }
+    /** Shared tone list with comment bar — single source in config/constants.js. */
+    populatePromptSelectOptions() {
+      const select = this.elements.promptSelect;
+      if (!select) return;
+      select.innerHTML = "";
+      for (const tone of LI_PROMPT_OPTIONS) {
+        const option = document.createElement("option");
+        option.value = tone.value;
+        option.textContent = tone.popupLabel || tone.label;
+        select.appendChild(option);
+      }
+      select.value = "default";
     }
     attachEventListeners() {
       this.elements.signinBtn?.addEventListener("click", () => this.handleSignIn());
@@ -341,7 +378,9 @@
         chrome.tabs.create({ url: "https://www.linkedin.com/feed/" });
       });
       this.elements.promptSelect?.addEventListener("change", (e) => {
-        chrome.storage.local.set({ liPromptVariation: e.target.value });
+        chrome.storage.local.set({
+          [LI_STORAGE_KEYS.PROMPT_VARIATION]: normalizePromptVariation(e.target.value)
+        });
       });
     }
     async initialize() {
@@ -394,9 +433,11 @@
       }
     }
     async loadSavedSettings() {
-      const result = await chrome.storage.local.get(["liPromptVariation"]);
-      if (result.liPromptVariation && this.elements.promptSelect) {
-        this.elements.promptSelect.value = result.liPromptVariation;
+      const result = await chrome.storage.local.get([LI_STORAGE_KEYS.PROMPT_VARIATION]);
+      if (this.elements.promptSelect) {
+        this.elements.promptSelect.value = normalizePromptVariation(
+          result[LI_STORAGE_KEYS.PROMPT_VARIATION]
+        );
       }
     }
     updateUsageDisplay() {

@@ -1,6 +1,7 @@
 import { LINKEDIN_REPLY_LIMITS } from "../config/constants.js";
 import {
   LINKEDIN_META_COMMENTARY_RULE,
+  LINKEDIN_POST_ANCHORED_RULE,
   LINKEDIN_PROMPT_VARIATION_X_DEFAULT,
   LINKEDIN_SIMPLE_LANGUAGE_RULE,
   type LinkedInPromptConfig,
@@ -177,6 +178,10 @@ export function getLinkedInOriginalAuthorPromptConfig(promptName: string = "defa
     LINKEDIN_OA_PROMPT_VARIATIONS[resolved] || LINKEDIN_OA_PROMPT_VARIATIONS.default;
   return {
     ...config,
-    systemPrompt: config.systemPrompt + LINKEDIN_META_COMMENTARY_RULE + LINKEDIN_SIMPLE_LANGUAGE_RULE,
+    systemPrompt:
+      config.systemPrompt +
+      LINKEDIN_META_COMMENTARY_RULE +
+      LINKEDIN_SIMPLE_LANGUAGE_RULE +
+      LINKEDIN_POST_ANCHORED_RULE,
   };
 }

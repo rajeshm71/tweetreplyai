@@ -127,6 +127,33 @@
     PLATFORM: "linkedin",
     MAX_REPLY_WORDS: 60
   };
+  var LI_REPLY_MODES = [
+    { value: "single-sentence", label: "Concise", tooltip: "Fast one-sentence reply" },
+    { value: "enhanced", label: "Enhanced", tooltip: "Context-aware with deep analysis" }
+  ];
+  var LI_PROMPT_OPTIONS = [
+    { value: "default", label: "Default" },
+    { value: "professional", label: "Professional" },
+    { value: "insightful", label: "Insightful" },
+    { value: "conversational", label: "Conversational" },
+    { value: "supportive", label: "Supportive" },
+    { value: "direct", label: "Direct" },
+    { value: "x_default", label: "X Default", popupLabel: "X Default (same as Twitter)" }
+  ];
+  var LI_STORAGE_KEYS = {
+    REPLY_MODE: "liReplyMode",
+    PROMPT_VARIATION: "liPromptVariation"
+  };
+  var VALID_REPLY_MODE_VALUES = new Set(LI_REPLY_MODES.map((m) => m.value));
+  var VALID_PROMPT_VALUES = new Set(LI_PROMPT_OPTIONS.map((p) => p.value));
+  function normalizeReplyMode(value) {
+    if (typeof value === "string" && VALID_REPLY_MODE_VALUES.has(value)) return value;
+    return "enhanced";
+  }
+  function normalizePromptVariation(value) {
+    if (typeof value === "string" && VALID_PROMPT_VALUES.has(value)) return value;
+    return "default";
+  }
 
   // extension-linkedin/utils/api.js
   var ApiClient = class {
@@ -288,22 +315,16 @@
       this.observer.observe(document.body, { childList: true, subtree: true });
     }
     scanForEditors() {
-      const tiptapWrappers = document.querySelectorAll('[data-testid="ui-core-tiptap-text-editor-wrapper"]');
-      const qlEditable = document.querySelectorAll('.ql-editor[contenteditable="true"]');
+      const editors = document.querySelectorAll('.ql-editor[contenteditable="true"]');
       const qlAny = document.querySelectorAll(".ql-editor");
-      const editorSet = /* @__PURE__ */ new Set();
-      for (const wrapper of tiptapWrappers) {
-        const inner = wrapper.querySelector('[role="textbox"][contenteditable="true"]');
-        if (inner) editorSet.add(inner);
-      }
-      for (const ql of qlEditable) {
-        editorSet.add(ql);
-      }
+      const textEditorWrappers = document.querySelectorAll(
+        '.comments-comment-box-comment__text-editor, [class*="comment-box-comment"][class*="text-editor"]'
+      );
       let skippedNoForm = 0;
       let skippedAlready = 0;
       let injected = 0;
       let firstNoFormEditor = null;
-      for (const editor of editorSet) {
+      for (const editor of editors) {
         const form = this.findCommentForm(editor);
         if (!form) {
           skippedNoForm += 1;
@@ -319,26 +340,105 @@
       }
       injectLog(
         "scan:",
-        `tiptap=${tiptapWrappers.length} matched=${editorSet.size} qlEditable=${qlEditable.length} qlAny=${qlAny.length} noForm=${skippedNoForm} already=${skippedAlready} injected=${injected}`
+        `qlEditable=${editors.length} qlAny=${qlAny.length} wrappers=${textEditorWrappers.length} noForm=${skippedNoForm} already=${skippedAlready} injected=${injected}`
       );
-      if (editorSet.size === 0) {
+      if (editors.length === 0) {
         injectLog(
-          "hint: no editors found \u2014 open/focus a comment box to activate the TipTap or Quill editor"
+          'hint: no .ql-editor[contenteditable="true"] - open/focus a comment box; if qlAny>0, editor may not be editable yet'
+        );
+      }
+      if (qlAny.length > 0 && editors.length < qlAny.length) {
+        injectLog(
+          "hint: some .ql-editor exist but are not contenteditable=true yet:",
+          qlAny.length - editors.length
         );
       }
       if (skippedNoForm > 0 && firstNoFormEditor) {
         injectLog("findCommentForm=null; first editor chain:", describeEditorChain(firstNoFormEditor));
+        injectLog(
+          'expected ancestor selector one of: .comments-comment-box__form | .comments-reply-box__form | form | [class*="comment-box"]'
+        );
       }
     }
     findCommentForm(editor) {
-      const tiptapWrapper = editor.closest('[data-testid="ui-core-tiptap-text-editor-wrapper"]');
-      if (tiptapWrapper) return tiptapWrapper.parentElement;
       return editor.closest(".comments-comment-box__form") || editor.closest(".comments-reply-box__form") || editor.closest("form") || editor.closest('[class*="comment-box"]');
     }
     // ─── Button Injection ────────────────────────────────────────────────────────
+    createReplyModeSelect() {
+      const select = document.createElement("select");
+      select.className = "li-ai-bar-select li-ai-reply-mode-select";
+      select.title = "Choose reply generation mode";
+      select.setAttribute("aria-label", "Reply generation mode");
+      for (const mode of LI_REPLY_MODES) {
+        const option = document.createElement("option");
+        option.value = mode.value;
+        option.textContent = mode.label;
+        option.title = mode.tooltip;
+        select.appendChild(option);
+      }
+      select.value = "enhanced";
+      return select;
+    }
+    createToneSelect() {
+      const select = document.createElement("select");
+      select.className = "li-ai-bar-select li-ai-tone-select";
+      select.title = "Choose reply tone";
+      select.setAttribute("aria-label", "Reply tone");
+      for (const tone of LI_PROMPT_OPTIONS) {
+        const option = document.createElement("option");
+        option.value = tone.value;
+        option.textContent = tone.label;
+        select.appendChild(option);
+      }
+      select.value = "default";
+      return select;
+    }
+    /** Await storage before enabling controls — avoids race where first click ignores saved prefs. */
+    async restoreBarControlsFromStorage(replyModeSelect, toneSelect, generateBtn) {
+      replyModeSelect.disabled = true;
+      toneSelect.disabled = true;
+      generateBtn.disabled = true;
+      try {
+        const stored = await chrome.storage?.local?.get([
+          LI_STORAGE_KEYS.REPLY_MODE,
+          LI_STORAGE_KEYS.PROMPT_VARIATION
+        ]);
+        replyModeSelect.value = normalizeReplyMode(stored?.[LI_STORAGE_KEYS.REPLY_MODE]);
+        toneSelect.value = normalizePromptVariation(stored?.[LI_STORAGE_KEYS.PROMPT_VARIATION]);
+      } catch (e) {
+        log("restoreBarControlsFromStorage failed, using defaults:", e.message);
+      } finally {
+        replyModeSelect.disabled = false;
+        toneSelect.disabled = false;
+        generateBtn.disabled = false;
+      }
+    }
+    setBarSelectsDisabled(wrapper, disabled) {
+      wrapper?.querySelectorAll(".li-ai-bar-select").forEach((select) => {
+        select.disabled = disabled;
+      });
+    }
     injectButton(editor, form) {
       const wrapper = document.createElement("div");
       wrapper.className = BUTTON_WRAPPER_CLASS;
+      const replyModeSelect = this.createReplyModeSelect();
+      const toneSelect = this.createToneSelect();
+      replyModeSelect.addEventListener("change", () => {
+        try {
+          chrome.storage?.local?.set({
+            [LI_STORAGE_KEYS.REPLY_MODE]: normalizeReplyMode(replyModeSelect.value)
+          });
+        } catch (_) {
+        }
+      });
+      toneSelect.addEventListener("change", () => {
+        try {
+          chrome.storage?.local?.set({
+            [LI_STORAGE_KEYS.PROMPT_VARIATION]: normalizePromptVariation(toneSelect.value)
+          });
+        } catch (_) {
+        }
+      });
       const btn = document.createElement("button");
       btn.className = BUTTON_CLASS;
       btn.setAttribute("type", "button");
@@ -350,37 +450,46 @@
       btn.addEventListener("click", (e) => {
         e.preventDefault();
         e.stopPropagation();
-        this.handleGenerateReply(editor, btn);
+        this.handleGenerateReply(editor, btn, wrapper, {
+          replyMode: replyModeSelect.value,
+          promptVariation: toneSelect.value
+        });
       });
+      wrapper.appendChild(replyModeSelect);
+      wrapper.appendChild(toneSelect);
       wrapper.appendChild(btn);
-      const submitBtn = form.querySelector('button[type="submit"]') || form.querySelector(".comments-comment-box__submit-button") || form.querySelector('button[aria-label*="Post"]') || form.querySelector('button[aria-label*="Reply"]') || form.querySelector('[class*="submit-button"]') || [...form.querySelectorAll("button")].find(
-        (b) => (b.innerText?.trim() === "Post" || b.innerText?.trim() === "Reply") && !b.closest('[data-testid="ui-core-tiptap-text-editor-wrapper"]')
-      );
-      if (submitBtn?.parentElement) {
-        submitBtn.parentElement.insertBefore(wrapper, submitBtn);
+      void this.restoreBarControlsFromStorage(replyModeSelect, toneSelect, btn);
+      const submitBtn = form.querySelector('button[type="submit"]') || form.querySelector(".comments-comment-box__submit-button") || form.querySelector('[class*="submit-button"]');
+      const actionRow = submitBtn?.closest(".comments-comment-box__form-actions") || submitBtn?.closest('[class*="comment-box"][class*="actions"]') || submitBtn?.parentElement;
+      if (actionRow) {
+        if (submitBtn && actionRow.contains(submitBtn)) {
+          actionRow.insertBefore(wrapper, submitBtn);
+        } else {
+          actionRow.appendChild(wrapper);
+        }
         injectLog(
-          "placed before submit:",
-          submitBtn.className?.slice?.(0, 80) || submitBtn.getAttribute?.("data-test-id") || "submit"
+          "placed in action row:",
+          actionRow.className?.slice?.(0, 80) || actionRow.tagName
         );
       } else {
         form.appendChild(wrapper);
         injectLog("placed via form.appendChild (no submit anchor found)");
       }
-      log("Button injected for editor placeholder:", editor.getAttribute("aria-label") || editor.dataset?.placeholder || "comment box");
+      log("Button injected for editor placeholder:", editor.dataset.placeholder || "comment box");
     }
     // ─── Reply Generation ────────────────────────────────────────────────────────
-    async handleGenerateReply(editor, btn) {
+    async handleGenerateReply(editor, btn, controlWrapper, options = {}) {
       if (!this.isAuthenticated) {
         this.isAuthenticated = await this.authManager.isAuthenticated();
       }
       if (!this.isAuthenticated) {
-        this.setButtonState(btn, "error", "Sign in required");
+        this.setButtonState(btn, controlWrapper, "error", "Sign in required");
         return;
       }
       const context = this.extractContext(editor);
       if (!context.postText || context.postText.length < VALIDATION.MIN_POST_LENGTH) {
         log("Post text not found or too short:", context.postText?.length ?? 0);
-        this.setButtonState(btn, "error", "Post text not found");
+        this.setButtonState(btn, controlWrapper, "error", "Post text not found");
         return;
       }
       log("Context extracted:", {
@@ -392,20 +501,32 @@
         viewerIsOA: context.viewerIsOA,
         threadLength: context.threadContext?.threadLength
       });
-      this.setButtonState(btn, "loading");
+      this.setButtonState(btn, controlWrapper, "loading");
       try {
-        let liPromptVariation = "default";
-        try {
-          const stored = await chrome.storage?.local?.get(["liPromptVariation"]);
-          if (stored?.liPromptVariation) liPromptVariation = stored.liPromptVariation;
-        } catch (e) {
-          log("chrome.storage unavailable, using default variation");
+        let replyMode = normalizeReplyMode(options.replyMode);
+        let promptVariation = normalizePromptVariation(options.promptVariation);
+        if (!options.replyMode || !options.promptVariation) {
+          try {
+            const stored = await chrome.storage?.local?.get([
+              LI_STORAGE_KEYS.REPLY_MODE,
+              LI_STORAGE_KEYS.PROMPT_VARIATION
+            ]);
+            if (!options.replyMode) {
+              replyMode = normalizeReplyMode(stored?.[LI_STORAGE_KEYS.REPLY_MODE]);
+            }
+            if (!options.promptVariation) {
+              promptVariation = normalizePromptVariation(stored?.[LI_STORAGE_KEYS.PROMPT_VARIATION]);
+            }
+          } catch (e) {
+            log("chrome.storage unavailable, using defaults");
+          }
         }
         const payload = {
           tweet_text: context.postText,
           tweet_id: context.postId || "",
           author_info: { username: context.authorName },
-          prompt_variation: liPromptVariation,
+          prompt_variation: promptVariation,
+          reply_mode: replyMode,
           viewer_is_original_author: context.viewerIsOA
         };
         if (context.threadContext) {
@@ -413,6 +534,8 @@
         }
         const commentOnComment = !!(context.threadContext?.isReply && context.threadContext?.threadLength > 1);
         log("handleGenerateReply: payload summary", {
+          reply_mode: payload.reply_mode,
+          prompt_variation: payload.prompt_variation,
           viewer_is_original_author: payload.viewer_is_original_author,
           isOther: !payload.viewer_is_original_author,
           hasThreadContext: !!payload.thread_context,
@@ -423,21 +546,21 @@
         const reply = response?.reply || response?.tweet;
         if (reply) {
           this.insertTextIntoEditor(editor, reply);
-          this.setButtonState(btn, "done", "Reply Added \u2713");
-          setTimeout(() => this.setButtonState(btn, "default"), 2500);
+          this.setButtonState(btn, controlWrapper, "done", "Reply Added \u2713");
+          setTimeout(() => this.setButtonState(btn, controlWrapper, "default"), 2500);
         } else {
-          this.setButtonState(btn, "error", "No reply generated");
+          this.setButtonState(btn, controlWrapper, "error", "No reply generated");
         }
       } catch (error) {
         log("Error generating reply:", error.message);
         if (error.message?.includes("402")) {
-          this.setButtonState(btn, "error", "Quota exceeded");
+          this.setButtonState(btn, controlWrapper, "error", "Quota exceeded");
         } else if (error.message?.includes("401")) {
           this.isAuthenticated = false;
           this.authManager.clearCache();
-          this.setButtonState(btn, "error", "Sign in required");
+          this.setButtonState(btn, controlWrapper, "error", "Sign in required");
         } else {
-          this.setButtonState(btn, "error", "Error \u2014 try again");
+          this.setButtonState(btn, controlWrapper, "error", "Error \u2014 try again");
         }
       }
     }
@@ -450,7 +573,7 @@
         viewerIsOA: false,
         threadContext: null
       };
-      log("extractContext: starting", { placeholder: (editor.getAttribute("aria-label") || editor.dataset?.placeholder || "")?.substring(0, 40) });
+      log("extractContext: starting", { placeholder: editor.dataset?.placeholder?.substring(0, 40) });
       const postContainer = this.findPostContainer(editor);
       if (!postContainer) {
         log("extractContext: could not find post container from editor");
@@ -474,13 +597,14 @@
       return ctx;
     }
     /**
-     * Returns true only for post-level URNs (activity or ugcPost). Rejects comment URNs.
-     * LinkedIn uses urn:li:activity: for articles/shares and urn:li:ugcPost: for regular posts.
+     * Returns true only for activity URNs (feed posts). Rejects comment URNs so we don't
+     * treat a comment container as the post when replying to a comment.
      */
     isActivityUrn(urn) {
       if (!urn || typeof urn !== "string") return false;
+      if (!urn.startsWith("urn:li:activity:")) return false;
       if (urn.includes("comment") || urn.includes("fsd_comment")) return false;
-      return urn.startsWith("urn:li:activity:") || urn.startsWith("urn:li:ugcPost:");
+      return true;
     }
     findPostContainer(editor) {
       let el = editor.parentElement;
@@ -504,38 +628,6 @@
           return urnEl;
         }
       }
-      let tiptapEl = editor.parentElement;
-      while (tiptapEl && tiptapEl !== document.body) {
-        const fp = tiptapEl.querySelector('[data-testid*="ReactionFacepileCollection-urn:li:"]');
-        if (fp) {
-          let postCard = fp.closest("div");
-          while (postCard && postCard !== tiptapEl && !postCard.querySelector('[data-testid="expandable-text-box"]')) {
-            postCard = postCard.parentElement;
-          }
-          if (!postCard || postCard === tiptapEl) {
-            const directChildWithFp = [...tiptapEl.children].find(
-              (c) => c.querySelector('[data-testid*="ReactionFacepileCollection-urn:li:"]')
-            );
-            if (directChildWithFp) {
-              if (directChildWithFp.tagName === "A" && directChildWithFp.parentElement) {
-                postCard = directChildWithFp.parentElement;
-              } else {
-                postCard = directChildWithFp;
-              }
-            } else {
-              postCard = tiptapEl;
-            }
-          }
-          const container = postCard || tiptapEl;
-          log("findPostContainer: found via ReactionFacepile boundary", {
-            ancestorTag: tiptapEl.tagName,
-            narrowedTag: container.tagName,
-            narrowed: container !== tiptapEl
-          });
-          return container;
-        }
-        tiptapEl = tiptapEl.parentElement;
-      }
       const articleOrMain = editor.closest("article") || document.querySelector("main");
       log("findPostContainer: using article/main fallback", !!articleOrMain);
       if (!articleOrMain) {
@@ -551,7 +643,6 @@
     }
     extractPostText(container) {
       const selectors = [
-        '[data-testid="expandable-text-box"]',
         ".feed-shared-update-v2__description .break-words",
         ".update-components-text .break-words",
         ".feed-shared-text-view .break-words",
@@ -564,23 +655,15 @@
       for (const sel of selectors) {
         const el = container.querySelector(sel);
         if (el) {
-          if (el.closest('[data-testid="ui-core-tiptap-text-editor-wrapper"]')) continue;
           const text = el.textContent?.trim();
           if (text && text.length > 10) {
-            log("extractPostText: matched", { selector: sel, preview: text.substring(0, 80) });
             return safeTruncate(text, VALIDATION.MAX_POST_LENGTH);
           }
         }
       }
-      log("extractPostText: no selector matched \u2014 returning empty string");
       return "";
     }
     extractPostId(container) {
-      const facepile = container.querySelector('[data-testid*="ReactionFacepileCollection-urn:li:activity:"]');
-      if (facepile) {
-        const urn = facepile.getAttribute("data-testid")?.replace("ReactionFacepileCollection-", "");
-        if (urn) return urn;
-      }
       const urnEl = container.hasAttribute("data-urn") ? container : container.querySelector("[data-urn]");
       if (urnEl) return urnEl.getAttribute("data-urn");
       const idEl = container.querySelector("[data-id]");
@@ -594,14 +677,6 @@
     extractAuthorName(container) {
       if (!container) return "";
       let name = "";
-      const tiptapAuthorLink = [...container.querySelectorAll('a[href*="/in/"], a[href*="/company/"]')].find((a) => a.innerText?.trim().length > 0);
-      if (tiptapAuthorLink) {
-        const firstLine = tiptapAuthorLink.innerText.trim().split("\n")[0]?.trim();
-        if (firstLine && firstLine.length > 1 && !firstLine.startsWith("http")) {
-          name = firstLine;
-        }
-      }
-      if (name) return name;
       const actorEl = container.querySelector('[class*="update-components-actor"]') || container.querySelector(".feed-shared-actor");
       if (actorEl) {
         const nameSpan = [...actorEl.querySelectorAll("span")].find((el) => {
@@ -656,23 +731,6 @@
       let slug = null;
       let profileUrl = null;
       let link = null;
-      const selfAvatar = [...document.querySelectorAll('img[src*="profile-displayphoto"]')].find((img) => img.alt?.length > 0 && !img.alt.startsWith("View"));
-      if (selfAvatar) {
-        const avatarName = selfAvatar.alt.trim();
-        let avatarEl = selfAvatar.parentElement;
-        for (let d = 0; d < 8; d++) {
-          const lnk = (avatarEl?.matches?.('a[href*="/in/"]') ? avatarEl : null) ?? avatarEl?.querySelector('a[href*="/in/"]');
-          if (lnk) {
-            const raw = lnk.href || "";
-            profileUrl = raw.split("?")[0] || null;
-            slug = profileUrl?.match(/\/in\/([^/?]+)/)?.[1] || null;
-            log("getLoggedInUserFromDOM: Strategy 0 (avatar) succeeded", { name: avatarName, slug, profileUrl: profileUrl?.substring(0, 50) });
-            this._loggedInUser = { name: avatarName, slug, profileUrl };
-            return this._loggedInUser;
-          }
-          avatarEl = avatarEl?.parentElement;
-        }
-      }
       const navLink = document.querySelector('[class*="global-nav__me"] a[href*="/in/"]');
       const navImg = document.querySelector('[class*="global-nav__me"] img') || document.querySelector(".global-nav__me-photo");
       if (navLink) {
@@ -681,7 +739,6 @@
         profileUrl = raw.split("?")[0] || null;
         slug = profileUrl && profileUrl.match(/\/in\/([^/?]+)/) ? profileUrl.match(/\/in\/([^/?]+)/)[1] : null;
         if (navImg && navImg.alt) name = navImg.alt.trim();
-        log("getLoggedInUserFromDOM: Strategy 1 (nav) found link", { slug, name, profileUrl: profileUrl?.substring(0, 50) });
       }
       if (!link) {
         const withImg = [...document.querySelectorAll('a[href*="/in/"]')].filter((a) => a.querySelector("img"));
@@ -697,7 +754,6 @@
         }
       }
       if (!link) {
-        log("getLoggedInUserFromDOM: no strategy found logged-in user \u2014 returning null");
         this._loggedInUser = null;
         return null;
       }
@@ -712,30 +768,12 @@
     getPostAuthorProfileFromContainer(container) {
       if (!container) return { slug: null, profileUrl: null, isCompany: false };
       const actorEl = container.querySelector('[class*="update-components-actor"]') || container.querySelector(".feed-shared-actor");
-      let profileLink = actorEl?.querySelector('a[href*="/in/"], a[href*="/company/"]') || null;
-      if (!profileLink) {
-        const candidates = [...container.querySelectorAll('a[href*="/in/"], a[href*="/company/"]')];
-        profileLink = candidates.find((a) => {
-          if (!a.innerText?.trim()) return false;
-          if (a.href?.includes("/feed/")) return false;
-          if (a.closest('[aria-label*="View more options for"]')) return false;
-          return true;
-        }) || null;
-      }
-      if (!profileLink || !profileLink.href) {
-        log("getPostAuthorProfileFromContainer:", { profileLinkFound: false, href: "(none)", slug: null, isCompany: false });
-        return { slug: null, profileUrl: null, isCompany: false };
-      }
+      const profileLink = actorEl?.querySelector('a[href*="/in/"], a[href*="/company/"]');
+      if (!profileLink || !profileLink.href) return { slug: null, profileUrl: null, isCompany: false };
       const rawUrl = profileLink.href;
       const cleanUrl = rawUrl.split("?")[0];
       const slug = cleanUrl.match(/\/in\/([^/?]+)/)?.[1] || null;
       const isCompany = rawUrl.includes("/company/");
-      log("getPostAuthorProfileFromContainer:", {
-        profileLinkFound: true,
-        href: rawUrl.substring(0, 60),
-        slug,
-        isCompany
-      });
       return { slug, profileUrl: cleanUrl, isCompany };
     }
     /**
@@ -770,25 +808,9 @@
           }
         }
       }
-      const authorLinkOA = container.querySelector('a[href*="/in/"]');
-      const innerLines = authorLinkOA?.innerText?.trim().split("\n").map((l) => l.trim()) || [];
-      log("detectViewerIsOA: step 2b TipTap innerText lines", {
-        linkFound: !!authorLinkOA,
-        href: authorLinkOA?.href?.substring(0, 60) ?? "(none)",
-        lines: innerLines.slice(0, 5)
-      });
-      if (innerLines.some((l) => /^[•·]\s*You$/i.test(l))) {
-        log('detectViewerIsOA: OA via innerText degree line "\u2022 You"');
-        return true;
-      }
       const me = this.getLoggedInUserFromDOM();
       const postAuthor = this.getPostAuthorProfileFromContainer(container);
       const postAuthorName = this.extractAuthorName(container);
-      log("detectViewerIsOA: step 3 comparison", {
-        me: me ? { name: me.name, slug: me.slug } : null,
-        postAuthor: { slug: postAuthor.slug, isCompany: postAuthor.isCompany },
-        postAuthorName: postAuthorName?.substring(0, 40)
-      });
       const normalizeUrl = (url) => url && typeof url === "string" ? url.trim().toLowerCase().replace(/\/$/, "") : "";
       const normalizeName = (n) => n && typeof n === "string" ? n.trim().toLowerCase().replace(/\s+/g, " ") : "";
       if (me) {
@@ -814,40 +836,18 @@
     isReplyToCommentForm(form) {
       return !!this.getReplyWrapperElement(form);
     }
+    /**
+     * Returns the ancestor element that has comments-comment-box--cr (the reply wrapper).
+     * Used to find the parent comment via previousElementSibling of this wrapper.
+     */
     getReplyWrapperElement(form) {
       if (!form) return null;
       let el = form.parentElement;
-      for (let d = 0; d < 15; d++) {
-        if (!el || el === document.body) break;
-        const parent = el.parentElement;
-        if (!parent) break;
-        const siblings = [...parent.children].filter((c) => c !== el);
-        const commentSibling = siblings.find(
-          (sib) => sib.querySelector('button[aria-label*="View more options for"]') && !sib.querySelector('[data-testid*="ReactionFacepileCollection"]')
-        );
-        if (commentSibling) {
-          if (d <= 8) {
-            log("getReplyWrapperElement: \u2705 reply confirmed", {
-              depth: d,
-              siblingAuthor: commentSibling.querySelector('button[aria-label*="View more options for"]')?.getAttribute("aria-label")?.replace(/^View more options for\s+/, "")?.replace(/[\u2018\u2019\u0060'`]s comment\.?$/i, "")?.trim()
-            });
-            return el;
-          } else {
-            log("getReplyWrapperElement: depth > 8 \u2014 top-level", { depth: d });
-          }
-        }
+      for (let i = 0; i < 15 && el; i++) {
+        const cls = el.className && typeof el.className === "string" ? el.className : "";
+        if (cls.includes("comments-comment-box--cr") || cls.includes("comment-box--cr")) return el;
         el = el.parentElement;
       }
-      let legacyEl = form.parentElement;
-      for (let i = 0; i < 15 && legacyEl; i++) {
-        const cls = typeof legacyEl.className === "string" ? legacyEl.className : "";
-        if (cls.includes("comments-comment-box--cr") || cls.includes("comment-box--cr")) {
-          log("getReplyWrapperElement: legacy --cr");
-          return legacyEl;
-        }
-        legacyEl = legacyEl.parentElement;
-      }
-      log("getReplyWrapperElement: not a reply \u2014 top-level");
       return null;
     }
     /**
@@ -855,186 +855,226 @@
      * Returns 'comment' | 'reply' | null (null = unknown, fall back to DOM).
      */
     getPlaceholderIntent(editor) {
-      let source = "none";
-      const raw = (() => {
-        if (editor?.dataset?.placeholder != null) {
-          source = "data.placeholder";
-          return editor.dataset.placeholder;
-        }
-        const dp = editor?.getAttribute?.("data-placeholder");
-        if (dp != null) {
-          source = "data-placeholder attr";
-          return dp;
-        }
-        const al = editor?.getAttribute?.("aria-label");
-        if (al != null) {
-          source = "aria-label";
-          return al;
-        }
-        return "";
-      })().trim().toLowerCase();
-      let intent = null;
-      if (!raw) intent = null;
-      else if (raw.includes("reply") || raw.includes("r\xE9pondre")) intent = "reply";
-      else if (raw.includes("comment")) intent = "comment";
-      log("getPlaceholderIntent:", { source, raw: raw.substring(0, 60), intent });
-      return intent;
+      const raw = (editor?.dataset?.placeholder ?? editor?.getAttribute?.("data-placeholder") ?? "").trim().toLowerCase();
+      if (!raw) return null;
+      if (raw.includes("reply") || raw.includes("r\xE9pondre")) return "reply";
+      if (raw.includes("comment")) return "comment";
+      return null;
     }
     buildThreadContext(editor, postContainer) {
       const form = this.findCommentForm(editor);
-      log("buildThreadContext: start", {
-        editorLabel: editor.getAttribute("aria-label")?.substring(0, 40)
-      });
-      const replyBox = this.getReplyWrapperElement(form);
-      const isReplyToComment = !!replyBox;
-      log("buildThreadContext: detection", { isReplyToComment });
-      if (!isReplyToComment) {
-        log("buildThreadContext: top-level comment \u2014 null");
+      const formClass = form?.className ?? "(no form)";
+      log("buildThreadContext: form", { hasForm: !!form, formClass: typeof formClass === "string" ? formClass.substring(0, 80) : formClass });
+      const placeholderIntent = this.getPlaceholderIntent(editor);
+      if (placeholderIntent === "comment") {
+        log("Detected: reply-to-post (comment on post)", { reason: 'placeholder indicates "Add a comment..."' });
         return null;
       }
-      const tiptapWrapper = form.querySelector(
-        '[data-testid="ui-core-tiptap-text-editor-wrapper"]'
-      );
-      const editorTextbox = tiptapWrapper?.querySelector('[role="textbox"]');
-      const mentionName = editorTextbox?.innerText?.trim() || "";
-      log("buildThreadContext: mention", { mentionName: mentionName.slice(0, 60) });
-      const parent = replyBox.parentElement;
-      const siblings = [...parent?.children || []];
-      let commentContainer = null;
-      if (mentionName) {
-        const firstName = mentionName.split(" ")[0]?.toLowerCase();
-        commentContainer = siblings.find((sib) => {
-          if (sib === replyBox) return false;
-          const optBtn = sib.querySelector(
-            'button[aria-label*="View more options for"]'
-          );
-          if (!optBtn) return false;
-          const author = optBtn.getAttribute("aria-label")?.replace(/^View more options for\s+/, "")?.replace(/[\u2018\u2019\u0060'`]s comment\.?$/i, "")?.trim() || "";
-          return mentionName.toLowerCase().startsWith(
-            author.split(" ")[0]?.toLowerCase()
-          );
+      if (placeholderIntent === "reply") {
+        log("Detected: reply-to-comment", { reason: 'placeholder indicates "Add a reply..."' });
+      }
+      const commentItem = editor.closest(".comments-comment-item") || editor.closest('[class*="reply-container"]');
+      const isReplyBoxForm = !!(form?.classList?.contains?.("comments-reply-box__form") || form?.className?.includes?.("comments-reply-box"));
+      const isCrWrapper = this.isReplyToCommentForm(form);
+      const isReplyToCommentByDom = !!commentItem || isReplyBoxForm || isCrWrapper;
+      if (placeholderIntent === null && !isReplyToCommentByDom) {
+        log("Detected: reply-to-post", { reason: "placeholder unknown and no reply DOM cues" });
+        return null;
+      }
+      if (placeholderIntent === null && isReplyToCommentByDom) {
+        log("Detected: reply-to-comment", {
+          reason: commentItem ? "editor inside comment item" : isReplyBoxForm ? "reply-box form" : "comments-comment-box--cr wrapper"
         });
-        if (commentContainer) {
-          log("buildThreadContext: \u2705 comment found via @mention match");
-        }
       }
-      if (!commentContainer) {
-        let prev = replyBox.previousElementSibling;
-        for (let s = 0; s < 5 && prev; s++) {
-          if (prev.querySelector('button[aria-label*="View more options for"]')) {
-            commentContainer = prev;
-            log("buildThreadContext: comment found via prevSibling fallback", { steps: s });
-            break;
+      log("buildThreadContext: commentItem", { found: !!commentItem, via: commentItem ? editor.closest(".comments-comment-item") ? "comments-comment-item" : "reply-container" : "none" });
+      let commentText = null;
+      if (placeholderIntent === "reply" || isReplyToCommentByDom) {
+        const commentArticle = editor.closest("article.comments-comment-entity");
+        if (commentArticle) {
+          const textEl = commentArticle.querySelector("span.comments-comment-item__main-content");
+          const t = textEl?.textContent?.trim();
+          if (t && t.length >= 5) {
+            commentText = t;
+            log("buildThreadContext: found comment via article.comments-comment-entity", commentText.length, "chars");
           }
-          prev = prev.previousElementSibling;
         }
       }
-      if (!commentContainer) {
-        const article = editor.closest("article.comments-comment-entity");
-        if (article) {
-          log("buildThreadContext: legacy article fallback");
-          return this._buildThread(article, postContainer);
+      const commentBodySelectors = [
+        ".comments-comment-item__main-content",
+        ".comments-comment-item_main-content",
+        // single underscore - actual LinkedIn class
+        ".feed-shared-main-content--comment",
+        "section.comments-comment-entity__content",
+        ".feed-shared-inline-show-more-text",
+        ".comments-comment-item__inline-show-more-text",
+        // double underscore (current LinkedIn DOM)
+        ".comments-comment-item_inline-show-more-text",
+        '[class*="comment-item_main-content"]',
+        ".comments-comment-item__description",
+        ".comments-comment-item__content",
+        ".comments-comment-item .update-components-text",
+        ".feed-shared-main-content",
+        '[class*="comment-item__main-content"]',
+        '[class*="comment-item__description"]',
+        '[class*="comment-item__content"]',
+        '[class*="main-content"]'
+      ];
+      function getCommentTextFromRoot(root) {
+        if (!root) return null;
+        for (const sel of commentBodySelectors) {
+          const el = root.querySelector?.(sel) || (root.matches?.(sel) ? root : null);
+          if (el) {
+            const t = el.textContent?.trim();
+            if (t && t.length >= 5) return t;
+          }
         }
-      }
-      if (!commentContainer) {
-        log("buildThreadContext: no comment container \u2014 null");
+        const contentSection = root.matches?.("section.comments-comment-entity__content") ? root : root.querySelector?.("section.comments-comment-entity__content");
+        if (contentSection) {
+          const clone = contentSection.cloneNode(true);
+          clone.querySelectorAll("form, button, .ql-editor, .comments-comment-box").forEach((el) => el.remove());
+          const t = clone.textContent?.trim();
+          if (t && t.length >= 5) return t;
+        }
+        const item = root.matches?.(".comments-comment-item") ? root : root.querySelector?.(".comments-comment-item");
+        if (item) {
+          const clone = item.cloneNode(true);
+          clone.querySelectorAll("form, button, .ql-editor, .comments-comment-box").forEach((el) => el.remove());
+          const t = clone.textContent?.trim();
+          if (t && t.length >= 5) return t;
+        }
         return null;
       }
-      return this._buildThread(commentContainer, postContainer);
-    }
-    _buildThread(commentContainer, postContainer) {
-      const commentAuthor = commentContainer.querySelector('button[aria-label*="View more options for"]')?.getAttribute("aria-label")?.replace(/^View more options for\s+/, "")?.replace(/[\u2018\u2019\u0060'`]s comment\.?$/i, "")?.trim() || "unknown";
-      let commentText = null;
-      const textBox = [...commentContainer.querySelectorAll(
-        '[data-testid="expandable-text-box"]'
-      )].find(
-        (el) => !el.closest('[data-testid="ui-core-tiptap-text-editor-wrapper"]')
-      );
-      commentText = textBox?.textContent?.trim() || null;
-      if (!commentText) {
-        commentText = commentContainer.querySelector("span.comments-comment-item__main-content")?.textContent?.trim() || null;
-        if (commentText) log("_buildThread: text via legacy selector");
-      }
-      if (!commentText) {
-        try {
-          const clone = commentContainer.cloneNode(true);
-          clone.querySelectorAll(
-            '[data-testid="ui-core-tiptap-text-editor-wrapper"], button, img, svg, [role="img"]'
-          ).forEach((el) => el.remove());
-          const lines = clone.textContent?.split("\n").map((l) => l.trim()).filter(Boolean) || [];
-          const skipPatterns = [
-            /^(1st|2nd|3rd|You|Following)$/i,
-            /^\d+[mhd]$/,
-            /^\d+$/,
-            /^(Like|Reply|React)$/i,
-            /^(Author|Premium|Verified)$/i,
-            /^•/
-          ];
-          const contentLines = lines.filter((line, idx) => {
-            if (idx === 0) return false;
-            if (skipPatterns.some((p) => p.test(line))) return false;
-            if (line.length < 3) return false;
-            return true;
-          });
-          if (contentLines.length > 0) {
-            commentText = contentLines.join(" ");
-            log("_buildThread: text via nuclear fallback", {
-              preview: commentText.slice(0, 80)
-            });
+      if (!commentText && commentItem) {
+        const commentContent = commentItem.querySelector(".comments-comment-item__main-content") || commentItem.querySelector(".feed-shared-main-content") || commentItem.previousElementSibling?.querySelector(".comments-comment-item__main-content");
+        commentText = commentContent?.textContent?.trim();
+        log("buildThreadContext: commentItem found", commentText ? `comment length ${commentText.length}` : "no body");
+      } else if (!commentText && isReplyBoxForm) {
+        log("buildThreadContext: reply-to-comment path (comments-reply-box); form class:", form?.className?.substring(0, 80));
+        let searchRoot = form.previousElementSibling || form.parentElement;
+        while (searchRoot && !commentText) {
+          commentText = getCommentTextFromRoot(searchRoot);
+          if (commentText) log("buildThreadContext: reply-box fallback found comment", commentText.length, "chars");
+          if (!commentText) searchRoot = searchRoot.parentElement;
+        }
+        if (!commentText) log("buildThreadContext: reply-box fallback could not find comment text");
+      } else if (!commentText && isCrWrapper) {
+        const replyWrapper = this.getReplyWrapperElement(form);
+        log("buildThreadContext: reply-to-comment path (--cr wrapper); replyWrapper:", !!replyWrapper);
+        const replyThreadItem = replyWrapper?.closest?.(".comments-thread-item");
+        const commentThreadItem = replyThreadItem?.previousElementSibling;
+        if (replyThreadItem && commentThreadItem) {
+          commentText = getCommentTextFromRoot(commentThreadItem);
+          if (commentText) log("buildThreadContext: --cr found comment via comments-thread-item previous sibling", commentText.length, "chars");
+        }
+        if (!commentText && replyWrapper?.previousElementSibling) {
+          commentText = getCommentTextFromRoot(replyWrapper.previousElementSibling);
+          if (commentText) log("buildThreadContext: --cr found comment via wrapper.previousElementSibling", commentText.length, "chars");
+          if (!commentText) {
+            const item = replyWrapper.previousElementSibling.querySelector?.(".comments-comment-item");
+            if (item) commentText = getCommentTextFromRoot(item);
+            if (commentText) log("buildThreadContext: --cr found comment via .comments-comment-item in previous sibling", commentText.length, "chars");
           }
-        } catch (e) {
-          log("_buildThread: nuclear fallback error", e.message);
+        }
+        if (!commentText) {
+          let searchRoot = form?.parentElement?.previousElementSibling ?? form?.previousElementSibling ?? replyWrapper ?? form?.parentElement;
+          for (let steps = 0; steps < 8 && searchRoot && !commentText; steps++) {
+            commentText = getCommentTextFromRoot(searchRoot);
+            if (commentText) {
+              log("buildThreadContext: --cr fallback found comment (walk)", commentText.length, "chars");
+              break;
+            }
+            const commentItemEl = searchRoot.querySelector?.(".comments-comment-item");
+            if (commentItemEl) commentText = getCommentTextFromRoot(commentItemEl);
+            if (commentText) {
+              log("buildThreadContext: --cr fallback found comment via .comments-comment-item", commentText.length, "chars");
+              break;
+            }
+            searchRoot = searchRoot.previousElementSibling || searchRoot.parentElement;
+          }
+        }
+        if (!commentText && replyWrapper) {
+          let prev = replyWrapper.previousElementSibling;
+          for (let w = 0; w < 12 && prev; w++) {
+            const item = prev.classList?.contains?.("comments-comment-item") ? prev : prev.querySelector?.(".comments-comment-item");
+            if (item) {
+              commentText = getCommentTextFromRoot(item);
+              if (commentText) {
+                log("buildThreadContext: --cr found comment via walk-back from wrapper", commentText.length, "chars");
+                break;
+              }
+            }
+            prev = prev.previousElementSibling;
+          }
+        }
+        if (!commentText) {
+          log(
+            "buildThreadContext: --cr all strategies failed; wrapper outerHTML prefix:",
+            replyWrapper?.outerHTML?.substring(0, 400)
+          );
         }
       }
       if (!commentText || commentText.length < 5) {
-        log("_buildThread: no text \u2014 null", { len: commentText?.length ?? 0 });
+        log("buildThreadContext: returning null", { reason: !commentText ? "no commentText" : "commentText too short", len: commentText?.length ?? 0 });
         return null;
       }
-      log("_buildThread: \u2705 done", {
-        author: commentAuthor,
-        preview: commentText.substring(0, 80)
-      });
       const originalPostText = this.extractPostText(postContainer);
       const postAuthorName = this.extractAuthorName(postContainer);
-      return {
+      const originalTweetAuthor = postAuthorName && postAuthorName.trim() ? postAuthorName.trim().slice(0, 50) : null;
+      const authorLabel = originalTweetAuthor || "unknown";
+      const built = {
         isReply: true,
         originalTweet: originalPostText || null,
-        originalTweetAuthor: postAuthorName?.trim() || null,
+        originalTweetAuthor,
         threadChain: [
-          {
-            text: originalPostText || "",
-            author: postAuthorName?.trim() || "unknown",
-            isOriginal: true,
-            isCurrent: false
-          },
-          {
-            text: safeTruncate(commentText, 300),
-            author: commentAuthor,
-            isOriginal: false,
-            isCurrent: true
-          }
+          { text: originalPostText || "", author: authorLabel, isOriginal: true, isCurrent: false },
+          { text: safeTruncate(commentText, 300), author: "unknown", isOriginal: false, isCurrent: true }
         ],
         currentTweetIndex: 1,
         threadLength: 2
       };
+      log("buildThreadContext: built thread (comment-on-comment recognized)", { threadLength: built.threadLength, commentPreviewLen: commentText.length });
+      return built;
     }
     // ─── Text Insertion ──────────────────────────────────────────────────────────
-    insertTextIntoEditor(editor, text) {
-      editor.focus();
-      try {
-        const dt = new DataTransfer();
-        dt.setData("text/plain", text);
-        const beforePaste = editor.textContent?.trim() || "";
-        editor.dispatchEvent(
-          new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true })
-        );
-        const afterPaste = editor.textContent?.trim() || "";
-        if (afterPaste.length > 0 && afterPaste !== beforePaste) {
-          log("Text inserted via ClipboardEvent paste");
-          return;
+    // Strip reply prefixes from generated text (same as X extension)
+    stripReplyPrefix(text) {
+      const prefixes = [
+        "Question",
+        "Supportive",
+        "Disagree",
+        "Enhance",
+        "Smart",
+        "Controversial",
+        "Marketing",
+        "Product-marketing"
+      ];
+      let cleaned = text.trim();
+      for (const prefix of prefixes) {
+        const regex = new RegExp(`^\\b${prefix}\\b\\s*[^\\w\\s]*\\s*`, "i");
+        if (regex.test(cleaned)) {
+          cleaned = cleaned.replace(regex, "").trim();
+          break;
         }
-      } catch (e) {
-        log("ClipboardEvent paste failed:", e.message);
+      }
+      const punctuationRegex = /^([A-Z][a-z]+)([\-:.,!]+)\s+/;
+      if (punctuationRegex.test(cleaned) && !cleaned.match(/^[A-Za-z]+,\s/)) {
+        cleaned = cleaned.replace(punctuationRegex, "").trim();
+      }
+      return cleaned;
+    }
+    insertTextIntoEditor(editor, text) {
+      const cleanText = this.stripReplyPrefix(String(text).replace(/<[^>]*>/g, ""));
+      editor.focus();
+      const quill = this.getQuillInstance(editor);
+      if (quill) {
+        try {
+          quill.setText(cleanText);
+          quill.setSelection(cleanText.length, 0);
+          log("Text inserted via Quill API");
+          return;
+        } catch (e) {
+          log("Quill API failed, trying execCommand:", e.message);
+        }
       }
       try {
         const selection = window.getSelection();
@@ -1042,7 +1082,7 @@
         range.selectNodeContents(editor);
         selection.removeAllRanges();
         selection.addRange(range);
-        const inserted = document.execCommand("insertText", false, text);
+        const inserted = document.execCommand("insertText", false, cleanText);
         if (inserted) {
           log("Text inserted via execCommand");
           return;
@@ -1050,18 +1090,7 @@
       } catch (e) {
         log("execCommand failed:", e.message);
       }
-      const quill = this.getQuillInstance(editor);
-      if (quill) {
-        try {
-          quill.setText(text);
-          quill.setSelection(text.length, 0);
-          log("Text inserted via Quill API");
-          return;
-        } catch (e) {
-          log("Quill API failed:", e.message);
-        }
-      }
-      editor.innerHTML = `<p>${text}</p>`;
+      editor.innerHTML = `<p>${cleanText}</p>`;
       editor.dispatchEvent(new InputEvent("input", { bubbles: true, composed: true }));
       editor.dispatchEvent(new Event("change", { bubbles: true }));
       log("Text inserted via innerHTML fallback");
@@ -1075,7 +1104,7 @@
       return null;
     }
     // ─── Button States ───────────────────────────────────────────────────────────
-    setButtonState(btn, state, message) {
+    setButtonState(btn, controlWrapper, state, message) {
       const textEl = btn.querySelector(".li-ai-btn-text");
       btn.disabled = false;
       btn.classList.remove(
@@ -1087,19 +1116,23 @@
         case "loading":
           if (textEl) textEl.textContent = "Generating\u2026";
           btn.disabled = true;
+          this.setBarSelectsDisabled(controlWrapper, true);
           btn.classList.add(`${BUTTON_CLASS}--loading`);
           break;
         case "done":
           if (textEl) textEl.textContent = message || "Reply Added \u2713";
+          this.setBarSelectsDisabled(controlWrapper, false);
           btn.classList.add(`${BUTTON_CLASS}--done`);
           break;
         case "error":
           if (textEl) textEl.textContent = message || "Error \u2014 try again";
+          this.setBarSelectsDisabled(controlWrapper, false);
           btn.classList.add(`${BUTTON_CLASS}--error`);
-          setTimeout(() => this.setButtonState(btn, "default"), 3e3);
+          setTimeout(() => this.setButtonState(btn, controlWrapper, "default"), 3e3);
           break;
         default:
           if (textEl) textEl.textContent = "Generate Reply";
+          this.setBarSelectsDisabled(controlWrapper, false);
       }
     }
     destroy() {

@@ -37,7 +37,6 @@ const HOLLOW_OPENERS = [
   /^great insight/i,
   /^great point/i,
   /^amazing post/i,
-  /^so true/i,
   /^absolutely[!.,]/i,
   /^love this/i,
   /^this is so inspiring/i,
@@ -61,11 +60,34 @@ const META_COMMENTARY = [
   /^i (would|could) (say|reply|write)/i,
 ];
 
+export const SELF_REFERENTIAL_PATTERNS = [
+  /^i('ve| have) seen/i,
+  /^i (completely )?agree/i,
+  /^this resonates/i,
+  /^in (my|our) (experience|courses|organization|team)/i,
+  /\bin our own (courses|programs|work)/i,
+  /^we('ve| have) (seen|found)/i,
+  /^couldn'?t agree more/i,
+  /^spot on/i,
+];
+
+const SELF_REFERENTIAL_RETRY_HINT =
+  'Do not open with "I agree" or personal anecdotes ("I\'ve seen", "In our courses"). Short agreement like "True", "Exactly", "Yeah", or "Same here" is fine. Do not use "Spot on".';
+
 function countWords(text: string): number {
   return text
     .trim()
     .split(/\s+/)
     .filter((w) => w.length > 0).length;
+}
+
+export function hasSelfReferentialFraming(reply: string): boolean {
+  const trimmed = reply.trim();
+  return SELF_REFERENTIAL_PATTERNS.some((p) => p.test(trimmed));
+}
+
+export function getSelfReferentialRetryHint(): string {
+  return SELF_REFERENTIAL_RETRY_HINT;
 }
 
 function checkWordCount(reply: string): LinkedInQualityParameter {
@@ -116,6 +138,23 @@ function checkNoMetaCommentary(reply: string): LinkedInQualityParameter {
   return { name: "no_meta_commentary", score: 20, maxScore: 20, reason: "No meta-commentary" };
 }
 
+function checkNoSelfReferentialFraming(reply: string): LinkedInQualityParameter {
+  if (hasSelfReferentialFraming(reply)) {
+    return {
+      name: "no_self_referential_framing",
+      score: 0,
+      maxScore: 20,
+      reason: "Self-referential or first-person agreement framing detected",
+    };
+  }
+  return {
+    name: "no_self_referential_framing",
+    score: 20,
+    maxScore: 20,
+    reason: "No self-referential framing",
+  };
+}
+
 function checkSubstance(reply: string, postText: string): LinkedInQualityParameter {
   const replyLower = reply.toLowerCase();
   const postWords = postText
@@ -160,11 +199,15 @@ export const linkedInQualityChecker = {
       checkNoClicheLanguage(reply),
       checkNoHollowOpener(reply),
       checkNoMetaCommentary(reply),
+      checkNoSelfReferentialFraming(reply),
       checkSubstance(reply, postText),
     ];
 
     const totalScore = parameters.reduce((sum, p) => sum + p.score, 0);
-    const passed = totalScore >= LINKEDIN_QUALITY_PASS_SCORE;
+    const selfRefParam = parameters.find((p) => p.name === "no_self_referential_framing");
+    const passed =
+      totalScore >= LINKEDIN_QUALITY_PASS_SCORE &&
+      (selfRefParam?.score ?? 20) > 0;
 
     return { passed, totalScore, parameters };
   },

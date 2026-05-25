@@ -40,3 +40,40 @@ export const LINKEDIN = {
   PLATFORM: 'linkedin',
   MAX_REPLY_WORDS: 60,
 };
+
+/** Reply mode options for comment bar dropdown (mirrors X extension). */
+export const LI_REPLY_MODES = [
+  { value: 'single-sentence', label: 'Concise', tooltip: 'Fast one-sentence reply' },
+  { value: 'enhanced', label: 'Enhanced', tooltip: 'Context-aware with deep analysis' },
+];
+
+/** Tone/prompt options — keep in sync with popup.html prompt-select. */
+export const LI_PROMPT_OPTIONS = [
+  { value: 'default', label: 'Default' },
+  { value: 'professional', label: 'Professional' },
+  { value: 'insightful', label: 'Insightful' },
+  { value: 'conversational', label: 'Conversational' },
+  { value: 'supportive', label: 'Supportive' },
+  { value: 'direct', label: 'Direct' },
+  { value: 'x_default', label: 'X Default', popupLabel: 'X Default (same as Twitter)' },
+];
+
+export const LI_STORAGE_KEYS = {
+  REPLY_MODE: 'liReplyMode',
+  PROMPT_VARIATION: 'liPromptVariation',
+};
+
+const VALID_REPLY_MODE_VALUES = new Set(LI_REPLY_MODES.map((m) => m.value));
+const VALID_PROMPT_VALUES = new Set(LI_PROMPT_OPTIONS.map((p) => p.value));
+
+/** Guard API payload against corrupted storage values. */
+export function normalizeReplyMode(value) {
+  if (typeof value === 'string' && VALID_REPLY_MODE_VALUES.has(value)) return value;
+  return 'enhanced';
+}
+
+/** Guard API payload against corrupted storage values. */
+export function normalizePromptVariation(value) {
+  if (typeof value === 'string' && VALID_PROMPT_VALUES.has(value)) return value;
+  return 'default';
+}

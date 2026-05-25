@@ -5,10 +5,38 @@
 import { REPLY_LIMITS } from "../config/constants.js";
 
 // Configuration for removable start phrases - easily extensible
-const START_PHRASES = ["Couldn't agree more", "Preach", "Spot on", "Sounds like", "Feels like", "Looks like", "Seems like", "makes sense"];
+const START_PHRASES = [
+  "Couldn't agree more",
+  "Preach",
+  "Spot on",
+  "Sounds like",
+  "Feels like",
+  "Looks like",
+  "Seems like",
+  "makes sense",
+  "I agree",
+  "I completely agree",
+  "This resonates",
+  "In my experience",
+  "In our experience",
+  "We've seen",
+  "We have seen",
+];
 
 // Configuration for filtered sentence starts - easily extensible
-const FILTERED_SENTENCE_STARTS = ["Love", "That's", "Appreciate"];
+const FILTERED_SENTENCE_STARTS = [
+  "Love",
+  "That's",
+  "Appreciate",
+  "I've",
+  "I agree",
+  "I completely",
+  "This resonates",
+  "In my",
+  "In our",
+  "We have",
+  "Spot on",
+];
 
 // Configuration for words that disqualify sentences - easily extensible
 const DISQUALIFYING_WORDS = ["simplification", "Can't wait to see"];

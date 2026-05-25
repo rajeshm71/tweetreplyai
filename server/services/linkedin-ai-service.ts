@@ -1,15 +1,20 @@
 import { Groq } from "groq-sdk";
-import { AI_MODELS, AI_PARAMS } from "../config/constants.js";
-import { linkedInAnalysisAgents } from "./linkedin-analysis-agents.js";
+import { AI_MODELS, AI_PARAMS, LINKEDIN_REPLY_LIMITS } from "../config/constants.js";
+import {
+  linkedInAnalysisAgents,
+  type LinkedInPostAnalysis,
+} from "./linkedin-analysis-agents.js";
 import {
   buildLinkedInSystemPrompt,
   buildLinkedInUserPrompt,
   type LinkedInThreadContext,
 } from "./linkedin-prompt-builder.js";
-import { getLinkedInPromptConfig } from "./prompts-linkedin.js";
+import { getLinkedInPromptConfig, LINKEDIN_SIMPLE_LANGUAGE_RULE } from "./prompts-linkedin.js";
 import { getLinkedInOriginalAuthorPromptConfig } from "./prompts-linkedin-original-author.js";
-import { linkedInPostProcessor } from "./linkedin-postprocessor.js";
-import { linkedInQualityChecker } from "./linkedin-quality-checker.js";
+import { applyReplyModeToPrompt } from "./prompts.js";
+import { getDynamicReplyMaxWords } from "./oa-dynamic-reply-length.js";
+import { replyPostProcessor } from "./reply-postprocessor.js";
+import { linkedInQualityChecker, getSelfReferentialRetryHint, hasSelfReferentialFraming } from "./linkedin-quality-checker.js";
 
 // Lazy-init to keep unit tests fast and avoid Groq constructor work at import time.
 let groqClient: Groq | null | undefined;
@@ -23,6 +28,7 @@ export interface LinkedInReplyOptions {
   postText: string;
   postId?: string;
   promptVariation?: string;
+  replyMode?: string;
   viewerIsOriginalAuthor?: boolean;
   authorInfo?: {
     username?: string;
@@ -30,6 +36,73 @@ export interface LinkedInReplyOptions {
     follower_count?: number;
   };
   threadContext?: LinkedInThreadContext;
+}
+
+function resolveLinkedInMaxWordsOverride(options: LinkedInReplyOptions): number {
+  const defaultCap = LINKEDIN_REPLY_LIMITS.POST_PROCESSOR_MAX_WORDS;
+
+  if (!options.viewerIsOriginalAuthor) {
+    return defaultCap;
+  }
+
+  const tc = options.threadContext;
+  let targetText = options.postText;
+  if (tc?.isReply && tc.threadChain?.length && tc.currentTweetIndex != null) {
+    const current = tc.threadChain[tc.currentTweetIndex];
+    if (current?.text?.trim()) {
+      targetText = current.text;
+    }
+  }
+
+  const dynamicMax = getDynamicReplyMaxWords(targetText);
+  if (dynamicMax > 0) {
+    return Math.min(dynamicMax, defaultCap);
+  }
+  return defaultCap;
+}
+
+/** Re-apply LinkedIn simple-language rule after X concise-mode prompt stripping. */
+function applyLinkedInReplyModeToPrompt(
+  baseConfig: ReturnType<typeof getLinkedInPromptConfig>,
+  replyMode?: string,
+) {
+  let promptConfig = applyReplyModeToPrompt(baseConfig, replyMode);
+  if (replyMode === "single-sentence") {
+    promptConfig = {
+      ...promptConfig,
+      systemPrompt: promptConfig.systemPrompt + LINKEDIN_SIMPLE_LANGUAGE_RULE,
+    };
+  }
+  return promptConfig;
+}
+
+const CONCISE_LINKEDIN_ANALYSIS: LinkedInPostAnalysis = {
+  understanding: {
+    tone: "neutral",
+    sentiment: "neutral",
+    style: "casual",
+    contentType: "other",
+    emotionalMarkers: [],
+    keyThemes: [],
+  },
+  intention: {
+    intention: "share",
+    keyThemes: [],
+    actionVerbs: [],
+    underlyingPurpose: "",
+  },
+  enrichedContextPrompt: "",
+  timestamp: new Date(0),
+};
+
+async function resolveLinkedInAnalysis(
+  postText: string,
+  replyMode?: string,
+): Promise<LinkedInPostAnalysis> {
+  if (replyMode === "single-sentence") {
+    return CONCISE_LINKEDIN_ANALYSIS;
+  }
+  return linkedInAnalysisAgents.analyzePost(postText);
 }
 
 export interface LinkedInReplyResponse {
@@ -81,6 +154,8 @@ export async function generateLinkedInReply(
   const tc = options.threadContext;
   const commentOnComment = !!(tc?.isReply && tc?.threadLength != null && tc.threadLength > 1);
   console.log("[LinkedIn] generateLinkedInReply input:", {
+    replyMode: options.replyMode ?? "enhanced",
+    promptVariation: options.promptVariation ?? "default",
     viewerIsOriginalAuthor: options.viewerIsOriginalAuthor ?? false,
     isOther: !(options.viewerIsOriginalAuthor ?? false),
     hasThreadContext: !!tc,
@@ -96,14 +171,16 @@ export async function generateLinkedInReply(
     commentOnCommentMode: commentOnComment,
   });
 
-  const analysis = await linkedInAnalysisAgents.analyzePost(options.postText);
+  const analysis = await resolveLinkedInAnalysis(options.postText, options.replyMode);
 
   const baseConfig = options.viewerIsOriginalAuthor
     ? getLinkedInOriginalAuthorPromptConfig(options.promptVariation)
     : getLinkedInPromptConfig(options.promptVariation);
 
+  const promptConfig = applyLinkedInReplyModeToPrompt(baseConfig, options.replyMode);
+
   const systemPrompt = buildLinkedInSystemPrompt({
-    baseConfig,
+    baseConfig: promptConfig,
     analysis,
     postText: options.postText,
     viewerIsOriginalAuthor: options.viewerIsOriginalAuthor,
@@ -111,7 +188,7 @@ export async function generateLinkedInReply(
   });
 
   const userPrompt = buildLinkedInUserPrompt({
-    baseConfig,
+    baseConfig: promptConfig,
     postText: options.postText,
     viewerIsOriginalAuthor: options.viewerIsOriginalAuthor,
     threadContext: options.threadContext,
@@ -133,7 +210,12 @@ export async function generateLinkedInReply(
     };
   }
 
-  const processed = linkedInPostProcessor.processReply(rawResult.text);
+  const maxWordsOverride = resolveLinkedInMaxWordsOverride(options);
+  const processed = replyPostProcessor.processReply(
+    rawResult.text,
+    options.replyMode,
+    maxWordsOverride,
+  );
 
   const quality = linkedInQualityChecker.checkQuality(processed, options.postText);
 
@@ -145,27 +227,37 @@ export async function generateLinkedInReply(
         options.promptVariation === "default" || options.promptVariation === "x_default"
           ? "direct"
           : "default";
-      const retryConfig = options.viewerIsOriginalAuthor
+      const retryBaseConfig = options.viewerIsOriginalAuthor
         ? getLinkedInOriginalAuthorPromptConfig(retryVariation)
         : getLinkedInPromptConfig(retryVariation);
+      const retryPromptConfig = applyLinkedInReplyModeToPrompt(retryBaseConfig, options.replyMode);
 
       const retrySystemPrompt = buildLinkedInSystemPrompt({
-        baseConfig: retryConfig,
+        baseConfig: retryPromptConfig,
         analysis,
         postText: options.postText,
         viewerIsOriginalAuthor: options.viewerIsOriginalAuthor,
         threadContext: options.threadContext,
       });
 
-      const retryUserPrompt = buildLinkedInUserPrompt({
-        baseConfig: retryConfig,
+      const retryUserPromptBase = buildLinkedInUserPrompt({
+        baseConfig: retryPromptConfig,
         postText: options.postText,
         viewerIsOriginalAuthor: options.viewerIsOriginalAuthor,
         threadContext: options.threadContext,
       });
 
+      const retryUserPrompt =
+        hasSelfReferentialFraming(processed)
+          ? `${retryUserPromptBase}\n\n${getSelfReferentialRetryHint()}`
+          : retryUserPromptBase;
+
       const retryResult = await callGroq(retrySystemPrompt, retryUserPrompt);
-      const retryProcessed = linkedInPostProcessor.processReply(retryResult.text);
+      const retryProcessed = replyPostProcessor.processReply(
+        retryResult.text,
+        options.replyMode,
+        maxWordsOverride,
+      );
       const retryQuality = linkedInQualityChecker.checkQuality(retryProcessed, options.postText);
 
       if (retryQuality.totalScore > quality.totalScore) {

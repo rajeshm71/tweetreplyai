@@ -108,6 +108,27 @@ describe('AI Generate Reply (LinkedIn) - Unit Tests', () => {
     expect(vi.mocked(aiRouter.generateReply)).not.toHaveBeenCalled();
   });
 
+  it('forwards reply_mode and prompt_variation to generateLinkedInReply', async () => {
+    const { generateLinkedInReply } = await import('../../../server/services/linkedin-ai-service');
+
+    await app.raw()
+      .post('/api/generate-reply')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({
+        tweet_text: 'Great LinkedIn post about leadership and teams',
+        platform: 'linkedin',
+        reply_mode: 'single-sentence',
+        prompt_variation: 'direct',
+      });
+
+    expect(vi.mocked(generateLinkedInReply)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        replyMode: 'single-sentence',
+        promptVariation: 'direct',
+      }),
+    );
+  });
+
   it('returns 402 when quota exceeded on LinkedIn path', async () => {
     const { usageService } = await import('../../../server/services/usage');
     vi.mocked(usageService.canUseReply).mockResolvedValue({ canUse: false, reason: 'quota_exceeded' });

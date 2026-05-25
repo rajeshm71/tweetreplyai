@@ -124,6 +124,40 @@ describe("Reply Postprocessor Service - Unit Tests", () => {
     });
   });
 
+  describe("processReply — post-anchored agreement policy", () => {
+    it("preserves Same here, Yeah, and Exactly openers", () => {
+      const cases = [
+        "Same here the satisfaction loop is where most modules still break down today",
+        "Yeah the attention half is easy but accomplishment is where modules fail",
+        "Exactly the satisfaction loop is the hard part for most AI driven modules",
+      ];
+      for (const input of cases) {
+        const result = replyPostProcessor.processReply(input);
+        expect(result.split(/\s+/)[0].toLowerCase()).toMatch(/^(same|yeah|exactly)/);
+      }
+    });
+
+    it("strips Spot on prefix from reply", () => {
+      const input = "Spot on the satisfaction loop is where most AI modules still feel empty today";
+      const result = replyPostProcessor.processReply(input);
+      expect(result.toLowerCase()).not.toMatch(/^spot on/);
+    });
+
+    it("strips I agree prefix from reply", () => {
+      const input = "I agree the satisfaction loop matters more than attention hooks in modules";
+      const result = replyPostProcessor.processReply(input);
+      expect(result.toLowerCase()).not.toMatch(/^i agree/);
+    });
+
+    it("drops first sentence when reply opens with I've seen self-reference", () => {
+      const input =
+        "I've seen this happen in our own courses where modules grab attention. The satisfaction loop is still the missing piece for most teams.";
+      const result = replyPostProcessor.processReply(input);
+      expect(result.toLowerCase()).not.toContain("our own courses");
+      expect(result.toLowerCase()).toContain("satisfaction loop");
+    });
+  });
+
   describe("processReplyLight — lighter processing", () => {
     it("does not remove start phrases that processReply would remove", () => {
       // "Spot on" is in START_PHRASES — processReply removes it, processReplyLight keeps it

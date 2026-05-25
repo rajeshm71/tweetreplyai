@@ -1465,6 +1465,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
           postText: tweet_text,
           postId: tweet_id,
           promptVariation: prompt_variation,
+          replyMode: reply_mode,
           viewerIsOriginalAuthor: viewer_is_original_author ?? false,
           authorInfo: author_info,
           // Map shared normalizedThreadContext (uses Twitter field names) to the
@@ -1509,7 +1510,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
           modelKey: linkedInResponse.modelKey,
           promptKey: prompt_variation || 'default',
           qualityScore: linkedInQualityScore,
-          replyMode: 'enhanced',
+          replyMode: reply_mode,
           performance: {
             qualityParameters: [],
             latencyMs: linkedInResponse.latencyMs,

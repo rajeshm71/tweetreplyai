@@ -1,6 +1,11 @@
 import { AuthManager } from '../utils/auth.js';
 import { ApiClient } from '../utils/api.js';
-import { POLLING } from '../config/constants.js';
+import {
+  POLLING,
+  LI_PROMPT_OPTIONS,
+  LI_STORAGE_KEYS,
+  normalizePromptVariation,
+} from '../config/constants.js';
 
 /** Legacy `liAutoRefresh*` keys — removed from UI; strip on popup load for clean storage. */
 const LEGACY_LI_AUTO_REFRESH_KEYS = [
@@ -141,6 +146,21 @@ class LinkedInPopupManager {
       settingsPlanName: document.getElementById('settings-plan-name'),
       openLinkedInBtn: document.getElementById('open-linkedin-btn'),
     };
+    this.populatePromptSelectOptions();
+  }
+
+  /** Shared tone list with comment bar — single source in config/constants.js. */
+  populatePromptSelectOptions() {
+    const select = this.elements.promptSelect;
+    if (!select) return;
+    select.innerHTML = '';
+    for (const tone of LI_PROMPT_OPTIONS) {
+      const option = document.createElement('option');
+      option.value = tone.value;
+      option.textContent = tone.popupLabel || tone.label;
+      select.appendChild(option);
+    }
+    select.value = 'default';
   }
 
   attachEventListeners() {
@@ -154,7 +174,9 @@ class LinkedInPopupManager {
     });
 
     this.elements.promptSelect?.addEventListener('change', (e) => {
-      chrome.storage.local.set({ liPromptVariation: e.target.value });
+      chrome.storage.local.set({
+        [LI_STORAGE_KEYS.PROMPT_VARIATION]: normalizePromptVariation(e.target.value),
+      });
     });
   }
 
@@ -219,9 +241,11 @@ class LinkedInPopupManager {
   }
 
   async loadSavedSettings() {
-    const result = await chrome.storage.local.get(['liPromptVariation']);
-    if (result.liPromptVariation && this.elements.promptSelect) {
-      this.elements.promptSelect.value = result.liPromptVariation;
+    const result = await chrome.storage.local.get([LI_STORAGE_KEYS.PROMPT_VARIATION]);
+    if (this.elements.promptSelect) {
+      this.elements.promptSelect.value = normalizePromptVariation(
+        result[LI_STORAGE_KEYS.PROMPT_VARIATION],
+      );
     }
   }
 

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
+import { LINKEDIN_REPLY_LIMITS } from "../../../server/config/constants.js";
 
 vi.mock("groq-sdk", () => ({
   Groq: class GroqMock {
@@ -26,9 +27,22 @@ vi.mock("../../../server/services/linkedin-quality-checker", () => ({
 vi.mock("../../../server/services/linkedin-analysis-agents", () => ({
   linkedInAnalysisAgents: {
     analyzePost: vi.fn().mockResolvedValue({
-      sentiment: "neutral",
-      themes: [],
-      suggestedAngle: "agreement",
+      understanding: {
+        tone: "neutral",
+        sentiment: "neutral",
+        style: "casual",
+        contentType: "other",
+        emotionalMarkers: [],
+        keyThemes: [],
+      },
+      intention: {
+        intention: "share",
+        keyThemes: [],
+        actionVerbs: [],
+        underlyingPurpose: "",
+      },
+      enrichedContextPrompt: "",
+      timestamp: new Date(),
     }),
   },
 }));
@@ -36,6 +50,14 @@ vi.mock("../../../server/services/linkedin-analysis-agents", () => ({
 vi.mock("../../../server/services/linkedin-prompt-builder", () => ({
   buildLinkedInSystemPrompt: vi.fn().mockResolvedValue("LinkedIn system prompt"),
   buildLinkedInUserPrompt: vi.fn().mockReturnValue("LinkedIn user prompt"),
+}));
+
+const processReplyMock = vi.fn((text: string) => text);
+
+vi.mock("../../../server/services/reply-postprocessor", () => ({
+  replyPostProcessor: {
+    processReply: (...args: unknown[]) => processReplyMock(...args),
+  },
 }));
 
 const baseOptions = {
@@ -87,5 +109,34 @@ describe("LinkedIn AI Service - Unit Tests", () => {
     const result = await generateLinkedInReply(baseOptions);
     expect(typeof result.reply).toBe("string");
     expect(result.reply.length).toBeGreaterThan(0);
+  });
+
+  it("calls shared replyPostProcessor with LinkedIn word cap and replyMode", async () => {
+    processReplyMock.mockClear();
+    await generateLinkedInReply({
+      ...baseOptions,
+      replyMode: "enhanced",
+    });
+    expect(processReplyMock).toHaveBeenCalled();
+    const [, replyMode, maxWordsOverride] = processReplyMock.mock.calls[0];
+    expect(replyMode).toBe("enhanced");
+    expect(maxWordsOverride).toBe(LINKEDIN_REPLY_LIMITS.POST_PROCESSOR_MAX_WORDS);
+  });
+
+  it("skips LinkedIn analysis when replyMode is single-sentence", async () => {
+    const { linkedInAnalysisAgents } = await import(
+      "../../../server/services/linkedin-analysis-agents"
+    );
+    vi.mocked(linkedInAnalysisAgents.analyzePost).mockClear();
+
+    await generateLinkedInReply({
+      ...baseOptions,
+      replyMode: "single-sentence",
+    });
+
+    expect(linkedInAnalysisAgents.analyzePost).not.toHaveBeenCalled();
+    expect(processReplyMock).toHaveBeenCalled();
+    const [, replyMode] = processReplyMock.mock.calls[0];
+    expect(replyMode).toBe("single-sentence");
   });
 });

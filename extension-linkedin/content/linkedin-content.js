@@ -1,6 +1,14 @@
 import { AuthManager } from '../utils/auth.js';
 import { ApiClient } from '../utils/api.js';
-import { TIMEOUTS, VALIDATION } from '../config/constants.js';
+import {
+  TIMEOUTS,
+  VALIDATION,
+  LI_REPLY_MODES,
+  LI_PROMPT_OPTIONS,
+  LI_STORAGE_KEYS,
+  normalizeReplyMode,
+  normalizePromptVariation,
+} from '../config/constants.js';
 
 const LOG_PREFIX = '[LinkedInReply]';
 const BUTTON_CLASS = 'li-ai-reply-btn';
@@ -165,9 +173,90 @@ class LinkedInReplyInjector {
 
   // ─── Button Injection ────────────────────────────────────────────────────────
 
+  createReplyModeSelect() {
+    const select = document.createElement('select');
+    select.className = 'li-ai-bar-select li-ai-reply-mode-select';
+    select.title = 'Choose reply generation mode';
+    select.setAttribute('aria-label', 'Reply generation mode');
+
+    for (const mode of LI_REPLY_MODES) {
+      const option = document.createElement('option');
+      option.value = mode.value;
+      option.textContent = mode.label;
+      option.title = mode.tooltip;
+      select.appendChild(option);
+    }
+
+    select.value = 'enhanced';
+    return select;
+  }
+
+  createToneSelect() {
+    const select = document.createElement('select');
+    select.className = 'li-ai-bar-select li-ai-tone-select';
+    select.title = 'Choose reply tone';
+    select.setAttribute('aria-label', 'Reply tone');
+
+    for (const tone of LI_PROMPT_OPTIONS) {
+      const option = document.createElement('option');
+      option.value = tone.value;
+      option.textContent = tone.label;
+      select.appendChild(option);
+    }
+
+    select.value = 'default';
+    return select;
+  }
+
+  /** Await storage before enabling controls — avoids race where first click ignores saved prefs. */
+  async restoreBarControlsFromStorage(replyModeSelect, toneSelect, generateBtn) {
+    replyModeSelect.disabled = true;
+    toneSelect.disabled = true;
+    generateBtn.disabled = true;
+
+    try {
+      const stored = await chrome.storage?.local?.get([
+        LI_STORAGE_KEYS.REPLY_MODE,
+        LI_STORAGE_KEYS.PROMPT_VARIATION,
+      ]);
+      replyModeSelect.value = normalizeReplyMode(stored?.[LI_STORAGE_KEYS.REPLY_MODE]);
+      toneSelect.value = normalizePromptVariation(stored?.[LI_STORAGE_KEYS.PROMPT_VARIATION]);
+    } catch (e) {
+      log('restoreBarControlsFromStorage failed, using defaults:', e.message);
+    } finally {
+      replyModeSelect.disabled = false;
+      toneSelect.disabled = false;
+      generateBtn.disabled = false;
+    }
+  }
+
+  setBarSelectsDisabled(wrapper, disabled) {
+    wrapper?.querySelectorAll('.li-ai-bar-select').forEach((select) => {
+      select.disabled = disabled;
+    });
+  }
+
   injectButton(editor, form) {
     const wrapper = document.createElement('div');
     wrapper.className = BUTTON_WRAPPER_CLASS;
+
+    const replyModeSelect = this.createReplyModeSelect();
+    const toneSelect = this.createToneSelect();
+
+    replyModeSelect.addEventListener('change', () => {
+      try {
+        chrome.storage?.local?.set({
+          [LI_STORAGE_KEYS.REPLY_MODE]: normalizeReplyMode(replyModeSelect.value),
+        });
+      } catch (_) {}
+    });
+    toneSelect.addEventListener('change', () => {
+      try {
+        chrome.storage?.local?.set({
+          [LI_STORAGE_KEYS.PROMPT_VARIATION]: normalizePromptVariation(toneSelect.value),
+        });
+      } catch (_) {}
+    });
 
     const btn = document.createElement('button');
     btn.className = BUTTON_CLASS;
@@ -181,22 +270,38 @@ class LinkedInReplyInjector {
     btn.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      this.handleGenerateReply(editor, btn);
+      this.handleGenerateReply(editor, btn, wrapper, {
+        replyMode: replyModeSelect.value,
+        promptVariation: toneSelect.value,
+      });
     });
 
+    wrapper.appendChild(replyModeSelect);
+    wrapper.appendChild(toneSelect);
     wrapper.appendChild(btn);
 
-    // Place wrapper before the submit/Post button for natural button ordering
+    void this.restoreBarControlsFromStorage(replyModeSelect, toneSelect, btn);
+
+    // Place controls in the same row as Post — prefer LinkedIn's submit/action flex container
     const submitBtn =
       form.querySelector('button[type="submit"]') ||
       form.querySelector('.comments-comment-box__submit-button') ||
       form.querySelector('[class*="submit-button"]');
 
-    if (submitBtn?.parentElement) {
-      submitBtn.parentElement.insertBefore(wrapper, submitBtn);
+    const actionRow =
+      submitBtn?.closest('.comments-comment-box__form-actions') ||
+      submitBtn?.closest('[class*="comment-box"][class*="actions"]') ||
+      submitBtn?.parentElement;
+
+    if (actionRow) {
+      if (submitBtn && actionRow.contains(submitBtn)) {
+        actionRow.insertBefore(wrapper, submitBtn);
+      } else {
+        actionRow.appendChild(wrapper);
+      }
       injectLog(
-        'placed before submit:',
-        submitBtn.className?.slice?.(0, 80) || submitBtn.getAttribute?.('data-test-id') || 'submit',
+        'placed in action row:',
+        actionRow.className?.slice?.(0, 80) || actionRow.tagName,
       );
     } else {
       form.appendChild(wrapper);
@@ -208,13 +313,13 @@ class LinkedInReplyInjector {
 
   // ─── Reply Generation ────────────────────────────────────────────────────────
 
-  async handleGenerateReply(editor, btn) {
+  async handleGenerateReply(editor, btn, controlWrapper, options = {}) {
     // Re-validate auth on each click — uses cache so no network hit on most clicks
     if (!this.isAuthenticated) {
       this.isAuthenticated = await this.authManager.isAuthenticated();
     }
     if (!this.isAuthenticated) {
-      this.setButtonState(btn, 'error', 'Sign in required');
+      this.setButtonState(btn, controlWrapper, 'error', 'Sign in required');
       return;
     }
 
@@ -222,7 +327,7 @@ class LinkedInReplyInjector {
 
     if (!context.postText || context.postText.length < VALIDATION.MIN_POST_LENGTH) {
       log('Post text not found or too short:', context.postText?.length ?? 0);
-      this.setButtonState(btn, 'error', 'Post text not found');
+      this.setButtonState(btn, controlWrapper, 'error', 'Post text not found');
       return;
     }
 
@@ -236,15 +341,27 @@ class LinkedInReplyInjector {
       threadLength: context.threadContext?.threadLength,
     });
 
-    this.setButtonState(btn, 'loading');
+    this.setButtonState(btn, controlWrapper, 'loading');
 
     try {
-      let liPromptVariation = 'default';
-      try {
-        const stored = await chrome.storage?.local?.get(['liPromptVariation']);
-        if (stored?.liPromptVariation) liPromptVariation = stored.liPromptVariation;
-      } catch (e) {
-        log('chrome.storage unavailable, using default variation');
+      let replyMode = normalizeReplyMode(options.replyMode);
+      let promptVariation = normalizePromptVariation(options.promptVariation);
+
+      if (!options.replyMode || !options.promptVariation) {
+        try {
+          const stored = await chrome.storage?.local?.get([
+            LI_STORAGE_KEYS.REPLY_MODE,
+            LI_STORAGE_KEYS.PROMPT_VARIATION,
+          ]);
+          if (!options.replyMode) {
+            replyMode = normalizeReplyMode(stored?.[LI_STORAGE_KEYS.REPLY_MODE]);
+          }
+          if (!options.promptVariation) {
+            promptVariation = normalizePromptVariation(stored?.[LI_STORAGE_KEYS.PROMPT_VARIATION]);
+          }
+        } catch (e) {
+          log('chrome.storage unavailable, using defaults');
+        }
       }
 
       // Build payload — api.js automatically appends platform: 'linkedin'
@@ -252,7 +369,8 @@ class LinkedInReplyInjector {
         tweet_text: context.postText,
         tweet_id: context.postId || '',
         author_info: { username: context.authorName },
-        prompt_variation: liPromptVariation,
+        prompt_variation: promptVariation,
+        reply_mode: replyMode,
         viewer_is_original_author: context.viewerIsOA,
       };
 
@@ -261,6 +379,8 @@ class LinkedInReplyInjector {
       }
       const commentOnComment = !!(context.threadContext?.isReply && context.threadContext?.threadLength > 1);
       log('handleGenerateReply: payload summary', {
+        reply_mode: payload.reply_mode,
+        prompt_variation: payload.prompt_variation,
         viewer_is_original_author: payload.viewer_is_original_author,
         isOther: !payload.viewer_is_original_author,
         hasThreadContext: !!payload.thread_context,
@@ -273,21 +393,21 @@ class LinkedInReplyInjector {
 
       if (reply) {
         this.insertTextIntoEditor(editor, reply);
-        this.setButtonState(btn, 'done', 'Reply Added ✓');
-        setTimeout(() => this.setButtonState(btn, 'default'), 2500);
+        this.setButtonState(btn, controlWrapper, 'done', 'Reply Added ✓');
+        setTimeout(() => this.setButtonState(btn, controlWrapper, 'default'), 2500);
       } else {
-        this.setButtonState(btn, 'error', 'No reply generated');
+        this.setButtonState(btn, controlWrapper, 'error', 'No reply generated');
       }
     } catch (error) {
       log('Error generating reply:', error.message);
       if (error.message?.includes('402')) {
-        this.setButtonState(btn, 'error', 'Quota exceeded');
+        this.setButtonState(btn, controlWrapper, 'error', 'Quota exceeded');
       } else if (error.message?.includes('401')) {
         this.isAuthenticated = false;
         this.authManager.clearCache();
-        this.setButtonState(btn, 'error', 'Sign in required');
+        this.setButtonState(btn, controlWrapper, 'error', 'Sign in required');
       } else {
-        this.setButtonState(btn, 'error', 'Error — try again');
+        this.setButtonState(btn, controlWrapper, 'error', 'Error — try again');
       }
     }
   }
@@ -867,15 +987,41 @@ class LinkedInReplyInjector {
 
   // ─── Text Insertion ──────────────────────────────────────────────────────────
 
+  // Strip reply prefixes from generated text (same as X extension)
+  stripReplyPrefix(text) {
+    const prefixes = [
+      'Question', 'Supportive', 'Disagree', 'Enhance', 'Smart',
+      'Controversial', 'Marketing', 'Product-marketing',
+    ];
+
+    let cleaned = text.trim();
+
+    for (const prefix of prefixes) {
+      const regex = new RegExp(`^\\b${prefix}\\b\\s*[^\\w\\s]*\\s*`, 'i');
+      if (regex.test(cleaned)) {
+        cleaned = cleaned.replace(regex, '').trim();
+        break;
+      }
+    }
+
+    const punctuationRegex = /^([A-Z][a-z]+)([\-:.,!]+)\s+/;
+    if (punctuationRegex.test(cleaned) && !cleaned.match(/^[A-Za-z]+,\s/)) {
+      cleaned = cleaned.replace(punctuationRegex, '').trim();
+    }
+
+    return cleaned;
+  }
+
   insertTextIntoEditor(editor, text) {
+    const cleanText = this.stripReplyPrefix(String(text).replace(/<[^>]*>/g, ''));
     editor.focus();
 
     // Method 1: Try Quill's internal JavaScript API (most reliable for LinkedIn)
     const quill = this.getQuillInstance(editor);
     if (quill) {
       try {
-        quill.setText(text);
-        quill.setSelection(text.length, 0);
+        quill.setText(cleanText);
+        quill.setSelection(cleanText.length, 0);
         log('Text inserted via Quill API');
         return;
       } catch (e) {
@@ -891,7 +1037,7 @@ class LinkedInReplyInjector {
       selection.removeAllRanges();
       selection.addRange(range);
 
-      const inserted = document.execCommand('insertText', false, text);
+      const inserted = document.execCommand('insertText', false, cleanText);
       if (inserted) {
         log('Text inserted via execCommand');
         return;
@@ -901,7 +1047,7 @@ class LinkedInReplyInjector {
     }
 
     // Method 3: Direct innerHTML as last resort — fires input events to notify Quill
-    editor.innerHTML = `<p>${text}</p>`;
+    editor.innerHTML = `<p>${cleanText}</p>`;
     editor.dispatchEvent(new InputEvent('input', { bubbles: true, composed: true }));
     editor.dispatchEvent(new Event('change', { bubbles: true }));
     log('Text inserted via innerHTML fallback');
@@ -922,7 +1068,7 @@ class LinkedInReplyInjector {
 
   // ─── Button States ───────────────────────────────────────────────────────────
 
-  setButtonState(btn, state, message) {
+  setButtonState(btn, controlWrapper, state, message) {
     const textEl = btn.querySelector('.li-ai-btn-text');
     btn.disabled = false;
     btn.classList.remove(
@@ -935,20 +1081,23 @@ class LinkedInReplyInjector {
       case 'loading':
         if (textEl) textEl.textContent = 'Generating…';
         btn.disabled = true;
+        this.setBarSelectsDisabled(controlWrapper, true);
         btn.classList.add(`${BUTTON_CLASS}--loading`);
         break;
       case 'done':
         if (textEl) textEl.textContent = message || 'Reply Added ✓';
+        this.setBarSelectsDisabled(controlWrapper, false);
         btn.classList.add(`${BUTTON_CLASS}--done`);
         break;
       case 'error':
         if (textEl) textEl.textContent = message || 'Error — try again';
+        this.setBarSelectsDisabled(controlWrapper, false);
         btn.classList.add(`${BUTTON_CLASS}--error`);
-        // Auto-reset after 3 seconds so the user can try again
-        setTimeout(() => this.setButtonState(btn, 'default'), 3000);
+        setTimeout(() => this.setButtonState(btn, controlWrapper, 'default'), 3000);
         break;
       default: // 'default'
         if (textEl) textEl.textContent = 'Generate Reply';
+        this.setBarSelectsDisabled(controlWrapper, false);
     }
   }
 
