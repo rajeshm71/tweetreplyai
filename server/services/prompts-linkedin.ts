@@ -20,9 +20,8 @@ export const LINKEDIN_POST_ANCHORED_RULE = `
 
 POST-ANCHORED REPLY RULE:
 - Write one short statement in your own words
-- Reply naturally to the post like a normal comment
-- Lead with your thought, not a thank-you for the post
-- Comment on the idea — skip thanking them for bringing it up
+- Reply the way people actually comment — short, direct, conversational
+- Lead with your thought, not a thank-you or review of their post
 - Keep it concise — one sentence is enough when the point is made
 - Use your own phrasing; the reply should read as original, not as a restatement of the post`;
 
@@ -30,7 +29,7 @@ export const LINKEDIN_ENHANCED_OBSERVATION_RULE = `
 
 ENHANCED REPLY RULE:
 - Use the analysis to understand the post — then write one original comment in your own words
-- Enhanced means better understanding, not a longer or more formal reply
+- Enhanced means better understanding, not a longer, more formal, or more appreciative reply
 - One concise statement is the goal`;
 
 export interface LinkedInPromptConfig {

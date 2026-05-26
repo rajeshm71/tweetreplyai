@@ -56,31 +56,6 @@ describe("LinkedIn reply postprocessor parity with X", () => {
     expect(wordCount).toBeLessThanOrEqual(dynamicMax);
   });
 
-  it("strips gratitude preambles from the start of replies", () => {
-    const cases = [
-      {
-        input:
-          "I appreciate the emphasis on avoiding hallucinations in the RAG system, ensuring that answers are grounded in actual data",
-        mustNotContain: "i appreciate the emphasis",
-      },
-      {
-        input:
-          "I'm particularly glad you highlighted Redis Caching it's impactful for improving app performance",
-        mustNotContain: "i'm particularly glad",
-      },
-      {
-        input:
-          "I particularly appreciate the emphasis on LLMOps as a critical component of interview preparation",
-        mustNotContain: "i particularly appreciate",
-      },
-    ];
-    for (const { input, mustNotContain } of cases) {
-      const result = processLinkedInReply(input);
-      expect(result.toLowerCase()).not.toContain(mustNotContain);
-      expect(result.length).toBeGreaterThan(0);
-    }
-  });
-
   it("supports single-sentence reply mode like X", () => {
     const input = "This is the first sentence. This is a second sentence here.";
     const result = processLinkedInReply(input, "single-sentence", LI_CAP);

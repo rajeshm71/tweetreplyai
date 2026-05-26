@@ -6,21 +6,6 @@ import { REPLY_LIMITS } from "../config/constants.js";
 
 // Configuration for removable start phrases - easily extensible
 const START_PHRASES = [
-  "I'm particularly glad you highlighted",
-  "I'm particularly glad you mentioned",
-  "I'm glad you highlighted",
-  "I'm glad you mentioned",
-  "Thanks for highlighting",
-  "Thanks for mentioning",
-  "I particularly appreciate the emphasis on",
-  "I particularly appreciate",
-  "I appreciate the emphasis on",
-  "I appreciate the point on",
-  "I appreciate the focus on",
-  "I appreciate the emphasis",
-  "I appreciate the point",
-  "I appreciate the focus",
-  "I'm particularly glad",
   "Couldn't agree more",
   "Preach",
   "Spot on",
@@ -40,12 +25,6 @@ const START_PHRASES = [
 
 // Configuration for filtered sentence starts - easily extensible
 const FILTERED_SENTENCE_STARTS = [
-  "I particularly appreciate",
-  "I appreciate the",
-  "I'm particularly glad",
-  "I'm glad you",
-  "Thanks for highlighting",
-  "Thanks for mentioning",
   "Love",
   "That's",
   "Appreciate",

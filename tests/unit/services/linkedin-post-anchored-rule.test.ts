@@ -22,7 +22,7 @@ describe("LinkedIn post-anchored rule", () => {
 
   it("uses positive-framed post-anchored guidance without phrase ban lists", () => {
     expect(LINKEDIN_POST_ANCHORED_RULE).toContain("Write one short statement in your own words");
-    expect(LINKEDIN_POST_ANCHORED_RULE).toContain("Lead with your thought, not a thank-you for the post");
+    expect(LINKEDIN_POST_ANCHORED_RULE).toContain("Lead with your thought, not a thank-you or review of their post");
     expect(LINKEDIN_POST_ANCHORED_RULE).not.toContain("Do NOT open with");
     expect(LINKEDIN_POST_ANCHORED_RULE).not.toContain("specific detail");
   });
