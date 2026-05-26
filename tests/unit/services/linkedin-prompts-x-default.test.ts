@@ -26,7 +26,7 @@ describe("LinkedIn x_default", () => {
     expect(getLinkedInPromptConfig("x_default").userPrompt(sample)).toBe(
       `Tweet: "${sample}"
 
-Write one short comment in your own words about one specific detail in this tweet.`,
+Write a short, natural reply in your own words.`,
     );
   });
 });

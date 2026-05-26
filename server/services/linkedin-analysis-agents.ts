@@ -208,13 +208,13 @@ function generateEnrichedContextPrompt(understanding: LinkedInPostUnderstanding,
   parts.push('Reply Guidance:');
 
   const contentTypeGuidance: Record<string, string> = {
-    thought_leadership: 'This is a thought leadership post — engage with one specific idea from the post or offer a constructive counterpoint',
-    question: 'The author is asking a question — provide a helpful, direct answer anchored to what they wrote',
-    announcement: 'This is an announcement — acknowledge what was shared and respond to the substance',
+    thought_leadership: 'This is a thought leadership post — engage naturally with the post or offer a constructive counterpoint when relevant',
+    question: 'The author is asking a question — provide a helpful, direct answer',
+    announcement: 'This is an announcement — respond to the substance in plain words',
     personal_story: 'This is a personal story — respond with empathy to what they shared, without importing your own story',
-    industry_insight: 'This is an industry insight — engage with one specific substance point from the post',
+    industry_insight: 'This is an industry insight — engage naturally with what they said',
     job_related: 'This is job-related content — respond professionally and constructively to what they said',
-    other: 'Engage naturally with one specific detail from the professional content'
+    other: 'Engage naturally with the professional content'
   };
 
   const guidance = contentTypeGuidance[understanding.contentType];
@@ -230,7 +230,7 @@ function generateEnrichedContextPrompt(understanding: LinkedInPostUnderstanding,
     parts.push('- The author is seeking input — give a direct, useful answer');
   }
 
-  parts.push('- Write one original comment in your own words about a specific detail from the post');
+  parts.push('- Write one original comment in your own words');
 
   return parts.join('\n');
 }

@@ -22,9 +22,9 @@ describe("LinkedIn post-anchored rule", () => {
 
   it("uses positive-framed post-anchored guidance without phrase ban lists", () => {
     expect(LINKEDIN_POST_ANCHORED_RULE).toContain("Write one short statement in your own words");
-    expect(LINKEDIN_POST_ANCHORED_RULE).toContain("Speak as a commenter");
+    expect(LINKEDIN_POST_ANCHORED_RULE).toContain("Lead with your thought, not a thank-you for the post");
     expect(LINKEDIN_POST_ANCHORED_RULE).not.toContain("Do NOT open with");
-    expect(LINKEDIN_POST_ANCHORED_RULE).not.toContain("I've seen");
+    expect(LINKEDIN_POST_ANCHORED_RULE).not.toContain("specific detail");
   });
 
   it("default variation uses commenter voice and shared user prompt suffix", () => {

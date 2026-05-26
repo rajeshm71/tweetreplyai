@@ -70,6 +70,11 @@ export const SELF_REFERENTIAL_PATTERNS = [
   /^we('ve| have) (seen|found)/i,
   /^couldn'?t agree more/i,
   /^spot on/i,
+  /^i particularly appreciate/i,
+  /^i appreciate the (emphasis|point|focus|take|perspective) (on|about|that)/i,
+  /^i'?m particularly glad/i,
+  /^i'?m glad you (highlighted|mentioned|brought up|shared)/i,
+  /^thanks for (highlighting|mentioning|sharing|bringing up)/i,
 ];
 
 function countWords(text: string): number {

@@ -151,7 +151,7 @@ async function callGroq(
   const groq = getGroqClient();
   if (!groq) {
     return {
-      text: "Yeah — that point about listening before acting is the part most teams still skip.",
+      text: "Yeah — most teams still skip the listening part before acting.",
       tokensIn: 0,
       tokensOut: 0,
     };

@@ -163,6 +163,22 @@ describe("LinkedIn Quality Checker Service - Unit Tests", () => {
       }
     });
 
+    it("fails gratitude preambles like I appreciate or I'm glad you highlighted", () => {
+      const RAG_POST =
+        "Avoiding hallucinations in RAG systems means grounding answers in actual source data for reliability.";
+      const badReplies = [
+        "I particularly appreciate the emphasis on LLMOps as a critical component of AI interview preparation.",
+        "I'm particularly glad you highlighted Redis Caching it's impactful for improving app performance and reducing database load.",
+        "I appreciate the emphasis on avoiding hallucinations in the RAG system, ensuring that answers are grounded in actual data, which is crucial for reliability and trustworthiness",
+      ];
+      for (const reply of badReplies) {
+        const result = linkedInQualityChecker.checkQuality(reply, RAG_POST);
+        const framingParam = result.parameters.find((p) => p.name === "no_self_referential_framing");
+        expect(framingParam!.score).toBe(0);
+        expect(result.passed).toBe(false);
+      }
+    });
+
     it("allows True opener without penalising as hollow", () => {
       const reply =
         "True — the attention piece is easy to automate but accomplishment is where most modules still feel hollow.";
