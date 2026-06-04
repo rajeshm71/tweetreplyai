@@ -29,8 +29,8 @@ export class LinkedInContextAnalyzer {
     }
 
     if (!viewerIsOriginalAuthor) {
-      parts.push('\nYou are writing a comment or reply on behalf of the logged-in user.');
-      parts.push('Write from their point of view, engaging professionally with the author of the LinkedIn post.');
+      parts.push('\nYou are writing a comment on behalf of the logged-in user.');
+      parts.push('React to the post or comment — do not share their work history, projects, or accomplishments.');
     }
 
     if (threadContext?.isReply && threadContext.threadLength > 1) {

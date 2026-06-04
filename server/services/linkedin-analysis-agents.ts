@@ -230,7 +230,7 @@ function generateEnrichedContextPrompt(understanding: LinkedInPostUnderstanding,
     parts.push('- The author is seeking input — give a direct, useful answer');
   }
 
-  parts.push('- Write one original comment in your own words');
+  parts.push('- Write one original comment about the post — not your own experience, jobs, or accomplishments');
 
   return parts.join('\n');
 }

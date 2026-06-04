@@ -63,11 +63,13 @@ const META_COMMENTARY = [
 
 export const SELF_REFERENTIAL_PATTERNS = [
   /^i('ve| have) seen/i,
+  /^i('ve| have) (done|built|implemented|shipped|worked|led|run|managed)/i,
+  /^when (i|we) /i,
   /^i (completely )?agree/i,
   /^this resonates/i,
-  /^in (my|our) (experience|courses|organization|team)/i,
+  /^in (my|our) (experience|courses|organization|team|role|company|work)/i,
   /\bin our own (courses|programs|work)/i,
-  /^we('ve| have) (seen|found)/i,
+  /^we('ve| have) (seen|found|done|built|shipped)/i,
   /^couldn'?t agree more/i,
   /^spot on/i,
 ];

@@ -10,8 +10,8 @@ function processLinkedInReply(raw: string, replyMode?: string, maxWordsOverride?
 }
 
 describe("LinkedIn reply postprocessor parity with X", () => {
-  it("uses the shared replyPostProcessor with a 30-word default cap", () => {
-    const input = "word ".repeat(40).trim();
+  it("uses the shared replyPostProcessor with an 80-word default cap", () => {
+    const input = "word ".repeat(90).trim();
     const result = processLinkedInReply(input);
     const wordCount = result.split(/\s+/).filter(Boolean).length;
     expect(wordCount).toBeLessThanOrEqual(LI_CAP);

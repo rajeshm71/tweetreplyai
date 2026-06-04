@@ -128,6 +128,32 @@ describe("ReplyPostProcessor.processReframe - Unit Tests", () => {
     });
   });
 
+  describe("dash replacement (same as replies)", () => {
+    it("replaces hyphen between words with a space", () => {
+      const input = "This is a well-known fact.";
+      const out = replyPostProcessor.processReframe(input);
+      expect(out).toBe("This is a well known fact.");
+    });
+
+    it("replaces em dash between words with a space", () => {
+      const input = "Great take—worth sharing.";
+      const out = replyPostProcessor.processReframe(input);
+      expect(out).toBe("Great take worth sharing.");
+    });
+
+    it("preserves digit-digit dashes (e.g. 9-5)", () => {
+      const input = "Work a 9-5 and still feel stuck.";
+      const out = replyPostProcessor.processReframe(input);
+      expect(out).toBe("Work a 9-5 and still feel stuck.");
+    });
+
+    it("replaces dashes on each line while preserving newlines", () => {
+      const input = "Line one—bold claim.\nLine two - spaced dash.";
+      const out = replyPostProcessor.processReframe(input);
+      expect(out).toBe("Line one bold claim.\nLine two spaced dash.");
+    });
+  });
+
   describe("does NOT flatten multi-line output into a single line", () => {
     it("a 3-line tweet survives end-to-end as a 3-line string", () => {
       const input = "Line one is here.\nLine two continues.\nLine three closes it.";

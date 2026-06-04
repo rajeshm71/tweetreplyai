@@ -13,7 +13,7 @@ describe("LinkedIn analysis agents enriched guidance", () => {
     const source = readFileSync(analysisAgentsPath, "utf8");
     expect(source).not.toContain("share related experience");
     expect(source).not.toContain("based on your experience");
-    expect(source).toContain("Write one original comment in your own words");
+    expect(source).toContain("not your own experience, jobs, or accomplishments");
     expect(source).not.toContain("specific detail from the post");
   });
 });

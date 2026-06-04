@@ -151,6 +151,19 @@ describe("LinkedIn Quality Checker Service - Unit Tests", () => {
       }
     });
 
+    it("fails I have done / I've built experience framing", () => {
+      const badReplies = [
+        "I have done this with RAG pipelines and grounding is the piece most teams skip.",
+        "I've built similar systems and hallucination guardrails matter more than model choice.",
+        "When we shipped our agent platform this was the same lesson we learned.",
+      ];
+      for (const reply of badReplies) {
+        const result = linkedInQualityChecker.checkQuality(reply, GENERIC_POST);
+        const framingParam = result.parameters.find((p) => p.name === "no_self_referential_framing");
+        expect(framingParam!.score).toBe(0);
+      }
+    });
+
     it("fails I completely agree and Spot on openers", () => {
       const badReplies = [
         "I completely agree that the satisfaction loop matters more than attention-grabbing hooks in AI modules.",

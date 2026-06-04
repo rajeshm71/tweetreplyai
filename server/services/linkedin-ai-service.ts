@@ -16,7 +16,11 @@ import { applyReplyModeToPrompt } from "./prompts.js";
 import { getDynamicReplyMaxWords } from "./oa-dynamic-reply-length.js";
 import { replyPostProcessor } from "./reply-postprocessor.js";
 import { linkedInQualityChecker, type LinkedInQualityResult } from "./linkedin-quality-checker.js";
-import { isLikelyPostRewrite, POST_REWRITE_RETRY_HINT } from "./linkedin-reply-similarity.js";
+import {
+  isLikelyPostRewrite,
+  POST_REWRITE_RETRY_HINT,
+  POST_SELF_REF_RETRY_HINT,
+} from "./linkedin-reply-similarity.js";
 
 // Lazy-init to keep unit tests fast and avoid Groq constructor work at import time.
 let groqClient: Groq | null | undefined;
@@ -284,12 +288,13 @@ export async function generateLinkedInReply(
       });
 
       const retryHints: string[] = [];
-      // Review fix: single positive retry hint for rewrite or self-ref framing failures.
-      if (
-        isLikelyPostRewrite(processed, qualityTargetText) ||
-        (quality.parameters.find((p) => p.name === "no_self_referential_framing")?.score ?? 20) === 0
-      ) {
+      const selfRefFailed =
+        (quality.parameters.find((p) => p.name === "no_self_referential_framing")?.score ?? 20) === 0;
+      if (isLikelyPostRewrite(processed, qualityTargetText)) {
         retryHints.push(POST_REWRITE_RETRY_HINT);
+      }
+      if (selfRefFailed) {
+        retryHints.push(POST_SELF_REF_RETRY_HINT);
       }
 
       const retryUserPrompt =

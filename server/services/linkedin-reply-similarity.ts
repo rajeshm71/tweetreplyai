@@ -118,4 +118,7 @@ export function isLikelyPostRewrite(reply: string, postText: string): boolean {
 }
 
 export const POST_REWRITE_RETRY_HINT =
-  "Write a short, natural reply in your own words.";
+  "Write a short comment about the post — not about your own experience or accomplishments.";
+
+export const POST_SELF_REF_RETRY_HINT =
+  "Comment on the post only — do not mention what you or your team have done or built.";

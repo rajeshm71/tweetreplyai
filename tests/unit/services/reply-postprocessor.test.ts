@@ -80,12 +80,14 @@ describe("Reply Postprocessor Service - Unit Tests", () => {
       expect(wordCount).toBeLessThanOrEqual(8);
     });
 
-    it("maxWordsOverride is capped at POST_PROCESSOR_MAX_WORDS even if higher value given", () => {
+    it("honors maxWordsOverride above default X cap (e.g. LinkedIn 80)", () => {
       const input = "word ".repeat(60).trim();
-      const result = replyPostProcessor.processReply(input, undefined, 200);
+      const result = replyPostProcessor.processReply(input, undefined, 80);
       const wordCount = result.split(/\s+/).filter(Boolean).length;
-      // Cap is 50, never more
-      expect(wordCount).toBeLessThanOrEqual(REPLY_LIMITS.POST_PROCESSOR_MAX_WORDS);
+      expect(wordCount).toBe(60);
+      const longInput = "word ".repeat(100).trim();
+      const truncated = replyPostProcessor.processReply(longInput, undefined, 80);
+      expect(truncated.split(/\s+/).filter(Boolean).length).toBeLessThanOrEqual(80);
     });
   });
 

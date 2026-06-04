@@ -19,6 +19,12 @@ const START_PHRASES = [
   "This resonates",
   "In my experience",
   "In our experience",
+  "I've done",
+  "I have done",
+  "When I",
+  "When we",
+  "We built",
+  "We've built",
   "We've seen",
   "We have seen",
 ];
@@ -29,6 +35,9 @@ const FILTERED_SENTENCE_STARTS = [
   "That's",
   "Appreciate",
   "I've",
+  "I have done",
+  "When I",
+  "When we",
   "I agree",
   "I completely",
   "This resonates",
@@ -77,9 +86,10 @@ export class ReplyPostProcessor {
       return '';
     }
 
-    const effectiveMaxWords = maxWordsOverride != null
-      ? Math.min(maxWordsOverride, REPLY_LIMITS.POST_PROCESSOR_MAX_WORDS)
-      : REPLY_LIMITS.POST_PROCESSOR_MAX_WORDS;
+    const effectiveMaxWords =
+      maxWordsOverride != null
+        ? maxWordsOverride
+        : REPLY_LIMITS.POST_PROCESSOR_MAX_WORDS;
 
     // Step 3: Start with original reply
     let processed = originalReply;
@@ -122,9 +132,11 @@ export class ReplyPostProcessor {
     }
 
     const isSingleSentence = replyMode === 'single-sentence';
-    let effectiveMaxWords = maxWordsOverride != null
-      ? Math.min(maxWordsOverride, REPLY_LIMITS.POST_PROCESSOR_MAX_WORDS)
-      : REPLY_LIMITS.POST_PROCESSOR_MAX_WORDS;
+    // Platform-specific cap via maxWordsOverride (e.g. LinkedIn 80); default uses X/Twitter limit.
+    let effectiveMaxWords =
+      maxWordsOverride != null
+        ? maxWordsOverride
+        : REPLY_LIMITS.POST_PROCESSOR_MAX_WORDS;
     if (isSingleSentence && maxWordsOverride != null) {
       effectiveMaxWords = Math.min(effectiveMaxWords, REPLY_LIMITS.SINGLE_SENTENCE_MAX_WORDS);
     }
@@ -875,6 +887,7 @@ export class ReplyPostProcessor {
    *
    * It keeps meta-commentary / wrapper-quote / banned-pattern removal since
    * those operate on prefixes and do not touch interior newlines.
+   * It also replaces dashes between words (same rule as replies).
    */
   processReframe(rawReply: string): string {
     if (!rawReply || typeof rawReply !== "string") {
@@ -887,6 +900,7 @@ export class ReplyPostProcessor {
     processed = this.removeMetaCommentary(processed);
     processed = this.removeWrapperQuotes(processed);
     processed = this.removeBannedPatterns(processed);
+    processed = this.replaceDashes(processed);
     processed = this.normalizeHorizontalWhitespace(processed);
     return processed.trim() || original;
   }
