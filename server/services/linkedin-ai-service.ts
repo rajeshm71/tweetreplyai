@@ -18,6 +18,7 @@ import { replyPostProcessor } from "./reply-postprocessor.js";
 import { linkedInQualityChecker, type LinkedInQualityResult } from "./linkedin-quality-checker.js";
 import {
   isLikelyPostRewrite,
+  POST_DIRECT_STATEMENT_RETRY_HINT,
   POST_REWRITE_RETRY_HINT,
   POST_SELF_REF_RETRY_HINT,
 } from "./linkedin-reply-similarity.js";
@@ -290,11 +291,16 @@ export async function generateLinkedInReply(
       const retryHints: string[] = [];
       const selfRefFailed =
         (quality.parameters.find((p) => p.name === "no_self_referential_framing")?.score ?? 20) === 0;
+      const hedgingFailed =
+        (quality.parameters.find((p) => p.name === "direct_statements")?.score ?? 20) === 0;
       if (isLikelyPostRewrite(processed, qualityTargetText)) {
         retryHints.push(POST_REWRITE_RETRY_HINT);
       }
       if (selfRefFailed) {
         retryHints.push(POST_SELF_REF_RETRY_HINT);
+      }
+      if (hedgingFailed) {
+        retryHints.push(POST_DIRECT_STATEMENT_RETRY_HINT);
       }
 
       const retryUserPrompt =

@@ -16,6 +16,13 @@ export const LINKEDIN_SIMPLE_LANGUAGE_RULE = `
 
 LANGUAGE: Use simple, everyday words and short, clear sentences. Avoid complex or jargon terms (e.g. heterogeneous, substantive, nuanced, leverage, synergy). Write so a general audience can understand easily.`;
 
+export const LINKEDIN_DIRECT_STATEMENT_RULE = `
+
+DIRECT STATEMENT RULE:
+- State your point in clear, definitive statements
+- Use is and are — say what matters, not what seems or feels true
+- Write like a confident commenter, not a cautious reviewer`;
+
 export const LINKEDIN_POST_ANCHORED_RULE = `
 
 POST-ANCHORED REPLY RULE:
@@ -198,6 +205,7 @@ export function getLinkedInPromptConfig(promptName: string = "default"): LinkedI
       config.systemPrompt +
       LINKEDIN_META_COMMENTARY_RULE +
       LINKEDIN_SIMPLE_LANGUAGE_RULE +
+      LINKEDIN_DIRECT_STATEMENT_RULE +
       LINKEDIN_POST_ANCHORED_RULE,
   };
 }

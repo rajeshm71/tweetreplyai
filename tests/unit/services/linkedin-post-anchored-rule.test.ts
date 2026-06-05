@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  LINKEDIN_DIRECT_STATEMENT_RULE,
   LINKEDIN_POST_ANCHORED_RULE,
   LINKEDIN_PROMPT_VARIATIONS,
   LINKEDIN_USER_PROMPT_SUFFIX,
@@ -18,6 +19,13 @@ describe("LinkedIn post-anchored rule", () => {
   it("appends LINKEDIN_POST_ANCHORED_RULE to original-author config", () => {
     const config = getLinkedInOriginalAuthorPromptConfig("default");
     expect(config.systemPrompt).toContain(LINKEDIN_POST_ANCHORED_RULE.trim().slice(0, 40));
+  });
+
+  it("includes direct statement rule in every viewer variation", () => {
+    for (const key of Object.keys(LINKEDIN_PROMPT_VARIATIONS)) {
+      const config = getLinkedInPromptConfig(key);
+      expect(config.systemPrompt).toContain(LINKEDIN_DIRECT_STATEMENT_RULE.trim().slice(0, 30));
+    }
   });
 
   it("uses positive-framed post-anchored guidance without phrase ban lists", () => {

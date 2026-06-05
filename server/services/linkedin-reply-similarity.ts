@@ -122,3 +122,6 @@ export const POST_REWRITE_RETRY_HINT =
 
 export const POST_SELF_REF_RETRY_HINT =
   "Comment on the post only — do not mention what you or your team have done or built.";
+
+export const POST_DIRECT_STATEMENT_RETRY_HINT =
+  "State your point directly — use is or are, not seems or feels.";

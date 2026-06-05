@@ -53,6 +53,17 @@ const HOLLOW_OPENERS = [
   /^looks like/i,
   /^seems like/i,
   /^makes sense/i,
+  /^this seems/i,
+  /^this feels/i,
+  /^this looks/i,
+  /^this sounds/i,
+  /^it seems/i,
+  /^it feels/i,
+];
+
+const HEDGING_IN_REPLY = [
+  /\b(this|it) (seems|feels|looks|sounds)\b/i,
+  /\b(seems|feels) (important|critical|key|worth|right|true)\b/i,
 ];
 
 const META_COMMENTARY = [
@@ -119,11 +130,30 @@ function checkNoClicheLanguage(reply: string): LinkedInQualityParameter {
 }
 
 function checkNoHollowOpener(reply: string): LinkedInQualityParameter {
-  const hasHollow = HOLLOW_OPENERS.some((p) => p.test(reply.trim()));
+  const trimmed = reply.trim();
+  const hasHollow = HOLLOW_OPENERS.some((p) => p.test(trimmed));
   if (hasHollow) {
     return { name: "no_hollow_opener", score: 0, maxScore: 20, reason: "Starts with hollow affirmation" };
   }
   return { name: "no_hollow_opener", score: 20, maxScore: 20, reason: "No hollow opener" };
+}
+
+function checkDirectStatements(reply: string): LinkedInQualityParameter {
+  const trimmed = reply.trim();
+  if (HEDGING_IN_REPLY.some((p) => p.test(trimmed))) {
+    return {
+      name: "direct_statements",
+      score: 0,
+      maxScore: 20,
+      reason: "Uses hedging (seems/feels) instead of direct statements",
+    };
+  }
+  return {
+    name: "direct_statements",
+    score: 20,
+    maxScore: 20,
+    reason: "Uses direct, definitive wording",
+  };
 }
 
 function checkNoMetaCommentary(reply: string): LinkedInQualityParameter {
@@ -194,6 +224,7 @@ export const linkedInQualityChecker = {
       checkWordCount(reply),
       checkNoClicheLanguage(reply),
       checkNoHollowOpener(reply),
+      checkDirectStatements(reply),
       checkNoMetaCommentary(reply),
       checkNoSelfReferentialFraming(reply),
       checkOriginalWording(reply, postText),
@@ -203,10 +234,12 @@ export const linkedInQualityChecker = {
     const totalScore = parameters.reduce((sum, p) => sum + p.score, 0);
     const selfRefParam = parameters.find((p) => p.name === "no_self_referential_framing");
     const originalWordingParam = parameters.find((p) => p.name === "original_wording");
+    const directStatementsParam = parameters.find((p) => p.name === "direct_statements");
     const passed =
       totalScore >= LINKEDIN_QUALITY_PASS_SCORE &&
       (selfRefParam?.score ?? 20) > 0 &&
-      (originalWordingParam?.score ?? 20) > 0;
+      (originalWordingParam?.score ?? 20) > 0 &&
+      (directStatementsParam?.score ?? 20) > 0;
 
     return { passed, totalScore, parameters };
   },

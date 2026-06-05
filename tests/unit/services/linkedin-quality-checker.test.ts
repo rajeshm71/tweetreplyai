@@ -151,6 +151,28 @@ describe("LinkedIn Quality Checker Service - Unit Tests", () => {
       }
     });
 
+    it("fails hedging phrasing like this seems important", () => {
+      const badReplies = [
+        "This seems important for teams shipping RAG in production.",
+        "This feels like the right way to think about grounding answers.",
+        "It seems critical that hallucinations are caught before users see output.",
+      ];
+      for (const reply of badReplies) {
+        const result = linkedInQualityChecker.checkQuality(reply, GENERIC_POST);
+        const directParam = result.parameters.find((p) => p.name === "direct_statements");
+        expect(directParam!.score).toBe(0);
+        expect(result.passed).toBe(false);
+      }
+    });
+
+    it("passes definitive phrasing like this is important", () => {
+      const reply =
+        "Grounding answers in source data is important if you want RAG to stay trustworthy.";
+      const result = linkedInQualityChecker.checkQuality(reply, GENERIC_POST);
+      const directParam = result.parameters.find((p) => p.name === "direct_statements");
+      expect(directParam!.score).toBe(20);
+    });
+
     it("fails I have done / I've built experience framing", () => {
       const badReplies = [
         "I have done this with RAG pipelines and grounding is the piece most teams skip.",
