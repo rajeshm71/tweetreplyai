@@ -48,6 +48,15 @@ describe("reframe-prompts Service - Unit Tests", () => {
       expect(sys).toMatch(/Tweet output formatting/i);
       expect(sys).toMatch(/line break after each sentence or list item/i);
       expect(sys).toMatch(/Do not stack multiple questions/i);
+      expect(sys).toMatch(/continuous paragraph, split your rewrite/i);
+    });
+
+    it("user prompt includes structure hint for paragraph sources", () => {
+      const source =
+        "This is one long paragraph. It has multiple sentences. Readers need line breaks.";
+      const prompt = getReframePromptConfig(50).userPrompt(source);
+      expect(prompt).toMatch(/continuous paragraph/i);
+      expect(prompt).toMatch(/do not output one dense block/i);
     });
 
     it("does not include rewrite-era insight checklist or DEFAULT_VOICE blocks", () => {
@@ -64,7 +73,7 @@ describe("reframe-prompts Service - Unit Tests", () => {
     it("user prompt is a single task paragraph without A/B/C checklist", () => {
       const prompt = getReframePromptConfig(50).userPrompt("Example source tweet");
       expect(prompt).toMatch(/Rewrite the tweet above as your own standalone tweet at degree 50\/100 \(balanced\)/);
-      expect(prompt).toMatch(/Match the source layout/i);
+      expect(prompt).toMatch(/scannable X tweet with proper line breaks/i);
       expect(prompt).not.toMatch(/Core insight:/i);
       expect(prompt).not.toMatch(/Before you write \(mental only\)/i);
       expect(prompt).not.toMatch(/Checklist:/i);

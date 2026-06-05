@@ -26,6 +26,8 @@ import { extractCanonicalComposerText, combineReplyAndCta } from './helpers/comp
 import { injectReuseButtonsImpl } from './helpers/reuse-inject.js';
 import { createReuseModal } from './helpers/reuse-modal.js';
 import { postReframedToComposeImpl } from './helpers/post-to-compose.js';
+import { extractTweetPlainText } from './helpers/tweet-text-extract.js';
+import { writeDraftBlocksToContentRoot } from './helpers/draft-blocks.js';
 
 globalThis.__tweetreplyaiExtLoggingAllowed = false;
 installConsoleGate(() => globalThis.__tweetreplyaiExtLoggingAllowed === true);
@@ -286,17 +288,7 @@ class TwitterReplyInjector {
     // Fallback: DOM rewrite, no input event (no crash, but Reply button may stay disabled).
     const contentRoot = textArea?.querySelector?.('[data-contents="true"]');
     if (contentRoot) {
-      const block = document.createElement('div');
-      block.setAttribute('data-block', 'true');
-      block.className = 'public-DraftStyleDefault-block public-DraftStyleDefault-ltr';
-      const offsetSpan = document.createElement('span');
-      offsetSpan.setAttribute('data-offset-key', 'trai-0-0');
-      const textSpan = document.createElement('span');
-      textSpan.dataset.text = 'true';
-      textSpan.textContent = text;
-      offsetSpan.appendChild(textSpan);
-      block.appendChild(offsetSpan);
-      contentRoot.replaceChildren(block);
+      writeDraftBlocksToContentRoot(contentRoot, text);
       return;
     }
 
@@ -1292,7 +1284,7 @@ class TwitterReplyInjector {
     if (!article) return null;
     const tweetTextEl = article.querySelector('[data-testid="tweetText"]');
     if (!tweetTextEl) return null;
-    const text = tweetTextEl.textContent?.trim();
+    const text = extractTweetPlainText(tweetTextEl);
     if (!text || text.length < 10) return null;
     let author = 'unknown';
     const userNameEl = article.querySelector('[data-testid="User-Name"]');
@@ -2692,7 +2684,7 @@ class TwitterReplyInjector {
       if (dialogArticle) {
         const tweetTextEl = dialogArticle.querySelector('[data-testid="tweetText"]');
         if (tweetTextEl) {
-          const text = tweetTextEl.textContent?.trim();
+          const text = extractTweetPlainText(tweetTextEl);
           if (text && text.length > 10) return text;
         }
       }
@@ -2702,7 +2694,7 @@ class TwitterReplyInjector {
     if (this.currentReplyTargetArticle && document.contains(this.currentReplyTargetArticle)) {
       const tweetTextEl = this.currentReplyTargetArticle.querySelector('[data-testid="tweetText"]');
       if (tweetTextEl) {
-        const text = tweetTextEl.textContent?.trim();
+        const text = extractTweetPlainText(tweetTextEl);
         if (text && text.length > 10) return text;
       }
     }
@@ -4047,7 +4039,7 @@ class TwitterReplyInjector {
         const tweetTextEl = tweet.querySelector('[data-testid="tweetText"]');
         if (!tweetTextEl) continue;
 
-        const text = tweetTextEl.textContent?.trim();
+        const text = extractTweetPlainText(tweetTextEl);
         if (!text || text.length < 10) continue;
 
         // Extract author @handle from the tweet

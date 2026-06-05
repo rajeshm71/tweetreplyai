@@ -3,12 +3,23 @@
  * Applies specific cleaning rules in an optimized order
  */
 import { REPLY_LIMITS } from "../config/constants.js";
+import { formatReframeLineBreaks } from "./reframe-structure.js";
 
 // Configuration for removable start phrases - easily extensible
 const START_PHRASES = [
   "Couldn't agree more",
   "Preach",
   "Spot on",
+  "This seems like",
+  "This feels like",
+  "This looks like",
+  "This sounds like",
+  "It seems like",
+  "It feels like",
+  "This seems",
+  "This feels",
+  "It seems",
+  "It feels",
   "Sounds like",
   "Feels like",
   "Looks like",
@@ -33,6 +44,10 @@ const START_PHRASES = [
 const FILTERED_SENTENCE_STARTS = [
   "Love",
   "That's",
+  "This seems",
+  "This feels",
+  "It seems",
+  "It feels",
   "Appreciate",
   "I've",
   "I have done",
@@ -902,6 +917,7 @@ export class ReplyPostProcessor {
     processed = this.removeBannedPatterns(processed);
     processed = this.replaceDashes(processed);
     processed = this.normalizeHorizontalWhitespace(processed);
+    processed = formatReframeLineBreaks(processed);
     return processed.trim() || original;
   }
 

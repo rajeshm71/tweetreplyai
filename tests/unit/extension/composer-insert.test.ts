@@ -146,7 +146,7 @@ describe("insertTextIntoTwitterDraftArea", () => {
     expect(prePasteRange.collapsed).toBe(false);
   });
 
-  it("normalizes Draft data-contents fallback to a single block", async () => {
+  it("writes single-line Draft fallback as one block", async () => {
     const { composer, textArea, contents } = buildDraftComposerWithContents();
     vi.spyOn(document, "execCommand").mockReturnValue(false);
 
@@ -158,6 +158,22 @@ describe("insertTextIntoTwitterDraftArea", () => {
     expect(blocks.length).toBe(1);
     const textSpan = contents.querySelector('[data-text="true"]') as HTMLElement | null;
     expect(textSpan?.textContent).toBe("Latest only");
+  });
+
+  it("writes multiline Draft fallback as one block per line", async () => {
+    const { composer, textArea, contents } = buildDraftComposerWithContents();
+    vi.spyOn(document, "execCommand").mockReturnValue(false);
+
+    await insertTextIntoTwitterDraftArea(textArea, composer, "Line one\nLine two\nLine three", {
+      sleep: async () => {},
+    });
+
+    const blocks = contents.querySelectorAll('[data-block="true"]');
+    expect(blocks.length).toBe(3);
+    const lines = Array.from(contents.querySelectorAll('[data-text="true"]')).map(
+      (el) => (el as HTMLElement).textContent,
+    );
+    expect(lines).toEqual(["Line one", "Line two", "Line three"]);
   });
 
   it("updates only targeted composer when multiple composers exist", async () => {

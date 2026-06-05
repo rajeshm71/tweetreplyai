@@ -756,6 +756,8 @@
   font-family: inherit;
   color: inherit;
   background: #fff;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .tweetreply-reuse-error {

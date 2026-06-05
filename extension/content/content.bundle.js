@@ -7895,6 +7895,105 @@ ${cta}` : cta;
     throw new Error("Compose box did not open in time. Reframed text copied to clipboard.");
   }
 
+  // extension/content/helpers/tweet-text-extract.js
+  var BLOCK_TAGS = /* @__PURE__ */ new Set(["DIV", "P", "LI", "BLOCKQUOTE"]);
+  function isBlockElement(node) {
+    if (!node || node.nodeType !== Node.ELEMENT_NODE) return false;
+    const tag = node.tagName;
+    if (BLOCK_TAGS.has(tag)) return true;
+    const display = typeof window !== "undefined" && window.getComputedStyle ? window.getComputedStyle(node).display : "";
+    return display === "block" || display === "list-item";
+  }
+  function normalizeExtractedText(text) {
+    return String(text || "").replace(/\r\n/g, "\n").replace(/\u00a0/g, " ").replace(/[ \t\f\v]+/g, " ").replace(/[ \t]*\n[ \t]*/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+  }
+  function extractTweetPlainText(tweetTextEl) {
+    if (!tweetTextEl) return "";
+    const parts = [];
+    let lineBuffer = "";
+    const flushLine = () => {
+      const trimmed = lineBuffer.replace(/[ \t]+/g, " ").trim();
+      if (trimmed) parts.push(trimmed);
+      lineBuffer = "";
+    };
+    const walk = (node, afterBlock = false) => {
+      if (!node) return;
+      if (node.nodeType === Node.TEXT_NODE) {
+        lineBuffer += node.textContent || "";
+        return;
+      }
+      if (node.nodeType !== Node.ELEMENT_NODE) return;
+      const el = (
+        /** @type {Element} */
+        node
+      );
+      const tag = el.tagName;
+      if (tag === "BR") {
+        if (!lineBuffer.trim() && parts.length > 0 && parts[parts.length - 1] !== "") {
+          parts.push("");
+        } else {
+          flushLine();
+        }
+        return;
+      }
+      if (tag === "IMG" || tag === "VIDEO") {
+        return;
+      }
+      const block = isBlockElement(el);
+      if (block && lineBuffer.trim()) {
+        flushLine();
+      }
+      for (const child of Array.from(el.childNodes)) {
+        walk(child, false);
+      }
+      if (block || afterBlock) {
+        flushLine();
+      }
+    };
+    walk(tweetTextEl);
+    if (lineBuffer.trim()) {
+      flushLine();
+    }
+    const joined = parts.join("\n");
+    return normalizeExtractedText(joined);
+  }
+
+  // extension/content/helpers/draft-blocks.js
+  function buildDraftBlocksFragment(text, keyPrefix = "trai") {
+    const fragment = document.createDocumentFragment();
+    const lines = String(text ?? "").replace(/\r\n/g, "\n").split("\n");
+    lines.forEach((line, index) => {
+      const block = document.createElement("div");
+      block.setAttribute("data-block", "true");
+      block.className = "public-DraftStyleDefault-block public-DraftStyleDefault-ltr";
+      const offsetSpan = document.createElement("span");
+      offsetSpan.setAttribute("data-offset-key", `${keyPrefix}-${index}-0`);
+      const textSpan = document.createElement("span");
+      textSpan.dataset.text = "true";
+      textSpan.textContent = line;
+      offsetSpan.appendChild(textSpan);
+      block.appendChild(offsetSpan);
+      fragment.appendChild(block);
+    });
+    if (lines.length === 0) {
+      const block = document.createElement("div");
+      block.setAttribute("data-block", "true");
+      block.className = "public-DraftStyleDefault-block public-DraftStyleDefault-ltr";
+      const offsetSpan = document.createElement("span");
+      offsetSpan.setAttribute("data-offset-key", `${keyPrefix}-0-0`);
+      const textSpan = document.createElement("span");
+      textSpan.dataset.text = "true";
+      offsetSpan.appendChild(textSpan);
+      block.appendChild(offsetSpan);
+      fragment.appendChild(block);
+    }
+    return fragment;
+  }
+  function writeDraftBlocksToContentRoot(contentRoot, text, keyPrefix = "trai") {
+    if (!contentRoot) return;
+    contentRoot.replaceChildren(buildDraftBlocksFragment(text, keyPrefix));
+  }
+
   // extension/content/content.js
   initExtensionSentry({ scope: "content" });
   globalThis.__tweetreplyaiExtLoggingAllowed = false;
@@ -8098,17 +8197,7 @@ ${cta}` : cta;
       }
       const contentRoot = textArea?.querySelector?.('[data-contents="true"]');
       if (contentRoot) {
-        const block = document.createElement("div");
-        block.setAttribute("data-block", "true");
-        block.className = "public-DraftStyleDefault-block public-DraftStyleDefault-ltr";
-        const offsetSpan = document.createElement("span");
-        offsetSpan.setAttribute("data-offset-key", "trai-0-0");
-        const textSpan = document.createElement("span");
-        textSpan.dataset.text = "true";
-        textSpan.textContent = text;
-        offsetSpan.appendChild(textSpan);
-        block.appendChild(offsetSpan);
-        contentRoot.replaceChildren(block);
+        writeDraftBlocksToContentRoot(contentRoot, text);
         return;
       }
       const span = document.createElement("span");
@@ -8877,7 +8966,7 @@ ${cta}` : cta;
       if (!article) return null;
       const tweetTextEl = article.querySelector('[data-testid="tweetText"]');
       if (!tweetTextEl) return null;
-      const text = tweetTextEl.textContent?.trim();
+      const text = extractTweetPlainText(tweetTextEl);
       if (!text || text.length < 10) return null;
       let author = "unknown";
       const userNameEl = article.querySelector('[data-testid="User-Name"]');
@@ -10007,7 +10096,7 @@ ${cta}` : cta;
         if (dialogArticle) {
           const tweetTextEl = dialogArticle.querySelector('[data-testid="tweetText"]');
           if (tweetTextEl) {
-            const text = tweetTextEl.textContent?.trim();
+            const text = extractTweetPlainText(tweetTextEl);
             if (text && text.length > 10) return text;
           }
         }
@@ -10015,7 +10104,7 @@ ${cta}` : cta;
       if (this.currentReplyTargetArticle && document.contains(this.currentReplyTargetArticle)) {
         const tweetTextEl = this.currentReplyTargetArticle.querySelector('[data-testid="tweetText"]');
         if (tweetTextEl) {
-          const text = tweetTextEl.textContent?.trim();
+          const text = extractTweetPlainText(tweetTextEl);
           if (text && text.length > 10) return text;
         }
       }
@@ -11061,7 +11150,7 @@ ${cta}` : cta;
         for (const tweet of tweets) {
           const tweetTextEl = tweet.querySelector('[data-testid="tweetText"]');
           if (!tweetTextEl) continue;
-          const text = tweetTextEl.textContent?.trim();
+          const text = extractTweetPlainText(tweetTextEl);
           if (!text || text.length < 10) continue;
           let author = "unknown";
           const userNameEl = tweet.querySelector('[data-testid="User-Name"]');

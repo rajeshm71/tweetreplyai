@@ -6,8 +6,8 @@ import {
 } from "../../../server/services/reframe-quality-checker";
 
 describe("reframe-quality-checker", () => {
-  it("normalizes raw 0–40 scores to 0–100 for API parity", () => {
-    expect(normalizeReframeQualityScore(28)).toBe(70);
+  it("normalizes raw 0–50 scores to 0–100 for API parity", () => {
+    expect(normalizeReframeQualityScore(35)).toBe(70);
     expect(normalizeReframeQualityScore(REFRAME_QUALITY_RAW_MAX)).toBe(100);
     expect(normalizeReframeQualityScore(0)).toBe(0);
   });
@@ -29,5 +29,22 @@ describe("reframe-quality-checker", () => {
     const result = checkReframeQuality(source, output, "heavy");
     expect(result.originality).toBeDefined();
     expect(result.originalityScore).toBe(result.originality.originalityScore);
+  });
+
+  it("fails structure when output collapses a multiline list source", () => {
+    const source = "Tips:\n- Ship fast\n- Talk to users\n- Iterate daily";
+    const output =
+      "Tips: ship fast, talk to users, and iterate daily so you keep momentum on the product.";
+    const result = checkReframeQuality(source, output, "balanced");
+    expect(result.structurePassed).toBe(false);
+    expect(result.passed).toBe(false);
+    expect(result.parameters.some((p) => p.name === "Tweet scannability")).toBe(true);
+  });
+
+  it("passes structure for multiline tweet-style output", () => {
+    const source = "Tips:\n- Ship fast\n- Talk to users\n- Iterate daily";
+    const output = "Quick tips:\n• Ship fast\n• Talk to users\n• Iterate daily";
+    const result = checkReframeQuality(source, output, "balanced");
+    expect(result.structurePassed).toBe(true);
   });
 });

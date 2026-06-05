@@ -1,3 +1,5 @@
+import { writeDraftBlocksToContentRoot } from './draft-blocks.js';
+
 /**
  * Insert plain text into X's Draft.js-based tweet composer (role="textbox").
  * Uses paste first (Draft-owned path), then falls back to insertText and DOM write.
@@ -79,17 +81,7 @@ export async function insertTextIntoTwitterDraftArea(textArea, composer, text, d
 
   const contentRoot = textArea?.querySelector?.('[data-contents="true"]');
   if (contentRoot) {
-    const block = document.createElement("div");
-    block.setAttribute("data-block", "true");
-    block.className = "public-DraftStyleDefault-block public-DraftStyleDefault-ltr";
-    const offsetSpan = document.createElement("span");
-    offsetSpan.setAttribute("data-offset-key", "trai-0-0");
-    const textSpan = document.createElement("span");
-    textSpan.dataset.text = "true";
-    textSpan.textContent = text;
-    offsetSpan.appendChild(textSpan);
-    block.appendChild(offsetSpan);
-    contentRoot.replaceChildren(block);
+    writeDraftBlocksToContentRoot(contentRoot, text);
     textArea.dispatchEvent(
       new InputEvent("input", { bubbles: true, cancelable: true }),
     );

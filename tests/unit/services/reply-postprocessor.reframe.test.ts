@@ -154,6 +154,23 @@ describe("ReplyPostProcessor.processReframe - Unit Tests", () => {
     });
   });
 
+  describe("formatReframeLineBreaks fallback", () => {
+    it("splits a dense paragraph into multiple lines", () => {
+      const input =
+        "First sentence here. Second sentence follows. Third sentence closes it.";
+      const out = replyPostProcessor.processReframe(input);
+      expect(out.includes("\n")).toBe(true);
+      expect(out.split("\n").length).toBeGreaterThanOrEqual(2);
+    });
+
+    it("leaves short one-liners on a single line", () => {
+      const input = "Ship it today.";
+      const out = replyPostProcessor.processReframe(input);
+      expect(out).toBe("Ship it today.");
+      expect(out.includes("\n")).toBe(false);
+    });
+  });
+
   describe("does NOT flatten multi-line output into a single line", () => {
     it("a 3-line tweet survives end-to-end as a 3-line string", () => {
       const input = "Line one is here.\nLine two continues.\nLine three closes it.";

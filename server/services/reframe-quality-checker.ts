@@ -7,6 +7,10 @@ import {
   checkReframeOriginality,
   type ReframeOriginalityResult,
 } from './reframe-originality-checker.js';
+import {
+  hasOverlongLines,
+  isCollapsedTweetOutput,
+} from './reframe-structure.js';
 
 export interface ReframeQualityParameter {
   name: string;
@@ -19,6 +23,7 @@ export interface ReframeQualityResult {
   totalScore: number;
   originalityScore: number;
   passed: boolean;
+  structurePassed: boolean;
   parameters: ReframeQualityParameter[];
   originality: ReframeOriginalityResult;
 }
@@ -26,14 +31,15 @@ export interface ReframeQualityResult {
 const TWITTER_CHAR_LIMIT = 280;
 const LONG_TWEET_CHAR_LIMIT = 4000;
 
-/** Raw parameter sum max (4 params × 10). API exposes 0–100 via normalization. */
-export const REFRAME_QUALITY_RAW_MAX = 40;
-/** Raw pass threshold before normalization (28/40 → 70/100). */
-export const REFRAME_QUALITY_RAW_PASS = 28;
+/** Raw parameter sum max (5 params × 10). API exposes 0–100 via normalization. */
+export const REFRAME_QUALITY_RAW_MAX = 50;
+/** Raw pass threshold before normalization (35/50 → 70/100). */
+export const REFRAME_QUALITY_RAW_PASS = 35;
 
-/** Maps raw 0–40 sum to 0–100 for API/history parity with reply quality scale. */
+/** Maps raw 0–50 sum to 0–100 for API/history parity with reply quality scale. */
 export function normalizeReframeQualityScore(rawTotal: number): number {
-  return Math.round((rawTotal / REFRAME_QUALITY_RAW_MAX) * 100);
+  const normalized = Math.round((rawTotal / REFRAME_QUALITY_RAW_MAX) * 100);
+  return Math.min(100, Math.max(0, normalized));
 }
 
 function contentWordOverlap(source: string, output: string): number {
@@ -109,6 +115,37 @@ function scoreLengthFit(output: string, allowLong: boolean): ReframeQualityParam
   return { name: 'Length fit', score, maxScore: 10, reason };
 }
 
+function scoreTweetScannability(source: string, output: string): ReframeQualityParameter {
+  const collapsed = isCollapsedTweetOutput(source, output);
+  const overlong = hasOverlongLines(output);
+
+  if (collapsed) {
+    return {
+      name: 'Tweet scannability',
+      score: 2,
+      maxScore: 10,
+      reason: 'Output collapsed into one dense paragraph; needs line breaks',
+    };
+  }
+
+  let score = 10;
+  const issues: string[] = [];
+  if (overlong) issues.push('overlong lines');
+  if (!output.includes('\n') && output.length > 80) {
+    issues.push('single block');
+  }
+  score = Math.max(6, 10 - issues.length * 2);
+
+  return {
+    name: 'Tweet scannability',
+    score,
+    maxScore: 10,
+    reason: issues.length
+      ? `Readable but could be more scannable: ${issues.join(', ')}`
+      : 'Tweet-style line breaks present',
+  };
+}
+
 function scoreOriginalityParam(originality: ReframeOriginalityResult): ReframeQualityParameter {
   const score = Math.round(originality.originalityScore / 10);
   return {
@@ -128,9 +165,11 @@ export function checkReframeQuality(
   allowLong = false,
 ): ReframeQualityResult {
   const originality = checkReframeOriginality(source, output, band);
+  const structurePassed = !isCollapsedTweetOutput(source, output);
   const parameters = [
     scoreInsightAlignment(source, output),
     scoreOriginalityParam(originality),
+    scoreTweetScannability(source, output),
     scoreClarity(output),
     scoreLengthFit(output, allowLong),
   ];
@@ -138,7 +177,8 @@ export function checkReframeQuality(
   return {
     totalScore: normalizeReframeQualityScore(rawTotal),
     originalityScore: originality.originalityScore,
-    passed: rawTotal >= REFRAME_QUALITY_RAW_PASS && originality.passed,
+    passed: rawTotal >= REFRAME_QUALITY_RAW_PASS && originality.passed && structurePassed,
+    structurePassed,
     parameters,
     originality,
   };

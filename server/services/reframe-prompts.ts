@@ -1,3 +1,5 @@
+import { analyzeTweetStructure } from './reframe-structure.js';
+
 /**
  * Reframe-tweet prompt templates. The public `/api/reframe-tweet` endpoint uses
  * these to build system+user prompts for the "Reuse tweet" feature in the X
@@ -31,6 +33,7 @@ const RETRY_BOOST = [
   "Change how each point is written—do not reuse the source's sentence shapes or clause patterns.",
   'Keep factual claims accurate; rewrite delivery. Illustrative numbers and examples may change.',
   'If the source opened with a statement, do not start the retry with a question.',
+  'Prior draft was one dense paragraph. Split into short tweet lines — one idea per line, breaks after sentences or list items.',
 ].join('\n');
 
 export function getDegreeBand(degree: number): DegreeBand {
@@ -126,11 +129,14 @@ function buildSharedRules(degree: number, allowLong: boolean): string {
     '- Avoid duplicate-feeling phrasing; express the same idea in fresh words.',
     '',
     'Tweet output formatting (how the post should look on X):',
+    '- Output must be formatted like a real X tweet: short lines with line breaks. One main idea per line.',
+    '- If the source is a continuous paragraph, split your rewrite into multiple short lines at natural sentence or clause boundaries — do not return one dense block.',
     '- One main idea per line; put a line break after each sentence or list item.',
     '- Preserve blank lines between stanzas when the source had them.',
-    '- Do not collapse list-like sources into a wall-of-text paragraph.',
+    '- Do not collapse any source (list or paragraph) into a wall-of-text paragraph.',
     '- Do not stack multiple questions; if the source opens with one question, keep that single lead question only.',
     '- Short, scannable lines — like a real X post people scroll past.',
+    '- Very short one-liners (single sentence under ~80 characters) may stay on one line.',
   ];
 
   if (band === 'heavy' || band === 'reimagined') {
@@ -199,6 +205,13 @@ export function getReframePromptConfig(
 
   const userPrompt = (source: string) => {
     const trimmed = (source ?? '').trim();
+    const structure = analyzeTweetStructure(trimmed);
+    const structureHint = structure.isDenseParagraph
+      ? 'Source layout: continuous paragraph. Split your rewrite into multiple short tweet lines at sentence or clause boundaries — do not output one dense block.'
+      : structure.isListLike || structure.isMultiline
+        ? `Source layout: ${structure.lineCount} lines, ${structure.isListLike ? 'list-like' : 'multiline'}. Write as a scannable X tweet with proper line breaks; markers and order may change but do not merge into one paragraph.`
+        : 'Write as a scannable X tweet with proper line breaks when the content has multiple ideas.';
+
     const baseTask = [
       'Source tweet:',
       '"""',
@@ -206,7 +219,8 @@ export function getReframePromptConfig(
       '"""',
       '',
       `Rewrite the tweet above as your own standalone tweet at degree ${clamped}/100 (${band}).`,
-      'Match the source layout: preserve line breaks and blank-line gaps; list markers may change. If the source opens with a question, keep that question’s intent in the opening line. If the source opens with a statement or headline, keep a statement opening—do not invent a question hook. Change list/options below as needed. Add or drop related lines as needed so it does not read as copied. For English sources, use simple everyday words—avoid fancy or academic wording unless the source requires a term. List-like sources stay list-like; prose stays prose-shaped. Output only the rewritten tweet text, no quotes, no preamble.',
+      structureHint,
+      'Format like a real X post: short lines, one idea per line. If the source opens with a question, keep that question’s intent in the opening line. If the source opens with a statement or headline, keep a statement opening—do not invent a question hook. List markers may change. For English sources, use simple everyday words. Output only the rewritten tweet text, no quotes, no preamble.',
     ];
 
     if (band === 'heavy' || band === 'reimagined') {

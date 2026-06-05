@@ -3722,7 +3722,10 @@ User draft reply: ${draft_reply}`;
           body.allow_long,
         );
 
-        if (!qualityResult.originality.passed) {
+        const qualityNeedsRetry = (result: typeof qualityResult) =>
+          !result.originality.passed || !result.structurePassed;
+
+        if (qualityNeedsRetry(qualityResult)) {
           retriedForOriginality = true;
           try {
             retryGeneration = await aiRouter.reframeTweet(body.source_tweet, body.degree, {
@@ -3735,17 +3738,18 @@ User draft reply: ${draft_reply}`;
               band,
               body.allow_long,
             );
-            // Review fix: prefer a passing retry; otherwise keep whichever scores higher.
-            const retryPassesFirstFails =
-              retryQuality.originality.passed && !qualityResult.originality.passed;
+            const firstPasses = !qualityNeedsRetry(qualityResult);
+            const retryPasses = !qualityNeedsRetry(retryQuality);
+            const retryPassesFirstFails = retryPasses && !firstPasses;
             const retryScoresHigher =
-              retryQuality.originalityScore > qualityResult.originalityScore;
+              retryQuality.originalityScore > qualityResult.originalityScore ||
+              (retryQuality.structurePassed && !qualityResult.structurePassed);
             if (retryPassesFirstFails || retryScoresHigher) {
               generation = retryGeneration;
               qualityResult = retryQuality;
             }
           } catch (retryError) {
-            console.warn('[API] /api/reframe-tweet originality retry failed', retryError);
+            console.warn('[API] /api/reframe-tweet quality retry failed', retryError);
           }
         }
 
