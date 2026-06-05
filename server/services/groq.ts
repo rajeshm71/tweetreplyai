@@ -6,6 +6,7 @@ import { replyPostProcessor } from "./reply-postprocessor.js";
 import { buildSystemPrompt, buildUserPromptWithThread } from "./prompt-builder.js";
 import { getDynamicReplyMaxWords, getDynamicReplyWordRange } from "./oa-dynamic-reply-length.js";
 import { AI_MODELS, AI_PARAMS, MODEL_SPECS, REPLY_LIMITS } from "../config/constants.js";
+import { getGroqTertiaryModel, isModelRoutingEnabled } from "../config/model-routing.js";
 import { getReframePromptConfig, type ReframePromptOptions } from "./reframe-prompts.js";
 
 // Initialize Groq client
@@ -13,21 +14,22 @@ const groq = process.env.GROQ_API_KEY ? new Groq() : null;
 
 export class GroqModelRouter {
   private readonly MODELS = {
-    [AI_MODELS.DEFAULT]: {
-      name: "Fast",
+    [getGroqTertiaryModel()]: {
+      name: "Llama 4 Scout (tertiary)",
       ...MODEL_SPECS.LLAMA_SCOUT,
-      description: "Fast, low-latency model for quick replies",
+      description: "Tertiary cascade tier — fast Groq Llama model",
     },
   } as const;
 
   private getModelForTweet(
-    tweetText: string,
+    _tweetText: string,
     modelPreference?: string,
   ): string {
-    if (modelPreference && modelPreference in this.MODELS) {
+    const tertiary = getGroqTertiaryModel();
+    if (modelPreference && (modelPreference in this.MODELS || modelPreference.startsWith("meta-llama/"))) {
       return modelPreference;
     }
-    return AI_MODELS.DEFAULT;
+    return tertiary;
   }
 
   private getPromptConfig(promptVariation?: string): PromptConfig {
@@ -78,7 +80,9 @@ export class GroqModelRouter {
 
     if (!groq) {
       console.log(`❌ [Groq] Groq client not configured`);
-      // Return a placeholder reply when Groq is not configured
+      if (isModelRoutingEnabled()) {
+        throw new Error("Groq client not configured");
+      }
       return {
         reply:
           "Thanks for sharing! This is a demo reply since Groq isn't configured yet.",
@@ -116,42 +120,37 @@ export class GroqModelRouter {
         temperature: AI_PARAMS.TEMPERATURE,
         max_completion_tokens: AI_PARAMS.GROQ_MAX_TOKENS,
         top_p: 1,
-        stream: true,
+        stream: false,
         stop: null,
       };
       console.log('[GROQ] Exact request sent to Groq (message count = ' + messages.length + '):', JSON.stringify(groqRequestBody, null, 2));
 
+      // Review fix: non-streaming so usage metadata is available for budget/analytics.
       const chatCompletion = await groq.chat.completions.create({
         messages,
         model: modelKey,
         temperature: AI_PARAMS.TEMPERATURE,
         max_completion_tokens: AI_PARAMS.GROQ_MAX_TOKENS,
         top_p: 1,
-        stream: true,
+        stream: false,
         stop: null,
       });
 
-      // Collect streaming response
-      console.log('[GROQ] Streaming response...');
-      console.log('[GROQ] Chat completion:', chatCompletion);
-      let fullReply = '';
-      for await (const chunk of chatCompletion) {
-        const content = chunk.choices[0]?.delta?.content || '';
-        fullReply += content;
-      }
-
+      const fullReply = chatCompletion.choices[0]?.message?.content ?? '';
       const processedReply = this.postProcessReply(fullReply, options.replyMode, replyMaxWordsOverride);
       const latencyMs = Date.now() - startTime;
 
+      const usage = chatCompletion.usage as { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | undefined;
       const estimatedInputTokens = Math.ceil((enhancedSystemPrompt + userPromptText).length / AI_PARAMS.TOKEN_ESTIMATION_CHARS_PER_TOKEN);
       const estimatedOutputTokens = Math.ceil(processedReply.length / AI_PARAMS.TOKEN_ESTIMATION_CHARS_PER_TOKEN);
 
       return {
         reply: processedReply,
         modelKey,
-        tokensIn: estimatedInputTokens,
-        tokensOut: estimatedOutputTokens,
+        tokensIn: usage?.prompt_tokens ?? estimatedInputTokens,
+        tokensOut: usage?.completion_tokens ?? estimatedOutputTokens,
         latencyMs,
+        rawUsage: usage as Record<string, unknown> | undefined,
       };
     } catch (error: any) {
       const message =
@@ -165,7 +164,9 @@ export class GroqModelRouter {
 
   async improveDraft(tweetText: string, draftReply: string, modelPreference?: string): Promise<ReplyResponse> {
     const startTime = Date.now();
-    const modelKey = modelPreference && modelPreference in this.MODELS ? modelPreference : AI_MODELS.DEFAULT;
+    const modelKey = modelPreference && (modelPreference in this.MODELS || modelPreference.startsWith("meta-llama/"))
+      ? modelPreference
+      : getGroqTertiaryModel();
     const promptConfig = this.getPromptConfig("improve");
 
     console.log(`🚀 [Groq] Starting improvement with model: ${modelKey}`);
@@ -180,6 +181,9 @@ Write a clean, natural reply based on the user's draft idea. Keep it under ${REP
 
     if (!groq) {
       console.log("❌ [Groq] Groq client not configured");
+      if (isModelRoutingEnabled()) {
+        throw new Error("Groq client not configured");
+      }
       return {
         reply: draftReply,
         modelKey: "demo-groq",
@@ -214,6 +218,7 @@ Write a clean, natural reply based on the user's draft idea. Keep it under ${REP
         tokensIn: usage?.prompt_tokens ?? estimatedInputTokens,
         tokensOut: usage?.completion_tokens ?? estimatedOutputTokens,
         latencyMs,
+        rawUsage: usage as Record<string, unknown> | undefined,
       };
     } catch (error: any) {
       const message = error?.message || error?.error?.message || "Unknown error";
@@ -234,9 +239,9 @@ Write a clean, natural reply based on the user's draft idea. Keep it under ${REP
     opts: ReframePromptOptions & { modelPreference?: string } = {},
   ): Promise<ReplyResponse> {
     const startTime = Date.now();
-    const modelKey = opts.modelPreference && opts.modelPreference in this.MODELS
+    const modelKey = opts.modelPreference && (opts.modelPreference in this.MODELS || opts.modelPreference.startsWith("meta-llama/"))
       ? opts.modelPreference
-      : AI_MODELS.DEFAULT;
+      : getGroqTertiaryModel();
     const config = getReframePromptConfig(degree, {
       allowLong: opts.allowLong,
       retryBoost: opts.retryBoost,
@@ -246,6 +251,9 @@ Write a clean, natural reply based on the user's draft idea. Keep it under ${REP
 
     if (!groq) {
       console.log("❌ [Groq] Groq client not configured (demo mode)");
+      if (isModelRoutingEnabled()) {
+        throw new Error("Groq client not configured");
+      }
       return {
         reply: source,
         modelKey: "demo-groq",
@@ -279,6 +287,7 @@ Write a clean, natural reply based on the user's draft idea. Keep it under ${REP
         tokensIn: usage?.prompt_tokens ?? estimatedInputTokens,
         tokensOut: usage?.completion_tokens ?? estimatedOutputTokens,
         latencyMs,
+        rawUsage: usage as Record<string, unknown> | undefined,
       };
     } catch (error: any) {
       const message = error?.message || error?.error?.message || "Unknown error";
@@ -287,9 +296,64 @@ Write a clean, natural reply based on the user's draft idea. Keep it under ${REP
     }
   }
 
+  async generateChatCompletion(
+    systemPrompt: string,
+    userPrompt: string,
+    modelPreference?: string,
+  ): Promise<import("./openai.js").ReplyResponse> {
+    const startTime = Date.now();
+    const modelKey = modelPreference && (modelPreference in this.MODELS || modelPreference.startsWith("meta-llama/"))
+      ? modelPreference
+      : getGroqTertiaryModel();
+
+    if (!groq) {
+      if (isModelRoutingEnabled()) {
+        throw new Error("Groq client not configured");
+      }
+      return {
+        reply: "Demo chat completion — Groq not configured.",
+        modelKey: "demo-groq",
+        latencyMs: Date.now() - startTime,
+      };
+    }
+
+    const response = await groq.chat.completions.create({
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      model: modelKey,
+      temperature: AI_PARAMS.TEMPERATURE,
+      max_completion_tokens: AI_PARAMS.GROQ_MAX_TOKENS,
+      top_p: 1,
+    });
+
+    const usage = response.usage as { prompt_tokens?: number; completion_tokens?: number } | undefined;
+    return {
+      reply: response.choices[0]?.message?.content ?? "",
+      modelKey,
+      tokensIn: usage?.prompt_tokens,
+      tokensOut: usage?.completion_tokens,
+      latencyMs: Date.now() - startTime,
+      rawUsage: usage as Record<string, unknown> | undefined,
+    };
+  }
+
   // Get all available models
   getAvailableModels() {
-    return Object.entries(this.MODELS).map(([key, info]) => ({
+    const tertiary = getGroqTertiaryModel();
+    const entries = Object.entries(this.MODELS);
+    if (!entries.some(([key]) => key === tertiary)) {
+      entries.push([
+        tertiary,
+        {
+          name: "Llama 4 Scout (tertiary)",
+          ...MODEL_SPECS.LLAMA_SCOUT,
+          description: "Tertiary cascade tier — fast Groq Llama model",
+        },
+      ]);
+    }
+    return entries.map(([key, info]) => ({
       key,
       ...info,
       provider: "groq",

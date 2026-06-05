@@ -6,10 +6,26 @@ import { buildSystemPrompt, buildUserPromptWithThread } from "./prompt-builder.j
 import { getDynamicReplyMaxWords, getDynamicReplyWordRange } from "./oa-dynamic-reply-length.js";
 import type { EnrichedTweetAnalysis } from "./tweet-analysis-agents.js";
 import { AI_MODELS, AI_PARAMS, MODEL_SPECS, REPLY_LIMITS } from "../config/constants.js";
+import { getModelRoutingConfig, isModelRoutingEnabled } from "../config/model-routing.js";
 import { getReframePromptConfig, type ReframePromptOptions } from "./reframe-prompts.js";
 
 // TODO: Set OPENAI_API_KEY in environment to enable AI reply generation
 const openai = process.env.OPENAI_API_KEY ? new OpenAI() : null;
+
+/** Review fix: surface invalid_model / 404 clearly for tier model ID tuning (plan §4). */
+function logOpenAIModelError(operation: string, modelKey: string, error: unknown): void {
+  const message = error instanceof Error ? error.message : String(error);
+  const status = (error as { status?: number })?.status;
+  const code = (error as { code?: string })?.code;
+  console.error(`❌ [OpenAI] Error during ${operation}: ${message}`);
+  console.error(`🔧 [OpenAI] Model used: ${modelKey}`);
+  if (status === 404 || code === "invalid_model" || /model|404/i.test(message)) {
+    console.error(
+      "[OpenAI] Model ID may be invalid for this API account — verify MODEL_ROUTING_TIER1_MODEL / TIER2_MODEL",
+    );
+  }
+  console.error(`🔧 [OpenAI] Full error:`, error);
+}
 
 export interface ReplyOptions {
   tweetText: string;
@@ -56,22 +72,48 @@ export interface ReplyResponse {
   tokensIn?: number;
   tokensOut?: number;
   latencyMs: number;
+  tierId?: string;
+  rawUsage?: Record<string, unknown>;
 }
 
 export class ModelRouter {
   private readonly MODELS = {
     [AI_MODELS.FALLBACK]: {
-      name: "Standard",
+      name: "GPT-5.4 Mini",
+      ...MODEL_SPECS.GPT_5_4_MINI,
+      description: "Secondary cascade tier — cost-efficient GPT-5.4 mini",
+    },
+    "gpt-5-chat-latest": {
+      name: "GPT-5 Chat Latest",
+      ...MODEL_SPECS.GPT_5_CHAT_LATEST,
+      description: "Primary cascade tier — latest GPT-5 chat model",
+    },
+    "gpt-5.4-mini": {
+      name: "GPT-5.4 Mini",
+      ...MODEL_SPECS.GPT_5_4_MINI,
+      description: "Secondary cascade tier — cost-efficient GPT-5.4 mini",
+    },
+    "gpt-4o-mini": {
+      name: "GPT-4o Mini (legacy)",
       ...MODEL_SPECS.GPT_4O_MINI,
-      description: "Reliable general-purpose model",
+      description: "Legacy fallback alias mapped to cascade routing",
     },
   } as const;
 
   private getModel(modelPreference?: string): string {
-    if (modelPreference && modelPreference in this.MODELS) {
-      return modelPreference;
+    if (modelPreference) {
+      if (modelPreference in this.MODELS) {
+        return modelPreference;
+      }
+      if (modelPreference.startsWith("gpt-")) {
+        return modelPreference;
+      }
+      const tierMatch = getModelRoutingConfig().find((t) => t.model === modelPreference);
+      if (tierMatch?.provider === "openai") {
+        return tierMatch.model;
+      }
     }
-    return AI_MODELS.FALLBACK;
+    return isModelRoutingEnabled() ? getModelRoutingConfig().find((t) => t.id === "primary")?.model ?? AI_MODELS.FALLBACK : AI_MODELS.FALLBACK;
   }
 
   private getPromptConfig(promptVariation?: string): PromptConfig {
@@ -121,6 +163,9 @@ export class ModelRouter {
 
     if (!openai) {
       console.log("❌ [OpenAI] OpenAI client not configured");
+      if (isModelRoutingEnabled()) {
+        throw new Error("OpenAI client not configured");
+      }
       return {
         reply:
           "Thanks for sharing! This is a demo reply since OpenAI isn't configured yet.",
@@ -160,18 +205,18 @@ export class ModelRouter {
       const processedReply = this.postProcessReply(rawReply, false, options.replyMode, replyMaxWordsOverride);
       const latencyMs = Date.now() - startTime;
 
+      const usage = response.usage as Record<string, unknown> | undefined;
       return {
         reply: processedReply,
         modelKey,
         tokensIn: response.usage?.input_tokens,
         tokensOut: response.usage?.output_tokens,
         latencyMs,
+        rawUsage: usage,
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
-      console.error(`❌ [OpenAI] Error generating reply: ${message}`);
-      console.error(`🔧 [OpenAI] Model used: ${modelKey}`);
-      console.error(`🔧 [OpenAI] Full error:`, error);
+      logOpenAIModelError("generateReply", modelKey, error);
       throw new Error(`Failed to generate reply: ${message}`);
     }
   }
@@ -193,6 +238,9 @@ Write a clean, natural reply based on the user's draft idea. Keep it under ${REP
 
     if (!openai) {
       console.log("❌ [OpenAI] OpenAI client not configured");
+      if (isModelRoutingEnabled()) {
+        throw new Error("OpenAI client not configured");
+      }
       return {
         reply: draftReply,
         modelKey: "demo",
@@ -222,6 +270,7 @@ Write a clean, natural reply based on the user's draft idea. Keep it under ${REP
       }
       
       const latencyMs = Date.now() - startTime;
+      const usage = response.usage as Record<string, unknown> | undefined;
 
       return {
         reply: processedReply,
@@ -229,12 +278,11 @@ Write a clean, natural reply based on the user's draft idea. Keep it under ${REP
         tokensIn: response.usage?.input_tokens,
         tokensOut: response.usage?.output_tokens,
         latencyMs,
+        rawUsage: usage,
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
-      console.error(`❌ [OpenAI] Error improving draft: ${message}`);
-      console.error(`🔧 [OpenAI] Model used: ${modelKey}`);
-      console.error(`🔧 [OpenAI] Full error:`, error);
+      logOpenAIModelError("improveDraft", modelKey, error);
       throw new Error(`Failed to improve draft: ${message}`);
     }
   }
@@ -260,6 +308,9 @@ Write a clean, natural reply based on the user's draft idea. Keep it under ${REP
 
     if (!openai) {
       console.log("❌ [OpenAI] OpenAI client not configured (demo mode)");
+      if (isModelRoutingEnabled()) {
+        throw new Error("OpenAI client not configured");
+      }
       return {
         reply: source,
         modelKey: "demo",
@@ -286,27 +337,89 @@ Write a clean, natural reply based on the user's draft idea. Keep it under ${REP
       }
 
       const latencyMs = Date.now() - startTime;
+      const usage = response.usage as Record<string, unknown> | undefined;
       return {
         reply: processedReply,
         modelKey,
         tokensIn: response.usage?.input_tokens,
         tokensOut: response.usage?.output_tokens,
         latencyMs,
+        rawUsage: usage,
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
-      console.error(`❌ [OpenAI] Error reframing tweet: ${message}`);
+      logOpenAIModelError("reframeTweet", modelKey, error);
       throw new Error(`Failed to reframe tweet: ${message}`);
     }
   }
 
+  async generateChatCompletion(
+    systemPrompt: string,
+    userPrompt: string,
+    modelPreference?: string,
+  ): Promise<ReplyResponse> {
+    const startTime = Date.now();
+    const modelKey = this.getModel(modelPreference);
+
+    if (!openai) {
+      if (isModelRoutingEnabled()) {
+        throw new Error("OpenAI client not configured");
+      }
+      return {
+        reply: "Demo chat completion — OpenAI not configured.",
+        modelKey: "demo",
+        latencyMs: Date.now() - startTime,
+      };
+    }
+
+    const response = await openai.responses.create({
+      model: modelKey,
+      input: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      top_p: 1,
+      temperature: AI_PARAMS.TEMPERATURE,
+    });
+
+    const usage = response.usage as Record<string, unknown> | undefined;
+    return {
+      reply: response.output_text || "",
+      modelKey,
+      tokensIn: response.usage?.input_tokens,
+      tokensOut: response.usage?.output_tokens,
+      latencyMs: Date.now() - startTime,
+      rawUsage: usage,
+    };
+  }
+
   // Get all available OpenAI models
   getAvailableModels() {
-    return Object.entries(this.MODELS).map(([key, info]) => ({
-      key,
-      ...info,
-      provider: "openai",
-    }));
+    const seen = new Set<string>();
+    const models: Array<{ key: string; name: string; inputCost: number; outputCost: number; contextWindow: number; description: string; provider: string }> = [];
+
+    for (const [key, info] of Object.entries(this.MODELS)) {
+      if (seen.has(key)) continue;
+      seen.add(key);
+      models.push({ key, ...info, provider: "openai" });
+    }
+
+    if (isModelRoutingEnabled()) {
+      for (const tier of getModelRoutingConfig()) {
+        if (tier.provider !== "openai" || seen.has(tier.model)) continue;
+        seen.add(tier.model);
+        const spec = tier.model.includes("mini") ? MODEL_SPECS.GPT_5_4_MINI : MODEL_SPECS.GPT_5_CHAT_LATEST;
+        models.push({
+          key: tier.model,
+          name: tier.model,
+          ...spec,
+          description: `Configured ${tier.id} cascade tier`,
+          provider: "openai",
+        });
+      }
+    }
+
+    return models;
   }
 }
 

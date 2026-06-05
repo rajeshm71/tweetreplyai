@@ -104,6 +104,7 @@
     "groq-sdk": "^0.34.0",
     "iconoir-react": "^7.11.0",
     "input-otp": "^1.4.2",
+    "js-tiktoken": "^1.0.21",
     "jsonwebtoken": "^9.0.2",
     "lucide-react": "^0.453.0",
     "memoizee": "^0.4.17",

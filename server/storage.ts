@@ -68,6 +68,14 @@ export interface IStorage {
   // Reply tokens operations
   createReplyTokens(entry: InsertReplyTokens): Promise<ReplyTokens>;
 
+  // Platform model token budget (global daily caps)
+  getPlatformTokenUsage(tierId: string, windowKey: string): Promise<PlatformTokenUsageRow | null>;
+  incrementPlatformTokenUsage(
+    tierId: string,
+    windowKey: string,
+    usage: PlatformTokenUsageIncrement,
+  ): Promise<number>;
+
   // User preferences operations
   getUserPreferences(userId: string): Promise<UserPreferences | undefined>;
   upsertUserPreferences(preferences: InsertUserPreferences): Promise<UserPreferences>;
@@ -164,6 +172,26 @@ export interface InsertExtensionTelemetryEvent {
   errorCode?: string | null;
   context?: Record<string, unknown> | null;
   clientTimestamp?: string | null;
+}
+
+export interface PlatformTokenUsageRow {
+  tierId: string;
+  windowKey: string;
+  tokensUsed: number;
+  inputTokensUsed: number;
+  outputTokensUsed: number;
+  cachedTokensUsed: number;
+  reasoningTokensUsed: number;
+  requestCount: number;
+  updatedAt: string;
+}
+
+export interface PlatformTokenUsageIncrement {
+  totalTokens: number;
+  inputTokens: number;
+  outputTokens: number;
+  cachedTokens?: number;
+  reasoningTokens?: number;
 }
 
 export interface ExtensionTelemetryRow {

@@ -1,16 +1,16 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { LINKEDIN_REPLY_LIMITS } from "../../../server/config/constants.js";
 
-vi.mock("groq-sdk", () => ({
-  Groq: class GroqMock {
-    chat = {
-      completions: {
-        create: vi.fn().mockResolvedValue({
-          choices: [{ message: { content: "LinkedIn test reply from Groq" } }],
-          usage: { prompt_tokens: 50, completion_tokens: 30 },
-        }),
-      },
-    };
+vi.mock("../../../server/services/ai-router", () => ({
+  aiRouter: {
+    generateLinkedInCompletion: vi.fn().mockResolvedValue({
+      reply: "LinkedIn test reply from cascade",
+      modelKey: "gpt-5-chat-latest",
+      tokensIn: 50,
+      tokensOut: 30,
+      latencyMs: 100,
+      tierId: "primary",
+    }),
   },
 }));
 
@@ -106,12 +106,9 @@ describe("LinkedIn AI Service - Unit Tests", () => {
     await expect(generateLinkedInReply(baseOptions)).resolves.not.toThrow();
   });
 
-  it("returns a fallback string reply when GROQ_API_KEY is absent (no key in test env)", async () => {
-    // GROQ_API_KEY is unset in the test environment; the service returns a placeholder.
-    // The groqClient lazy-init returns null → callGroq returns the hardcoded fallback text.
+  it("returns modelKey from ai-router cascade response", async () => {
     const result = await generateLinkedInReply(baseOptions);
-    expect(typeof result.reply).toBe("string");
-    expect(result.reply.length).toBeGreaterThan(0);
+    expect(result.modelKey).toBe("gpt-5-chat-latest");
   });
 
   it("calls shared replyPostProcessor with LinkedIn word cap and replyMode", async () => {

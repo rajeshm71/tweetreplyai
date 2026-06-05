@@ -2193,6 +2193,56 @@ export class SupabaseStorage implements IStorage {
     if (!values.length) return null;
     return Math.round(values.reduce((sum: number, v: number) => sum + v, 0) / values.length);
   }
+
+  async getPlatformTokenUsage(tierId: string, windowKey: string): Promise<import('./storage.js').PlatformTokenUsageRow | null> {
+    const { data, error } = await supabase
+      .from('platform_model_token_usage')
+      .select('*')
+      .eq('tier_id', tierId)
+      .eq('window_key', windowKey)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Supabase getPlatformTokenUsage error:', error);
+      throw new Error(error.message);
+    }
+    if (!data) return null;
+
+    return {
+      tierId: data.tier_id,
+      windowKey: data.window_key,
+      tokensUsed: Number(data.tokens_used ?? 0),
+      inputTokensUsed: Number(data.input_tokens_used ?? 0),
+      outputTokensUsed: Number(data.output_tokens_used ?? 0),
+      cachedTokensUsed: Number(data.cached_tokens_used ?? 0),
+      reasoningTokensUsed: Number(data.reasoning_tokens_used ?? 0),
+      requestCount: Number(data.request_count ?? 0),
+      updatedAt: data.updated_at,
+    };
+  }
+
+  async incrementPlatformTokenUsage(
+    tierId: string,
+    windowKey: string,
+    usage: import('./storage.js').PlatformTokenUsageIncrement,
+  ): Promise<number> {
+    const { data, error } = await supabase.rpc('increment_platform_token_usage', {
+      p_tier_id: tierId,
+      p_window_key: windowKey,
+      p_tokens: usage.totalTokens,
+      p_input: usage.inputTokens,
+      p_output: usage.outputTokens,
+      p_cached: usage.cachedTokens ?? 0,
+      p_reasoning: usage.reasoningTokens ?? 0,
+    });
+
+    if (error) {
+      console.error('Supabase incrementPlatformTokenUsage error:', error);
+      throw new Error(error.message);
+    }
+
+    return Number(data ?? 0);
+  }
 }
 
 export const storage = new SupabaseStorage();

@@ -1,5 +1,6 @@
 import { Groq } from "groq-sdk";
 import { AI_MODELS, AI_PARAMS } from "../config/constants.js";
+import { getGroqTertiaryModel } from "../config/model-routing.js";
 import type { ReplyResponse } from "./openai.js";
 import { getPromptConfig, GUARDRAIL_POLICY_PROMPT } from "./prompts.js";
 import { replyPostProcessor } from "./reply-postprocessor.js";
@@ -119,7 +120,7 @@ export async function generateGuardrailFriendlyReply(
   rationale: string,
 ): Promise<ReplyResponse> {
   const startTime = Date.now();
-  const modelKey = AI_MODELS.DEFAULT;
+  const modelKey = getGroqTertiaryModel();
 
   if (!groq) {
     console.log("[Guardrail] Groq client not configured; returning fallback friendly reply.");

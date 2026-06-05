@@ -1,6 +1,22 @@
 import { modelRouter as openaiRouter, ReplyOptions, ReplyResponse } from "./openai.js";
 import { groqModelRouter } from "./groq.js";
-import { AI_MODELS, AI_PARAMS, MODEL_SPECS } from "../config/constants.js";
+import { AI_MODELS, AI_PARAMS, LEGACY_OPENAI_FALLBACK, MODEL_SPECS } from "../config/constants.js";
+import {
+  getGroqTertiaryModel,
+  getModelRoutingConfig,
+  isAutoModelPreference,
+  isModelRoutingEnabled,
+  type ModelRoutingTier,
+} from "../config/model-routing.js";
+import {
+  buildTierAttemptOrder,
+  getTierUsageToday,
+  isTierExhausted,
+  isTierProviderAvailable,
+  recordTierTokenUsage,
+} from "./model-token-budget.js";
+import { isDemoModelKey } from "../utils/provider-errors.js";
+import { usageFromReplyResponse } from "../utils/token-usage.js";
 
 export interface ModelInfo {
   key: string;
@@ -12,60 +28,191 @@ export interface ModelInfo {
   description: string;
 }
 
+type TierCallFn = (tier: ModelRoutingTier) => Promise<ReplyResponse>;
+
 export class UnifiedAIRouter {
   private getProviderForModel(modelKey: string): "openai" | "groq" | null {
     if (modelKey.startsWith("gpt-")) {
       return "openai";
     }
 
-    if (modelKey.startsWith("meta-llama/") || modelKey.startsWith("llama-")) {
+    if (modelKey.startsWith("meta-llama/") || modelKey.startsWith("llama-") || modelKey.startsWith("openai/")) {
       return "groq";
     }
 
     return null;
   }
 
-  async generateReply(options: ReplyOptions): Promise<ReplyResponse> {
-    const preferFallbackAsPrimary =
-      !options.modelPreference ||
-      options.modelPreference === "auto" ||
-      options.modelPreference === AI_MODELS.FALLBACK;
-    const modelKey = preferFallbackAsPrimary ? AI_MODELS.DEFAULT : options.modelPreference!;
+  private async dispatchToTier(tier: ModelRoutingTier, options: ReplyOptions): Promise<ReplyResponse> {
+    const modelKey = tier.model;
+    if (tier.provider === "groq") {
+      return groqModelRouter.generateReply({ ...options, modelPreference: modelKey });
+    }
+    return openaiRouter.generateReply({ ...options, modelPreference: modelKey });
+  }
+
+  private async dispatchImproveToTier(
+    tier: ModelRoutingTier,
+    tweetText: string,
+    draftReply: string,
+  ): Promise<ReplyResponse> {
+    const modelKey = tier.model;
+    if (tier.provider === "groq") {
+      return groqModelRouter.improveDraft(tweetText, draftReply, modelKey);
+    }
+    return openaiRouter.improveDraft(tweetText, draftReply, modelKey);
+  }
+
+  private async dispatchReframeToTier(
+    tier: ModelRoutingTier,
+    source: string,
+    degree: number,
+    opts: { allowLong?: boolean; retryBoost?: boolean },
+  ): Promise<ReplyResponse> {
+    const modelKey = tier.model;
+    if (tier.provider === "groq") {
+      return groqModelRouter.reframeTweet(source, degree, { ...opts, modelPreference: modelKey });
+    }
+    return openaiRouter.reframeTweet(source, degree, { ...opts, modelPreference: modelKey });
+  }
+
+  private async dispatchChatToTier(
+    tier: ModelRoutingTier,
+    systemPrompt: string,
+    userPrompt: string,
+  ): Promise<ReplyResponse> {
+    const modelKey = tier.model;
+    if (tier.provider === "groq") {
+      return groqModelRouter.generateChatCompletion(systemPrompt, userPrompt, modelKey);
+    }
+    return openaiRouter.generateChatCompletion(systemPrompt, userPrompt, modelKey);
+  }
+
+  private async recordResponseUsage(tier: ModelRoutingTier, response: ReplyResponse): Promise<void> {
+    if (!isModelRoutingEnabled()) return;
+
+    const usage = usageFromReplyResponse(
+      tier.provider,
+      response.tokensIn,
+      response.tokensOut,
+      response.rawUsage,
+      response.reply,
+    );
+
+    await recordTierTokenUsage(tier.id, usage);
+  }
+
+  private async executeWithTierChain(
+    modelPreference: string | undefined,
+    callFn: TierCallFn,
+    operationLabel: string,
+  ): Promise<ReplyResponse> {
+    if (!isModelRoutingEnabled()) {
+      return this.executeLegacy(modelPreference, callFn, operationLabel);
+    }
+
+    const tiers = await buildTierAttemptOrder(modelPreference);
+    if (!tiers.length) {
+      throw new Error(`[AI Router] No available providers for ${operationLabel}`);
+    }
+
+    let lastError: Error | null = null;
+
+    for (const tier of tiers) {
+      if (!isTierProviderAvailable(tier)) {
+        console.log(`[AI Router] Skipping ${tier.id} — ${tier.provider} API key not configured`);
+        continue;
+      }
+
+      if (tier.dailyTokenLimit !== null) {
+        const used = await getTierUsageToday(tier.id);
+        if (used === null) {
+          console.log(`[AI Router] Tier ${tier.id} budget read failed; trying next tier`);
+          continue;
+        }
+        if (isTierExhausted(tier, used)) {
+          console.log(`[AI Router] Tier ${tier.id} budget exhausted (${used}/${tier.dailyTokenLimit}), trying next`);
+          continue;
+        }
+      }
+
+      try {
+        const response = await callFn(tier);
+        if (!response?.modelKey) {
+          lastError = new Error(`Provider returned empty response for ${tier.model}`);
+          continue;
+        }
+        if (isDemoModelKey(response.modelKey)) {
+          console.log(`[AI Router] ${tier.id} returned demo placeholder; trying next tier`);
+          lastError = new Error(`Provider unavailable for ${tier.model}`);
+          continue;
+        }
+
+        const tierUsageAfter = await this.recordResponseUsage(tier, response);
+        console.log(
+          `[AI Router] ${operationLabel} succeeded`,
+          JSON.stringify({ tierId: tier.id, modelKey: tier.model, tierUsageAfter, requestedModel: modelPreference ?? 'auto' }),
+        );
+        return { ...response, tierId: tier.id, modelKey: tier.model };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unknown error";
+        console.log(`[AI Router] Tier ${tier.id} (${tier.model}) failed: ${message}`);
+        lastError = error instanceof Error ? error : new Error(message);
+      }
+    }
+
+    throw lastError ?? new Error(`[AI Router] All tiers failed for ${operationLabel}`);
+  }
+
+  private async executeLegacy(
+    modelPreference: string | undefined,
+    callFn: TierCallFn,
+    operationLabel: string,
+  ): Promise<ReplyResponse> {
+    const preferGroqAsPrimary = isAutoModelPreference(modelPreference) || modelPreference === AI_MODELS.FALLBACK;
+    const groqTertiary = getGroqTertiaryModel();
+    const modelKey = preferGroqAsPrimary ? groqTertiary : modelPreference!;
     const provider = this.getProviderForModel(modelKey);
+    const tier: ModelRoutingTier = {
+      id: "tertiary",
+      model: modelKey,
+      provider: provider === "openai" ? "openai" : "groq",
+      dailyTokenLimit: null,
+    };
 
     try {
-      switch (provider) {
-        case "groq":
-          return await groqModelRouter.generateReply({ ...options, modelPreference: modelKey });
-
-        case "openai":
-          return await openaiRouter.generateReply({ ...options, modelPreference: modelKey });
-
-        default:
-          throw new Error(`Unknown model: ${modelKey}`);
+      const response = await callFn(tier);
+      if (isDemoModelKey(response.modelKey)) {
+        throw new Error(`Provider unavailable for ${modelKey}`);
       }
+      return response;
     } catch (error) {
-      if (modelKey !== AI_MODELS.FALLBACK) {
+      if (modelKey !== LEGACY_OPENAI_FALLBACK && provider === "groq") {
         const message = error instanceof Error ? error.message : "Unknown error";
-        console.log(`⚠️ [AI Router] ${modelKey} failed (${message}), falling back to ${AI_MODELS.FALLBACK}`);
-        return openaiRouter.generateReply({ ...options, modelPreference: AI_MODELS.FALLBACK });
+        console.log(`[AI Router] Legacy ${modelKey} failed (${message}), falling back to ${LEGACY_OPENAI_FALLBACK}`);
+        const fallbackTier: ModelRoutingTier = {
+          id: "secondary",
+          model: LEGACY_OPENAI_FALLBACK,
+          provider: "openai",
+          dailyTokenLimit: null,
+        };
+        return callFn(fallbackTier);
       }
       throw error;
     }
   }
 
+  async generateReply(options: ReplyOptions): Promise<ReplyResponse> {
+    return this.executeWithTierChain(options.modelPreference, (tier) => this.dispatchToTier(tier, options), "generateReply");
+  }
+
   async improveDraft(tweetText: string, draftReply: string, modelPreference?: string): Promise<ReplyResponse> {
-    const modelKey = modelPreference || AI_MODELS.DEFAULT;
-    const provider = this.getProviderForModel(modelKey);
-
-    console.log(`🔧 [AI Router] improveDraft called - Model: ${modelKey}`);
-    console.log(`📝 [AI Router] Tweet text: "${tweetText.substring(0, 50)}..."`);
-    console.log(`📝 [AI Router] Draft reply: "${draftReply.substring(0, 50)}..."`);
-
-    if (provider === "groq") {
-      return groqModelRouter.improveDraft(tweetText, draftReply, modelKey);
-    }
-    return openaiRouter.improveDraft(tweetText, draftReply, modelKey);
+    console.log(`[AI Router] improveDraft called — modelPreference: ${modelPreference ?? "auto"}`);
+    return this.executeWithTierChain(
+      modelPreference,
+      (tier) => this.dispatchImproveToTier(tier, tweetText, draftReply),
+      "improveDraft",
+    );
   }
 
   async reframeTweet(
@@ -73,41 +220,33 @@ export class UnifiedAIRouter {
     degree: number,
     opts: { allowLong?: boolean; retryBoost?: boolean; modelPreference?: string } = {},
   ): Promise<ReplyResponse> {
-    const preferFallbackAsPrimary =
-      !opts.modelPreference ||
-      opts.modelPreference === "auto" ||
-      opts.modelPreference === AI_MODELS.FALLBACK;
-    const modelKey = preferFallbackAsPrimary ? AI_MODELS.DEFAULT : opts.modelPreference!;
-    const provider = this.getProviderForModel(modelKey);
+    console.log(`[AI Router] reframeTweet called — degree: ${degree}, modelPreference: ${opts.modelPreference ?? "auto"}`);
+    return this.executeWithTierChain(
+      opts.modelPreference,
+      (tier) => this.dispatchReframeToTier(tier, source, degree, opts),
+      "reframeTweet",
+    );
+  }
 
-    console.log(`🔧 [AI Router] reframeTweet called - Model: ${modelKey}, degree: ${degree}`);
-
-    try {
-      switch (provider) {
-        case "groq":
-          return await groqModelRouter.reframeTweet(source, degree, { ...opts, modelPreference: modelKey });
-        case "openai":
-          return await openaiRouter.reframeTweet(source, degree, { ...opts, modelPreference: modelKey });
-        default:
-          throw new Error(`Unknown model: ${modelKey}`);
-      }
-    } catch (error) {
-      if (modelKey !== AI_MODELS.FALLBACK) {
-        const message = error instanceof Error ? error.message : "Unknown error";
-        console.log(`⚠️ [AI Router] reframeTweet ${modelKey} failed (${message}), falling back to ${AI_MODELS.FALLBACK}`);
-        return openaiRouter.reframeTweet(source, degree, { ...opts, modelPreference: AI_MODELS.FALLBACK });
-      }
-      throw error;
-    }
+  async generateLinkedInCompletion(
+    systemPrompt: string,
+    userPrompt: string,
+    modelPreference?: string,
+  ): Promise<ReplyResponse> {
+    return this.executeWithTierChain(
+      modelPreference,
+      (tier) => this.dispatchChatToTier(tier, systemPrompt, userPrompt),
+      "generateLinkedInCompletion",
+    );
   }
 
   getAllModels(): ModelInfo[] {
-    const groqModels = groqModelRouter.getAvailableModels().map(model => ({
+    const groqModels = groqModelRouter.getAvailableModels().map((model) => ({
       ...model,
       provider: "groq" as const,
     }));
 
-    const openaiModels = openaiRouter.getAvailableModels().map(model => ({
+    const openaiModels = openaiRouter.getAvailableModels().map((model) => ({
       ...model,
       provider: "openai" as const,
     }));
@@ -119,8 +258,8 @@ export class UnifiedAIRouter {
     const allModels = this.getAllModels();
 
     return {
-      openai: allModels.filter(m => m.provider === "openai"),
-      groq: allModels.filter(m => m.provider === "groq"),
+      openai: allModels.filter((m) => m.provider === "openai"),
+      groq: allModels.filter((m) => m.provider === "groq"),
     };
   }
 
@@ -142,13 +281,13 @@ export class UnifiedAIRouter {
 
     if (provider === "groq") {
       const models = groqModelRouter.getAvailableModels();
-      const info = models.find(m => m.key === modelKey);
+      const info = models.find((m) => m.key === modelKey);
       return info ? { ...info, provider: "groq" } : null;
     }
 
     if (provider === "openai") {
       const models = openaiRouter.getAvailableModels();
-      const info = models.find(m => m.key === modelKey);
+      const info = models.find((m) => m.key === modelKey);
       return info ? { ...info, provider: "openai" } : null;
     }
 
@@ -166,7 +305,10 @@ export class UnifiedAIRouter {
   }
 
   getRecommendedModel(): string {
-    return AI_MODELS.DEFAULT;
+    if (!isModelRoutingEnabled()) {
+      return getGroqTertiaryModel();
+    }
+    return getModelRoutingConfig().find((t) => t.id === "primary")?.model ?? AI_MODELS.DEFAULT;
   }
 }
 

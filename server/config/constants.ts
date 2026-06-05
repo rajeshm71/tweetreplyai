@@ -2,12 +2,42 @@
  * Server-side constants. Single source of truth for AI, quality, validation, and analytics.
  */
 
+import { getGroqTertiaryModel, getModelRoutingConfig, isModelRoutingEnabled } from "./model-routing.js";
+
+function primaryRoutingModel(): string {
+  if (!isModelRoutingEnabled()) {
+    return "meta-llama/llama-4-scout-17b-16e-instruct";
+  }
+  return getModelRoutingConfig().find((t) => t.id === "primary")?.model ?? "gpt-5-chat-latest";
+}
+
+/** Legacy OpenAI fallback when MODEL_ROUTING_ENABLED=false (pre-cascade behavior). */
+export const LEGACY_OPENAI_FALLBACK = "gpt-4o-mini";
+
+function secondaryRoutingModel(): string {
+  // Review fix: rollback path must restore gpt-4o-mini, not tier-2 GPT-5.4 mini.
+  if (!isModelRoutingEnabled()) {
+    return LEGACY_OPENAI_FALLBACK;
+  }
+  return getModelRoutingConfig().find((t) => t.id === "secondary")?.model ?? "gpt-5.4-mini";
+}
+
 export const AI_MODELS = {
-  DEFAULT: "meta-llama/llama-4-scout-17b-16e-instruct",
-  FALLBACK: "gpt-4o-mini",
+  /** Tier-1 when routing enabled; legacy Groq primary when disabled. */
+  get DEFAULT(): string {
+    return primaryRoutingModel();
+  },
+  /** Tier-2 OpenAI model (legacy FALLBACK alias). */
+  get FALLBACK(): string {
+    return secondaryRoutingModel();
+  },
   ANALYSIS: "meta-llama/llama-4-scout-17b-16e-instruct",
   GUARDRAIL: "openai/gpt-oss-safeguard-20b",
-} as const;
+  /** Tier-3 Groq model for cascade terminus + guardrail friendly replies. */
+  get GROQ_TERTIARY(): string {
+    return getGroqTertiaryModel();
+  },
+};
 
 export const AI_PARAMS = {
   TEMPERATURE: 0.7,
@@ -22,6 +52,8 @@ export const AI_PARAMS = {
 
 export const MODEL_SPECS = {
   GPT_4O_MINI: { inputCost: 0.15, outputCost: 0.6, contextWindow: 128000 },
+  GPT_5_CHAT_LATEST: { inputCost: 2.5, outputCost: 15, contextWindow: 128000 },
+  GPT_5_4_MINI: { inputCost: 0.375, outputCost: 2.25, contextWindow: 400000 },
   LLAMA_SCOUT: { inputCost: 0.11, outputCost: 0.34, contextWindow: 131072 },
   GUARDRAIL_SAFEGUARD: { inputCost: 0.075, outputCost: 0.3, contextWindow: 128000 },
 } as const;

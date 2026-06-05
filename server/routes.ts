@@ -30,6 +30,7 @@ import {
 } from "./utils/dodoSubscriptionStatus.js";
 import { tagRequestUser, reportRouteError } from "./utils/sentry.js";
 import { logger } from "./utils/logger.js";
+import { stageBreakdownFromReply } from "./utils/token-usage.js";
 import { formatReceiptAmount } from "./utils/receipt.js";
 // FIX: sendWelcomeEmail removed (unused after switching to emailService.sendWelcome in registration block below)
 import { sendPasswordResetEmail } from "./utils/email.js";
@@ -1390,17 +1391,20 @@ export async function registerRoutes(app: Express): Promise<Express> {
         });
 
         // Persist reply_tokens: guardrail_classification (when usage present) + guardrail_violation (friendly reply)
-        const replyTokensIn = guardrailReply.tokensIn ?? 0;
-        const replyTokensOut = guardrailReply.tokensOut ?? 0;
-        const replyCost = aiRouter.estimateCost(guardrailReply.modelKey, replyTokensIn, replyTokensOut);
+        const guardrailStageTokens = stageBreakdownFromReply(guardrailReply);
+        const replyCost = aiRouter.estimateCost(
+          guardrailReply.modelKey,
+          guardrailStageTokens.promptTokens,
+          guardrailStageTokens.completionTokens,
+        );
         const stageBreakdown = [
           ...guardrailClassificationStage,
           {
             stage: "guardrail_violation",
             modelKey: guardrailReply.modelKey,
-            promptTokens: replyTokensIn,
-            completionTokens: replyTokensOut,
-            totalTokens: replyTokensIn + replyTokensOut,
+            promptTokens: guardrailStageTokens.promptTokens,
+            completionTokens: guardrailStageTokens.completionTokens,
+            totalTokens: guardrailStageTokens.totalTokens,
             cost: replyCost,
             latencyMs: guardrailReply.latencyMs,
           },
@@ -1517,17 +1521,20 @@ export async function registerRoutes(app: Express): Promise<Express> {
           },
         });
 
-        const liTokensIn = linkedInResponse.tokensIn ?? 0;
-        const liTokensOut = linkedInResponse.tokensOut ?? 0;
-        const liCost = aiRouter.estimateCost(linkedInResponse.modelKey, liTokensIn, liTokensOut);
+        const liStageTokens = stageBreakdownFromReply(linkedInResponse);
+        const liCost = aiRouter.estimateCost(
+          linkedInResponse.modelKey,
+          liStageTokens.promptTokens,
+          liStageTokens.completionTokens,
+        );
         const liStageBreakdown = [
           ...guardrailClassificationStage,
           {
             stage: 'reply_generation',
             modelKey: linkedInResponse.modelKey,
-            promptTokens: liTokensIn,
-            completionTokens: liTokensOut,
-            totalTokens: liTokensIn + liTokensOut,
+            promptTokens: liStageTokens.promptTokens,
+            completionTokens: liStageTokens.completionTokens,
+            totalTokens: liStageTokens.totalTokens,
             cost: liCost,
             latencyMs: linkedInResponse.latencyMs,
           },
@@ -1538,9 +1545,9 @@ export async function registerRoutes(app: Express): Promise<Express> {
           userId,
           replyHistoryId: historyEntry.id,
           stageBreakdown: liStageBreakdown,
-          totalPromptTokens: liTokensIn,
-          totalCompletionTokens: liTokensOut,
-          totalTokens: liTokensIn + liTokensOut,
+          totalPromptTokens: liStageTokens.promptTokens,
+          totalCompletionTokens: liStageTokens.completionTokens,
+          totalTokens: liStageTokens.totalTokens,
           totalCost: liCost,
         });
 
@@ -1765,9 +1772,12 @@ export async function registerRoutes(app: Express): Promise<Express> {
       });
 
       // Build stage_breakdown (one entry per LLM call) and persist reply_tokens
-      const tokensIn = replyResponse.tokensIn ?? 0;
-      const tokensOut = replyResponse.tokensOut ?? 0;
-      const replyGenCost = aiRouter.estimateCost(replyResponse.modelKey, tokensIn, tokensOut);
+      const replyStageTokens = stageBreakdownFromReply(replyResponse);
+      const replyGenCost = aiRouter.estimateCost(
+        replyResponse.modelKey,
+        replyStageTokens.promptTokens,
+        replyStageTokens.completionTokens,
+      );
       const analysisStages: Array<{ stage: string; modelKey: string; promptTokens: number; completionTokens: number; totalTokens: number; cost: number; latencyMs: number }> = [];
       if (tweetAnalysis?.stageUsage?.tweet_understanding) {
         const u = tweetAnalysis.stageUsage.tweet_understanding;
@@ -1801,9 +1811,9 @@ export async function registerRoutes(app: Express): Promise<Express> {
         {
           stage: "reply_generation",
           modelKey: replyResponse.modelKey,
-          promptTokens: tokensIn,
-          completionTokens: tokensOut,
-          totalTokens: tokensIn + tokensOut,
+          promptTokens: replyStageTokens.promptTokens,
+          completionTokens: replyStageTokens.completionTokens,
+          totalTokens: replyStageTokens.totalTokens,
           cost: replyGenCost,
           latencyMs: replyResponse.latencyMs,
         },
@@ -3381,17 +3391,20 @@ User draft reply: ${draft_reply}`;
           },
         });
 
-        const replyTokensIn = guardrailReply.tokensIn ?? 0;
-        const replyTokensOut = guardrailReply.tokensOut ?? 0;
-        const replyCost = aiRouter.estimateCost(guardrailReply.modelKey, replyTokensIn, replyTokensOut);
+        const suggestGuardrailTokens = stageBreakdownFromReply(guardrailReply);
+        const replyCost = aiRouter.estimateCost(
+          guardrailReply.modelKey,
+          suggestGuardrailTokens.promptTokens,
+          suggestGuardrailTokens.completionTokens,
+        );
         const stageBreakdown = [
           ...guardrailClassificationStageSuggest,
           {
             stage: "guardrail_violation",
             modelKey: guardrailReply.modelKey,
-            promptTokens: replyTokensIn,
-            completionTokens: replyTokensOut,
-            totalTokens: replyTokensIn + replyTokensOut,
+            promptTokens: suggestGuardrailTokens.promptTokens,
+            completionTokens: suggestGuardrailTokens.completionTokens,
+            totalTokens: suggestGuardrailTokens.totalTokens,
             cost: replyCost,
             latencyMs: guardrailReply.latencyMs,
           },
@@ -3477,16 +3490,19 @@ User draft reply: ${draft_reply}`;
           replyMode: 'improve',
           performance: { latencyMs: improvementResponse.latencyMs },
         });
-        const tokensIn = improvementResponse.tokensIn ?? 0;
-        const tokensOut = improvementResponse.tokensOut ?? 0;
-        const improveCost = aiRouter.estimateCost(improvementResponse.modelKey, tokensIn, tokensOut);
+        const improveStageTokens = stageBreakdownFromReply(improvementResponse);
+        const improveCost = aiRouter.estimateCost(
+          improvementResponse.modelKey,
+          improveStageTokens.promptTokens,
+          improveStageTokens.completionTokens,
+        );
         const stageBreakdown = [
           {
             stage: 'improve_draft',
             modelKey: improvementResponse.modelKey,
-            promptTokens: tokensIn,
-            completionTokens: tokensOut,
-            totalTokens: tokensIn + tokensOut,
+            promptTokens: improveStageTokens.promptTokens,
+            completionTokens: improveStageTokens.completionTokens,
+            totalTokens: improveStageTokens.totalTokens,
             cost: improveCost,
             latencyMs: improvementResponse.latencyMs,
           },
@@ -3496,9 +3512,9 @@ User draft reply: ${draft_reply}`;
           userId,
           replyHistoryId: historyEntry.id,
           stageBreakdown,
-          totalPromptTokens: tokensIn,
-          totalCompletionTokens: tokensOut,
-          totalTokens: tokensIn + tokensOut,
+          totalPromptTokens: improveStageTokens.promptTokens,
+          totalCompletionTokens: improveStageTokens.completionTokens,
+          totalTokens: improveStageTokens.totalTokens,
           totalCost: improveCost,
         });
       }
@@ -3654,17 +3670,20 @@ User draft reply: ${draft_reply}`;
           },
         });
 
-        const replyTokensIn = friendly.tokensIn ?? 0;
-        const replyTokensOut = friendly.tokensOut ?? 0;
-        const replyCost = aiRouter.estimateCost(friendly.modelKey, replyTokensIn, replyTokensOut);
+        const reframeGuardrailTokens = stageBreakdownFromReply(friendly);
+        const replyCost = aiRouter.estimateCost(
+          friendly.modelKey,
+          reframeGuardrailTokens.promptTokens,
+          reframeGuardrailTokens.completionTokens,
+        );
         const stageBreakdown = [
           ...guardrailClassificationStage,
           {
             stage: "guardrail_violation",
             modelKey: friendly.modelKey,
-            promptTokens: replyTokensIn,
-            completionTokens: replyTokensOut,
-            totalTokens: replyTokensIn + replyTokensOut,
+            promptTokens: reframeGuardrailTokens.promptTokens,
+            completionTokens: reframeGuardrailTokens.completionTokens,
+            totalTokens: reframeGuardrailTokens.totalTokens,
             cost: replyCost,
             latencyMs: friendly.latencyMs,
           },
@@ -3776,15 +3795,14 @@ User draft reply: ${draft_reply}`;
           stage: string,
           gen: typeof generation,
         ) => {
-          const promptTokens = gen.tokensIn ?? 0;
-          const completionTokens = gen.tokensOut ?? 0;
+          const tokens = stageBreakdownFromReply(gen);
           return {
             stage,
             modelKey: gen.modelKey,
-            promptTokens,
-            completionTokens,
-            totalTokens: promptTokens + completionTokens,
-            cost: aiRouter.estimateCost(gen.modelKey, promptTokens, completionTokens),
+            promptTokens: tokens.promptTokens,
+            completionTokens: tokens.completionTokens,
+            totalTokens: tokens.totalTokens,
+            cost: aiRouter.estimateCost(gen.modelKey, tokens.promptTokens, tokens.completionTokens),
             latencyMs: gen.latencyMs,
           };
         };
@@ -4838,6 +4856,13 @@ User draft reply: ${draft_reply}`;
         .slice(0, 10)
         .map(([code, count]) => ({ code, count }));
 
+      const { getTierUsageToday } = await import('./services/model-token-budget.js');
+      const [primaryUsage, secondaryUsage, tertiaryUsage] = await Promise.all([
+        getTierUsageToday('primary'),
+        getTierUsageToday('secondary'),
+        getTierUsageToday('tertiary'),
+      ]);
+
       res.json({
         dau: Number.isFinite(dauCount) ? dauCount : 0,
         replies24h: repliesRes.count ?? 0,
@@ -4847,6 +4872,11 @@ User draft reply: ${draft_reply}`;
         canceledSubscriptions30d: canceledRes.count ?? 0,
         topErrors,
         telemetryEvents24h: errorsRes.length,
+        modelTierUsageToday: {
+          primary: primaryUsage,
+          secondary: secondaryUsage,
+          tertiary: tertiaryUsage,
+        },
         generatedAt: new Date().toISOString(),
       });
     } catch (error: any) {

@@ -1,5 +1,6 @@
-import { Groq } from "groq-sdk";
-import { AI_MODELS, AI_PARAMS, LINKEDIN_REPLY_LIMITS } from "../config/constants.js";
+import { LINKEDIN_REPLY_LIMITS } from "../config/constants.js";
+import { getGroqTertiaryModel } from "../config/model-routing.js";
+import { aiRouter } from "./ai-router.js";
 import {
   linkedInAnalysisAgents,
   type LinkedInPostAnalysis,
@@ -22,14 +23,6 @@ import {
   POST_REWRITE_RETRY_HINT,
   POST_SELF_REF_RETRY_HINT,
 } from "./linkedin-reply-similarity.js";
-
-// Lazy-init to keep unit tests fast and avoid Groq constructor work at import time.
-let groqClient: Groq | null | undefined;
-function getGroqClient(): Groq | null {
-  if (groqClient !== undefined) return groqClient;
-  groqClient = process.env.GROQ_API_KEY ? new Groq() : null;
-  return groqClient;
-}
 
 export interface LinkedInReplyOptions {
   postText: string;
@@ -149,37 +142,16 @@ export interface LinkedInReplyResponse {
   latencyMs: number;
 }
 
-async function callGroq(
+async function callLinkedInModel(
   systemPrompt: string,
   userPrompt: string,
-): Promise<{ text: string; tokensIn: number; tokensOut: number }> {
-  const groq = getGroqClient();
-  if (!groq) {
-    return {
-      text: "Yeah — most teams still skip the listening part before acting.",
-      tokensIn: 0,
-      tokensOut: 0,
-    };
-  }
-
-  const response = await groq.chat.completions.create({
-    model: AI_MODELS.DEFAULT,
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userPrompt },
-    ],
-    temperature: AI_PARAMS.TEMPERATURE,
-    max_tokens: AI_PARAMS.GROQ_MAX_TOKENS,
-    stream: false,
-  });
-
-  const text = response.choices[0]?.message?.content ?? "";
-  const usage = response.usage;
-
+): Promise<{ text: string; tokensIn: number; tokensOut: number; modelKey: string }> {
+  const response = await aiRouter.generateLinkedInCompletion(systemPrompt, userPrompt);
   return {
-    text,
-    tokensIn: usage?.prompt_tokens ?? 0,
-    tokensOut: usage?.completion_tokens ?? 0,
+    text: response.reply,
+    tokensIn: response.tokensIn ?? 0,
+    tokensOut: response.tokensOut ?? 0,
+    modelKey: response.modelKey,
   };
 }
 
@@ -233,15 +205,15 @@ export async function generateLinkedInReply(
   console.log("[LinkedIn] System prompt:", systemPrompt);
   console.log("[LinkedIn] User prompt:", userPrompt);
 
-  let rawResult: { text: string; tokensIn: number; tokensOut: number };
+  let rawResult: { text: string; tokensIn: number; tokensOut: number; modelKey: string };
 
   try {
-    rawResult = await callGroq(systemPrompt, userPrompt);
+    rawResult = await callLinkedInModel(systemPrompt, userPrompt);
   } catch (error: any) {
     console.error("[LinkedIn] LLM call failed:", error.message);
     return {
       reply: "Failed to generate reply. Please try again.",
-      modelKey: AI_MODELS.DEFAULT,
+      modelKey: getGroqTertiaryModel(),
       latencyMs: Date.now() - startTime,
     };
   }
@@ -308,7 +280,7 @@ export async function generateLinkedInReply(
           ? `${retryUserPromptBase}\n\n${retryHints.join("\n\n")}`
           : retryUserPromptBase;
 
-      const retryResult = await callGroq(retrySystemPrompt, retryUserPrompt);
+      const retryResult = await callLinkedInModel(retrySystemPrompt, retryUserPrompt);
       const retryProcessed = replyPostProcessor.processReply(
         retryResult.text,
         options.replyMode,
@@ -322,7 +294,7 @@ export async function generateLinkedInReply(
         );
         return {
           reply: retryProcessed,
-          modelKey: AI_MODELS.DEFAULT,
+          modelKey: retryResult.modelKey,
           tokensIn: rawResult.tokensIn + retryResult.tokensIn,
           tokensOut: rawResult.tokensOut + retryResult.tokensOut,
           latencyMs: Date.now() - startTime,
@@ -335,7 +307,7 @@ export async function generateLinkedInReply(
 
   return {
     reply: processed,
-    modelKey: AI_MODELS.DEFAULT,
+    modelKey: rawResult.modelKey,
     tokensIn: rawResult.tokensIn,
     tokensOut: rawResult.tokensOut,
     latencyMs: Date.now() - startTime,

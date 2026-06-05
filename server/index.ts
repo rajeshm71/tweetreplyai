@@ -10,8 +10,11 @@ import { redactForLogs, safeStringifyForLogs } from "./utils/logging.js";
 import { registerCrashHandlers } from "./utils/crashHandlers.js";
 import { initSentry, Sentry } from "./utils/sentry.js";
 import { HTTP } from "./config/constants.js";
+import { logModelRoutingConfigAtStartup } from "./config/model-routing.js";
+import { preloadTiktokenEncoder } from "./utils/token-usage.js";
 
 initSentry();
+logModelRoutingConfigAtStartup();
 registerCrashHandlers();
 
 const app = express();
@@ -70,6 +73,8 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // Review fix: await tiktoken preload before serving traffic (plan §2a — no char/4 race on OpenAI budget).
+  await preloadTiktokenEncoder();
   const appWithRoutes = await registerRoutes(app);
   const server = createServer(appWithRoutes);
 
