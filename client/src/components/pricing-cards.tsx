@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { IconCheck, IconSparkles, IconRocket, IconCrown } from "@tabler/icons-react";
 import { apiRequest } from "@/lib/queryClient";
 import { PRICING_CONFIG, creditsPerCycleLabel, formatCreditsLimit } from "@/config/pricing";
+import { PRICING_MORE_FEATURES_LABEL, PRICING_PRODUCT_FEATURES } from "@/config/product-features";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import { ManageSubscriptionModal } from "@/components/manage-subscription-modal";
 
@@ -21,6 +22,22 @@ interface SubscriptionStatus {
 }
 
 const ALLOWED_AUTO_PLANS = ["weekly", "monthly"] as const;
+
+function FeatureCheckList({ accentClass }: { accentClass: string }) {
+  return (
+    <div className="space-y-4 mb-8">
+      {PRICING_PRODUCT_FEATURES.map((feature) => (
+        <div key={feature} className="flex items-center space-x-3">
+          <IconCheck className={`w-4 h-4 ${accentClass} flex-shrink-0`} />
+          <span className="text-sm">{feature}</span>
+        </div>
+      ))}
+      <div className="flex items-center space-x-3 pt-2">
+        <span className="text-sm text-muted-foreground font-medium">{PRICING_MORE_FEATURES_LABEL}</span>
+      </div>
+    </div>
+  );
+}
 
 /**
  * Pricing cards for trial, weekly, and monthly plans.
@@ -251,31 +268,7 @@ export function PricingCards({
             <div className="text-muted-foreground">{creditsPerCycleLabel(PRICING_CONFIG.trial)}</div>
           </div>
           
-          <div className="space-y-4 mb-8">
-            <div className="flex items-center space-x-3">
-              <IconCheck className={`w-4 h-4 ${pricingTiers.trial.textColor} flex-shrink-0`} />
-              <span className="text-sm">Smart Tone Detection</span>
-            </div>
-            <div className="flex items-center space-x-3">
-              <IconCheck className={`w-4 h-4 ${pricingTiers.trial.textColor} flex-shrink-0`} />
-              <span className="text-sm">Context Aware Replies</span>
-            </div>
-            <div className="flex items-center space-x-3">
-              <IconCheck className={`w-4 h-4 ${pricingTiers.trial.textColor} flex-shrink-0`} />
-              <span className="text-sm">Auto Like on Reply</span>
-            </div>
-            <div className="flex items-center space-x-3">
-              <IconCheck className={`w-4 h-4 ${pricingTiers.trial.textColor} flex-shrink-0`} />
-              <span className="text-sm">Quality Scoring</span>
-            </div>
-            <div className="flex items-center space-x-3">
-              <IconCheck className={`w-4 h-4 ${pricingTiers.trial.textColor} flex-shrink-0`} />
-              <span className="text-sm">History Tracking</span>
-            </div>
-            <div className="flex items-center space-x-3 pt-2">
-              <span className="text-sm text-muted-foreground font-medium">+7 more features</span>
-            </div>
-          </div>
+          <FeatureCheckList accentClass={pricingTiers.trial.textColor} />
           
           {isAuthenticated ? (
             <Button
@@ -359,31 +352,7 @@ export function PricingCards({
             <div className="text-muted-foreground">{creditsPerCycleLabel(PRICING_CONFIG.weekly)}</div>
           </div>
           
-          <div className="space-y-4 mb-8">
-            <div className="flex items-center space-x-3">
-              <IconCheck className={`w-4 h-4 ${pricingTiers.weekly.textColor} flex-shrink-0`} />
-              <span className="text-sm">Smart Tone Detection</span>
-            </div>
-            <div className="flex items-center space-x-3">
-              <IconCheck className={`w-4 h-4 ${pricingTiers.weekly.textColor} flex-shrink-0`} />
-              <span className="text-sm">Context Aware Replies</span>
-            </div>
-            <div className="flex items-center space-x-3">
-              <IconCheck className={`w-4 h-4 ${pricingTiers.weekly.textColor} flex-shrink-0`} />
-              <span className="text-sm">Auto Like on Reply</span>
-            </div>
-            <div className="flex items-center space-x-3">
-              <IconCheck className={`w-4 h-4 ${pricingTiers.weekly.textColor} flex-shrink-0`} />
-              <span className="text-sm">Quality Scoring</span>
-            </div>
-            <div className="flex items-center space-x-3">
-              <IconCheck className={`w-4 h-4 ${pricingTiers.weekly.textColor} flex-shrink-0`} />
-              <span className="text-sm">History Tracking</span>
-            </div>
-            <div className="flex items-center space-x-3 pt-2">
-              <span className="text-sm text-muted-foreground font-medium">+7 more features</span>
-            </div>
-          </div>
+          <FeatureCheckList accentClass={pricingTiers.weekly.textColor} />
           
           <Button 
             className={`w-full font-medium ${(currentSubscription?.planCode || '').toLowerCase() === 'weekly' ? 'bg-transparent border-2 border-green-500 text-green-600 hover:bg-green-50' : `bg-gradient-to-r ${pricingTiers.weekly.buttonGradient} text-white border-0`} shadow-lg`}
@@ -457,31 +426,7 @@ export function PricingCards({
             <div className="text-muted-foreground">{creditsPerCycleLabel(PRICING_CONFIG.monthly)}</div>
           </div>
           
-          <div className="space-y-4 mb-8">
-            <div className="flex items-center space-x-3">
-              <IconCheck className={`w-4 h-4 ${pricingTiers.monthly.textColor} flex-shrink-0`} />
-              <span className="text-sm">Smart Tone Detection</span>
-            </div>
-            <div className="flex items-center space-x-3">
-              <IconCheck className={`w-4 h-4 ${pricingTiers.monthly.textColor} flex-shrink-0`} />
-              <span className="text-sm">Context Aware Replies</span>
-            </div>
-            <div className="flex items-center space-x-3">
-              <IconCheck className={`w-4 h-4 ${pricingTiers.monthly.textColor} flex-shrink-0`} />
-              <span className="text-sm">Auto Like on Reply</span>
-            </div>
-            <div className="flex items-center space-x-3">
-              <IconCheck className={`w-4 h-4 ${pricingTiers.monthly.textColor} flex-shrink-0`} />
-              <span className="text-sm">Quality Scoring</span>
-            </div>
-            <div className="flex items-center space-x-3">
-              <IconCheck className={`w-4 h-4 ${pricingTiers.monthly.textColor} flex-shrink-0`} />
-              <span className="text-sm">History Tracking</span>
-            </div>
-            <div className="flex items-center space-x-3 pt-2">
-              <span className="text-sm text-muted-foreground font-medium">+7 more features</span>
-            </div>
-          </div>
+          <FeatureCheckList accentClass={pricingTiers.monthly.textColor} />
           
           <Button 
             className={`w-full font-medium ${(currentSubscription?.planCode || '').toLowerCase() === 'monthly' ? 'bg-transparent border-2 border-purple-500 text-purple-600 hover:bg-purple-50' : `bg-gradient-to-r ${pricingTiers.monthly.buttonGradient} text-white border-0`} shadow-lg`}

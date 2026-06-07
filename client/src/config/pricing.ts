@@ -31,8 +31,6 @@ export const PRICING_CONFIG = {
     features: [
       `${PLAN_LIMITS.trial.credits} credits during trial`,
       'Chrome extension access',
-      'Mobile web interface',
-      'AI generated replies',
     ],
     buttonCta: 'Subscribe',
   },
@@ -44,8 +42,6 @@ export const PRICING_CONFIG = {
     originalPrice: 7.99,
     creditsLimit: PLAN_LIMITS.weekly.credits,
     features: [
-      'All trial features',
-      'Priority AI model access',
       'Email support',
     ],
     offer: {
@@ -63,7 +59,6 @@ export const PRICING_CONFIG = {
     originalPrice: 19.99,
     creditsLimit: PLAN_LIMITS.monthly.credits,
     features: [
-      'All weekly features',
       'Best value per credit',
       'Priority support',
     ],
