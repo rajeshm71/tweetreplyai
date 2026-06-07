@@ -134,7 +134,7 @@ export const WHITELIST = {
   LOW_CREDITS_WARNING_THRESHOLD: 10,
   DEFAULT_BYPASS_LIMIT: 10000,
   /** When true, whitelisted users see the model dropdown in the extension; when false, nobody sees it. */
-  SHOW_MODEL_SELECT_FOR_WHITELIST: false,
+  SHOW_MODEL_SELECT_FOR_WHITELIST: true,
 } as const;
 
 /** Rate limits for API (global and generate-reply). Trust proxy must be set so req.ip is correct. */
