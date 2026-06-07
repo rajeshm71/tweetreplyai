@@ -92,12 +92,12 @@ export default function AppPricingPage() {
       : undefined;
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
       <AppHeader />
 
-      <div className="max-w-6xl mx-auto px-4 py-8 sm:px-6">
+      <main className="flex-1 max-w-6xl mx-auto px-4 py-5 sm:px-6 w-full">
         {hasActiveSubscription && subscriptionForModal && (
-          <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-2 min-w-0">
               <span className="text-sm text-muted-foreground">Current plan</span>
               <span className="text-sm font-medium truncate">{planDetails?.name ?? subscriptionForModal.planName}</span>
@@ -117,12 +117,12 @@ export default function AppPricingPage() {
         )}
 
         <div ref={highlightPlan ? highlightPlanRef : undefined}>
-          <h2 className="text-2xl font-semibold mb-6">
+          <h2 className="text-2xl font-semibold mb-4">
             {hasActiveSubscription ? "Plans" : "Choose your plan"}
           </h2>
           <PricingCards initialPlanCode={highlightPlan ?? undefined} autoCheckout={autoCheckoutFlag} usagePlanCode={usageStatus?.planCode ?? undefined} />
         </div>
-      </div>
+      </main>
 
       {subscriptionForModal && (
         <ManageSubscriptionModal

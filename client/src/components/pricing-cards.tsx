@@ -25,7 +25,7 @@ const ALLOWED_AUTO_PLANS = ["weekly", "monthly"] as const;
 
 function FeatureCheckList({ accentClass }: { accentClass: string }) {
   return (
-    <div className="space-y-4 mb-8">
+    <div className="space-y-2.5 mb-5">
       {PRICING_PRODUCT_FEATURES.map((feature) => (
         <div key={feature} className="flex items-center space-x-3">
           <IconCheck className={`w-4 h-4 ${accentClass} flex-shrink-0`} />
@@ -232,7 +232,7 @@ export function PricingCards({
         : 'Trial already used';
 
   return (
-    <div className="grid md:grid-cols-3 gap-6 lg:gap-8 max-w-6xl mx-auto w-full">
+    <div className="grid md:grid-cols-3 gap-6 lg:gap-8 max-w-6xl mx-auto w-full pt-5">
       {/* Free Trial */}
       <Card className={`relative overflow-hidden border-2 ${pricingTiers.trial.borderColor} ${pricingTiers.trial.hoverBorder} group ${isAuthenticated ? 'opacity-75' : ''}`}>
         {/* Gradient background - static opacity, no hover animation */}
@@ -243,8 +243,8 @@ export function PricingCards({
           </div>
         )}
         
-        <CardContent className="p-8 relative z-10">
-          <div className="text-center mb-6">
+        <CardContent className="p-6 relative z-10">
+          <div className="text-center mb-4">
             {/* Icon */}
             <div className="flex justify-center mb-4">
               <div className={`w-12 h-12 rounded-xl ${pricingTiers.trial.solidBg} flex items-center justify-center`}>
@@ -291,7 +291,7 @@ export function PricingCards({
       </Card>
 
       {/* Weekly Plan */}
-      <Card className={`relative overflow-visible border-2 ${pricingTiers.weekly.borderColor} ${pricingTiers.weekly.hoverBorder} group shadow-[0_0_30px_rgba(34,197,94,0.2)]`}>
+      <Card className={`relative overflow-hidden border-2 ${pricingTiers.weekly.borderColor} ${pricingTiers.weekly.hoverBorder} group shadow-lg shadow-green-500/20`}>
         {/* Enhanced Most Popular badge - Redesigned for better visibility */}
         <div className="absolute -top-4 left-1/2 transform -translate-x-1/2 z-50">
           <Badge className="bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-500 text-white border-2 border-amber-600 shadow-2xl font-bold px-4 py-1.5 text-sm whitespace-nowrap">
@@ -307,10 +307,9 @@ export function PricingCards({
         
         {/* Gradient background with glow */}
         <div className={`absolute inset-0 bg-gradient-to-br ${pricingTiers.weekly.cardGradient} opacity-50`} />
-        <div className="absolute inset-0 bg-gradient-to-r from-green-500/10 to-emerald-500/10 opacity-30 blur-xl" />
         
-        <CardContent className="p-8 relative z-10 pt-10">
-          <div className="text-center mb-6">
+        <CardContent className="p-6 relative z-10 pt-8">
+          <div className="text-center mb-4">
             {/* Icon */}
             <div className="flex justify-center mb-4">
               <div className={`w-12 h-12 rounded-xl ${pricingTiers.weekly.solidBg} flex items-center justify-center`}>
@@ -383,8 +382,8 @@ export function PricingCards({
         {/* Gradient background */}
         <div className={`absolute inset-0 bg-gradient-to-br ${pricingTiers.monthly.cardGradient} opacity-50`} />
         
-        <CardContent className="p-8 relative z-10">
-          <div className="text-center mb-6">
+        <CardContent className="p-6 relative z-10">
+          <div className="text-center mb-4">
             {/* Icon */}
             <div className="flex justify-center mb-4">
               <div className={`w-12 h-12 rounded-xl ${pricingTiers.monthly.solidBg} flex items-center justify-center`}>
