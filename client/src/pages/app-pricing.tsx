@@ -95,7 +95,7 @@ export default function AppPricingPage() {
     <div className="min-h-screen bg-background">
       <AppHeader />
 
-      <div className="max-w-4xl mx-auto px-4 py-8 sm:px-6">
+      <div className="max-w-6xl mx-auto px-4 py-8 sm:px-6">
         {hasActiveSubscription && subscriptionForModal && (
           <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-2 min-w-0">

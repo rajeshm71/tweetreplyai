@@ -232,7 +232,7 @@ export function PricingCards({
         : 'Trial already used';
 
   return (
-    <div className="grid md:grid-cols-3 gap-8 max-w-4xl mx-auto">
+    <div className="grid md:grid-cols-3 gap-6 lg:gap-8 max-w-6xl mx-auto w-full">
       {/* Free Trial */}
       <Card className={`relative overflow-hidden border-2 ${pricingTiers.trial.borderColor} ${pricingTiers.trial.hoverBorder} group ${isAuthenticated ? 'opacity-75' : ''}`}>
         {/* Gradient background - static opacity, no hover animation */}
