@@ -255,7 +255,7 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen lg:h-dvh bg-background flex flex-col lg:overflow-hidden">
+    <div className="min-h-screen bg-background">
       {/* Sprint 3: Skip to content link for accessibility */}
       <a href="#main-content" className="skip-to-content">
         Skip to main content
@@ -264,7 +264,7 @@ export default function Home() {
 
 
       {/* Main Dashboard Content - Sprint 3: Added main landmark for accessibility */}
-      <main id="main-content" className="container mx-auto px-4 py-4 max-w-7xl flex-1 min-h-0 flex flex-col" role="main">
+      <main id="main-content" className="container mx-auto px-4 pt-4 pb-6 max-w-7xl" role="main">
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_350px] gap-8 items-start">
           {/* Left Column */}
           <div className="min-w-0" data-generate-reply>
@@ -288,7 +288,7 @@ export default function Home() {
           </div>
 
           {/* Right Column: Quick Stats + Quick Access (30% on desktop) */}
-          <div className="flex flex-col gap-5">
+          <div className="flex flex-col gap-4 self-start w-full">
             {/* Usage Counter - Visually Stunning Design */}
             {usageStatus && (
               <div className="shrink-0">
@@ -422,32 +422,32 @@ export default function Home() {
 
             {/* Quick Stats - Sprint 2: Modernized with enhanced styling */}
             {usageStatus && (
-              <div>
-                <Card className="card-modern-enhanced border border-primary/20 bg-gradient-to-br from-card to-card/50">
-                  <CardContent className="p-5">
-                    <div className="flex items-center gap-2 mb-4">
+              <div className="self-start w-full">
+                <Card className="card-modern-enhanced border border-primary/20 bg-gradient-to-br from-card to-card/50 h-auto">
+                  <CardContent className="p-4 pb-4">
+                    <div className="flex items-center gap-2 mb-3">
                       <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
                         <IconTrendingUp className="w-4 h-4 text-white" />
                       </div>
                       <h3 className="font-semibold text-lg">Quick Stats</h3>
                     </div>
-                    <div className="space-y-3">
-                      <div className="flex items-center p-4 bg-gradient-to-br from-muted/50 to-muted/30 rounded-xl border border-border/50">
+                    <div className="space-y-2">
+                      <div className="flex items-center px-4 py-3 bg-gradient-to-br from-muted/50 to-muted/30 rounded-xl border border-border/50">
                         <div>
                           <p className="text-sm text-muted-foreground font-medium">Today</p>
-                          <p className="text-2xl font-bold text-primary mt-1">{todayReplies}</p>
+                          <p className="text-xl font-bold text-primary mt-0.5">{todayReplies}</p>
                         </div>
                       </div>
-                      <div className="flex items-center p-4 bg-gradient-to-br from-muted/50 to-muted/30 rounded-xl border border-border/50">
+                      <div className="flex items-center px-4 py-3 bg-gradient-to-br from-muted/50 to-muted/30 rounded-xl border border-border/50">
                         <div>
                           <p className="text-sm text-muted-foreground font-medium">This Week</p>
-                          <p className="text-2xl font-bold text-primary mt-1">{thisWeekReplies}</p>
+                          <p className="text-xl font-bold text-primary mt-0.5">{thisWeekReplies}</p>
                         </div>
                       </div>
-                      <div className="flex items-center p-4 bg-gradient-to-br from-muted/50 to-muted/30 rounded-xl border border-border/50">
+                      <div className="flex items-center px-4 py-3 bg-gradient-to-br from-muted/50 to-muted/30 rounded-xl border border-border/50">
                         <div>
                           <p className="text-sm text-muted-foreground font-medium">This Month</p>
-                          <p className="text-2xl font-bold text-primary mt-1">{thisMonthReplies}</p>
+                          <p className="text-xl font-bold text-primary mt-0.5">{thisMonthReplies}</p>
                         </div>
                       </div>
                     </div>
