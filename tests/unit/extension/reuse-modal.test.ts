@@ -65,6 +65,7 @@ describe("createReuseModal (extension helper)", () => {
     expect(modal.querySelector(".tweetreply-reuse-degree-band")?.textContent).toBe("Balanced");
     expect(modal.querySelector(".tweetreply-reuse-degree-hint")?.textContent).toMatch(/Clearer takeaway/);
     expect(modal.querySelector(".tweetreply-reuse-style-select")).toBeNull();
+    expect(modal.querySelector(".tweetreply-reuse-model-select")).toBeNull();
 
     handle.close();
     expect(document.getElementById(REUSE.MODAL_ID)).toBeNull();
@@ -85,6 +86,95 @@ describe("createReuseModal (extension helper)", () => {
     slider.value = "85";
     slider.dispatchEvent(new Event("input"));
     expect(band.textContent).toBe("Reimagined");
+  });
+
+  const mockSelectableModels = [
+    { key: "auto", name: "Auto", tierId: "auto", provider: "auto" },
+    { key: "gpt-4.1-mini", name: "GPT-4.1 Mini", tierId: "secondary", provider: "openai" },
+    { key: "gpt-5-chat-latest", name: "GPT-5 Chat Latest", tierId: "primary", provider: "openai" },
+  ];
+
+  it("renders model select when usagePicker.showModelSelect is true", () => {
+    const deps = makeDeps({
+      usagePicker: {
+        showModelSelect: true,
+        selectableModels: mockSelectableModels,
+      },
+    });
+    createReuseModal({ text: "Source tweet goes here with enough content to reuse.", author: "alice" }, deps);
+
+    const modal = document.getElementById(REUSE.MODAL_ID)!;
+    const modelSelect = modal.querySelector<HTMLSelectElement>(".tweetreply-reuse-model-select");
+    expect(modelSelect).toBeTruthy();
+    expect(modal.querySelector('optgroup[label="Auto"]')).toBeTruthy();
+    expect(modal.querySelector('optgroup[label="Tier 2"]')).toBeTruthy();
+    expect(modal.querySelector('.tweetreply-reuse-slider')).toBeTruthy();
+    const fields = Array.from(modal.querySelectorAll(".tweetreply-reuse-field"));
+    const modelFieldIndex = fields.findIndex((f) => f.querySelector(".tweetreply-reuse-model-select"));
+    const sliderFieldIndex = fields.findIndex((f) => f.querySelector(".tweetreply-reuse-slider"));
+    expect(modelFieldIndex).toBeGreaterThanOrEqual(0);
+    expect(sliderFieldIndex).toBeGreaterThan(modelFieldIndex);
+  });
+
+  it("Generate sends model_key when an explicit model is selected", async () => {
+    const deps = makeDeps({
+      usagePicker: {
+        showModelSelect: true,
+        selectableModels: mockSelectableModels,
+      },
+    });
+    deps.apiClient.reframeTweet.mockResolvedValueOnce({
+      reframed: "Reframed with gpt-4.1-mini",
+      qualityScore: 80,
+      originalityScore: 70,
+      degree: 50,
+      band: "balanced",
+      meta: { modelKey: "gpt-4.1-mini", latencyMs: 200, originalityScore: 70 },
+    });
+    createReuseModal({ text: "This is the source tweet text.", author: "alice" }, deps);
+
+    const modal = document.getElementById(REUSE.MODAL_ID)!;
+    const modelSelect = modal.querySelector<HTMLSelectElement>(".tweetreply-reuse-model-select")!;
+    modelSelect.value = "gpt-4.1-mini";
+
+    modal.querySelector<HTMLButtonElement>(".tweetreply-reuse-generate")!.click();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(deps.apiClient.reframeTweet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        source_tweet: "This is the source tweet text.",
+        model_key: "gpt-4.1-mini",
+      }),
+    );
+  });
+
+  it("Generate omits model_key when Auto is selected", async () => {
+    const deps = makeDeps({
+      usagePicker: {
+        showModelSelect: true,
+        selectableModels: mockSelectableModels,
+      },
+    });
+    deps.apiClient.reframeTweet.mockResolvedValueOnce({
+      reframed: "Auto reframed tweet",
+      qualityScore: 75,
+      originalityScore: 65,
+      degree: 50,
+      band: "balanced",
+      meta: { modelKey: "gpt-5.4-mini", latencyMs: 150, originalityScore: 65 },
+    });
+    createReuseModal({ text: "This is the source tweet text.", author: "alice" }, deps);
+
+    const modal = document.getElementById(REUSE.MODAL_ID)!;
+    const modelSelect = modal.querySelector<HTMLSelectElement>(".tweetreply-reuse-model-select")!;
+    modelSelect.value = "auto";
+
+    modal.querySelector<HTMLButtonElement>(".tweetreply-reuse-generate")!.click();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(deps.apiClient.reframeTweet.mock.calls[0][0]).not.toHaveProperty("model_key");
   });
 
   it("Generate calls apiClient.reframeTweet with the expected payload and fills the textarea", async () => {

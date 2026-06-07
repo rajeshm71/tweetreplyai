@@ -1,4 +1,5 @@
 import { captureExtensionError } from '../../utils/sentry.js';
+import { createModelSelectElement } from './model-select.js';
 
 /**
  * Pure factory for the "Reuse tweet" modal. Returns a handle with `close()`
@@ -12,6 +13,7 @@ import { captureExtensionError } from '../../utils/sentry.js';
  *   deps.getUserFacingError — named export from utils/userFacingErrors.js
  *   deps.constants          — REUSE constants (selectors, limits, bands)
  *   deps.loginUrl?          — link for the "Upgrade" CTA on 402 errors
+ *   deps.usagePicker?       — { showModelSelect, selectableModels } for whitelist model dropdown
  */
 
 const DEFAULT_BANDS = [
@@ -76,6 +78,7 @@ export function createReuseModal(payload, deps) {
     getUserFacingError,
     constants,
     loginUrl = 'https://tweetreplyai.vercel.app/login',
+    usagePicker,
   } = deps || {};
 
   const MODAL_ID = constants?.MODAL_ID || 'tweetreply-reuse-modal';
@@ -178,6 +181,20 @@ export function createReuseModal(payload, deps) {
     preview.appendChild(moreBtn);
   }
   card.appendChild(preview);
+
+  // Model picker (whitelist only) -------------------------------------------
+  let modelSelectEl = null;
+  if (usagePicker?.showModelSelect) {
+    modelSelectEl = createModelSelectElement({
+      selectableModels: usagePicker.selectableModels ?? null,
+      className: 'tweetreply-reuse-model-select',
+      title: 'Choose AI model',
+    });
+    card.appendChild(h('label', { class: 'tweetreply-reuse-field' }, [
+      h('div', { class: 'tweetreply-reuse-field-label' }, 'AI model'),
+      modelSelectEl,
+    ]));
+  }
 
   // Slider ------------------------------------------------------------------
   const slider = h('input', {
@@ -481,12 +498,14 @@ export function createReuseModal(payload, deps) {
     const startedAt = Date.now();
 
     try {
+      const modelKey = modelSelectEl?.value || 'auto';
       const res = await apiClient.reframeTweet({
         source_tweet: sourceText,
         degree,
         source_author: author || undefined,
         source_tweet_url: tweetUrl,
         allow_long: allowLong,
+        ...(modelKey !== 'auto' ? { model_key: modelKey } : {}),
       });
       if (token !== requestToken) return;
 

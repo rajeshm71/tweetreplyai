@@ -519,7 +519,8 @@
   accent-color: rgb(29, 155, 240);
 }
 
-.tweetreply-reuse-style-select {
+.tweetreply-reuse-style-select,
+.tweetreply-reuse-model-select {
   width: 100%;
   padding: 8px 10px;
   border-radius: 10px;
@@ -852,6 +853,7 @@
   }
 
   .tweetreply-reuse-style-select,
+  .tweetreply-reuse-model-select,
   .tweetreply-reuse-result {
     background: rgb(21, 32, 43);
     color: rgb(231, 233, 234);

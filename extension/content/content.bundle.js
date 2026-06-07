@@ -7296,6 +7296,86 @@ ${cta}` : cta;
     });
   }
 
+  // extension/content/helpers/model-select.js
+  var MODEL_STORAGE_KEY = "tweetreply_model";
+  function getModelSelectOptgroupLabel(tierId) {
+    if (tierId === "auto") return "Auto";
+    if (tierId === "primary") return "Tier 1";
+    if (tierId === "secondary") return "Tier 2";
+    if (tierId === "tertiary") return "Groq";
+    return "Models";
+  }
+  function populateModelSelectFromUsage(select, selectableModels, savedModelKey) {
+    if (!selectableModels || !Array.isArray(selectableModels) || selectableModels.length === 0) {
+      const autoOpt = document.createElement("option");
+      autoOpt.value = "auto";
+      autoOpt.textContent = "Auto";
+      select.appendChild(autoOpt);
+      select.value = "auto";
+      return;
+    }
+    const groups = /* @__PURE__ */ new Map();
+    for (const model of selectableModels) {
+      const tierId = model.tierId || "secondary";
+      if (!groups.has(tierId)) groups.set(tierId, []);
+      groups.get(tierId).push(model);
+    }
+    const tierOrder = ["auto", "primary", "secondary", "tertiary"];
+    for (const tierId of tierOrder) {
+      const entries = groups.get(tierId);
+      if (!entries?.length) continue;
+      const optgroup = document.createElement("optgroup");
+      optgroup.label = getModelSelectOptgroupLabel(tierId);
+      for (const model of entries) {
+        const option = document.createElement("option");
+        option.value = model.key;
+        option.textContent = model.name;
+        optgroup.appendChild(option);
+      }
+      select.appendChild(optgroup);
+    }
+    const options = Array.from(select.querySelectorAll("option"));
+    if (savedModelKey && options.some((o) => o.value === savedModelKey)) {
+      select.value = savedModelKey;
+    } else {
+      select.value = "auto";
+    }
+  }
+  function createModelSelectElement({
+    selectableModels,
+    storageKey = MODEL_STORAGE_KEY,
+    className,
+    title = "Choose AI model"
+  }) {
+    const select = document.createElement("select");
+    select.className = className;
+    select.title = title;
+    const applyOptions = (savedModelKey) => {
+      select.replaceChildren();
+      populateModelSelectFromUsage(select, selectableModels, savedModelKey);
+    };
+    try {
+      const storage = chrome?.storage?.local;
+      if (storage?.get) {
+        storage.get([storageKey], (data) => {
+          const saved = data && typeof data[storageKey] === "string" ? data[storageKey] : "auto";
+          applyOptions(saved === "" ? "auto" : saved);
+        });
+      } else {
+        applyOptions("auto");
+      }
+    } catch (_) {
+      applyOptions("auto");
+    }
+    select.addEventListener("change", () => {
+      try {
+        chrome?.storage?.local?.set({ [storageKey]: select.value || "auto" });
+      } catch (_) {
+      }
+    });
+    return select;
+  }
+
   // extension/content/helpers/reuse-modal.js
   var DEFAULT_BANDS = [
     { max: 20, label: "Minimal" },
@@ -7356,7 +7436,8 @@ ${cta}` : cta;
       emitTelemetry: emitTelemetry2,
       getUserFacingError: getUserFacingError2,
       constants,
-      loginUrl = "https://tweetreplyai.vercel.app/login"
+      loginUrl = "https://tweetreplyai.vercel.app/login",
+      usagePicker
     } = deps || {};
     const MODAL_ID = constants?.MODAL_ID || "tweetreply-reuse-modal";
     const BANDS = constants?.DEGREE_BANDS || DEFAULT_BANDS;
@@ -7446,6 +7527,18 @@ ${cta}` : cta;
       preview.appendChild(moreBtn);
     }
     card.appendChild(preview);
+    let modelSelectEl = null;
+    if (usagePicker?.showModelSelect) {
+      modelSelectEl = createModelSelectElement({
+        selectableModels: usagePicker.selectableModels ?? null,
+        className: "tweetreply-reuse-model-select",
+        title: "Choose AI model"
+      });
+      card.appendChild(h("label", { class: "tweetreply-reuse-field" }, [
+        h("div", { class: "tweetreply-reuse-field-label" }, "AI model"),
+        modelSelectEl
+      ]));
+    }
     const slider = h("input", {
       type: "range",
       min: "0",
@@ -7721,12 +7814,14 @@ ${cta}` : cta;
       const charLimit = allowLong ? LONG_TWEET_CHAR_LIMIT : TWITTER_CHAR_LIMIT;
       const startedAt = Date.now();
       try {
+        const modelKey = modelSelectEl?.value || "auto";
         const res = await apiClient.reframeTweet({
           source_tweet: sourceText,
           degree,
           source_author: author || void 0,
           source_tweet_url: tweetUrl,
-          allow_long: allowLong
+          allow_long: allowLong,
+          ...modelKey !== "auto" ? { model_key: modelKey } : {}
         });
         if (token !== requestToken) return;
         const entry = buildVariationEntry(res, { degree });
@@ -8543,50 +8638,6 @@ ${cta}` : cta;
         throw error2;
       }
     }
-    getModelSelectOptgroupLabel(tierId) {
-      if (tierId === "auto") return "Auto";
-      if (tierId === "primary") return "Tier 1";
-      if (tierId === "secondary") return "Tier 2";
-      if (tierId === "tertiary") return "Groq";
-      return "Models";
-    }
-    populateModelSelectFromUsage(select, savedModelKey) {
-      const models = this.usageData?.selectableModels;
-      if (!models || !Array.isArray(models) || models.length === 0) {
-        const autoOpt = document.createElement("option");
-        autoOpt.value = "auto";
-        autoOpt.textContent = "Auto";
-        select.appendChild(autoOpt);
-        select.value = "auto";
-        return;
-      }
-      const groups = /* @__PURE__ */ new Map();
-      for (const model of models) {
-        const tierId = model.tierId || "secondary";
-        if (!groups.has(tierId)) groups.set(tierId, []);
-        groups.get(tierId).push(model);
-      }
-      const tierOrder = ["auto", "primary", "secondary", "tertiary"];
-      for (const tierId of tierOrder) {
-        const entries = groups.get(tierId);
-        if (!entries?.length) continue;
-        const optgroup = document.createElement("optgroup");
-        optgroup.label = this.getModelSelectOptgroupLabel(tierId);
-        for (const model of entries) {
-          const option = document.createElement("option");
-          option.value = model.key;
-          option.textContent = model.name;
-          optgroup.appendChild(option);
-        }
-        select.appendChild(optgroup);
-      }
-      const options = Array.from(select.querySelectorAll("option"));
-      if (savedModelKey && options.some((o) => o.value === savedModelKey)) {
-        select.value = savedModelKey;
-      } else {
-        select.value = "auto";
-      }
-    }
     maybeInjectModelSelectsIntoLiveContainers() {
       if (!this.usageData?.showModelSelect) return;
       document.querySelectorAll(".tweetreply-button-container").forEach((container) => {
@@ -9121,7 +9172,11 @@ ${cta}` : cta;
           emitTelemetry,
           getUserFacingError,
           constants: REUSE,
-          loginUrl: API.LOGIN_URL
+          loginUrl: API.LOGIN_URL,
+          usagePicker: {
+            showModelSelect: Boolean(this.usageData?.showModelSelect),
+            selectableModels: this.usageData?.selectableModels ?? null
+          }
         });
       } catch (error2) {
         console.error("[TweetReplyAI] Failed to open Reuse modal:", error2);
@@ -9363,28 +9418,11 @@ ${cta}` : cta;
       }
     }
     createModelSelect() {
-      const select = document.createElement("select");
-      select.className = "tweetreply-model-select";
-      select.title = "Choose AI model";
-      const applyOptions = (savedModelKey) => {
-        select.replaceChildren();
-        this.populateModelSelectFromUsage(select, savedModelKey);
-      };
-      try {
-        chrome.storage?.local?.get(["tweetreply_model"], (data) => {
-          const saved = data && typeof data.tweetreply_model === "string" ? data.tweetreply_model : "auto";
-          applyOptions(saved === "" ? "auto" : saved);
-        });
-      } catch (_) {
-        applyOptions("auto");
-      }
-      select.addEventListener("change", () => {
-        try {
-          chrome.storage?.local?.set({ tweetreply_model: select.value || "auto" });
-        } catch (_) {
-        }
+      return createModelSelectElement({
+        selectableModels: this.usageData?.selectableModels ?? null,
+        className: "tweetreply-model-select",
+        title: "Choose AI model"
       });
-      return select;
     }
     createPromptSelect() {
       const select = document.createElement("select");

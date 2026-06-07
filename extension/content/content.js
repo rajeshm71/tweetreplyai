@@ -28,6 +28,7 @@ import { createReuseModal } from './helpers/reuse-modal.js';
 import { postReframedToComposeImpl } from './helpers/post-to-compose.js';
 import { extractTweetPlainText } from './helpers/tweet-text-extract.js';
 import { writeDraftBlocksToContentRoot } from './helpers/draft-blocks.js';
+import { createModelSelectElement } from './helpers/model-select.js';
 
 globalThis.__tweetreplyaiExtLoggingAllowed = false;
 installConsoleGate(() => globalThis.__tweetreplyaiExtLoggingAllowed === true);
@@ -747,55 +748,6 @@ class TwitterReplyInjector {
     }
   }
 
-  getModelSelectOptgroupLabel(tierId) {
-    if (tierId === 'auto') return 'Auto';
-    if (tierId === 'primary') return 'Tier 1';
-    if (tierId === 'secondary') return 'Tier 2';
-    if (tierId === 'tertiary') return 'Groq';
-    return 'Models';
-  }
-
-  populateModelSelectFromUsage(select, savedModelKey) {
-    const models = this.usageData?.selectableModels;
-    if (!models || !Array.isArray(models) || models.length === 0) {
-      const autoOpt = document.createElement('option');
-      autoOpt.value = 'auto';
-      autoOpt.textContent = 'Auto';
-      select.appendChild(autoOpt);
-      select.value = 'auto';
-      return;
-    }
-
-    const groups = new Map();
-    for (const model of models) {
-      const tierId = model.tierId || 'secondary';
-      if (!groups.has(tierId)) groups.set(tierId, []);
-      groups.get(tierId).push(model);
-    }
-
-    const tierOrder = ['auto', 'primary', 'secondary', 'tertiary'];
-    for (const tierId of tierOrder) {
-      const entries = groups.get(tierId);
-      if (!entries?.length) continue;
-      const optgroup = document.createElement('optgroup');
-      optgroup.label = this.getModelSelectOptgroupLabel(tierId);
-      for (const model of entries) {
-        const option = document.createElement('option');
-        option.value = model.key;
-        option.textContent = model.name;
-        optgroup.appendChild(option);
-      }
-      select.appendChild(optgroup);
-    }
-
-    const options = Array.from(select.querySelectorAll('option'));
-    if (savedModelKey && options.some((o) => o.value === savedModelKey)) {
-      select.value = savedModelKey;
-    } else {
-      select.value = 'auto';
-    }
-  }
-
   maybeInjectModelSelectsIntoLiveContainers() {
     if (!this.usageData?.showModelSelect) return;
     document.querySelectorAll('.tweetreply-button-container').forEach((container) => {
@@ -1440,6 +1392,10 @@ class TwitterReplyInjector {
         getUserFacingError,
         constants: REUSE,
         loginUrl: API.LOGIN_URL,
+        usagePicker: {
+          showModelSelect: Boolean(this.usageData?.showModelSelect),
+          selectableModels: this.usageData?.selectableModels ?? null,
+        },
       });
     } catch (error) {
       console.error('[TweetReplyAI] Failed to open Reuse modal:', error);
@@ -1756,32 +1712,11 @@ class TwitterReplyInjector {
   }
 
   createModelSelect() {
-    const select = document.createElement('select');
-    select.className = 'tweetreply-model-select';
-    select.title = 'Choose AI model';
-
-    const applyOptions = (savedModelKey) => {
-      select.replaceChildren();
-      this.populateModelSelectFromUsage(select, savedModelKey);
-    };
-
-    try {
-      chrome.storage?.local?.get(['tweetreply_model'], (data) => {
-        const saved =
-          data && typeof data.tweetreply_model === 'string' ? data.tweetreply_model : 'auto';
-        applyOptions(saved === '' ? 'auto' : saved);
-      });
-    } catch (_) {
-      applyOptions('auto');
-    }
-
-    select.addEventListener('change', () => {
-      try {
-        chrome.storage?.local?.set({ tweetreply_model: select.value || 'auto' });
-      } catch (_) {}
+    return createModelSelectElement({
+      selectableModels: this.usageData?.selectableModels ?? null,
+      className: 'tweetreply-model-select',
+      title: 'Choose AI model',
     });
-
-    return select;
   }
 
   createPromptSelect() {
