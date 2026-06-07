@@ -35,11 +35,75 @@
     </div>
 
     <!-- Not Authenticated State -->
-    <div id="not-authenticated" class="state hidden" role="region" aria-label="Authentication required">
-      <div class="auth-content">
-        <h2>Welcome to TweetReplyAI</h2>
-        <p>Sign in to start generating authentic replies to X posts</p>
-        <button id="signin-btn" class="primary-btn" aria-label="Sign in to TweetReplyAI">Sign In</button>
+    <div id="not-authenticated" class="state auth-screen hidden" role="region" aria-label="Authentication required">
+      <div class="auth-bg" aria-hidden="true">
+        <div class="auth-orb auth-orb--1"></div>
+        <div class="auth-orb auth-orb--2"></div>
+        <div class="auth-orb auth-orb--3"></div>
+      </div>
+
+      <div class="auth-card">
+        <div class="auth-hero">
+          <div class="auth-logo-ring">
+            <div class="auth-logo-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28">
+                <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/>
+                <circle cx="8" cy="10" r="1.2"/>
+                <circle cx="12" cy="10" r="1.2"/>
+                <circle cx="16" cy="10" r="1.2"/>
+              </svg>
+            </div>
+          </div>
+          <span class="auth-badge">AI for X</span>
+          <span class="auth-brand">TweetReplyAI</span>
+        </div>
+
+        <div class="auth-copy">
+          <h2 class="auth-title">Reply smarter on <span class="auth-gradient-text">X</span></h2>
+          <p class="auth-subtitle">Generate thoughtful replies in one click, right where you browse on X.</p>
+        </div>
+
+        <ul class="auth-features" aria-label="Key features">
+          <li class="auth-feature">
+            <span class="auth-feature-icon auth-feature-icon--ai" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                <path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7-6.3-4.6L5.7 21l2.3-7-6-4.6h7.6L12 2z"/>
+              </svg>
+            </span>
+            <span class="auth-feature-text">Smart replies from context</span>
+          </li>
+          <li class="auth-feature">
+            <span class="auth-feature-icon auth-feature-icon--improve" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1.003 1.003 0 000-1.42l-2.34-2.34a1.003 1.003 0 00-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z"/>
+              </svg>
+            </span>
+            <span class="auth-feature-text">Improve drafts in one click</span>
+          </li>
+          <li class="auth-feature">
+            <span class="auth-feature-icon auth-feature-icon--speed" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                <path d="M7 2v11h3v9l7-12h-4l4-8z"/>
+              </svg>
+            </span>
+            <span class="auth-feature-text">Works inline on X posts</span>
+          </li>
+        </ul>
+
+        <button id="signin-btn" class="auth-cta primary-btn" aria-label="Sign in to TweetReplyAI">
+          <span>Continue with TweetReplyAI</span>
+          <svg class="auth-cta-arrow" viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true">
+            <path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/>
+          </svg>
+        </button>
+
+        <p class="auth-trust">Free daily credits included · No credit card required</p>
+      </div>
+
+      <div class="auth-legal" role="contentinfo">
+        <a href="https://tweetreplyai.vercel.app/privacy" target="_blank" rel="noopener noreferrer">Privacy</a>
+        <span aria-hidden="true">·</span>
+        <a href="https://tweetreplyai.vercel.app/terms" target="_blank" rel="noopener noreferrer">Terms</a>
       </div>
     </div>
 

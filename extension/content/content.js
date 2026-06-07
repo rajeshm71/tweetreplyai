@@ -2087,7 +2087,7 @@ class TwitterReplyInjector {
       
       const domain = response?.domain || API.DEFAULT_DOMAIN;
       const protocol = domain.includes('localhost') ? 'http' : 'https';
-      const loginUrl = `${protocol}://${domain}/login`;
+      const loginUrl = `${protocol}://${domain}/login?returnUrl=${encodeURIComponent('/app')}`;
       
       // Open login page in new tab via background script
       chrome.runtime.sendMessage({ 
@@ -2101,7 +2101,7 @@ class TwitterReplyInjector {
     } catch (error) {
       console.error('[TweetReplyAI] Failed to get API domain, using fallback:', error);
       // Fallback: use default domain
-      const loginUrl = API.LOGIN_URL;
+      const loginUrl = `${API.LOGIN_URL}?returnUrl=${encodeURIComponent('/app')}`;
       chrome.runtime.sendMessage({ 
         action: 'openLoginPage', 
         url: loginUrl 

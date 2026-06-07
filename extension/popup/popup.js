@@ -815,7 +815,7 @@ class PopupManager {
       const domains = await this.getDomains();
       const domain = domains[0] || 'tweetreplyai.vercel.app';
       const protocol = domain.includes('localhost') ? 'http' : 'https';
-      const loginUrl = `${protocol}://${domain}/login`;
+      const loginUrl = `${protocol}://${domain}/login?returnUrl=${encodeURIComponent('/app')}`;
       
       chrome.tabs.create({ url: loginUrl });
       
