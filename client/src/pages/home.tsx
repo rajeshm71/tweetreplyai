@@ -255,7 +255,7 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
       {/* Sprint 3: Skip to content link for accessibility */}
       <a href="#main-content" className="skip-to-content">
         Skip to main content
@@ -264,7 +264,7 @@ export default function Home() {
 
 
       {/* Main Dashboard Content - Sprint 3: Added main landmark for accessibility */}
-      <main id="main-content" className="container mx-auto px-4 py-8 max-w-7xl" role="main">
+      <main id="main-content" className="container mx-auto px-4 py-5 max-w-7xl flex-1" role="main">
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_350px] gap-8">
           {/* Left Column */}
           <div className="min-w-0" data-generate-reply>
@@ -275,7 +275,7 @@ export default function Home() {
               </>
             ) : (
               <Suspense fallback={
-                <div className="min-h-[600px] flex items-center justify-center" role="status" aria-label="Loading reply generator">
+                <div className="min-h-[480px] max-h-[calc(100vh-13rem)] flex items-center justify-center" role="status" aria-label="Loading reply generator">
                   <div className="flex flex-col items-center gap-4">
                     <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" aria-hidden="true" />
                     <p className="text-sm text-muted-foreground">Loading reply generator...</p>

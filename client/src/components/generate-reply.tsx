@@ -513,7 +513,7 @@ export const GenerateReply = forwardRef<GenerateReplyRef>((props, ref) => {
   };
 
   return (
-    <Card className="card-modern-enhanced border border-primary/20 bg-gradient-to-br from-card to-card/50 min-h-[600px] max-h-[calc(100vh-12rem)] max-w-4xl mx-auto flex flex-col overflow-hidden">
+    <Card className="card-modern-enhanced border border-primary/20 bg-gradient-to-br from-card to-card/50 max-h-[calc(100vh-13rem)] min-h-0 max-w-4xl mx-auto flex flex-col overflow-hidden">
       {/* Action Buttons Header - Sprint 1: Modernized, Sprint 3: Added accessibility */}
       <div className="border-b border-border/50 p-4 flex items-center justify-between bg-gradient-to-r from-background/50 to-background" role="toolbar" aria-label="Reply generation actions">
         <h2 className="text-lg font-semibold text-primary">Generate Reply</h2>
