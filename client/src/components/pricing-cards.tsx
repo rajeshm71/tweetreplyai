@@ -232,7 +232,7 @@ export function PricingCards({
         : 'Trial already used';
 
   return (
-    <div className="grid md:grid-cols-3 gap-6 lg:gap-8 max-w-6xl mx-auto w-full pt-5">
+    <div className="grid md:grid-cols-3 gap-6 lg:gap-8 max-w-6xl mx-auto w-full">
       {/* Free Trial */}
       <Card className={`relative overflow-hidden border-2 ${pricingTiers.trial.borderColor} ${pricingTiers.trial.hoverBorder} group ${isAuthenticated ? 'opacity-75' : ''}`}>
         {/* Gradient background - static opacity, no hover animation */}
@@ -292,12 +292,6 @@ export function PricingCards({
 
       {/* Weekly Plan */}
       <Card className={`relative overflow-hidden border-2 ${pricingTiers.weekly.borderColor} ${pricingTiers.weekly.hoverBorder} group shadow-lg shadow-green-500/20`}>
-        {/* Enhanced Most Popular badge - Redesigned for better visibility */}
-        <div className="absolute -top-4 left-1/2 transform -translate-x-1/2 z-50">
-          <Badge className="bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-500 text-white border-2 border-amber-600 shadow-2xl font-bold px-4 py-1.5 text-sm whitespace-nowrap">
-            ⭐ Most Popular
-          </Badge>
-        </div>
         {/* Current Plan badge - only show for active subscriptions (normalized) */}
         {(currentSubscription?.planCode || '').toLowerCase() === 'weekly' && (currentSubscription?.status || '').toLowerCase() === 'active' && (
           <div className="absolute top-4 right-4 z-50">
@@ -308,7 +302,12 @@ export function PricingCards({
         {/* Gradient background with glow */}
         <div className={`absolute inset-0 bg-gradient-to-br ${pricingTiers.weekly.cardGradient} opacity-50`} />
         
-        <CardContent className="p-6 relative z-10 pt-8">
+        <CardContent className="p-6 relative z-10">
+          <div className="flex justify-center mb-3">
+            <Badge className="bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-500 text-white border-2 border-amber-600 shadow-md font-bold px-4 py-1.5 text-sm whitespace-nowrap">
+              ⭐ Most Popular
+            </Badge>
+          </div>
           <div className="text-center mb-4">
             {/* Icon */}
             <div className="flex justify-center mb-4">
