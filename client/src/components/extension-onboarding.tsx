@@ -111,7 +111,7 @@ export function ExtensionOnboarding({ onComplete }: ExtensionOnboardingProps) {
 
   return (
     <div
-      className={`h-full flex flex-col min-h-0 transition-all duration-300 ${completing ? "opacity-0 scale-95" : "opacity-100 scale-100"}`}
+      className={`transition-all duration-300 ${completing ? "opacity-0 scale-95" : "opacity-100 scale-100"}`}
     >
       {/* Hero Header - solid colors only, no gradient */}
       <div className="mb-5 p-5 rounded-2xl bg-primary/10 border border-primary/20 shrink-0">
@@ -131,12 +131,12 @@ export function ExtensionOnboarding({ onComplete }: ExtensionOnboardingProps) {
         </div>
       </div>
 
-      {/* Vertical Stepper - steps expand to fill available height on desktop */}
-      <div className="relative flex-1 min-h-0 flex flex-col justify-between lg:py-2">
+      {/* Vertical Stepper */}
+      <div className="relative">
         {steps.map((step, idx) => {
           const isLast = idx === steps.length - 1;
           return (
-            <div key={step.id} className="flex gap-4 flex-1 min-h-0">
+            <div key={step.id} className="flex gap-4">
               <div className="flex flex-col items-center flex-shrink-0">
                 <div
                   className={`w-10 h-10 rounded-full flex items-center justify-center shadow-md flex-shrink-0 ${step.iconBg}`}
@@ -144,10 +144,10 @@ export function ExtensionOnboarding({ onComplete }: ExtensionOnboardingProps) {
                   {step.icon}
                 </div>
                 {!isLast && (
-                  <div className="w-0.5 flex-1 my-2 bg-border min-h-[16px]" />
+                  <div className="w-0.5 flex-1 my-2 bg-border min-h-[20px]" />
                 )}
               </div>
-              <div className="flex-1 min-w-0 pb-4 lg:pb-0 text-left">
+              <div className="flex-1 min-w-0 pb-5 text-left">
                 <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="text-base font-semibold text-foreground leading-tight">
                     {step.title}
@@ -174,7 +174,7 @@ export function ExtensionOnboarding({ onComplete }: ExtensionOnboardingProps) {
         })}
       </div>
 
-      <div className="flex flex-col items-center shrink-0 pt-6 mt-auto">
+      <div className="flex flex-col items-center pt-4">
         <Button
           onClick={handleComplete}
           className="py-2 px-6 text-sm font-semibold rounded-full bg-primary hover:bg-primary/90 text-primary-foreground flex items-center justify-center gap-2"

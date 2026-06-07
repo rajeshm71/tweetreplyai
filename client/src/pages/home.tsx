@@ -264,10 +264,10 @@ export default function Home() {
 
 
       {/* Main Dashboard Content - Sprint 3: Added main landmark for accessibility */}
-      <main id="main-content" className="container mx-auto px-4 py-5 max-w-7xl flex-1 min-h-0 flex flex-col" role="main">
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_350px] gap-8 flex-1 min-h-0 lg:items-stretch">
+      <main id="main-content" className="container mx-auto px-4 py-4 max-w-7xl flex-1 min-h-0 flex flex-col" role="main">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_350px] gap-8 items-start">
           {/* Left Column */}
-          <div className={`min-w-0 min-h-0 ${showGuide ? "lg:h-full" : ""}`} data-generate-reply>
+          <div className="min-w-0" data-generate-reply>
             {showGuide ? (
               <>
                 {/* Extension Onboarding Guide */}
@@ -288,7 +288,7 @@ export default function Home() {
           </div>
 
           {/* Right Column: Quick Stats + Quick Access (30% on desktop) */}
-          <div className="flex flex-col gap-5 lg:h-full min-h-0">
+          <div className="flex flex-col gap-5">
             {/* Usage Counter - Visually Stunning Design */}
             {usageStatus && (
               <div className="shrink-0">
@@ -422,29 +422,29 @@ export default function Home() {
 
             {/* Quick Stats - Sprint 2: Modernized with enhanced styling */}
             {usageStatus && (
-              <div className="flex-1 min-h-0">
-                <Card className="card-modern-enhanced border border-primary/20 bg-gradient-to-br from-card to-card/50 h-full">
-                  <CardContent className="p-5 h-full flex flex-col">
-                    <div className="flex items-center gap-2 mb-4 shrink-0">
+              <div>
+                <Card className="card-modern-enhanced border border-primary/20 bg-gradient-to-br from-card to-card/50">
+                  <CardContent className="p-5">
+                    <div className="flex items-center gap-2 mb-4">
                       <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
                         <IconTrendingUp className="w-4 h-4 text-white" />
                       </div>
                       <h3 className="font-semibold text-lg">Quick Stats</h3>
                     </div>
-                    <div className="flex-1 flex flex-col gap-3 min-h-0">
-                      <div className="flex-1 flex items-center p-4 bg-gradient-to-br from-muted/50 to-muted/30 rounded-xl border border-border/50">
+                    <div className="space-y-3">
+                      <div className="flex items-center p-4 bg-gradient-to-br from-muted/50 to-muted/30 rounded-xl border border-border/50">
                         <div>
                           <p className="text-sm text-muted-foreground font-medium">Today</p>
                           <p className="text-2xl font-bold text-primary mt-1">{todayReplies}</p>
                         </div>
                       </div>
-                      <div className="flex-1 flex items-center p-4 bg-gradient-to-br from-muted/50 to-muted/30 rounded-xl border border-border/50">
+                      <div className="flex items-center p-4 bg-gradient-to-br from-muted/50 to-muted/30 rounded-xl border border-border/50">
                         <div>
                           <p className="text-sm text-muted-foreground font-medium">This Week</p>
                           <p className="text-2xl font-bold text-primary mt-1">{thisWeekReplies}</p>
                         </div>
                       </div>
-                      <div className="flex-1 flex items-center p-4 bg-gradient-to-br from-muted/50 to-muted/30 rounded-xl border border-border/50">
+                      <div className="flex items-center p-4 bg-gradient-to-br from-muted/50 to-muted/30 rounded-xl border border-border/50">
                         <div>
                           <p className="text-sm text-muted-foreground font-medium">This Month</p>
                           <p className="text-2xl font-bold text-primary mt-1">{thisMonthReplies}</p>
