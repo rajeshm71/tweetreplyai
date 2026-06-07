@@ -745,6 +745,20 @@
   color: rgb(154, 52, 18);
 }
 
+.tweetreply-reuse-guidance {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  min-height: 56px;
+  border-radius: 12px;
+  border: 1px solid rgba(15, 20, 25, 0.15);
+  padding: 10px 12px;
+  font-size: 14px;
+  font-family: inherit;
+  color: inherit;
+  background: #fff;
+}
+
 .tweetreply-reuse-result {
   width: 100%;
   box-sizing: border-box;
@@ -854,6 +868,7 @@
 
   .tweetreply-reuse-style-select,
   .tweetreply-reuse-model-select,
+  .tweetreply-reuse-guidance,
   .tweetreply-reuse-result {
     background: rgb(21, 32, 43);
     color: rgb(231, 233, 234);

@@ -413,4 +413,96 @@ describe('AI Reframe Tweet Route - Unit Tests', () => {
       expect.objectContaining({ allowLong: true }),
     );
   });
+
+  it('forwards reuse_guidance to aiRouter.reframeTweet', async () => {
+    await app
+      .raw()
+      .post('/api/reframe-tweet')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({
+        source_tweet: validSource,
+        degree: 50,
+        reuse_guidance: 'Make it shorter and more casual',
+      });
+
+    const { aiRouter } = await import('../../../server/services/ai-router');
+    expect(vi.mocked(aiRouter.reframeTweet)).toHaveBeenCalledWith(
+      validSource,
+      50,
+      expect.objectContaining({ reuseGuidance: 'Make it shorter and more casual' }),
+    );
+  });
+
+  it('returns 400 when reuse_guidance exceeds 300 characters', async () => {
+    const res = await app
+      .raw()
+      .post('/api/reframe-tweet')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({
+        source_tweet: validSource,
+        degree: 50,
+        reuse_guidance: 'x'.repeat(301),
+      });
+
+    expectValidationError(res);
+  });
+
+  it('passes combined source and guidance to runGuardrail', async () => {
+    const { runGuardrail } = await import('../../../server/services/guardrail');
+
+    await app
+      .raw()
+      .post('/api/reframe-tweet')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({
+        source_tweet: validSource,
+        degree: 50,
+        reuse_guidance: 'Keep the list format',
+      });
+
+    expect(vi.mocked(runGuardrail)).toHaveBeenCalledWith(
+      expect.stringContaining(`Source tweet: ${validSource}`),
+    );
+    expect(vi.mocked(runGuardrail)).toHaveBeenCalledWith(
+      expect.stringContaining('Reuse guidance: Keep the list format'),
+    );
+  });
+
+  it('guardrail violation on toxic guidance blocks reframe generation', async () => {
+    const { runGuardrail, generateGuardrailFriendlyReply } = await import(
+      '../../../server/services/guardrail'
+    );
+    vi.mocked(runGuardrail).mockResolvedValueOnce({
+      violation: 1,
+      category: 'harassment',
+      rationale: 'guidance not allowed',
+    } as any);
+    vi.mocked(generateGuardrailFriendlyReply).mockResolvedValueOnce({
+      reply: 'I cannot help with that guidance.',
+      modelKey: 'gpt-4o-mini',
+      tokensIn: 10,
+      tokensOut: 12,
+      latencyMs: 150,
+    } as any);
+
+    const res = await app
+      .raw()
+      .post('/api/reframe-tweet')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({
+        source_tweet: validSource,
+        degree: 50,
+        reuse_guidance: 'Say something hateful',
+      });
+
+    expectJsonResponse(res, 200);
+    expect(res.body.meta.safetyOutcome).toBe('violation_friendly_reply');
+    expect(vi.mocked(generateGuardrailFriendlyReply)).toHaveBeenCalledWith(
+      expect.stringContaining('Reuse guidance: Say something hateful'),
+      'guidance not allowed',
+    );
+
+    const { aiRouter } = await import('../../../server/services/ai-router');
+    expect(vi.mocked(aiRouter.reframeTweet)).not.toHaveBeenCalled();
+  });
 });

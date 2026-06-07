@@ -60,7 +60,7 @@ export class UnifiedAIRouter {
     tier: ModelRoutingTier,
     source: string,
     degree: number,
-    opts: { allowLong?: boolean; retryBoost?: boolean },
+    opts: { allowLong?: boolean; retryBoost?: boolean; reuseGuidance?: string },
   ): Promise<ReplyResponse> {
     const modelKey = tier.model;
     if (tier.provider === "groq") {
@@ -218,7 +218,7 @@ export class UnifiedAIRouter {
   async reframeTweet(
     source: string,
     degree: number,
-    opts: { allowLong?: boolean; retryBoost?: boolean; modelPreference?: string } = {},
+    opts: { allowLong?: boolean; retryBoost?: boolean; modelPreference?: string; reuseGuidance?: string } = {},
   ): Promise<ReplyResponse> {
     console.log(`[AI Router] reframeTweet called — degree: ${degree}, modelPreference: ${opts.modelPreference ?? "auto"}`);
     return this.executeWithTierChain(

@@ -6945,6 +6945,7 @@ Event: ${getEventDescription(event)}`
       source_author,
       source_tweet_url,
       model_key,
+      reuse_guidance,
       allow_long
     }) {
       return this.makeRequest("/api/reframe-tweet", {
@@ -6955,6 +6956,7 @@ Event: ${getEventDescription(event)}`
           source_author,
           source_tweet_url,
           model_key,
+          reuse_guidance,
           allow_long
         }
       });
@@ -7427,6 +7429,8 @@ ${cta}` : cta;
     Reimagined: "Fresh angle; core insight only"
   };
   var REUSE_DEGREE_STORAGE_KEY = "tweetreply_reuse_degree";
+  var REUSE_GUIDANCE_STORAGE_KEY = "tweetreply_reuse_guidance";
+  var REUSE_GUIDANCE_MAX_LENGTH = 300;
   var MAX_VARIATIONS = 10;
   function createReuseModal(payload, deps) {
     const {
@@ -7582,6 +7586,35 @@ ${cta}` : cta;
       });
     } catch {
     }
+    const guidanceTextarea = h("textarea", {
+      class: "tweetreply-reuse-guidance",
+      rows: "2",
+      maxlength: String(REUSE_GUIDANCE_MAX_LENGTH),
+      placeholder: "e.g. shorter, more casual, keep the list format",
+      "aria-label": "Optional reuse guidance"
+    });
+    card.appendChild(h("label", { class: "tweetreply-reuse-field" }, [
+      h("div", { class: "tweetreply-reuse-field-label" }, "Guidance (optional)"),
+      guidanceTextarea,
+      h("div", { class: "tweetreply-reuse-hint" }, "Tone, audience, or format \u2014 must stay consistent with the degree slider above.")
+    ]));
+    try {
+      chrome?.storage?.local?.get?.([REUSE_GUIDANCE_STORAGE_KEY], (result) => {
+        const saved = result?.[REUSE_GUIDANCE_STORAGE_KEY];
+        if (typeof saved === "string" && saved.trim()) {
+          guidanceTextarea.value = saved.slice(0, REUSE_GUIDANCE_MAX_LENGTH);
+        }
+      });
+    } catch {
+    }
+    guidanceTextarea.addEventListener("input", () => {
+      try {
+        chrome?.storage?.local?.set?.({
+          [REUSE_GUIDANCE_STORAGE_KEY]: guidanceTextarea.value.slice(0, REUSE_GUIDANCE_MAX_LENGTH)
+        });
+      } catch {
+      }
+    });
     const allowLongCheckbox = h("input", { type: "checkbox", class: "tweetreply-reuse-allow-long" });
     card.appendChild(h("label", { class: "tweetreply-reuse-field tweetreply-reuse-inline" }, [
       allowLongCheckbox,
@@ -7815,13 +7848,15 @@ ${cta}` : cta;
       const startedAt = Date.now();
       try {
         const modelKey = modelSelectEl?.value || "auto";
+        const guidanceRaw = guidanceTextarea?.value?.trim() || "";
         const res = await apiClient.reframeTweet({
           source_tweet: sourceText,
           degree,
           source_author: author || void 0,
           source_tweet_url: tweetUrl,
           allow_long: allowLong,
-          ...modelKey !== "auto" ? { model_key: modelKey } : {}
+          ...modelKey !== "auto" ? { model_key: modelKey } : {},
+          ...guidanceRaw ? { reuse_guidance: guidanceRaw.slice(0, REUSE_GUIDANCE_MAX_LENGTH) } : {}
         });
         if (token !== requestToken) return;
         const entry = buildVariationEntry(res, { degree });
@@ -9720,7 +9755,7 @@ ${cta}` : cta;
         });
         const domain = response?.domain || API.DEFAULT_DOMAIN;
         const protocol = domain.includes("localhost") ? "http" : "https";
-        const loginUrl = `${protocol}://${domain}/login`;
+        const loginUrl = `${protocol}://${domain}/login?returnUrl=${encodeURIComponent("/app")}`;
         chrome.runtime.sendMessage({
           action: "openLoginPage",
           url: loginUrl
@@ -9731,7 +9766,7 @@ ${cta}` : cta;
         });
       } catch (error2) {
         console.error("[TweetReplyAI] Failed to get API domain, using fallback:", error2);
-        const loginUrl = API.LOGIN_URL;
+        const loginUrl = `${API.LOGIN_URL}?returnUrl=${encodeURIComponent("/app")}`;
         chrome.runtime.sendMessage({
           action: "openLoginPage",
           url: loginUrl

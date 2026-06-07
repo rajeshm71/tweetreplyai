@@ -171,6 +171,7 @@ export class ApiClient {
     source_author,
     source_tweet_url,
     model_key,
+    reuse_guidance,
     allow_long,
   }) {
     return this.makeRequest('/api/reframe-tweet', {
@@ -181,6 +182,7 @@ export class ApiClient {
         source_author,
         source_tweet_url,
         model_key,
+        reuse_guidance,
         allow_long,
       },
     });

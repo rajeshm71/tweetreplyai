@@ -67,6 +67,8 @@ const DEGREE_HINTS = {
 };
 
 const REUSE_DEGREE_STORAGE_KEY = 'tweetreply_reuse_degree';
+const REUSE_GUIDANCE_STORAGE_KEY = 'tweetreply_reuse_guidance';
+const REUSE_GUIDANCE_MAX_LENGTH = 300;
 const MAX_VARIATIONS = 10;
 
 export function createReuseModal(payload, deps) {
@@ -236,6 +238,37 @@ export function createReuseModal(payload, deps) {
       degreeHint.textContent = DEGREE_HINTS[label] || '';
     });
   } catch { /* ignore */ }
+
+  // Optional author guidance -----------------------------------------------
+  const guidanceTextarea = h('textarea', {
+    class: 'tweetreply-reuse-guidance',
+    rows: '2',
+    maxlength: String(REUSE_GUIDANCE_MAX_LENGTH),
+    placeholder: 'e.g. shorter, more casual, keep the list format',
+    'aria-label': 'Optional reuse guidance',
+  });
+  card.appendChild(h('label', { class: 'tweetreply-reuse-field' }, [
+    h('div', { class: 'tweetreply-reuse-field-label' }, 'Guidance (optional)'),
+    guidanceTextarea,
+    h('div', { class: 'tweetreply-reuse-hint' }, 'Tone, audience, or format — must stay consistent with the degree slider above.'),
+  ]));
+
+  try {
+    chrome?.storage?.local?.get?.([REUSE_GUIDANCE_STORAGE_KEY], (result) => {
+      const saved = result?.[REUSE_GUIDANCE_STORAGE_KEY];
+      if (typeof saved === 'string' && saved.trim()) {
+        guidanceTextarea.value = saved.slice(0, REUSE_GUIDANCE_MAX_LENGTH);
+      }
+    });
+  } catch { /* ignore */ }
+
+  guidanceTextarea.addEventListener('input', () => {
+    try {
+      chrome?.storage?.local?.set?.({
+        [REUSE_GUIDANCE_STORAGE_KEY]: guidanceTextarea.value.slice(0, REUSE_GUIDANCE_MAX_LENGTH),
+      });
+    } catch { /* ignore */ }
+  });
 
   // Allow long tweet -------------------------------------------------------
   const allowLongCheckbox = h('input', { type: 'checkbox', class: 'tweetreply-reuse-allow-long' });
@@ -499,6 +532,7 @@ export function createReuseModal(payload, deps) {
 
     try {
       const modelKey = modelSelectEl?.value || 'auto';
+      const guidanceRaw = guidanceTextarea?.value?.trim() || '';
       const res = await apiClient.reframeTweet({
         source_tweet: sourceText,
         degree,
@@ -506,6 +540,7 @@ export function createReuseModal(payload, deps) {
         source_tweet_url: tweetUrl,
         allow_long: allowLong,
         ...(modelKey !== 'auto' ? { model_key: modelKey } : {}),
+        ...(guidanceRaw ? { reuse_guidance: guidanceRaw.slice(0, REUSE_GUIDANCE_MAX_LENGTH) } : {}),
       });
       if (token !== requestToken) return;
 

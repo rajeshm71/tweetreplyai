@@ -3607,11 +3607,13 @@ User draft reply: ${draft_reply}`;
         source_tweet_url: z.string().url().optional(),
         prompt_variation: z.string().optional(),
         model_key: z.string().optional(),
+        reuse_guidance: z.string().trim().max(300).optional(),
         allow_long: z.boolean().optional().default(false),
         platform: z.enum(['twitter']).optional().default('twitter'),
       });
 
       const body = schema.parse(req.body);
+      const reuseGuidance = body.reuse_guidance?.trim() || undefined;
 
       let sanitizedReframeModelKey: string | undefined;
       try {
@@ -3643,11 +3645,18 @@ User draft reply: ${draft_reply}`;
         });
       }
 
-      // Guardrail on the source tweet text.
+      // Guardrail on source tweet + optional reuse guidance (same pattern as generate-reply).
+      const guardrailParts: string[] = [];
+      guardrailParts.push(`Source tweet: ${body.source_tweet}`);
+      if (reuseGuidance) {
+        guardrailParts.push(`Reuse guidance: ${reuseGuidance}`);
+      }
+      const guardrailInput = guardrailParts.join('\n\n');
+
       let guardrailResult: GuardrailResult | null = null;
       let guardrailViolation = false;
       try {
-        guardrailResult = await runGuardrail(`Source tweet: ${body.source_tweet}`);
+        guardrailResult = await runGuardrail(guardrailInput);
         console.log("[Guardrail] /api/reframe-tweet result:", {
           violation: guardrailResult?.violation,
           category: guardrailResult?.category,
@@ -3678,7 +3687,7 @@ User draft reply: ${draft_reply}`;
       if (guardrailViolation && guardrailResult) {
         // Friendly refusal path (mirrors suggest-improvements).
         const friendly = await generateGuardrailFriendlyReply(
-          `Source tweet: ${body.source_tweet}`,
+          guardrailInput,
           guardrailResult.rationale,
         );
         const updatedCounter = await usageService.consumeReply(userId, 'reframe');
@@ -3759,6 +3768,7 @@ User draft reply: ${draft_reply}`;
       const reframeOpts = {
         allowLong: body.allow_long,
         modelPreference: sanitizedReframeModelKey,
+        reuseGuidance,
       };
 
       let generation;

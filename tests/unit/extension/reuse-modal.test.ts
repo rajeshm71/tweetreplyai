@@ -177,6 +177,67 @@ describe("createReuseModal (extension helper)", () => {
     expect(deps.apiClient.reframeTweet.mock.calls[0][0]).not.toHaveProperty("model_key");
   });
 
+  it("renders optional guidance textarea after degree slider", () => {
+    const deps = makeDeps();
+    createReuseModal({ text: "Source tweet goes here with enough content to reuse.", author: "alice" }, deps);
+
+    const modal = document.getElementById(REUSE.MODAL_ID)!;
+    expect(modal.querySelector(".tweetreply-reuse-guidance")).toBeTruthy();
+    const fields = Array.from(modal.querySelectorAll(".tweetreply-reuse-field"));
+    const guidanceFieldIndex = fields.findIndex((f) => f.querySelector(".tweetreply-reuse-guidance"));
+    const sliderFieldIndex = fields.findIndex((f) => f.querySelector(".tweetreply-reuse-slider"));
+    const allowLongIndex = fields.findIndex((f) => f.querySelector(".tweetreply-reuse-allow-long"));
+    expect(guidanceFieldIndex).toBeGreaterThan(sliderFieldIndex);
+    expect(allowLongIndex).toBeGreaterThan(guidanceFieldIndex);
+  });
+
+  it("Generate sends reuse_guidance when guidance textarea is filled", async () => {
+    const deps = makeDeps();
+    deps.apiClient.reframeTweet.mockResolvedValueOnce({
+      reframed: "Shorter casual rewrite.",
+      qualityScore: 80,
+      originalityScore: 70,
+      degree: 50,
+      band: "balanced",
+      meta: { modelKey: "gpt-4o-mini", latencyMs: 200, originalityScore: 70 },
+    });
+    createReuseModal({ text: "This is the source tweet text.", author: "alice" }, deps);
+
+    const modal = document.getElementById(REUSE.MODAL_ID)!;
+    const guidance = modal.querySelector<HTMLTextAreaElement>(".tweetreply-reuse-guidance")!;
+    guidance.value = "Make it shorter and more casual";
+
+    modal.querySelector<HTMLButtonElement>(".tweetreply-reuse-generate")!.click();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(deps.apiClient.reframeTweet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reuse_guidance: "Make it shorter and more casual",
+      }),
+    );
+  });
+
+  it("Generate omits reuse_guidance when guidance textarea is empty", async () => {
+    const deps = makeDeps();
+    deps.apiClient.reframeTweet.mockResolvedValueOnce({
+      reframed: "Default rewrite.",
+      qualityScore: 75,
+      originalityScore: 65,
+      degree: 50,
+      band: "balanced",
+      meta: { modelKey: "gpt-4o-mini", latencyMs: 150, originalityScore: 65 },
+    });
+    createReuseModal({ text: "This is the source tweet text.", author: "alice" }, deps);
+
+    const modal = document.getElementById(REUSE.MODAL_ID)!;
+    modal.querySelector<HTMLButtonElement>(".tweetreply-reuse-generate")!.click();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(deps.apiClient.reframeTweet.mock.calls[0][0]).not.toHaveProperty("reuse_guidance");
+  });
+
   it("Generate calls apiClient.reframeTweet with the expected payload and fills the textarea", async () => {
     const deps = makeDeps();
     deps.apiClient.reframeTweet.mockResolvedValueOnce({

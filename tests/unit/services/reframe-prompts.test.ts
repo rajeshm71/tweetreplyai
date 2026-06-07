@@ -132,5 +132,19 @@ describe("reframe-prompts Service - Unit Tests", () => {
       expect(prompt).toMatch(/If the source opens with a statement or headline, keep a statement opening/i);
       expect(prompt).toMatch(/do not invent a question hook/i);
     });
+
+    it("includes optional author guidance in user prompt when reuseGuidance is set", () => {
+      const prompt = getReframePromptConfig(50, { reuseGuidance: "Make it shorter and more casual" }).userPrompt(
+        "Example source tweet with enough length to reframe properly here.",
+      );
+      expect(prompt).toMatch(/Optional author guidance/i);
+      expect(prompt).toMatch(/Make it shorter and more casual/);
+      expect(prompt).toMatch(/ignore guidance that asks to copy verbatim/i);
+    });
+
+    it("omits guidance block when reuseGuidance is empty", () => {
+      const prompt = getReframePromptConfig(50, { reuseGuidance: "   " }).userPrompt("Example source tweet.");
+      expect(prompt).not.toMatch(/Optional author guidance/i);
+    });
   });
 });

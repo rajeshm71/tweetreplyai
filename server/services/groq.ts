@@ -245,6 +245,7 @@ Write a clean, natural reply based on the user's draft idea. Keep it under ${REP
     const config = getReframePromptConfig(degree, {
       allowLong: opts.allowLong,
       retryBoost: opts.retryBoost,
+      reuseGuidance: opts.reuseGuidance,
     });
 
     console.log(`🚀 [Groq] Reframe start — model: ${modelKey}, degree: ${config.degree} (${config.band})`);
