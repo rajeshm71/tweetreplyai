@@ -114,7 +114,7 @@ export function ExtensionOnboarding({ onComplete }: ExtensionOnboardingProps) {
       className={`transition-all duration-300 ${completing ? "opacity-0 scale-95" : "opacity-100 scale-100"}`}
     >
       {/* Hero Header - solid colors only, no gradient */}
-      <div className="mb-6 p-6 rounded-2xl bg-primary/10 border border-primary/20">
+      <div className="mb-4 p-4 rounded-2xl bg-primary/10 border border-primary/20">
         <div className="flex items-start gap-4">
           <div className="w-12 h-12 rounded-2xl bg-primary flex items-center justify-center flex-shrink-0 shadow-md">
             <Lightning className="w-6 h-6 text-white" weight="fill" />
@@ -144,10 +144,10 @@ export function ExtensionOnboarding({ onComplete }: ExtensionOnboardingProps) {
                   {step.icon}
                 </div>
                 {!isLast && (
-                  <div className="w-0.5 flex-1 my-1 bg-border min-h-[24px]" />
+                  <div className="w-0.5 flex-1 my-1 bg-border min-h-[12px]" />
                 )}
               </div>
-              <div className="flex-1 min-w-0 pb-6 text-left">
+              <div className="flex-1 min-w-0 pb-3 text-left">
                 <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="text-base font-semibold text-foreground leading-tight">
                     {step.title}
@@ -174,7 +174,7 @@ export function ExtensionOnboarding({ onComplete }: ExtensionOnboardingProps) {
         })}
       </div>
 
-      <div className="flex justify-center mt-6">
+      <div className="flex justify-center mt-4">
         <Button
           onClick={handleComplete}
           className="py-2 px-6 text-sm font-semibold rounded-full bg-primary hover:bg-primary/90 text-primary-foreground flex items-center justify-center gap-2"
@@ -186,7 +186,7 @@ export function ExtensionOnboarding({ onComplete }: ExtensionOnboardingProps) {
       </div>
 
       {/* Skip this guide · Try web app instead; same line */}
-      <div className="flex items-center justify-center gap-3 mt-3 text-sm text-muted-foreground">
+      <div className="flex items-center justify-center gap-3 mt-2 text-sm text-muted-foreground">
         <button
           type="button"
           onClick={handleComplete}
