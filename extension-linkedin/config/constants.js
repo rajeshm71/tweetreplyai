@@ -61,6 +61,7 @@ export const LI_PROMPT_OPTIONS = [
 export const LI_STORAGE_KEYS = {
   REPLY_MODE: 'liReplyMode',
   PROMPT_VARIATION: 'liPromptVariation',
+  MODEL_KEY: 'liReplyModel',
 };
 
 const VALID_REPLY_MODE_VALUES = new Set(LI_REPLY_MODES.map((m) => m.value));

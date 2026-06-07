@@ -29,6 +29,7 @@ export interface LinkedInReplyOptions {
   postId?: string;
   promptVariation?: string;
   replyMode?: string;
+  modelPreference?: string;
   viewerIsOriginalAuthor?: boolean;
   authorInfo?: {
     username?: string;
@@ -145,8 +146,9 @@ export interface LinkedInReplyResponse {
 async function callLinkedInModel(
   systemPrompt: string,
   userPrompt: string,
+  modelPreference?: string,
 ): Promise<{ text: string; tokensIn: number; tokensOut: number; modelKey: string }> {
-  const response = await aiRouter.generateLinkedInCompletion(systemPrompt, userPrompt);
+  const response = await aiRouter.generateLinkedInCompletion(systemPrompt, userPrompt, modelPreference);
   return {
     text: response.reply,
     tokensIn: response.tokensIn ?? 0,
@@ -208,7 +210,7 @@ export async function generateLinkedInReply(
   let rawResult: { text: string; tokensIn: number; tokensOut: number; modelKey: string };
 
   try {
-    rawResult = await callLinkedInModel(systemPrompt, userPrompt);
+    rawResult = await callLinkedInModel(systemPrompt, userPrompt, options.modelPreference);
   } catch (error: any) {
     console.error("[LinkedIn] LLM call failed:", error.message);
     return {
@@ -280,7 +282,7 @@ export async function generateLinkedInReply(
           ? `${retryUserPromptBase}\n\n${retryHints.join("\n\n")}`
           : retryUserPromptBase;
 
-      const retryResult = await callLinkedInModel(retrySystemPrompt, retryUserPrompt);
+      const retryResult = await callLinkedInModel(retrySystemPrompt, retryUserPrompt, options.modelPreference);
       const retryProcessed = replyPostProcessor.processReply(
         retryResult.text,
         options.replyMode,

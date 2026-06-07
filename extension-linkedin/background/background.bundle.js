@@ -17,6 +17,21 @@
     TOKEN_EXPIRY_MS: 7 * 24 * 60 * 60 * 1e3,
     ONE_DAY_MS: 24 * 60 * 60 * 1e3
   };
+  var LI_REPLY_MODES = [
+    { value: "single-sentence", label: "Concise", tooltip: "Fast one-sentence reply" },
+    { value: "enhanced", label: "Enhanced", tooltip: "Context-aware with deep analysis" }
+  ];
+  var LI_PROMPT_OPTIONS = [
+    { value: "default", label: "Default" },
+    { value: "professional", label: "Professional" },
+    { value: "insightful", label: "Insightful" },
+    { value: "conversational", label: "Conversational" },
+    { value: "supportive", label: "Supportive" },
+    { value: "direct", label: "Direct" },
+    { value: "x_default", label: "X Default", popupLabel: "X Default (same as Twitter)" }
+  ];
+  var VALID_REPLY_MODE_VALUES = new Set(LI_REPLY_MODES.map((m) => m.value));
+  var VALID_PROMPT_VALUES = new Set(LI_PROMPT_OPTIONS.map((p) => p.value));
 
   // extension-linkedin/background/background.js
   var BackgroundManager = class {

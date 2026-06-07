@@ -5,6 +5,7 @@ import {
   resolveModelForAutoRequest,
   recordTierTokenUsage,
   buildTierAttemptOrder,
+  resolveTierForExplicitModel,
 } from '../../../server/services/model-token-budget';
 
 vi.mock('../../../server/storage', () => ({
@@ -62,6 +63,18 @@ describe('model-token-budget', () => {
 
     const tier = await resolveModelForAutoRequest();
     expect(tier?.id).toBe('secondary');
+  });
+
+  it('explicit tier-2 pick uses requested model key not tier default', () => {
+    const tier = resolveTierForExplicitModel('gpt-4.1-mini');
+    expect(tier?.id).toBe('secondary');
+    expect(tier?.model).toBe('gpt-4.1-mini');
+  });
+
+  it('explicit tier-2 order starts with requested model', async () => {
+    const order = await buildTierAttemptOrder('gpt-4.1-mini');
+    expect(order[0]?.model).toBe('gpt-4.1-mini');
+    expect(order[0]?.id).toBe('secondary');
   });
 
   it('explicit model preference falls through tier chain when primary exhausted', async () => {

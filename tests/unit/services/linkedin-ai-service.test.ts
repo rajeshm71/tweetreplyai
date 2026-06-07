@@ -111,6 +111,22 @@ describe("LinkedIn AI Service - Unit Tests", () => {
     expect(result.modelKey).toBe("gpt-5-chat-latest");
   });
 
+  it("passes modelPreference to generateLinkedInCompletion", async () => {
+    const { aiRouter } = await import("../../../server/services/ai-router");
+    vi.mocked(aiRouter.generateLinkedInCompletion).mockClear();
+
+    await generateLinkedInReply({
+      ...baseOptions,
+      modelPreference: "gpt-4.1-mini",
+    });
+
+    expect(aiRouter.generateLinkedInCompletion).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.any(String),
+      "gpt-4.1-mini",
+    );
+  });
+
   it("calls shared replyPostProcessor with LinkedIn word cap and replyMode", async () => {
     processReplyMock.mockClear();
     await generateLinkedInReply({

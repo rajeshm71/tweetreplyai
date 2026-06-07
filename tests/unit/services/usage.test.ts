@@ -4,6 +4,15 @@ import { createMockUser } from '../../factories/user.factory';
 import { PLAN_LIMITS } from '../../../shared/constants';
 
 // Mock the storage module used by UsageService
+vi.mock('../../../server/services/whitelistService.js', () => ({
+  whitelistService: {
+    isWhitelisted: vi.fn().mockReturnValue(false),
+    getTrialLimit: vi.fn().mockReturnValue(10),
+    getBypassLimit: vi.fn().mockReturnValue(10000),
+    getUpgradeMessage: vi.fn().mockReturnValue(''),
+  },
+}));
+
 vi.mock('../../../server/storage-supabase', () => ({
   storage: {
     getUser: vi.fn(),
@@ -217,6 +226,42 @@ describe('Usage Service - Unit Tests', () => {
       expect(result?.modeBreakdown?.enhanced).toEqual({ credits: 4, replies: 2 });
       expect(result?.modeBreakdown?.improve).toEqual({ credits: 2, replies: 1 });
     });
+
+    it('includes selectableModels for whitelisted users when picker is enabled', async () => {
+      const { WHITELIST } = await import('../../../server/config/constants.js');
+      const previousFlag = WHITELIST.SHOW_MODEL_SELECT_FOR_WHITELIST;
+      (WHITELIST as { SHOW_MODEL_SELECT_FOR_WHITELIST: boolean }).SHOW_MODEL_SELECT_FOR_WHITELIST = true;
+
+      const mockUser = createMockUser({
+        email: 'whitelist@example.com',
+        trialEnd: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      });
+
+      const mockCounter = {
+        userId: mockUser.id,
+        planCode: 'trial',
+        periodStart: new Date(),
+        periodEnd: new Date(Date.now() + 7 * 86400000),
+        creditsUsed: 0,
+        limit: 10,
+        resetAt: new Date(),
+      };
+
+      const { storage } = await import('../../../server/storage-supabase');
+      const { whitelistService } = await import('../../../server/services/whitelistService.js');
+      vi.mocked(storage.getUser).mockResolvedValue(mockUser);
+      vi.mocked(storage.getUsageCounter).mockResolvedValue(null);
+      vi.mocked(storage.createUsageCounter).mockResolvedValue(mockCounter as any);
+      vi.mocked(whitelistService.isWhitelisted).mockReturnValue(true);
+
+      const result = await usageService.getUsageStatus(mockUser.id);
+
+      expect(result?.showModelSelect).toBe(true);
+      expect(result?.selectableModels?.[0]).toMatchObject({ key: 'auto', name: 'Auto' });
+      expect(result?.selectableModels?.some((m) => m.key === 'gpt-4.1-mini')).toBe(true);
+
+      (WHITELIST as { SHOW_MODEL_SELECT_FOR_WHITELIST: boolean }).SHOW_MODEL_SELECT_FOR_WHITELIST = previousFlag;
+    });
   });
 
   describe('canUseReply', () => {
@@ -282,6 +327,8 @@ describe('Usage Service - Unit Tests', () => {
       const mockUser = createMockUser({ hasUsedTrial: true } as any);
 
       const { storage } = await import('../../../server/storage-supabase');
+      const { whitelistService } = await import('../../../server/services/whitelistService.js');
+      vi.mocked(whitelistService.isWhitelisted).mockReturnValue(false);
       vi.mocked(storage.getUser).mockResolvedValue(mockUser);
       vi.mocked(storage.getActiveSubscription).mockResolvedValue(null);
       vi.mocked(storage.getActiveTrialCounter).mockResolvedValue(null);

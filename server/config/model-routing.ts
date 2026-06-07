@@ -2,6 +2,7 @@
  * Configurable 3-tier model cascade for auto (budget-routed) generation.
  * All values overridable via environment variables.
  */
+import { resolveTierIdForModel } from './model-catalog.js';
 
 export type ModelRoutingTierId = 'primary' | 'secondary' | 'tertiary';
 export type ModelRoutingProvider = 'openai' | 'groq';
@@ -68,9 +69,7 @@ export function isAutoModelPreference(modelPreference?: string | null): boolean 
 }
 
 export function resolveTierForModel(modelKey: string): ModelRoutingTierId | null {
-  const tiers = getModelRoutingConfig();
-  const match = tiers.find((t) => t.model === modelKey);
-  return match?.id ?? null;
+  return resolveTierIdForModel(modelKey);
 }
 
 export function logModelRoutingConfigAtStartup(): void {

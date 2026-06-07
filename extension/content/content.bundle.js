@@ -6922,13 +6922,17 @@ Event: ${getEventDescription(event)}`
         body: { tweetUrl }
       });
     }
-    async suggestImprovements(draftReply, originalTweet) {
+    async suggestImprovements(draftReply, originalTweet, opts = {}) {
+      const body = {
+        draft_reply: draftReply,
+        original_tweet: originalTweet
+      };
+      if (opts.model_key) {
+        body.model_key = opts.model_key;
+      }
       return this.makeRequest("/api/suggest-improvements", {
         method: "POST",
-        body: {
-          draft_reply: draftReply,
-          original_tweet: originalTweet
-        }
+        body
       });
     }
     /**
@@ -8532,11 +8536,69 @@ ${cta}` : cta;
     async loadUsageData() {
       try {
         this.usageData = await this.apiClient.getUsage();
+        this.maybeInjectModelSelectsIntoLiveContainers();
       } catch (error2) {
         console.error("[TweetReplyAI] Failed to load usage data:", error2);
         this.usageData = null;
         throw error2;
       }
+    }
+    getModelSelectOptgroupLabel(tierId) {
+      if (tierId === "auto") return "Auto";
+      if (tierId === "primary") return "Tier 1";
+      if (tierId === "secondary") return "Tier 2";
+      if (tierId === "tertiary") return "Groq";
+      return "Models";
+    }
+    populateModelSelectFromUsage(select, savedModelKey) {
+      const models = this.usageData?.selectableModels;
+      if (!models || !Array.isArray(models) || models.length === 0) {
+        const autoOpt = document.createElement("option");
+        autoOpt.value = "auto";
+        autoOpt.textContent = "Auto";
+        select.appendChild(autoOpt);
+        select.value = "auto";
+        return;
+      }
+      const groups = /* @__PURE__ */ new Map();
+      for (const model of models) {
+        const tierId = model.tierId || "secondary";
+        if (!groups.has(tierId)) groups.set(tierId, []);
+        groups.get(tierId).push(model);
+      }
+      const tierOrder = ["auto", "primary", "secondary", "tertiary"];
+      for (const tierId of tierOrder) {
+        const entries = groups.get(tierId);
+        if (!entries?.length) continue;
+        const optgroup = document.createElement("optgroup");
+        optgroup.label = this.getModelSelectOptgroupLabel(tierId);
+        for (const model of entries) {
+          const option = document.createElement("option");
+          option.value = model.key;
+          option.textContent = model.name;
+          optgroup.appendChild(option);
+        }
+        select.appendChild(optgroup);
+      }
+      const options = Array.from(select.querySelectorAll("option"));
+      if (savedModelKey && options.some((o) => o.value === savedModelKey)) {
+        select.value = savedModelKey;
+      } else {
+        select.value = "auto";
+      }
+    }
+    maybeInjectModelSelectsIntoLiveContainers() {
+      if (!this.usageData?.showModelSelect) return;
+      document.querySelectorAll(".tweetreply-button-container").forEach((container) => {
+        if (container.querySelector(".tweetreply-model-select")) return;
+        const modelSelect = this.createModelSelect();
+        const firstChild = container.firstChild;
+        if (firstChild) {
+          container.insertBefore(modelSelect, firstChild);
+        } else {
+          container.appendChild(modelSelect);
+        }
+      });
     }
     normalizeFollowBadgeIconStyle(value) {
       if (typeof value === "string" && FOLLOW_BADGE_ICON_STYLE_VALUES.includes(value)) {
@@ -9304,52 +9366,21 @@ ${cta}` : cta;
       const select = document.createElement("select");
       select.className = "tweetreply-model-select";
       select.title = "Choose AI model";
-      const defaultOption = document.createElement("option");
-      defaultOption.value = "";
-      defaultOption.textContent = "Auto";
-      select.appendChild(defaultOption);
-      let savedModelKey = null;
+      const applyOptions = (savedModelKey) => {
+        select.replaceChildren();
+        this.populateModelSelectFromUsage(select, savedModelKey);
+      };
       try {
         chrome.storage?.local?.get(["tweetreply_model"], (data) => {
-          if (data && typeof data.tweetreply_model === "string") {
-            savedModelKey = data.tweetreply_model;
-          }
+          const saved = data && typeof data.tweetreply_model === "string" ? data.tweetreply_model : "auto";
+          applyOptions(saved === "" ? "auto" : saved);
         });
       } catch (_) {
+        applyOptions("auto");
       }
-      this.loadModels().then((models) => {
-        if (models && models.openai) {
-          models.openai.forEach((model) => {
-            const option = document.createElement("option");
-            option.value = model.key;
-            option.textContent = model.name;
-            select.appendChild(option);
-          });
-        }
-        if (models && models.groq) {
-          models.groq.forEach((model) => {
-            const option = document.createElement("option");
-            option.value = model.key;
-            option.textContent = model.name;
-            select.appendChild(option);
-          });
-        }
-        const options = Array.from(select.querySelectorAll("option"));
-        if (savedModelKey && options.some((o) => o.value === savedModelKey)) {
-          select.value = savedModelKey;
-        } else {
-          const preferred = options.length > 1 ? options[1] : null;
-          if (preferred && preferred !== defaultOption) {
-            select.insertBefore(preferred, select.children[1] || null);
-            select.value = preferred.value;
-          }
-        }
-      }).catch((error2) => {
-        console.error("Failed to load models:", error2);
-      });
       select.addEventListener("change", () => {
         try {
-          chrome.storage?.local?.set({ tweetreply_model: select.value });
+          chrome.storage?.local?.set({ tweetreply_model: select.value || "auto" });
         } catch (_) {
         }
       });
@@ -9996,7 +10027,12 @@ ${cta}` : cta;
           draftLength: draftText.length,
           originalTweetLength: originalTweetText.length
         });
-        const response = await this.apiClient.suggestImprovements(draftText, originalTweetText);
+        const container = button.closest(".tweetreply-button-container");
+        const modelSelect = container?.querySelector(".tweetreply-model-select");
+        const modelKey = modelSelect?.value || "auto";
+        const response = await this.apiClient.suggestImprovements(draftText, originalTweetText, {
+          model_key: modelKey === "auto" ? void 0 : modelKey
+        });
         console.log("[TweetReplyAI] API response received:", response);
         console.log("[TweetReplyAI] Response keys:", Object.keys(response || {}));
         let improvedDraft = "";

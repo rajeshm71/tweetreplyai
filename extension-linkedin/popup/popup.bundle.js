@@ -135,7 +135,8 @@
   ];
   var LI_STORAGE_KEYS = {
     REPLY_MODE: "liReplyMode",
-    PROMPT_VARIATION: "liPromptVariation"
+    PROMPT_VARIATION: "liPromptVariation",
+    MODEL_KEY: "liReplyModel"
   };
   var VALID_REPLY_MODE_VALUES = new Set(LI_REPLY_MODES.map((m) => m.value));
   var VALID_PROMPT_VALUES = new Set(LI_PROMPT_OPTIONS.map((p) => p.value));

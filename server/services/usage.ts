@@ -7,6 +7,7 @@ import type { User, UsageCounter } from "../../shared/types.js";
 import { deriveReplyUsageFromCredits } from "../../shared/usage-breakdown.js";
 import crypto from "crypto";
 import { PERIODS, WHITELIST } from "../config/constants.js";
+import { getWhitelistSelectableModelsWithAuto } from "../config/model-catalog.js";
 
 interface UsageWindow {
   planCode: string;
@@ -27,6 +28,13 @@ export interface UsageStatus {
   isWhitelisted?: boolean;
   /** When true, extension shows model dropdown (config + whitelist). */
   showModelSelect?: boolean;
+  /** Curated model list for whitelist picker (only when showModelSelect). */
+  selectableModels?: Array<{
+    key: string;
+    name: string;
+    tierId: string;
+    provider: string;
+  }>;
   upgradeRequired?: boolean;
   upgradeMessage?: string;
   /** Paid access from canceled subscription until period end; clients show "Ends in …" instead of "Resets …". */
@@ -314,6 +322,8 @@ export class UsageService {
 
     const derivedUsage = deriveReplyUsageFromCredits(counter.modeBreakdown);
 
+    const showModelSelect = WHITELIST.SHOW_MODEL_SELECT_FOR_WHITELIST && isWhitelisted;
+
     const result: UsageStatus = {
       planCode: window.planCode,
       used: counter.creditsUsed ?? 0,
@@ -321,7 +331,8 @@ export class UsageService {
       resetAt: counter.resetAt,
       status: 'active',
       isWhitelisted,
-      showModelSelect: WHITELIST.SHOW_MODEL_SELECT_FOR_WHITELIST && isWhitelisted,
+      showModelSelect,
+      ...(showModelSelect ? { selectableModels: getWhitelistSelectableModelsWithAuto() } : {}),
       upgradeRequired,
       upgradeMessage,
       subscriptionCanceled: window.subscriptionCanceled === true,

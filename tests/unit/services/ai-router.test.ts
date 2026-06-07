@@ -98,6 +98,36 @@ describe('AI Router Service - Unit Tests', () => {
       );
     });
 
+    it('preserves response modelKey for explicit tier-2 pick', async () => {
+      const explicitTier2 = {
+        id: 'secondary' as const,
+        model: 'gpt-4.1-mini',
+        provider: 'openai' as const,
+        dailyTokenLimit: 2_500_000,
+      };
+      const { buildTierAttemptOrder } = await import('../../../server/services/model-token-budget');
+      vi.mocked(buildTierAttemptOrder).mockResolvedValue([explicitTier2]);
+
+      const { modelRouter } = await import('../../../server/services/openai');
+      vi.mocked(modelRouter.generateReply).mockResolvedValue({
+        reply: 'Tier-2 explicit',
+        modelKey: 'gpt-4.1-mini',
+        tokensIn: 5,
+        tokensOut: 5,
+        latencyMs: 40,
+      });
+
+      const result = await aiRouter.generateReply({
+        tweetText: 'hello',
+        modelPreference: 'gpt-4.1-mini',
+      });
+
+      expect(result.modelKey).toBe('gpt-4.1-mini');
+      expect(modelRouter.generateReply).toHaveBeenCalledWith(
+        expect.objectContaining({ modelPreference: 'gpt-4.1-mini' }),
+      );
+    });
+
     it('uses primary tier for auto requests', async () => {
       const { buildTierAttemptOrder } = await import('../../../server/services/model-token-budget');
       vi.mocked(buildTierAttemptOrder).mockResolvedValue([primaryTier, secondaryTier, tertiaryTier]);

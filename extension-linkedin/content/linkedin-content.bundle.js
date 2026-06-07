@@ -142,7 +142,8 @@
   ];
   var LI_STORAGE_KEYS = {
     REPLY_MODE: "liReplyMode",
-    PROMPT_VARIATION: "liPromptVariation"
+    PROMPT_VARIATION: "liPromptVariation",
+    MODEL_KEY: "liReplyModel"
   };
   var VALID_REPLY_MODE_VALUES = new Set(LI_REPLY_MODES.map((m) => m.value));
   var VALID_PROMPT_VALUES = new Set(LI_PROMPT_OPTIONS.map((p) => p.value));
@@ -278,6 +279,8 @@
       this.authManager = new AuthManager();
       this.apiClient = new ApiClient();
       this.isAuthenticated = false;
+      this.usageData = null;
+      this.usageDataInterval = null;
       this.observer = null;
       this._scanTimer = null;
       this._loggedInUser = null;
@@ -291,17 +294,113 @@
       } catch (_) {
         this.isAuthenticated = false;
       }
+      if (this.isAuthenticated) {
+        try {
+          await this.loadUsageData();
+        } catch (e) {
+          log("loadUsageData failed on init:", e.message);
+        }
+      }
+      if (this.usageDataInterval) {
+        clearInterval(this.usageDataInterval);
+      }
+      this.usageDataInterval = setInterval(() => {
+        if (this.isAuthenticated) {
+          this.loadUsageData().catch(() => {
+          });
+        }
+      }, POLLING.USAGE_REFRESH_MS);
       chrome.runtime.onMessage.addListener((message) => {
         if (message.action === "authUpdated") {
           this.authManager.clearCache();
-          this.authManager.isAuthenticated().then((isAuth) => {
+          this.authManager.isAuthenticated().then(async (isAuth) => {
             this.isAuthenticated = isAuth;
+            if (isAuth) {
+              try {
+                await this.loadUsageData();
+              } catch (_) {
+              }
+            }
           });
         }
       });
       injectLog("initialize: authenticated =", this.isAuthenticated);
       this.startObserving();
       this.scanForEditors();
+    }
+    async loadUsageData() {
+      this.usageData = await this.apiClient.getUsage();
+      return this.usageData;
+    }
+    getModelSelectOptgroupLabel(tierId) {
+      if (tierId === "auto") return "Auto";
+      if (tierId === "primary") return "Tier 1";
+      if (tierId === "secondary") return "Tier 2";
+      if (tierId === "tertiary") return "Groq";
+      return "Models";
+    }
+    populateModelSelectFromUsage(select, savedModelKey) {
+      const models = this.usageData?.selectableModels;
+      if (!models || !Array.isArray(models) || models.length === 0) {
+        const autoOpt = document.createElement("option");
+        autoOpt.value = "auto";
+        autoOpt.textContent = "Auto";
+        select.appendChild(autoOpt);
+        select.value = "auto";
+        return;
+      }
+      const groups = /* @__PURE__ */ new Map();
+      for (const model of models) {
+        const tierId = model.tierId || "secondary";
+        if (!groups.has(tierId)) groups.set(tierId, []);
+        groups.get(tierId).push(model);
+      }
+      const tierOrder = ["auto", "primary", "secondary", "tertiary"];
+      for (const tierId of tierOrder) {
+        const entries = groups.get(tierId);
+        if (!entries?.length) continue;
+        const optgroup = document.createElement("optgroup");
+        optgroup.label = this.getModelSelectOptgroupLabel(tierId);
+        for (const model of entries) {
+          const option = document.createElement("option");
+          option.value = model.key;
+          option.textContent = model.name;
+          optgroup.appendChild(option);
+        }
+        select.appendChild(optgroup);
+      }
+      const options = Array.from(select.querySelectorAll("option"));
+      if (savedModelKey && options.some((o) => o.value === savedModelKey)) {
+        select.value = savedModelKey;
+      } else {
+        select.value = "auto";
+      }
+    }
+    createModelSelect() {
+      const select = document.createElement("select");
+      select.className = "li-ai-bar-select li-ai-model-select";
+      select.title = "Choose AI model";
+      const applyOptions = (savedModelKey) => {
+        select.replaceChildren();
+        this.populateModelSelectFromUsage(select, savedModelKey);
+      };
+      try {
+        chrome.storage?.local?.get([LI_STORAGE_KEYS.MODEL_KEY], (data) => {
+          const saved = data && typeof data[LI_STORAGE_KEYS.MODEL_KEY] === "string" ? data[LI_STORAGE_KEYS.MODEL_KEY] : "auto";
+          applyOptions(saved === "" ? "auto" : saved);
+        });
+      } catch (_) {
+        applyOptions("auto");
+      }
+      select.addEventListener("change", () => {
+        try {
+          chrome.storage?.local?.set({
+            [LI_STORAGE_KEYS.MODEL_KEY]: select.value || "auto"
+          });
+        } catch (_) {
+        }
+      });
+      return select;
     }
     // ─── DOM Observation ─────────────────────────────────────────────────────────
     startObserving() {
@@ -394,23 +493,32 @@
       return select;
     }
     /** Await storage before enabling controls — avoids race where first click ignores saved prefs. */
-    async restoreBarControlsFromStorage(replyModeSelect, toneSelect, generateBtn) {
+    async restoreBarControlsFromStorage(replyModeSelect, toneSelect, generateBtn, modelSelect) {
       replyModeSelect.disabled = true;
       toneSelect.disabled = true;
       generateBtn.disabled = true;
+      if (modelSelect) modelSelect.disabled = true;
       try {
-        const stored = await chrome.storage?.local?.get([
-          LI_STORAGE_KEYS.REPLY_MODE,
-          LI_STORAGE_KEYS.PROMPT_VARIATION
-        ]);
+        const keys = [LI_STORAGE_KEYS.REPLY_MODE, LI_STORAGE_KEYS.PROMPT_VARIATION];
+        if (modelSelect) keys.push(LI_STORAGE_KEYS.MODEL_KEY);
+        const stored = await chrome.storage?.local?.get(keys);
         replyModeSelect.value = normalizeReplyMode(stored?.[LI_STORAGE_KEYS.REPLY_MODE]);
         toneSelect.value = normalizePromptVariation(stored?.[LI_STORAGE_KEYS.PROMPT_VARIATION]);
+        if (modelSelect) {
+          const saved = stored?.[LI_STORAGE_KEYS.MODEL_KEY];
+          const normalized = typeof saved === "string" && saved !== "" ? saved : "auto";
+          const options = Array.from(modelSelect.querySelectorAll("option"));
+          if (options.some((o) => o.value === normalized)) {
+            modelSelect.value = normalized;
+          }
+        }
       } catch (e) {
         log("restoreBarControlsFromStorage failed, using defaults:", e.message);
       } finally {
         replyModeSelect.disabled = false;
         toneSelect.disabled = false;
         generateBtn.disabled = false;
+        if (modelSelect) modelSelect.disabled = false;
       }
     }
     setBarSelectsDisabled(wrapper, disabled) {
@@ -423,6 +531,10 @@
       wrapper.className = BUTTON_WRAPPER_CLASS;
       const replyModeSelect = this.createReplyModeSelect();
       const toneSelect = this.createToneSelect();
+      let modelSelect = null;
+      if (this.usageData?.showModelSelect) {
+        modelSelect = this.createModelSelect();
+      }
       replyModeSelect.addEventListener("change", () => {
         try {
           chrome.storage?.local?.set({
@@ -452,13 +564,17 @@
         e.stopPropagation();
         this.handleGenerateReply(editor, btn, wrapper, {
           replyMode: replyModeSelect.value,
-          promptVariation: toneSelect.value
+          promptVariation: toneSelect.value,
+          modelKey: modelSelect ? modelSelect.value : "auto"
         });
       });
+      if (modelSelect) {
+        wrapper.appendChild(modelSelect);
+      }
       wrapper.appendChild(replyModeSelect);
       wrapper.appendChild(toneSelect);
       wrapper.appendChild(btn);
-      void this.restoreBarControlsFromStorage(replyModeSelect, toneSelect, btn);
+      void this.restoreBarControlsFromStorage(replyModeSelect, toneSelect, btn, modelSelect);
       const submitBtn = form.querySelector('button[type="submit"]') || form.querySelector(".comments-comment-box__submit-button") || form.querySelector('[class*="submit-button"]');
       const actionRow = submitBtn?.closest(".comments-comment-box__form-actions") || submitBtn?.closest('[class*="comment-box"][class*="actions"]') || submitBtn?.parentElement;
       if (actionRow) {
@@ -521,6 +637,7 @@
             log("chrome.storage unavailable, using defaults");
           }
         }
+        const modelKey = options.modelKey || "auto";
         const payload = {
           tweet_text: context.postText,
           tweet_id: context.postId || "",
@@ -529,6 +646,9 @@
           reply_mode: replyMode,
           viewer_is_original_author: context.viewerIsOA
         };
+        if (modelKey && modelKey !== "auto") {
+          payload.model_key = modelKey;
+        }
         if (context.threadContext) {
           payload.thread_context = context.threadContext;
         }

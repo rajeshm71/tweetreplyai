@@ -31,6 +31,7 @@ import {
 import { tagRequestUser, reportRouteError } from "./utils/sentry.js";
 import { logger } from "./utils/logger.js";
 import { stageBreakdownFromReply } from "./utils/token-usage.js";
+import { ModelPreferenceError, sanitizeModelPreference } from "./utils/model-preference.js";
 import { formatReceiptAmount } from "./utils/receipt.js";
 // FIX: sendWelcomeEmail removed (unused after switching to emailService.sendWelcome in registration block below)
 import { sendPasswordResetEmail } from "./utils/email.js";
@@ -1276,6 +1277,16 @@ export async function registerRoutes(app: Express): Promise<Express> {
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
+
+      let sanitizedModelKey: string | undefined;
+      try {
+        sanitizedModelKey = sanitizeModelPreference(user.email, model_key);
+      } catch (prefErr) {
+        if (prefErr instanceof ModelPreferenceError) {
+          return res.status(400).json({ message: prefErr.message });
+        }
+        throw prefErr;
+      }
       
       // Check if user can generate reply (applies to ALL users including whitelisted)
       const { canUse, reason } = await usageService.canUseReply(userId);
@@ -1470,6 +1481,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
           postId: tweet_id,
           promptVariation: prompt_variation,
           replyMode: reply_mode,
+          modelPreference: sanitizedModelKey,
           viewerIsOriginalAuthor: viewer_is_original_author ?? false,
           authorInfo: author_info,
           // Map shared normalizedThreadContext (uses Twitter field names) to the
@@ -1675,7 +1687,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
           enrichedPromptLength: tweetAnalysis.enrichedContextPrompt?.length || 0,
           tone: tweetAnalysis.understanding?.tone || 'unknown',
           sentiment: tweetAnalysis.understanding?.sentiment || 'unknown',
-          modelPreference: model_key || 'auto'
+          modelPreference: sanitizedModelKey || 'auto'
         });
       } else {
         console.log('[API] ⚠️ No analysis data to pass to AI router (using basic context only)');
@@ -1684,7 +1696,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
       let replyResponse = await aiRouter.generateReply({
         tweetText: tweet_text,
         tweetId: tweet_id,
-        modelPreference: model_key,
+        modelPreference: sanitizedModelKey,
         promptVariation: prompt_variation,
         replyMode: reply_mode, // Pass reply mode for prompt modification
         tweetContext,
@@ -1715,7 +1727,7 @@ export async function registerRoutes(app: Express): Promise<Express> {
           const retryResponse = await aiRouter.generateReply({
             tweetText: tweet_text,
             tweetId: tweet_id,
-            modelPreference: model_key,
+            modelPreference: sanitizedModelKey,
             promptVariation: prompt_variation === 'default' ? 'direct' : 'default', // Try different prompt
             replyMode: reply_mode, // Pass reply mode for prompt modification
             tweetContext,
@@ -3304,9 +3316,20 @@ export async function registerRoutes(app: Express): Promise<Express> {
       const schema = z.object({
         draft_reply: z.string().min(1).max(VALIDATION.MAX_DRAFT_LENGTH),
         original_tweet: z.string().min(1, "Original tweet is required"), // Required, not optional
+        model_key: z.string().optional(),
       });
 
-      const { draft_reply, original_tweet } = schema.parse(req.body);
+      const { draft_reply, original_tweet, model_key: improveModelKey } = schema.parse(req.body);
+
+      let sanitizedImproveModelKey: string | undefined;
+      try {
+        sanitizedImproveModelKey = sanitizeModelPreference(user.email, improveModelKey);
+      } catch (prefErr) {
+        if (prefErr instanceof ModelPreferenceError) {
+          return res.status(400).json({ message: prefErr.message });
+        }
+        throw prefErr;
+      }
 
       // Check usage quota before processing
       const isWhitelisted = whitelistService.isWhitelisted(user.email);
@@ -3457,7 +3480,8 @@ User draft reply: ${draft_reply}`;
         // Use the new improveDraft method
         improvementResponse = await aiRouter.improveDraft(
           original_tweet,
-          draft_reply
+          draft_reply,
+          sanitizedImproveModelKey,
         );
         improvedReply = improvementResponse.reply;
       } catch (error) {
@@ -3588,6 +3612,16 @@ User draft reply: ${draft_reply}`;
       });
 
       const body = schema.parse(req.body);
+
+      let sanitizedReframeModelKey: string | undefined;
+      try {
+        sanitizedReframeModelKey = sanitizeModelPreference(user.email, body.model_key);
+      } catch (prefErr) {
+        if (prefErr instanceof ModelPreferenceError) {
+          return res.status(400).json({ message: prefErr.message });
+        }
+        throw prefErr;
+      }
 
       // Review fix: prompt_variation is deprecated; kept in schema for backward compat only.
       if (body.prompt_variation) {
@@ -3724,7 +3758,7 @@ User draft reply: ${draft_reply}`;
 
       const reframeOpts = {
         allowLong: body.allow_long,
-        modelPreference: body.model_key,
+        modelPreference: sanitizedReframeModelKey,
       };
 
       let generation;

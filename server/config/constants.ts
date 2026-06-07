@@ -54,6 +54,13 @@ export const MODEL_SPECS = {
   GPT_4O_MINI: { inputCost: 0.15, outputCost: 0.6, contextWindow: 128000 },
   GPT_5_CHAT_LATEST: { inputCost: 2.5, outputCost: 15, contextWindow: 128000 },
   GPT_5_4_MINI: { inputCost: 0.375, outputCost: 2.25, contextWindow: 400000 },
+  GPT_4_1_MINI: { inputCost: 0.4, outputCost: 1.6, contextWindow: 128000 },
+  GPT_5_MINI: { inputCost: 0.25, outputCost: 2.0, contextWindow: 128000 },
+  CODEX_MINI: { inputCost: 0.5, outputCost: 2.0, contextWindow: 128000 },
+  GPT_5_1_CODEX_MINI: { inputCost: 0.5, outputCost: 2.0, contextWindow: 128000 },
+  O1_MINI: { inputCost: 1.1, outputCost: 4.4, contextWindow: 128000 },
+  O3_MINI: { inputCost: 1.1, outputCost: 4.4, contextWindow: 128000 },
+  O4_MINI: { inputCost: 1.1, outputCost: 4.4, contextWindow: 128000 },
   LLAMA_SCOUT: { inputCost: 0.11, outputCost: 0.34, contextWindow: 131072 },
   GUARDRAIL_SAFEGUARD: { inputCost: 0.075, outputCost: 0.3, contextWindow: 128000 },
 } as const;

@@ -1,6 +1,7 @@
 import { modelRouter as openaiRouter, ReplyOptions, ReplyResponse } from "./openai.js";
 import { groqModelRouter } from "./groq.js";
 import { AI_MODELS, AI_PARAMS, LEGACY_OPENAI_FALLBACK, MODEL_SPECS } from "../config/constants.js";
+import { resolveProviderForModel } from "../config/model-catalog.js";
 import {
   getGroqTertiaryModel,
   getModelRoutingConfig,
@@ -32,15 +33,7 @@ type TierCallFn = (tier: ModelRoutingTier) => Promise<ReplyResponse>;
 
 export class UnifiedAIRouter {
   private getProviderForModel(modelKey: string): "openai" | "groq" | null {
-    if (modelKey.startsWith("gpt-")) {
-      return "openai";
-    }
-
-    if (modelKey.startsWith("meta-llama/") || modelKey.startsWith("llama-") || modelKey.startsWith("openai/")) {
-      return "groq";
-    }
-
-    return null;
+    return resolveProviderForModel(modelKey);
   }
 
   private async dispatchToTier(tier: ModelRoutingTier, options: ReplyOptions): Promise<ReplyResponse> {
@@ -149,11 +142,18 @@ export class UnifiedAIRouter {
         }
 
         const tierUsageAfter = await this.recordResponseUsage(tier, response);
+        const resolvedModelKey = response.modelKey || tier.model;
         console.log(
           `[AI Router] ${operationLabel} succeeded`,
-          JSON.stringify({ tierId: tier.id, modelKey: tier.model, tierUsageAfter, requestedModel: modelPreference ?? 'auto' }),
+          JSON.stringify({
+            tierId: tier.id,
+            modelKey: resolvedModelKey,
+            tierDefaultModel: tier.model,
+            tierUsageAfter,
+            requestedModel: modelPreference ?? 'auto',
+          }),
         );
-        return { ...response, tierId: tier.id, modelKey: tier.model };
+        return { ...response, tierId: tier.id, modelKey: resolvedModelKey };
       } catch (error) {
         const message = error instanceof Error ? error.message : "Unknown error";
         console.log(`[AI Router] Tier ${tier.id} (${tier.model}) failed: ${message}`);

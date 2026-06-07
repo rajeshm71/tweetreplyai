@@ -6,6 +6,8 @@ import { buildSystemPrompt, buildUserPromptWithThread } from "./prompt-builder.j
 import { getDynamicReplyMaxWords, getDynamicReplyWordRange } from "./oa-dynamic-reply-length.js";
 import type { EnrichedTweetAnalysis } from "./tweet-analysis-agents.js";
 import { AI_MODELS, AI_PARAMS, MODEL_SPECS, REPLY_LIMITS } from "../config/constants.js";
+import { getApiProfile, getCatalogModel, getModelCatalog } from "../config/model-catalog.js";
+import type { ModelApiProfile } from "../config/model-catalog.js";
 import { getModelRoutingConfig, isModelRoutingEnabled } from "../config/model-routing.js";
 import { getReframePromptConfig, type ReframePromptOptions } from "./reframe-prompts.js";
 
@@ -105,6 +107,9 @@ export class ModelRouter {
       if (modelPreference in this.MODELS) {
         return modelPreference;
       }
+      if (getCatalogModel(modelPreference)?.provider === "openai") {
+        return modelPreference;
+      }
       if (modelPreference.startsWith("gpt-")) {
         return modelPreference;
       }
@@ -114,6 +119,59 @@ export class ModelRouter {
       }
     }
     return isModelRoutingEnabled() ? getModelRoutingConfig().find((t) => t.id === "primary")?.model ?? AI_MODELS.FALLBACK : AI_MODELS.FALLBACK;
+  }
+
+  private async runCompletion(
+    modelKey: string,
+    systemPrompt: string,
+    userPrompt: string,
+    profileOverride?: ModelApiProfile,
+  ): Promise<{ text: string; tokensIn?: number; tokensOut?: number; rawUsage?: Record<string, unknown> }> {
+    if (!openai) {
+      throw new Error("OpenAI client not configured");
+    }
+
+    const profile = profileOverride ?? getApiProfile(modelKey);
+
+    if (profile === "responses_chat") {
+      const response = await openai.responses.create({
+        model: modelKey,
+        input: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+        top_p: 1,
+        temperature: AI_PARAMS.TEMPERATURE,
+      });
+      const usage = response.usage as Record<string, unknown> | undefined;
+      return {
+        text: response.output_text || "",
+        tokensIn: response.usage?.input_tokens,
+        tokensOut: response.usage?.output_tokens,
+        rawUsage: usage,
+      };
+    }
+
+    const isReasoning = profile === "chat_reasoning";
+    const response = await openai.chat.completions.create({
+      model: modelKey,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      ...(isReasoning
+        ? { max_completion_tokens: AI_PARAMS.GROQ_MAX_TOKENS }
+        : { temperature: AI_PARAMS.TEMPERATURE, max_tokens: AI_PARAMS.GROQ_MAX_TOKENS }),
+    });
+
+    const choice = response.choices[0]?.message?.content ?? "";
+    const usage = response.usage as Record<string, unknown> | undefined;
+    return {
+      text: typeof choice === "string" ? choice : "",
+      tokensIn: response.usage?.prompt_tokens,
+      tokensOut: response.usage?.completion_tokens,
+      rawUsage: usage,
+    };
   }
 
   private getPromptConfig(promptVariation?: string): PromptConfig {
@@ -192,27 +250,17 @@ export class ModelRouter {
       console.log('[PROMPT] [OpenAI] system:', enhancedSystemPrompt);
       console.log('[PROMPT] [OpenAI] user:', userPromptText);
 
-      const response = await openai.responses.create({
-        model: modelKey,
-        input: [
-          { role: "system", content: enhancedSystemPrompt },
-          { role: "user", content: userPromptText },
-        ],
-        top_p: 1,
-        temperature: AI_PARAMS.TEMPERATURE,
-      });
-      const rawReply = response.output_text || "";
-      const processedReply = this.postProcessReply(rawReply, false, options.replyMode, replyMaxWordsOverride);
+      const completion = await this.runCompletion(modelKey, enhancedSystemPrompt, userPromptText);
+      const processedReply = this.postProcessReply(completion.text, false, options.replyMode, replyMaxWordsOverride);
       const latencyMs = Date.now() - startTime;
 
-      const usage = response.usage as Record<string, unknown> | undefined;
       return {
         reply: processedReply,
         modelKey,
-        tokensIn: response.usage?.input_tokens,
-        tokensOut: response.usage?.output_tokens,
+        tokensIn: completion.tokensIn,
+        tokensOut: completion.tokensOut,
         latencyMs,
-        rawUsage: usage,
+        rawUsage: completion.rawUsage,
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
@@ -249,16 +297,8 @@ Write a clean, natural reply based on the user's draft idea. Keep it under ${REP
     }
 
     try {
-      const response = await openai.responses.create({
-        model: modelKey,
-        input: [
-          { role: "system", content: promptConfig.systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-        top_p: 1,
-        temperature: AI_PARAMS.TEMPERATURE,
-      });
-      const rawReply = response.output_text || "";
+      const completion = await this.runCompletion(modelKey, promptConfig.systemPrompt, userPrompt);
+      const rawReply = completion.text;
       console.log(`🔍 [OpenAI] Raw AI response before post-processing: "${rawReply}"`);
       const processedReply = this.postProcessReply(rawReply, true);
       console.log(`✨ [OpenAI] Post-processed improved reply: "${processedReply}"`);
@@ -270,15 +310,14 @@ Write a clean, natural reply based on the user's draft idea. Keep it under ${REP
       }
       
       const latencyMs = Date.now() - startTime;
-      const usage = response.usage as Record<string, unknown> | undefined;
 
       return {
         reply: processedReply,
         modelKey,
-        tokensIn: response.usage?.input_tokens,
-        tokensOut: response.usage?.output_tokens,
+        tokensIn: completion.tokensIn,
+        tokensOut: completion.tokensOut,
         latencyMs,
-        rawUsage: usage,
+        rawUsage: completion.rawUsage,
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
@@ -319,32 +358,26 @@ Write a clean, natural reply based on the user's draft idea. Keep it under ${REP
     }
 
     try {
-      const response = await openai.responses.create({
-        model: modelKey,
-        input: [
-          { role: "system", content: config.systemPrompt },
-          { role: "user", content: config.userPrompt(source) },
-        ],
-        top_p: 1,
-        temperature: AI_PARAMS.TEMPERATURE,
-      });
+      const completion = await this.runCompletion(
+        modelKey,
+        config.systemPrompt,
+        config.userPrompt(source),
+      );
 
-      const rawReply = response.output_text || "";
-      const processedReply = replyPostProcessor.processReframe(rawReply);
+      const processedReply = replyPostProcessor.processReframe(completion.text);
 
       if (processedReply.trim().toLowerCase() === source.trim().toLowerCase()) {
         console.warn(`⚠️ [OpenAI] Reframe output identical to source at degree ${config.degree}`);
       }
 
       const latencyMs = Date.now() - startTime;
-      const usage = response.usage as Record<string, unknown> | undefined;
       return {
         reply: processedReply,
         modelKey,
-        tokensIn: response.usage?.input_tokens,
-        tokensOut: response.usage?.output_tokens,
+        tokensIn: completion.tokensIn,
+        tokensOut: completion.tokensOut,
         latencyMs,
-        rawUsage: usage,
+        rawUsage: completion.rawUsage,
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
@@ -372,24 +405,14 @@ Write a clean, natural reply based on the user's draft idea. Keep it under ${REP
       };
     }
 
-    const response = await openai.responses.create({
-      model: modelKey,
-      input: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      top_p: 1,
-      temperature: AI_PARAMS.TEMPERATURE,
-    });
-
-    const usage = response.usage as Record<string, unknown> | undefined;
+    const completion = await this.runCompletion(modelKey, systemPrompt, userPrompt);
     return {
-      reply: response.output_text || "",
+      reply: completion.text,
       modelKey,
-      tokensIn: response.usage?.input_tokens,
-      tokensOut: response.usage?.output_tokens,
+      tokensIn: completion.tokensIn,
+      tokensOut: completion.tokensOut,
       latencyMs: Date.now() - startTime,
-      rawUsage: usage,
+      rawUsage: completion.rawUsage,
     };
   }
 
@@ -402,6 +425,20 @@ Write a clean, natural reply based on the user's draft idea. Keep it under ${REP
       if (seen.has(key)) continue;
       seen.add(key);
       models.push({ key, ...info, provider: "openai" });
+    }
+
+    for (const entry of getModelCatalog()) {
+      if (entry.provider !== "openai" || seen.has(entry.key)) continue;
+      seen.add(entry.key);
+      models.push({
+        key: entry.key,
+        name: entry.name,
+        inputCost: entry.inputCost,
+        outputCost: entry.outputCost,
+        contextWindow: entry.contextWindow,
+        description: entry.description,
+        provider: "openai",
+      });
     }
 
     if (isModelRoutingEnabled()) {

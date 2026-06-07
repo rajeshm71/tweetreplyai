@@ -6884,13 +6884,17 @@ Event: ${getEventDescription(event)}`
         body: { tweetUrl }
       });
     }
-    async suggestImprovements(draftReply, originalTweet) {
+    async suggestImprovements(draftReply, originalTweet, opts = {}) {
+      const body = {
+        draft_reply: draftReply,
+        original_tweet: originalTweet
+      };
+      if (opts.model_key) {
+        body.model_key = opts.model_key;
+      }
       return this.makeRequest("/api/suggest-improvements", {
         method: "POST",
-        body: {
-          draft_reply: draftReply,
-          original_tweet: originalTweet
-        }
+        body
       });
     }
     /**
