@@ -19,6 +19,18 @@
   vertical-align: middle;
 }
 
+/* ── Inner control group: dropdowns + Generate Reply stay adjacent ─ */
+.li-ai-bar-controls {
+  display: inline-flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  width: max-content;
+  max-width: 100%;
+}
+
 /* ── Comment bar dropdowns (reply mode + tone) ────────────── */
 .li-ai-bar-select {
   padding: 4px 24px 4px 8px;
@@ -66,6 +78,15 @@
 
 .li-ai-reply-mode-select {
   max-width: 88px;
+}
+
+.li-ai-model-select {
+  max-width: 120px;
+}
+
+.li-ai-bar-controls > .li-ai-bar-select,
+.li-ai-bar-controls > .li-ai-reply-btn {
+  flex-shrink: 0;
 }
 
 /* ── Base Button ──────────────────────────────────────────── */

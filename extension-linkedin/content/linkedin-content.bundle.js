@@ -295,11 +295,9 @@
         this.isAuthenticated = false;
       }
       if (this.isAuthenticated) {
-        try {
-          await this.loadUsageData();
-        } catch (e) {
+        void this.loadUsageData().catch((e) => {
           log("loadUsageData failed on init:", e.message);
-        }
+        });
       }
       if (this.usageDataInterval) {
         clearInterval(this.usageDataInterval);
@@ -320,17 +318,67 @@
                 await this.loadUsageData();
               } catch (_) {
               }
+            } else {
+              this.usageData = null;
             }
           });
         }
       });
       injectLog("initialize: authenticated =", this.isAuthenticated);
       this.startObserving();
+      this.bindCommentBoxInteractionHooks();
       this.scanForEditors();
+    }
+    /** LinkedIn mounts the Quill editor only after the user focuses the comment box. */
+    bindCommentBoxInteractionHooks() {
+      const scheduleScan = () => {
+        this.scanForEditors();
+        window.setTimeout(() => this.scanForEditors(), 120);
+        window.setTimeout(() => this.scanForEditors(), 400);
+      };
+      document.addEventListener(
+        "focusin",
+        (event) => {
+          const t = event.target;
+          if (!(t instanceof Element)) return;
+          if (t.closest(".ql-editor") || t.closest('[class*="comment-box"]') || t.closest('[data-placeholder*="comment" i]') || t.closest('[aria-label*="comment" i]')) {
+            scheduleScan();
+          }
+        },
+        true
+      );
+      document.addEventListener(
+        "click",
+        (event) => {
+          const t = event.target;
+          if (!(t instanceof Element)) return;
+          if (t.closest('[class*="comment-box"]') || t.closest('[data-placeholder*="comment" i]') || t.closest('[aria-label*="comment" i]')) {
+            scheduleScan();
+          }
+        },
+        true
+      );
     }
     async loadUsageData() {
       this.usageData = await this.apiClient.getUsage();
+      this.maybeInjectModelSelectIntoLiveWrappers();
+      this.scanForEditors();
       return this.usageData;
+    }
+    /** Usage can load after the bar is injected — add model picker to existing wrappers. */
+    maybeInjectModelSelectIntoLiveWrappers() {
+      if (!this.usageData?.showModelSelect) return;
+      document.querySelectorAll(`.${BUTTON_WRAPPER_CLASS}`).forEach((wrapper) => {
+        if (wrapper.querySelector(".li-ai-model-select")) return;
+        const controls = wrapper.querySelector(".li-ai-bar-controls") || wrapper;
+        const generateBtn = controls.querySelector(`.${BUTTON_CLASS}`);
+        if (!generateBtn) return;
+        const modelSelect = this.createModelSelect();
+        controls.insertBefore(modelSelect, generateBtn);
+        const replyModeSelect = controls.querySelector(".li-ai-reply-mode-select");
+        const toneSelect = controls.querySelector(".li-ai-tone-select");
+        void this.restoreBarControlsFromStorage(replyModeSelect, toneSelect, generateBtn, modelSelect);
+      });
     }
     getModelSelectOptgroupLabel(tierId) {
       if (tierId === "auto") return "Auto";
@@ -413,8 +461,28 @@
       });
       this.observer.observe(document.body, { childList: true, subtree: true });
     }
+    collectCommentEditors() {
+      const selectors = [
+        '.comments-comment-box .ql-editor[contenteditable="true"]',
+        '.comments-reply-box__form .ql-editor[contenteditable="true"]',
+        '[class*="comment-box"] .ql-editor[contenteditable="true"]',
+        '.ql-editor[contenteditable="true"]',
+        '[class*="comment-box"] [contenteditable="true"]'
+      ];
+      const seen = /* @__PURE__ */ new Set();
+      const editors = [];
+      for (const selector of selectors) {
+        for (const editor of document.querySelectorAll(selector)) {
+          if (seen.has(editor)) continue;
+          if (!editor.isConnected || editor.closest("[hidden]")) continue;
+          seen.add(editor);
+          editors.push(editor);
+        }
+      }
+      return editors;
+    }
     scanForEditors() {
-      const editors = document.querySelectorAll('.ql-editor[contenteditable="true"]');
+      const editors = this.collectCommentEditors();
       const qlAny = document.querySelectorAll(".ql-editor");
       const textEditorWrappers = document.querySelectorAll(
         '.comments-comment-box-comment__text-editor, [class*="comment-box-comment"][class*="text-editor"]'
@@ -434,8 +502,12 @@
           skippedAlready += 1;
           continue;
         }
-        this.injectButton(editor, form);
-        injected += 1;
+        try {
+          this.injectButton(editor, form);
+          injected += 1;
+        } catch (e) {
+          log("injectButton failed:", e.message);
+        }
       }
       injectLog(
         "scan:",
@@ -460,7 +532,7 @@
       }
     }
     findCommentForm(editor) {
-      return editor.closest(".comments-comment-box__form") || editor.closest(".comments-reply-box__form") || editor.closest("form") || editor.closest('[class*="comment-box"]');
+      return editor.closest(".comments-comment-box__form") || editor.closest(".comments-reply-box__form") || editor.closest("form") || editor.closest('[class*="comment-box"]') || editor.closest('[class*="comments-comment-box"]');
     }
     // ─── Button Injection ────────────────────────────────────────────────────────
     createReplyModeSelect() {
@@ -568,30 +640,49 @@
           modelKey: modelSelect ? modelSelect.value : "auto"
         });
       });
+      const controls = document.createElement("div");
+      controls.className = "li-ai-bar-controls";
+      controls.appendChild(replyModeSelect);
+      controls.appendChild(toneSelect);
       if (modelSelect) {
-        wrapper.appendChild(modelSelect);
+        controls.appendChild(modelSelect);
       }
-      wrapper.appendChild(replyModeSelect);
-      wrapper.appendChild(toneSelect);
-      wrapper.appendChild(btn);
+      controls.appendChild(btn);
+      wrapper.appendChild(controls);
       void this.restoreBarControlsFromStorage(replyModeSelect, toneSelect, btn, modelSelect);
+      try {
+        this.placeControlBar(wrapper, form);
+      } catch (e) {
+        log("placeControlBar failed, using form.appendChild:", e.message);
+        form.appendChild(wrapper);
+      }
+      log("Button injected for editor placeholder:", editor.dataset.placeholder || "comment box");
+    }
+    /**
+     * Place next to Post. Must insert into submitBtn.parentElement — insertBefore on a
+     * distant actionRow ancestor throws when Post is nested (regression from edcb731).
+     */
+    placeControlBar(wrapper, form) {
       const submitBtn = form.querySelector('button[type="submit"]') || form.querySelector(".comments-comment-box__submit-button") || form.querySelector('[class*="submit-button"]');
-      const actionRow = submitBtn?.closest(".comments-comment-box__form-actions") || submitBtn?.closest('[class*="comment-box"][class*="actions"]') || submitBtn?.parentElement;
+      if (submitBtn?.parentElement) {
+        submitBtn.parentElement.insertBefore(wrapper, submitBtn);
+        injectLog(
+          "placed before submit:",
+          submitBtn.className?.slice?.(0, 80) || submitBtn.tagName
+        );
+        return;
+      }
+      const actionRow = form.querySelector(".comments-comment-box__form-actions") || form.querySelector('[class*="comment-box"][class*="actions"]');
       if (actionRow) {
-        if (submitBtn && actionRow.contains(submitBtn)) {
-          actionRow.insertBefore(wrapper, submitBtn);
-        } else {
-          actionRow.appendChild(wrapper);
-        }
+        actionRow.appendChild(wrapper);
         injectLog(
           "placed in action row:",
           actionRow.className?.slice?.(0, 80) || actionRow.tagName
         );
-      } else {
-        form.appendChild(wrapper);
-        injectLog("placed via form.appendChild (no submit anchor found)");
+        return;
       }
-      log("Button injected for editor placeholder:", editor.dataset.placeholder || "comment box");
+      form.appendChild(wrapper);
+      injectLog("placed via form.appendChild (no submit anchor found)");
     }
     // ─── Reply Generation ────────────────────────────────────────────────────────
     async handleGenerateReply(editor, btn, controlWrapper, options = {}) {
