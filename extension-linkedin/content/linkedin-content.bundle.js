@@ -279,8 +279,6 @@
       this.authManager = new AuthManager();
       this.apiClient = new ApiClient();
       this.isAuthenticated = false;
-      this.usageData = null;
-      this.usageDataInterval = null;
       this.observer = null;
       this._scanTimer = null;
       this._loggedInUser = null;
@@ -294,161 +292,17 @@
       } catch (_) {
         this.isAuthenticated = false;
       }
-      if (this.isAuthenticated) {
-        void this.loadUsageData().catch((e) => {
-          log("loadUsageData failed on init:", e.message);
-        });
-      }
-      if (this.usageDataInterval) {
-        clearInterval(this.usageDataInterval);
-      }
-      this.usageDataInterval = setInterval(() => {
-        if (this.isAuthenticated) {
-          this.loadUsageData().catch(() => {
-          });
-        }
-      }, POLLING.USAGE_REFRESH_MS);
       chrome.runtime.onMessage.addListener((message) => {
         if (message.action === "authUpdated") {
           this.authManager.clearCache();
-          this.authManager.isAuthenticated().then(async (isAuth) => {
+          this.authManager.isAuthenticated().then((isAuth) => {
             this.isAuthenticated = isAuth;
-            if (isAuth) {
-              try {
-                await this.loadUsageData();
-              } catch (_) {
-              }
-            } else {
-              this.usageData = null;
-            }
           });
         }
       });
       injectLog("initialize: authenticated =", this.isAuthenticated);
       this.startObserving();
-      this.bindCommentBoxInteractionHooks();
       this.scanForEditors();
-    }
-    /** LinkedIn mounts the Quill editor only after the user focuses the comment box. */
-    bindCommentBoxInteractionHooks() {
-      const scheduleScan = () => {
-        this.scanForEditors();
-        window.setTimeout(() => this.scanForEditors(), 120);
-        window.setTimeout(() => this.scanForEditors(), 400);
-      };
-      document.addEventListener(
-        "focusin",
-        (event) => {
-          const t = event.target;
-          if (!(t instanceof Element)) return;
-          if (t.closest(".ql-editor") || t.closest('[class*="comment-box"]') || t.closest('[data-placeholder*="comment" i]') || t.closest('[aria-label*="comment" i]')) {
-            scheduleScan();
-          }
-        },
-        true
-      );
-      document.addEventListener(
-        "click",
-        (event) => {
-          const t = event.target;
-          if (!(t instanceof Element)) return;
-          if (t.closest('[class*="comment-box"]') || t.closest('[data-placeholder*="comment" i]') || t.closest('[aria-label*="comment" i]')) {
-            scheduleScan();
-          }
-        },
-        true
-      );
-    }
-    async loadUsageData() {
-      this.usageData = await this.apiClient.getUsage();
-      this.maybeInjectModelSelectIntoLiveWrappers();
-      this.scanForEditors();
-      return this.usageData;
-    }
-    /** Usage can load after the bar is injected — add model picker to existing wrappers. */
-    maybeInjectModelSelectIntoLiveWrappers() {
-      if (!this.usageData?.showModelSelect) return;
-      document.querySelectorAll(`.${BUTTON_WRAPPER_CLASS}`).forEach((wrapper) => {
-        if (wrapper.querySelector(".li-ai-model-select")) return;
-        const controls = wrapper.querySelector(".li-ai-bar-controls") || wrapper;
-        const generateBtn = controls.querySelector(`.${BUTTON_CLASS}`);
-        if (!generateBtn) return;
-        const modelSelect = this.createModelSelect();
-        controls.insertBefore(modelSelect, generateBtn);
-        const replyModeSelect = controls.querySelector(".li-ai-reply-mode-select");
-        const toneSelect = controls.querySelector(".li-ai-tone-select");
-        void this.restoreBarControlsFromStorage(replyModeSelect, toneSelect, generateBtn, modelSelect);
-      });
-    }
-    getModelSelectOptgroupLabel(tierId) {
-      if (tierId === "auto") return "Auto";
-      if (tierId === "primary") return "Tier 1";
-      if (tierId === "secondary") return "Tier 2";
-      if (tierId === "tertiary") return "Groq";
-      return "Models";
-    }
-    populateModelSelectFromUsage(select, savedModelKey) {
-      const models = this.usageData?.selectableModels;
-      if (!models || !Array.isArray(models) || models.length === 0) {
-        const autoOpt = document.createElement("option");
-        autoOpt.value = "auto";
-        autoOpt.textContent = "Auto";
-        select.appendChild(autoOpt);
-        select.value = "auto";
-        return;
-      }
-      const groups = /* @__PURE__ */ new Map();
-      for (const model of models) {
-        const tierId = model.tierId || "secondary";
-        if (!groups.has(tierId)) groups.set(tierId, []);
-        groups.get(tierId).push(model);
-      }
-      const tierOrder = ["auto", "primary", "secondary", "tertiary"];
-      for (const tierId of tierOrder) {
-        const entries = groups.get(tierId);
-        if (!entries?.length) continue;
-        const optgroup = document.createElement("optgroup");
-        optgroup.label = this.getModelSelectOptgroupLabel(tierId);
-        for (const model of entries) {
-          const option = document.createElement("option");
-          option.value = model.key;
-          option.textContent = model.name;
-          optgroup.appendChild(option);
-        }
-        select.appendChild(optgroup);
-      }
-      const options = Array.from(select.querySelectorAll("option"));
-      if (savedModelKey && options.some((o) => o.value === savedModelKey)) {
-        select.value = savedModelKey;
-      } else {
-        select.value = "auto";
-      }
-    }
-    createModelSelect() {
-      const select = document.createElement("select");
-      select.className = "li-ai-bar-select li-ai-model-select";
-      select.title = "Choose AI model";
-      const applyOptions = (savedModelKey) => {
-        select.replaceChildren();
-        this.populateModelSelectFromUsage(select, savedModelKey);
-      };
-      try {
-        chrome.storage?.local?.get([LI_STORAGE_KEYS.MODEL_KEY], (data) => {
-          const saved = data && typeof data[LI_STORAGE_KEYS.MODEL_KEY] === "string" ? data[LI_STORAGE_KEYS.MODEL_KEY] : "auto";
-          applyOptions(saved === "" ? "auto" : saved);
-        });
-      } catch (_) {
-        applyOptions("auto");
-      }
-      select.addEventListener("change", () => {
-        try {
-          chrome.storage?.local?.set({
-            [LI_STORAGE_KEYS.MODEL_KEY]: select.value || "auto"
-          });
-        } catch (_) {
-        }
-      });
-      return select;
     }
     // ─── DOM Observation ─────────────────────────────────────────────────────────
     startObserving() {
@@ -461,28 +315,8 @@
       });
       this.observer.observe(document.body, { childList: true, subtree: true });
     }
-    collectCommentEditors() {
-      const selectors = [
-        '.comments-comment-box .ql-editor[contenteditable="true"]',
-        '.comments-reply-box__form .ql-editor[contenteditable="true"]',
-        '[class*="comment-box"] .ql-editor[contenteditable="true"]',
-        '.ql-editor[contenteditable="true"]',
-        '[class*="comment-box"] [contenteditable="true"]'
-      ];
-      const seen = /* @__PURE__ */ new Set();
-      const editors = [];
-      for (const selector of selectors) {
-        for (const editor of document.querySelectorAll(selector)) {
-          if (seen.has(editor)) continue;
-          if (!editor.isConnected || editor.closest("[hidden]")) continue;
-          seen.add(editor);
-          editors.push(editor);
-        }
-      }
-      return editors;
-    }
     scanForEditors() {
-      const editors = this.collectCommentEditors();
+      const editors = document.querySelectorAll('.ql-editor[contenteditable="true"]');
       const qlAny = document.querySelectorAll(".ql-editor");
       const textEditorWrappers = document.querySelectorAll(
         '.comments-comment-box-comment__text-editor, [class*="comment-box-comment"][class*="text-editor"]'
@@ -502,12 +336,8 @@
           skippedAlready += 1;
           continue;
         }
-        try {
-          this.injectButton(editor, form);
-          injected += 1;
-        } catch (e) {
-          log("injectButton failed:", e.message);
-        }
+        this.injectButton(editor, form);
+        injected += 1;
       }
       injectLog(
         "scan:",
@@ -532,7 +362,7 @@
       }
     }
     findCommentForm(editor) {
-      return editor.closest(".comments-comment-box__form") || editor.closest(".comments-reply-box__form") || editor.closest("form") || editor.closest('[class*="comment-box"]') || editor.closest('[class*="comments-comment-box"]');
+      return editor.closest(".comments-comment-box__form") || editor.closest(".comments-reply-box__form") || editor.closest("form") || editor.closest('[class*="comment-box"]');
     }
     // ─── Button Injection ────────────────────────────────────────────────────────
     createReplyModeSelect() {
@@ -565,32 +395,23 @@
       return select;
     }
     /** Await storage before enabling controls — avoids race where first click ignores saved prefs. */
-    async restoreBarControlsFromStorage(replyModeSelect, toneSelect, generateBtn, modelSelect) {
+    async restoreBarControlsFromStorage(replyModeSelect, toneSelect, generateBtn) {
       replyModeSelect.disabled = true;
       toneSelect.disabled = true;
       generateBtn.disabled = true;
-      if (modelSelect) modelSelect.disabled = true;
       try {
-        const keys = [LI_STORAGE_KEYS.REPLY_MODE, LI_STORAGE_KEYS.PROMPT_VARIATION];
-        if (modelSelect) keys.push(LI_STORAGE_KEYS.MODEL_KEY);
-        const stored = await chrome.storage?.local?.get(keys);
+        const stored = await chrome.storage?.local?.get([
+          LI_STORAGE_KEYS.REPLY_MODE,
+          LI_STORAGE_KEYS.PROMPT_VARIATION
+        ]);
         replyModeSelect.value = normalizeReplyMode(stored?.[LI_STORAGE_KEYS.REPLY_MODE]);
         toneSelect.value = normalizePromptVariation(stored?.[LI_STORAGE_KEYS.PROMPT_VARIATION]);
-        if (modelSelect) {
-          const saved = stored?.[LI_STORAGE_KEYS.MODEL_KEY];
-          const normalized = typeof saved === "string" && saved !== "" ? saved : "auto";
-          const options = Array.from(modelSelect.querySelectorAll("option"));
-          if (options.some((o) => o.value === normalized)) {
-            modelSelect.value = normalized;
-          }
-        }
       } catch (e) {
         log("restoreBarControlsFromStorage failed, using defaults:", e.message);
       } finally {
         replyModeSelect.disabled = false;
         toneSelect.disabled = false;
         generateBtn.disabled = false;
-        if (modelSelect) modelSelect.disabled = false;
       }
     }
     setBarSelectsDisabled(wrapper, disabled) {
@@ -603,10 +424,6 @@
       wrapper.className = BUTTON_WRAPPER_CLASS;
       const replyModeSelect = this.createReplyModeSelect();
       const toneSelect = this.createToneSelect();
-      let modelSelect = null;
-      if (this.usageData?.showModelSelect) {
-        modelSelect = this.createModelSelect();
-      }
       replyModeSelect.addEventListener("change", () => {
         try {
           chrome.storage?.local?.set({
@@ -636,53 +453,30 @@
         e.stopPropagation();
         this.handleGenerateReply(editor, btn, wrapper, {
           replyMode: replyModeSelect.value,
-          promptVariation: toneSelect.value,
-          modelKey: modelSelect ? modelSelect.value : "auto"
+          promptVariation: toneSelect.value
         });
       });
-      const controls = document.createElement("div");
-      controls.className = "li-ai-bar-controls";
-      controls.appendChild(replyModeSelect);
-      controls.appendChild(toneSelect);
-      if (modelSelect) {
-        controls.appendChild(modelSelect);
-      }
-      controls.appendChild(btn);
-      wrapper.appendChild(controls);
-      void this.restoreBarControlsFromStorage(replyModeSelect, toneSelect, btn, modelSelect);
-      try {
-        this.placeControlBar(wrapper, form);
-      } catch (e) {
-        log("placeControlBar failed, using form.appendChild:", e.message);
-        form.appendChild(wrapper);
-      }
-      log("Button injected for editor placeholder:", editor.dataset.placeholder || "comment box");
-    }
-    /**
-     * Place next to Post. Must insert into submitBtn.parentElement — insertBefore on a
-     * distant actionRow ancestor throws when Post is nested (regression from edcb731).
-     */
-    placeControlBar(wrapper, form) {
+      wrapper.appendChild(replyModeSelect);
+      wrapper.appendChild(toneSelect);
+      wrapper.appendChild(btn);
+      void this.restoreBarControlsFromStorage(replyModeSelect, toneSelect, btn);
       const submitBtn = form.querySelector('button[type="submit"]') || form.querySelector(".comments-comment-box__submit-button") || form.querySelector('[class*="submit-button"]');
-      if (submitBtn?.parentElement) {
-        submitBtn.parentElement.insertBefore(wrapper, submitBtn);
-        injectLog(
-          "placed before submit:",
-          submitBtn.className?.slice?.(0, 80) || submitBtn.tagName
-        );
-        return;
-      }
-      const actionRow = form.querySelector(".comments-comment-box__form-actions") || form.querySelector('[class*="comment-box"][class*="actions"]');
+      const actionRow = submitBtn?.closest(".comments-comment-box__form-actions") || submitBtn?.closest('[class*="comment-box"][class*="actions"]') || submitBtn?.parentElement;
       if (actionRow) {
-        actionRow.appendChild(wrapper);
+        if (submitBtn && actionRow.contains(submitBtn)) {
+          actionRow.insertBefore(wrapper, submitBtn);
+        } else {
+          actionRow.appendChild(wrapper);
+        }
         injectLog(
           "placed in action row:",
           actionRow.className?.slice?.(0, 80) || actionRow.tagName
         );
-        return;
+      } else {
+        form.appendChild(wrapper);
+        injectLog("placed via form.appendChild (no submit anchor found)");
       }
-      form.appendChild(wrapper);
-      injectLog("placed via form.appendChild (no submit anchor found)");
+      log("Button injected for editor placeholder:", editor.dataset.placeholder || "comment box");
     }
     // ─── Reply Generation ────────────────────────────────────────────────────────
     async handleGenerateReply(editor, btn, controlWrapper, options = {}) {
@@ -728,7 +522,6 @@
             log("chrome.storage unavailable, using defaults");
           }
         }
-        const modelKey = options.modelKey || "auto";
         const payload = {
           tweet_text: context.postText,
           tweet_id: context.postId || "",
@@ -737,9 +530,6 @@
           reply_mode: replyMode,
           viewer_is_original_author: context.viewerIsOA
         };
-        if (modelKey && modelKey !== "auto") {
-          payload.model_key = modelKey;
-        }
         if (context.threadContext) {
           payload.thread_context = context.threadContext;
         }
