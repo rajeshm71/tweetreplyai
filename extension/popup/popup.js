@@ -349,6 +349,11 @@ class PopupManager {
       relationshipHintsEl.addEventListener('change', () => this.saveRelationshipHintsSetting());
     }
 
+    const followerCountBadgeEl = document.getElementById('followerCountBadgeEnabled');
+    if (followerCountBadgeEl) {
+      followerCountBadgeEl.addEventListener('change', () => this.saveFollowerCountBadgeSetting());
+    }
+
     const followBadgeIconStyleEl = document.getElementById('followBadgeIconStyle');
     if (followBadgeIconStyleEl) {
       followBadgeIconStyleEl.addEventListener('change', () => this.saveFollowBadgeIconStyleSetting());
@@ -1048,9 +1053,12 @@ class PopupManager {
       const r = await chrome.storage.sync.get([
         STORAGE.RELATIONSHIP_HINTS_ENABLED,
         STORAGE.FOLLOW_BADGE_ICON_STYLE,
+        STORAGE.FOLLOWER_COUNT_BADGE_ENABLED,
       ]);
       const el = document.getElementById('relationshipHintsEnabled');
       if (el) el.checked = r[STORAGE.RELATIONSHIP_HINTS_ENABLED] !== false;
+      const followerEl = document.getElementById('followerCountBadgeEnabled');
+      if (followerEl) followerEl.checked = r[STORAGE.FOLLOWER_COUNT_BADGE_ENABLED] !== false;
       const sel = document.getElementById('followBadgeIconStyle');
       if (sel) {
         const raw = r[STORAGE.FOLLOW_BADGE_ICON_STYLE];
@@ -1086,6 +1094,16 @@ class PopupManager {
       await chrome.storage.sync.set({ [STORAGE.RELATIONSHIP_HINTS_ENABLED]: el.checked });
     } catch (error) {
       console.error('Failed to save relationship hints setting:', error);
+    }
+  }
+
+  async saveFollowerCountBadgeSetting() {
+    try {
+      const el = document.getElementById('followerCountBadgeEnabled');
+      if (!el) return;
+      await chrome.storage.sync.set({ [STORAGE.FOLLOWER_COUNT_BADGE_ENABLED]: el.checked });
+    } catch (error) {
+      console.error('Failed to save follower count badge setting:', error);
     }
   }
 

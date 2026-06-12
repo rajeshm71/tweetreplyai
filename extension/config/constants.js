@@ -58,6 +58,7 @@ export const AUTH = {
 export const STORAGE = {
   RELATIONSHIP_HINTS_ENABLED: 'relationshipHintsEnabled',
   FOLLOW_BADGE_ICON_STYLE: 'followBadgeIconStyle',
+  FOLLOWER_COUNT_BADGE_ENABLED: 'followerCountBadgeEnabled',
 };
 
 /** Preset keys for relationship hint pills on X (follow / doesn't follow). */

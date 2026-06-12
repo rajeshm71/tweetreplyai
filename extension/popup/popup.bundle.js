@@ -6739,7 +6739,8 @@ Event: ${getEventDescription(event)}`
   };
   var STORAGE = {
     RELATIONSHIP_HINTS_ENABLED: "relationshipHintsEnabled",
-    FOLLOW_BADGE_ICON_STYLE: "followBadgeIconStyle"
+    FOLLOW_BADGE_ICON_STYLE: "followBadgeIconStyle",
+    FOLLOWER_COUNT_BADGE_ENABLED: "followerCountBadgeEnabled"
   };
   var FOLLOW_BADGE_ICON_STYLE = {
     TEXT: "text",
@@ -6907,6 +6908,7 @@ Event: ${getEventDescription(event)}`
       source_author,
       source_tweet_url,
       model_key,
+      reuse_guidance,
       allow_long
     }) {
       return this.makeRequest("/api/reframe-tweet", {
@@ -6917,6 +6919,7 @@ Event: ${getEventDescription(event)}`
           source_author,
           source_tweet_url,
           model_key,
+          reuse_guidance,
           allow_long
         }
       });
@@ -7355,6 +7358,10 @@ Event: ${getEventDescription(event)}`
       if (relationshipHintsEl) {
         relationshipHintsEl.addEventListener("change", () => this.saveRelationshipHintsSetting());
       }
+      const followerCountBadgeEl = document.getElementById("followerCountBadgeEnabled");
+      if (followerCountBadgeEl) {
+        followerCountBadgeEl.addEventListener("change", () => this.saveFollowerCountBadgeSetting());
+      }
       const followBadgeIconStyleEl = document.getElementById("followBadgeIconStyle");
       if (followBadgeIconStyleEl) {
         followBadgeIconStyleEl.addEventListener("change", () => this.saveFollowBadgeIconStyleSetting());
@@ -7705,7 +7712,7 @@ Event: ${getEventDescription(event)}`
         const domains = await this.getDomains();
         const domain = domains[0] || "tweetreplyai.vercel.app";
         const protocol = domain.includes("localhost") ? "http" : "https";
-        const loginUrl = `${protocol}://${domain}/login`;
+        const loginUrl = `${protocol}://${domain}/login?returnUrl=${encodeURIComponent("/app")}`;
         chrome.tabs.create({ url: loginUrl });
         window.close();
       } catch (error2) {
@@ -7911,10 +7918,13 @@ Event: ${getEventDescription(event)}`
       try {
         const r = await chrome.storage.sync.get([
           STORAGE.RELATIONSHIP_HINTS_ENABLED,
-          STORAGE.FOLLOW_BADGE_ICON_STYLE
+          STORAGE.FOLLOW_BADGE_ICON_STYLE,
+          STORAGE.FOLLOWER_COUNT_BADGE_ENABLED
         ]);
         const el = document.getElementById("relationshipHintsEnabled");
         if (el) el.checked = r[STORAGE.RELATIONSHIP_HINTS_ENABLED] !== false;
+        const followerEl = document.getElementById("followerCountBadgeEnabled");
+        if (followerEl) followerEl.checked = r[STORAGE.FOLLOWER_COUNT_BADGE_ENABLED] !== false;
         const sel = document.getElementById("followBadgeIconStyle");
         if (sel) {
           const raw = r[STORAGE.FOLLOW_BADGE_ICON_STYLE];
@@ -7943,6 +7953,15 @@ Event: ${getEventDescription(event)}`
         await chrome.storage.sync.set({ [STORAGE.RELATIONSHIP_HINTS_ENABLED]: el.checked });
       } catch (error2) {
         console.error("Failed to save relationship hints setting:", error2);
+      }
+    }
+    async saveFollowerCountBadgeSetting() {
+      try {
+        const el = document.getElementById("followerCountBadgeEnabled");
+        if (!el) return;
+        await chrome.storage.sync.set({ [STORAGE.FOLLOWER_COUNT_BADGE_ENABLED]: el.checked });
+      } catch (error2) {
+        console.error("Failed to save follower count badge setting:", error2);
       }
     }
     // Load reply tracking settings

@@ -20,6 +20,7 @@ import {
 import { emitTelemetry } from '../utils/telemetry.js';
 import { getUserFacingError } from '../utils/userFacingErrors.js';
 import { initExtensionSentry } from '../utils/sentry.js';
+import { parseCountToNumber, formatCompactCount } from '../utils/count-format.js';
 
 initExtensionSentry({ scope: 'content' });
 import { extractCanonicalComposerText, combineReplyAndCta } from './helpers/composer-text.js';
@@ -62,10 +63,15 @@ class TwitterReplyInjector {
     this._reuseModal = null;
     /** @type {Map<string, { followedBy: boolean, following: boolean, hasRelationshipData: boolean }>} */
     this.followStatusByUser = new Map();
+    /** @type {Map<string, { raw: number, displayLabel?: string }>} */
+    this.followerStatsByUser = new Map();
     this.followBadgeRefreshTimer = null;
     this.followStatusMessageHandler = null;
+    this.userStatsMessageHandler = null;
     /** Follow chips on X; default on. Synced via chrome.storage.sync (see popup Settings). */
     this.relationshipHintsEnabled = true;
+    /** Follower count chips on X; independent of relationship hints. */
+    this.followerCountBadgeEnabled = true;
     /** @type {string} One of FOLLOW_BADGE_ICON_STYLE */
     this.followBadgeIconStyle = FOLLOW_BADGE_ICON_STYLE_DEFAULT;
     this.currentReplyTargetArticle = null; // Tweet article when user clicked Reply (for scoped current-tweet extraction)
@@ -632,6 +638,7 @@ class TwitterReplyInjector {
     this.authManager.setApiClient(this.apiClient);
     
     await this.loadRelationshipHintsSetting();
+    await this.loadFollowerCountBadgeSetting();
 
     // Check authentication status (validate with server to catch web app logout)
     this.isAuthenticated = await this.authManager.isAuthenticated(true);
@@ -644,6 +651,7 @@ class TwitterReplyInjector {
     this.startObserving();
 
     this.setupFollowStatusFromNetwork();
+    this.setupUserStatsFromNetwork();
     
     // Pre-load auto-like setting into cache so the click handler path is synchronous
     this.autoLikeEnabled = await this.isAutoLikeEnabled();
@@ -691,6 +699,14 @@ class TwitterReplyInjector {
               changes[STORAGE.FOLLOW_BADGE_ICON_STYLE].newValue,
             );
             this.scheduleFollowBadgeRefresh();
+          }
+          if (changes[STORAGE.FOLLOWER_COUNT_BADGE_ENABLED]) {
+            this.followerCountBadgeEnabled = changes[STORAGE.FOLLOWER_COUNT_BADGE_ENABLED].newValue !== false;
+            if (!this.followerCountBadgeEnabled) {
+              this.removeFollowerCountBadgesFromDom();
+            } else {
+              this.scheduleFollowBadgeRefresh();
+            }
           }
         }
         if (areaName === 'local') {
@@ -845,8 +861,17 @@ class TwitterReplyInjector {
     }
   }
 
+  async loadFollowerCountBadgeSetting() {
+    try {
+      const r = await chrome.storage.sync.get([STORAGE.FOLLOWER_COUNT_BADGE_ENABLED]);
+      this.followerCountBadgeEnabled = r[STORAGE.FOLLOWER_COUNT_BADGE_ENABLED] !== false;
+    } catch {
+      this.followerCountBadgeEnabled = true;
+    }
+  }
+
   // ============================================================================
-  // FOLLOW STATUS — main-world interceptor → postMessage → cache → badge
+  // FOLLOW STATUS + FOLLOWER COUNT — interceptor → postMessage → cache → badge
   // ============================================================================
 
   setupFollowStatusFromNetwork() {
@@ -867,6 +892,26 @@ class TwitterReplyInjector {
     window.postMessage({ type: 'TWEETREPLY_REQUEST_BUFFER_REPLAY' }, '*');
   }
 
+  setupUserStatsFromNetwork() {
+    if (this.userStatsMessageHandler) return;
+    this.userStatsMessageHandler = (event) => {
+      if (event.source !== window) return;
+      const d = event.data;
+      if (!d || d.type !== 'TWEETREPLY_USER_STATS') return;
+      if (!d.username || typeof d.followerCount !== 'number') return;
+      const key = String(d.username).toLowerCase();
+      const prev = this.followerStatsByUser.get(key);
+      // Review fix: GraphQL updates raw count but keeps DOM-sourced displayLabel if present
+      this.followerStatsByUser.set(key, {
+        raw: d.followerCount,
+        ...(prev?.displayLabel ? { displayLabel: prev.displayLabel } : {}),
+      });
+      this.scheduleFollowBadgeRefresh();
+    };
+    window.addEventListener('message', this.userStatsMessageHandler);
+    window.postMessage({ type: 'TWEETREPLY_REQUEST_USER_STATS_REPLAY' }, '*');
+  }
+
   removeRelationshipBadgesFromDom() {
     document.querySelectorAll('[data-tweetreply-follow-badge="1"]').forEach((n) => n.remove());
     document.querySelectorAll('.tweetreply-firstline-badge-cluster').forEach((cluster) => {
@@ -878,15 +923,39 @@ class TwitterReplyInjector {
     });
   }
 
+  removeFollowerCountBadgesFromDom() {
+    document.querySelectorAll('[data-tweetreply-follower-badge="1"]').forEach((n) => n.remove());
+  }
+
   scheduleFollowBadgeRefresh() {
     if (this.followBadgeRefreshTimer) clearTimeout(this.followBadgeRefreshTimer);
     this.followBadgeRefreshTimer = setTimeout(() => {
       this.followBadgeRefreshTimer = null;
-      this.updateFollowBadgesOnPage();
+      this.updateTweetBadgesOnPage();
     }, 150);
   }
 
-  updateFollowBadgesOnPage() {
+  insertBadgeAfterUserName(userNameElement, badgeEl) {
+    const followBadge = userNameElement.querySelector('.tweetreply-follow-badge');
+    if (followBadge && followBadge.parentNode) {
+      followBadge.after(document.createTextNode(' '), badgeEl);
+      return;
+    }
+    const timeEl = userNameElement.querySelector('time');
+    if (timeEl && timeEl.parentNode) {
+      timeEl.after(document.createTextNode(' '), badgeEl);
+      return;
+    }
+    const handleEl = this.findHandleAnchorElement(userNameElement);
+    if (handleEl && handleEl.parentNode) {
+      handleEl.after(document.createTextNode(' '), badgeEl);
+      return;
+    }
+    userNameElement.appendChild(document.createTextNode(' '));
+    userNameElement.appendChild(badgeEl);
+  }
+
+  updateRelationshipBadgesOnPage() {
     if (!this.relationshipHintsEnabled) {
       this.removeRelationshipBadgesFromDom();
       return;
@@ -908,19 +977,163 @@ class TwitterReplyInjector {
         : 'tweetreply-follow-badge tweetreply-follow-badge--not';
       span.setAttribute('data-tweetreply-follow-badge', '1');
       this.populateFollowBadgeElement(span, entry.followedBy);
-      const timeEl = userNameElement.querySelector('time');
-      if (timeEl && timeEl.parentNode) {
-        timeEl.after(document.createTextNode(' '), span);
-        return;
-      }
-      const handleEl = this.findHandleAnchorElement(userNameElement);
-      if (handleEl && handleEl.parentNode) {
-        handleEl.after(document.createTextNode(' '), span);
-        return;
-      }
-      userNameElement.appendChild(document.createTextNode(' '));
-      userNameElement.appendChild(span);
+      this.insertBadgeAfterUserName(userNameElement, span);
     });
+  }
+
+  updateFollowerCountBadgesOnPage() {
+    if (!this.followerCountBadgeEnabled) {
+      this.removeFollowerCountBadgesFromDom();
+      return;
+    }
+    const articles = document.querySelectorAll('article[data-testid="tweet"]');
+    articles.forEach((article) => {
+      const username = this.extractUsernameFromTweetSync(article);
+      const existing = article.querySelector('.tweetreply-follower-badge');
+      if (existing) existing.remove();
+      if (!username || username === 'unknown') return;
+      // Review fix: use cache + scoped DOM fallback so badges match plan (incl. preserved labels)
+      const stats = this.resolveFollowerStatsForUsername(username, article);
+      if (!stats || stats.raw <= 0) return;
+      const label = formatCompactCount(stats.raw, stats.displayLabel);
+      if (!label || label === '0') return;
+      const userNameElement = article.querySelector('[data-testid="User-Name"]');
+      if (!userNameElement || !userNameElement.isConnected) return;
+      const span = document.createElement('span');
+      span.className = 'tweetreply-follower-badge';
+      span.setAttribute('data-tweetreply-follower-badge', '1');
+      span.textContent = label;
+      span.setAttribute('title', `${label} followers`);
+      span.setAttribute('aria-label', `${label} followers`);
+      this.insertBadgeAfterUserName(userNameElement, span);
+    });
+  }
+
+  updateTweetBadgesOnPage() {
+    this.updateRelationshipBadgesOnPage();
+    this.updateFollowerCountBadgesOnPage();
+  }
+
+  /** @deprecated Use updateTweetBadgesOnPage */
+  updateFollowBadgesOnPage() {
+    this.updateTweetBadgesOnPage();
+  }
+
+  getFollowerStatsForUsername(username) {
+    if (!username || username === 'unknown') return null;
+    const key = String(username).toLowerCase();
+    const cached = this.followerStatsByUser.get(key);
+    if (cached) return cached;
+    return null;
+  }
+
+  async waitForFollowerStats(username, timeoutMs = 600) {
+    if (!username || username === 'unknown') return null;
+    const key = String(username).toLowerCase();
+    const existing = this.followerStatsByUser.get(key);
+    if (existing) return existing;
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      await this.sleep(200);
+      const stats = this.followerStatsByUser.get(key);
+      if (stats) return stats;
+    }
+    return this.followerStatsByUser.get(key) || null;
+  }
+
+  /**
+   * Resolve the tweet article the user is replying to (same priority as extractTweetText).
+   * @returns {Element|null}
+   */
+  getReplyTargetArticle() {
+    if (/\/compose\/post/.test(window.location.pathname)) {
+      const dialogArticle = this.getReplyTargetArticleFromComposerDialog();
+      if (dialogArticle) return dialogArticle;
+    }
+    if (this.currentReplyTargetArticle && document.contains(this.currentReplyTargetArticle)) {
+      return this.currentReplyTargetArticle;
+    }
+    if (this.isTweetDetailPage()) {
+      const statusId = this.getStatusIdFromDetailPageUrl();
+      if (statusId) {
+        const focalArticle = this.findOriginalTweetArticleByStatusId(statusId);
+        if (focalArticle) return focalArticle;
+      }
+    }
+    return null;
+  }
+
+  parseAuthorFromUserNameElement(authorElement) {
+    if (!authorElement) {
+      return { username: 'unknown', verified: false };
+    }
+    const fullText = authorElement.textContent?.trim() || 'unknown';
+    let username = 'unknown';
+
+    let match = fullText.match(/^(.+?)@([^\u00B7·.\s]+)\s*[\u00B7·.]\s*(.+)$/);
+    if (match) {
+      username = match[2].trim();
+    } else {
+      match = fullText.match(/^@([^\u00B7·.\s]+)\s*[\u00B7·.]\s*(.+)$/);
+      if (match) {
+        username = match[1].trim();
+      } else {
+        const handleMatch = fullText.match(/@([A-Za-z0-9_]+)/);
+        if (handleMatch) username = handleMatch[1];
+        else username = fullText;
+      }
+    }
+
+    const verifiedIcon = authorElement.querySelector('[data-testid="icon-verified"]');
+    return { username, verified: !!verifiedIcon };
+  }
+
+  extractAuthorUsernameSync(article = null) {
+    const scopedArticle = article ?? this.getReplyTargetArticle();
+    let authorElement = scopedArticle?.querySelector('[data-testid="User-Name"]');
+    if (!authorElement) {
+      authorElement = document.querySelector('[data-testid="User-Name"]');
+    }
+    if (!authorElement) return 'unknown';
+    return this.parseAuthorFromUserNameElement(authorElement).username;
+  }
+
+  extractFollowerCountFromScopes(article) {
+    let raw = 0;
+    let displayLabel;
+
+    const tryScope = (scope) => {
+      if (!scope) return false;
+      const followerMatch = scope.textContent?.match(/([\d,.]+(?:\.\d+)?[KMB]?)\s*followers?/i);
+      if (!followerMatch) return false;
+      displayLabel = followerMatch[1].replace(/,/g, '').trim();
+      raw = parseCountToNumber(displayLabel);
+      return raw > 0;
+    };
+
+    if (tryScope(article)) return { raw, displayLabel };
+    if (tryScope(document.querySelector('[data-testid="UserDescription"]'))) return { raw, displayLabel };
+    if (tryScope(document.querySelector('[data-testid="HoverCard"]'))) return { raw, displayLabel };
+
+    return { raw: 0, displayLabel: undefined };
+  }
+
+  resolveFollowerStatsForUsername(username, article) {
+    const key = String(username || '').toLowerCase();
+    if (!key || key === 'unknown') {
+      return { raw: 0, displayLabel: undefined };
+    }
+
+    const cached = this.followerStatsByUser.get(key);
+    if (cached) return cached;
+
+    const domStats = this.extractFollowerCountFromScopes(article);
+    if (domStats.raw > 0) {
+      this.followerStatsByUser.set(key, domStats);
+      return domStats;
+    }
+
+    return { raw: 0, displayLabel: undefined };
   }
 
   startObserving() {
@@ -2205,7 +2418,8 @@ class TwitterReplyInjector {
 
     try {
       // Extract additional context
-      const authorInfo = this.extractAuthorInfo();
+      const targetArticle = this.getReplyTargetArticle();
+      const authorInfo = await this.extractAuthorInfo(targetArticle);
       const threadContext = this.extractThreadContext();
       const tweetMetadata = this.extractTweetMetadata();
 
@@ -2851,119 +3065,50 @@ class TwitterReplyInjector {
   }
 
   parseFollowerCount(countStr) {
-    if (!countStr) return 0;
-    
-    // Convert "1.2K" → 1200, "5M" → 5000000, etc.
-    const multipliers = { K: 1000, M: 1000000, B: 1000000000 };
-    const match = countStr.match(/^([\d.]+)([KMB])?$/i);
-    
-    if (!match) return 0;
-    
-    const num = parseFloat(match[1]);
-    const suffix = match[2]?.toUpperCase();
-    
-    return Math.round(num * (multipliers[suffix] || 1));
+    return parseCountToNumber(countStr);
   }
 
-  extractAuthorInfo() {
+  async extractAuthorInfo(article = null) {
     try {
-      const authorElement = document.querySelector('[data-testid="User-Name"]');
+      const scopedArticle = article ?? this.getReplyTargetArticle();
+      let authorElement = scopedArticle?.querySelector('[data-testid="User-Name"]');
+      if (!authorElement) {
+        authorElement = document.querySelector('[data-testid="User-Name"]');
+      }
       if (!authorElement) {
         console.log('[TweetReplyAI] No author element found, using defaults');
         return {
           username: 'unknown',
           verified: false,
-          follower_count: 0 // Fallback value
+          follower_count: 0,
         };
       }
 
-      // Parse username string: "Display Name@username · time" (e.g., "Jules Mesh@jules_mesh · 7h")
-      const fullText = authorElement.textContent?.trim() || 'unknown';
-      let username = 'unknown';
-      let displayName = null;
-      let postedTime = null;
+      const { username, verified } = this.parseAuthorFromUserNameElement(authorElement);
 
-      // Pattern: "Display Name@username · time" or "@username · time"
-      // Middle dot can be Unicode U+00B7 (·), regular period (.), or · character
-      // Match with display name first
-      let match = fullText.match(/^(.+?)@([^\u00B7·.\s]+)\s*[\u00B7·.]\s*(.+)$/);
-      if (match) {
-        [, displayName, username, postedTime] = match;
-        username = username.trim();
-        displayName = displayName.trim();
-        postedTime = postedTime.trim();
-      } else {
-        // Try without display name: "@username · time"
-        match = fullText.match(/^@([^\u00B7·.\s]+)\s*[\u00B7·.]\s*(.+)$/);
-        if (match) {
-          [, username, postedTime] = match;
-          username = username.trim();
-          postedTime = postedTime.trim();
-        } else {
-          // Fallback: if no match, use full text as username
-          username = fullText;
-        }
+      if (username !== 'unknown') {
+        await this.waitForFollowerStats(username, 600);
       }
 
-      const verifiedIcon = authorElement.querySelector('[data-testid="icon-verified"]');
-      const isVerified = !!verifiedIcon;
+      const stats = this.resolveFollowerStatsForUsername(username, scopedArticle);
 
-      // Try to get follower count - use 0 as fallback
-      let followerCount = 0;
-      
-      // Method 1: From tweet article context (most likely place)
-      const tweetArticle = authorElement.closest('article[data-testid="tweet"]') || authorElement.closest('article');
-      if (tweetArticle) {
-        const followerMatch = tweetArticle.textContent?.match(/(\d+(?:\.\d+)?[KMB]?)\s*followers?/i);
-        if (followerMatch) {
-          followerCount = this.parseFollowerCount(followerMatch[1]);
-          console.log('[TweetReplyAI] Follower count extracted from tweet article:', followerCount);
-        }
-      }
-      
-      // Method 2: From profile page bio (fallback)
-      if (followerCount === 0) {
-      const bioElement = document.querySelector('[data-testid="UserDescription"]');
-      if (bioElement) {
-        const followerMatch = bioElement.textContent?.match(/(\d+(?:\.\d+)?[KMB]?)\s*followers?/i);
-        if (followerMatch) {
-          followerCount = this.parseFollowerCount(followerMatch[1]);
-          console.log('[TweetReplyAI] Follower count extracted from bio:', followerCount);
-          }
-        }
-      }
-      
-      // Method 3: From hover card (if visible) - fallback
-      if (followerCount === 0) {
-        const hoverCard = document.querySelector('[data-testid="HoverCard"]');
-        if (hoverCard) {
-          const followerMatch = hoverCard.textContent?.match(/(\d+(?:\.\d+)?[KMB]?)\s*followers?/i);
-          if (followerMatch) {
-            followerCount = this.parseFollowerCount(followerMatch[1]);
-            console.log('[TweetReplyAI] Follower count extracted from hover card:', followerCount);
-          }
-        }
-      }
-
-      console.log('[TweetReplyAI] Author info extracted:', { 
-        username, 
-        display_name: displayName, 
-        posted_time: postedTime,
-        verified: isVerified, 
-        follower_count: followerCount 
+      console.log('[TweetReplyAI] Author info extracted:', {
+        username,
+        verified,
+        follower_count: stats.raw,
       });
 
       return {
         username,
-        verified: isVerified,
-        follower_count: followerCount // Always returns a number
+        verified,
+        follower_count: stats.raw,
       };
     } catch (error) {
       console.error('[TweetReplyAI] Failed to extract author info:', error);
       return {
         username: 'unknown',
         verified: false,
-        follower_count: 0
+        follower_count: 0,
       };
     }
   }
@@ -3571,14 +3716,14 @@ class TwitterReplyInjector {
 
       if (!isDetailPage) {
         if (DEBUG_THREAD_CONTEXT) console.log('[TweetReplyAI] Not on detail page, using single-tweet context only');
-        const authorInfo = this.extractAuthorInfo();
+        const authorUsername = this.extractAuthorUsernameSync();
         return {
           isReply: true,
           originalTweet: currentTweetText,
-          originalTweetAuthor: authorInfo?.username || 'unknown',
+          originalTweetAuthor: authorUsername,
           threadChain: [{
             text: currentTweetText,
-            author: authorInfo?.username || 'unknown',
+            author: authorUsername,
             isOriginal: true,
             isCurrent: true
           }],
@@ -3599,7 +3744,7 @@ class TwitterReplyInjector {
           originalTweetAuthor: null,
           threadChain: [{
             text: currentTweetText,
-            author: this.extractAuthorInfo()?.username || 'unknown',
+            author: this.extractAuthorUsernameSync(),
             isOriginal: true,
             isCurrent: true
           }],
@@ -3632,7 +3777,7 @@ class TwitterReplyInjector {
           originalTweetAuthor: null,
           threadChain: [{
             text: currentTweetText,
-            author: this.extractAuthorInfo()?.username || 'unknown',
+            author: this.extractAuthorUsernameSync(),
             isOriginal: false,
             isCurrent: true
           }],
@@ -3659,7 +3804,7 @@ class TwitterReplyInjector {
           originalTweetAuthor: null,
           threadChain: [{
             text: currentTweetText,
-            author: this.extractAuthorInfo()?.username || 'unknown',
+            author: this.extractAuthorUsernameSync(),
             isOriginal: false,
             isCurrent: true
           }],
@@ -3874,7 +4019,7 @@ class TwitterReplyInjector {
         originalTweetAuthor: null,
         threadChain: currentTweetText ? [{
           text: currentTweetText,
-          author: this.extractAuthorInfo()?.username || 'unknown',
+          author: this.extractAuthorUsernameSync(),
           isOriginal: true,
           isCurrent: true
         }] : [],
@@ -4464,6 +4609,11 @@ class TwitterReplyInjector {
     if (this.followStatusMessageHandler) {
       window.removeEventListener('message', this.followStatusMessageHandler);
       this.followStatusMessageHandler = null;
+    }
+    // Review fix: mirror follow-status cleanup to avoid duplicate user-stats listeners
+    if (this.userStatsMessageHandler) {
+      window.removeEventListener('message', this.userStatsMessageHandler);
+      this.userStatsMessageHandler = null;
     }
     if (this.followBadgeRefreshTimer) {
       clearTimeout(this.followBadgeRefreshTimer);

@@ -8,11 +8,14 @@
   window.__TWEETREPLY_FOLLOW_INTERCEPTOR__ = true;
 
   var MSG_STATUS = 'TWEETREPLY_FOLLOW_STATUS';
+  var MSG_USER_STATS = 'TWEETREPLY_USER_STATS';
   var MSG_FOLLOWER_GRAPH = 'TRAI_FOLLOWER_GRAPH_USER';
   var MSG_BUFFER_REPLAY = 'TWEETREPLY_REQUEST_BUFFER_REPLAY';
+  var MSG_USER_STATS_REPLAY = 'TWEETREPLY_REQUEST_USER_STATS_REPLAY';
 
   var globalFollowCache = {};
   var followStatusBuffer = [];
+  var userStatsBuffer = [];
   var followerGraphUserBuffer = [];
   var FOLLOWER_GRAPH_BUFFER_MAX = 5000;
   var BUFFER_MAX_SIZE = 200;
@@ -98,6 +101,17 @@
     window.postMessage(message, '*');
   }
 
+  function followerCountFromLegacy(legacy) {
+    if (!legacy || typeof legacy.followers_count !== 'number') return undefined;
+    return legacy.followers_count;
+  }
+
+  function sendUserStatsMessage(message) {
+    userStatsBuffer.push(message);
+    if (userStatsBuffer.length > BUFFER_MAX_SIZE) userStatsBuffer.shift();
+    window.postMessage(message, '*');
+  }
+
   function bufferFollowerGraphUser(user) {
     if (!user.restId || !user.username || !/^\d+$/.test(String(user.restId))) return;
     var restId = String(user.restId);
@@ -138,6 +152,13 @@
     if (event.source !== window || !event.data || event.data.type !== MSG_BUFFER_REPLAY) return;
     for (var i = 0; i < followStatusBuffer.length; i++) {
       window.postMessage(followStatusBuffer[i], '*');
+    }
+  });
+
+  window.addEventListener('message', function (event) {
+    if (event.source !== window || !event.data || event.data.type !== MSG_USER_STATS_REPLAY) return;
+    for (var s = 0; s < userStatsBuffer.length; s++) {
+      window.postMessage(userStatsBuffer[s], '*');
     }
   });
 
@@ -243,6 +264,7 @@
         following: following,
         followedBy: followedBy,
         hasRelationshipData: hasRelationshipData,
+        followerCount: followerCountFromLegacy(obj.legacy),
       });
     } else if (obj.rest_id && obj.legacy && obj.legacy.screen_name) {
       var hasLegacyRelationship =
@@ -255,6 +277,7 @@
         following: !!obj.legacy.following,
         followedBy: !!obj.legacy.followed_by,
         hasRelationshipData: hasLegacyRelationship,
+        followerCount: followerCountFromLegacy(obj.legacy),
       });
     } else if (obj.screen_name && (obj.id_str || obj.id)) {
       users.push({
@@ -367,6 +390,8 @@
             !existing.following
           ) {
             userMap[key] = u;
+          } else if (typeof u.followerCount === 'number' && typeof existing.followerCount !== 'number') {
+            userMap[key] = Object.assign({}, existing, u);
           }
         }
       }
@@ -386,24 +411,37 @@
 
         if (u2.hasRelationshipData) {
           var cachedStatus = globalFollowCache[normalizedUsername];
+          var skipFollowStatus = false;
           if (cachedStatus) {
             var cachedIsFollowing = cachedStatus.following;
             var newIsFollowing = u2.following;
-            if (cachedIsFollowing && !newIsFollowing) continue;
+            // Review fix: skip follow-status only — follower stats must still emit below
+            if (cachedIsFollowing && !newIsFollowing) skipFollowStatus = true;
           }
 
-          globalFollowCache[normalizedUsername] = {
-            following: u2.following,
-            followedBy: u2.followedBy,
-          };
+          if (!skipFollowStatus) {
+            globalFollowCache[normalizedUsername] = {
+              following: u2.following,
+              followedBy: u2.followedBy,
+            };
 
-          sendFollowStatusMessage({
-            type: MSG_STATUS,
+            sendFollowStatusMessage({
+              type: MSG_STATUS,
+              username: normalizedUsername,
+              xUserId: u2.restId || null,
+              followedBy: u2.followedBy,
+              following: u2.following,
+              hasRelationshipData: true,
+            });
+          }
+        }
+
+        if (typeof u2.followerCount === 'number' && u2.followerCount >= 0) {
+          sendUserStatsMessage({
+            type: MSG_USER_STATS,
             username: normalizedUsername,
-            xUserId: u2.restId || null,
-            followedBy: u2.followedBy,
-            following: u2.following,
-            hasRelationshipData: true,
+            followerCount: u2.followerCount,
+            restId: u2.restId || null,
           });
         }
       }
