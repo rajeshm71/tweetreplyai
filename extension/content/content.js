@@ -20,7 +20,7 @@ import {
 import { emitTelemetry } from '../utils/telemetry.js';
 import { getUserFacingError } from '../utils/userFacingErrors.js';
 import { initExtensionSentry } from '../utils/sentry.js';
-import { parseCountToNumber, formatCompactCount } from '../utils/count-format.js';
+import { parseCountToNumber, formatCompactCount, coerceCountToNumber } from '../utils/count-format.js';
 
 initExtensionSentry({ scope: 'content' });
 import { extractCanonicalComposerText, combineReplyAndCta } from './helpers/composer-text.js';
@@ -72,6 +72,7 @@ class TwitterReplyInjector {
     this.relationshipHintsEnabled = true;
     /** Follower count chips on X; independent of relationship hints. */
     this.followerCountBadgeEnabled = true;
+    this._followerBadgeWarmupTimer = null;
     /** @type {string} One of FOLLOW_BADGE_ICON_STYLE */
     this.followBadgeIconStyle = FOLLOW_BADGE_ICON_STYLE_DEFAULT;
     this.currentReplyTargetArticle = null; // Tweet article when user clicked Reply (for scoped current-tweet extraction)
@@ -652,6 +653,8 @@ class TwitterReplyInjector {
 
     this.setupFollowStatusFromNetwork();
     this.setupUserStatsFromNetwork();
+    this.scheduleFollowBadgeRefresh();
+    this.startFollowerBadgeWarmup();
     
     // Pre-load auto-like setting into cache so the click handler path is synchronous
     this.autoLikeEnabled = await this.isAutoLikeEnabled();
@@ -870,6 +873,20 @@ class TwitterReplyInjector {
     }
   }
 
+  startFollowerBadgeWarmup() {
+    if (this._followerBadgeWarmupTimer) clearInterval(this._followerBadgeWarmupTimer);
+    let ticks = 0;
+    this._followerBadgeWarmupTimer = setInterval(() => {
+      ticks += 1;
+      if (!this.followerCountBadgeEnabled || ticks > 10) {
+        clearInterval(this._followerBadgeWarmupTimer);
+        this._followerBadgeWarmupTimer = null;
+        return;
+      }
+      this.scheduleFollowBadgeRefresh();
+    }, 2000);
+  }
+
   // ============================================================================
   // FOLLOW STATUS + FOLLOWER COUNT — interceptor → postMessage → cache → badge
   // ============================================================================
@@ -898,12 +915,12 @@ class TwitterReplyInjector {
       if (event.source !== window) return;
       const d = event.data;
       if (!d || d.type !== 'TWEETREPLY_USER_STATS') return;
-      if (!d.username || typeof d.followerCount !== 'number') return;
+      const followerCount = coerceCountToNumber(d.followerCount);
+      if (!d.username || followerCount == null) return;
       const key = String(d.username).toLowerCase();
       const prev = this.followerStatsByUser.get(key);
-      // Review fix: GraphQL updates raw count but keeps DOM-sourced displayLabel if present
       this.followerStatsByUser.set(key, {
-        raw: d.followerCount,
+        raw: followerCount,
         ...(prev?.displayLabel ? { displayLabel: prev.displayLabel } : {}),
       });
       this.scheduleFollowBadgeRefresh();
@@ -992,7 +1009,6 @@ class TwitterReplyInjector {
       const existing = article.querySelector('.tweetreply-follower-badge');
       if (existing) existing.remove();
       if (!username || username === 'unknown') return;
-      // Review fix: use cache + scoped DOM fallback so badges match plan (incl. preserved labels)
       const stats = this.resolveFollowerStatsForUsername(username, article);
       if (!stats || stats.raw <= 0) return;
       const label = formatCompactCount(stats.raw, stats.displayLabel);
@@ -4618,6 +4634,10 @@ class TwitterReplyInjector {
     if (this.followBadgeRefreshTimer) {
       clearTimeout(this.followBadgeRefreshTimer);
       this.followBadgeRefreshTimer = null;
+    }
+    if (this._followerBadgeWarmupTimer) {
+      clearInterval(this._followerBadgeWarmupTimer);
+      this._followerBadgeWarmupTimer = null;
     }
     // Remove beforeunload listener
     if (this.beforeUnloadHandler) {

@@ -8,6 +8,23 @@ const MULTIPLIERS = { K: 1000, M: 1000000, B: 1000000000 };
  * @param {string|number|null|undefined} text
  * @returns {number}
  */
+/**
+ * Coerce API/DOM values to a non-negative integer count, or undefined when invalid.
+ * @param {unknown} value
+ * @returns {number|undefined}
+ */
+export function coerceCountToNumber(value) {
+  if (value == null || value === '') return undefined;
+  if (typeof value === 'number') {
+    return Number.isFinite(value) && value >= 0 ? Math.round(value) : undefined;
+  }
+  if (typeof value === 'string') {
+    const n = parseCountToNumber(value);
+    return n > 0 ? n : undefined;
+  }
+  return undefined;
+}
+
 export function parseCountToNumber(text) {
   if (text == null || text === '') return 0;
   if (typeof text === 'number') {

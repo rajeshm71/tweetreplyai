@@ -7151,6 +7151,17 @@ Event: ${getEventDescription(event)}`
 
   // extension/utils/count-format.js
   var MULTIPLIERS = { K: 1e3, M: 1e6, B: 1e9 };
+  function coerceCountToNumber(value) {
+    if (value == null || value === "") return void 0;
+    if (typeof value === "number") {
+      return Number.isFinite(value) && value >= 0 ? Math.round(value) : void 0;
+    }
+    if (typeof value === "string") {
+      const n = parseCountToNumber(value);
+      return n > 0 ? n : void 0;
+    }
+    return void 0;
+  }
   function parseCountToNumber(text) {
     if (text == null || text === "") return 0;
     if (typeof text === "number") {
@@ -8192,6 +8203,7 @@ ${cta}` : cta;
       this.userStatsMessageHandler = null;
       this.relationshipHintsEnabled = true;
       this.followerCountBadgeEnabled = true;
+      this._followerBadgeWarmupTimer = null;
       this.followBadgeIconStyle = FOLLOW_BADGE_ICON_STYLE_DEFAULT;
       this.currentReplyTargetArticle = null;
       this._replyTargetClearTimer = null;
@@ -8637,6 +8649,8 @@ ${cta}` : cta;
       this.startObserving();
       this.setupFollowStatusFromNetwork();
       this.setupUserStatsFromNetwork();
+      this.scheduleFollowBadgeRefresh();
+      this.startFollowerBadgeWarmup();
       this.autoLikeEnabled = await this.isAutoLikeEnabled();
       this.setupAutoLikeOnReply();
       this.setupReplyCountDisplay();
@@ -8818,6 +8832,19 @@ ${cta}` : cta;
         this.followerCountBadgeEnabled = true;
       }
     }
+    startFollowerBadgeWarmup() {
+      if (this._followerBadgeWarmupTimer) clearInterval(this._followerBadgeWarmupTimer);
+      let ticks = 0;
+      this._followerBadgeWarmupTimer = setInterval(() => {
+        ticks += 1;
+        if (!this.followerCountBadgeEnabled || ticks > 10) {
+          clearInterval(this._followerBadgeWarmupTimer);
+          this._followerBadgeWarmupTimer = null;
+          return;
+        }
+        this.scheduleFollowBadgeRefresh();
+      }, 2e3);
+    }
     // ============================================================================
     // FOLLOW STATUS + FOLLOWER COUNT — interceptor → postMessage → cache → badge
     // ============================================================================
@@ -8844,11 +8871,12 @@ ${cta}` : cta;
         if (event.source !== window) return;
         const d = event.data;
         if (!d || d.type !== "TWEETREPLY_USER_STATS") return;
-        if (!d.username || typeof d.followerCount !== "number") return;
+        const followerCount = coerceCountToNumber(d.followerCount);
+        if (!d.username || followerCount == null) return;
         const key = String(d.username).toLowerCase();
         const prev = this.followerStatsByUser.get(key);
         this.followerStatsByUser.set(key, {
-          raw: d.followerCount,
+          raw: followerCount,
           ...prev?.displayLabel ? { displayLabel: prev.displayLabel } : {}
         });
         this.scheduleFollowBadgeRefresh();
@@ -11778,6 +11806,10 @@ ${cta}` : cta;
       if (this.followBadgeRefreshTimer) {
         clearTimeout(this.followBadgeRefreshTimer);
         this.followBadgeRefreshTimer = null;
+      }
+      if (this._followerBadgeWarmupTimer) {
+        clearInterval(this._followerBadgeWarmupTimer);
+        this._followerBadgeWarmupTimer = null;
       }
       if (this.beforeUnloadHandler) {
         window.removeEventListener("beforeunload", this.beforeUnloadHandler);

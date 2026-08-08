@@ -101,9 +101,31 @@
     window.postMessage(message, '*');
   }
 
+  function coerceFollowerField(raw) {
+    if (typeof raw === 'number' && Number.isFinite(raw) && raw >= 0) return Math.round(raw);
+    if (typeof raw === 'string' && raw.trim()) {
+      var cleaned = raw.replace(/,/g, '').trim();
+      var match = cleaned.match(/^([\d.]+)\s*([KMB])?$/i);
+      if (match) {
+        var num = parseFloat(match[1]);
+        if (Number.isFinite(num)) {
+          var mult = { K: 1000, M: 1000000, B: 1000000000 };
+          var suffix = match[2] ? match[2].toUpperCase() : '';
+          return Math.round(num * (mult[suffix] || 1));
+        }
+      }
+      var asInt = parseInt(cleaned, 10);
+      if (Number.isFinite(asInt) && asInt >= 0) return asInt;
+    }
+    return undefined;
+  }
+
   function followerCountFromLegacy(legacy) {
-    if (!legacy || typeof legacy.followers_count !== 'number') return undefined;
-    return legacy.followers_count;
+    if (!legacy) return undefined;
+    return (
+      coerceFollowerField(legacy.followers_count) ??
+      coerceFollowerField(legacy.normal_followers_count)
+    );
   }
 
   function sendUserStatsMessage(message) {

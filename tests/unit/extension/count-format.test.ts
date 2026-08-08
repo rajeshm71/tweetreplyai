@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatCompactCount, parseCountToNumber } from '../../../extension/utils/count-format.js';
+import { formatCompactCount, parseCountToNumber, coerceCountToNumber } from '../../../extension/utils/count-format.js';
 
 describe('parseCountToNumber', () => {
   it('parses plain integers and comma-separated numbers', () => {
@@ -21,6 +21,20 @@ describe('parseCountToNumber', () => {
 
   it('accepts numeric input', () => {
     expect(parseCountToNumber(850)).toBe(850);
+  });
+});
+
+describe('coerceCountToNumber', () => {
+  it('coerces numbers and numeric strings', () => {
+    expect(coerceCountToNumber(12345)).toBe(12345);
+    expect(coerceCountToNumber('15841109')).toBe(15841109);
+    expect(coerceCountToNumber('1.2K')).toBe(1200);
+  });
+
+  it('returns undefined for invalid values', () => {
+    expect(coerceCountToNumber(undefined)).toBeUndefined();
+    expect(coerceCountToNumber('abc')).toBeUndefined();
+    expect(coerceCountToNumber(-1)).toBeUndefined();
   });
 });
 
