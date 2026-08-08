@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+﻿import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 
 // Mock storage and supabase so the service never hits a real database
 vi.mock("../../../server/storage", () => ({
@@ -122,7 +122,7 @@ describe("Feedback Analytics Service - Unit Tests", () => {
     });
   });
 
-  describe("getSimpleAnalytics — reply window totals", () => {
+  describe("getSimpleAnalytics â€” reply window totals", () => {
     it("sets summary.totalReplies from reply_history count, not usage_counters", async () => {
       const { supabase } = await import("../../../server/supabase");
       let replyHistoryPhase = 0;
@@ -228,7 +228,7 @@ describe("Feedback Analytics Service - Unit Tests", () => {
           userId: "user-1",
           tweetText: "Second tweet",
           reply: "Another reply",
-          modelKey: "meta-llama/llama-4-scout-17b-16e-instruct",
+          modelKey: "openai/gpt-oss-120b",
           platform: "twitter",
           qualityScore: 90,
           latencyMs: 150,

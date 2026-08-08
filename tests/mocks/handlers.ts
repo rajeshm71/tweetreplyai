@@ -56,7 +56,7 @@ export const handlers = [
       id: 'chatcmpl-test-1234567890',
       object: 'chat.completion',
       created: Date.now(),
-      model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+      model: 'openai/gpt-oss-120b',
       choices: [
         {
           index: 0,

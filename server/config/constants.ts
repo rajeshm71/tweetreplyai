@@ -6,7 +6,7 @@ import { getGroqTertiaryModel, getModelRoutingConfig, isModelRoutingEnabled } fr
 
 function primaryRoutingModel(): string {
   if (!isModelRoutingEnabled()) {
-    return "meta-llama/llama-4-scout-17b-16e-instruct";
+    return "openai/gpt-oss-120b";
   }
   return getModelRoutingConfig().find((t) => t.id === "primary")?.model ?? "gpt-5-chat-latest";
 }
@@ -31,7 +31,7 @@ export const AI_MODELS = {
   get FALLBACK(): string {
     return secondaryRoutingModel();
   },
-  ANALYSIS: "meta-llama/llama-4-scout-17b-16e-instruct",
+  ANALYSIS: "openai/gpt-oss-120b",
   GUARDRAIL: "openai/gpt-oss-safeguard-20b",
   /** Tier-3 Groq model for cascade terminus + guardrail friendly replies. */
   get GROQ_TERTIARY(): string {
@@ -61,7 +61,7 @@ export const MODEL_SPECS = {
   O1_MINI: { inputCost: 1.1, outputCost: 4.4, contextWindow: 128000 },
   O3_MINI: { inputCost: 1.1, outputCost: 4.4, contextWindow: 128000 },
   O4_MINI: { inputCost: 1.1, outputCost: 4.4, contextWindow: 128000 },
-  LLAMA_SCOUT: { inputCost: 0.11, outputCost: 0.34, contextWindow: 131072 },
+  GPT_OSS_120B: { inputCost: 0.15, outputCost: 0.75, contextWindow: 131072 },
   GUARDRAIL_SAFEGUARD: { inputCost: 0.075, outputCost: 0.3, contextWindow: 128000 },
 } as const;
 

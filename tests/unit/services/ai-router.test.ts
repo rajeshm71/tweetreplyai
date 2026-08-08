@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+﻿import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { UnifiedAIRouter } from '../../../server/services/ai-router';
 import { AI_MODELS } from '../../../server/config/constants';
 
@@ -31,14 +31,14 @@ vi.mock('../../../server/services/groq', () => ({
     reframeTweet: vi.fn(),
     generateChatCompletion: vi.fn(),
     getAvailableModels: vi.fn().mockReturnValue([
-      { key: 'meta-llama/llama-4-scout-17b-16e-instruct', name: 'Llama 4 Scout 17B', inputCost: 0.1, outputCost: 0.4, contextWindow: 131072, description: 'Tertiary' },
+      { key: 'openai/gpt-oss-120b', name: 'GPT-OSS 120B', inputCost: 0.1, outputCost: 0.4, contextWindow: 131072, description: 'Tertiary' },
     ]),
   },
 }));
 
 const primaryTier = { id: 'primary' as const, model: 'gpt-5-chat-latest', provider: 'openai' as const, dailyTokenLimit: 250_000 };
 const secondaryTier = { id: 'secondary' as const, model: 'gpt-5.4-mini', provider: 'openai' as const, dailyTokenLimit: 2_500_000 };
-const tertiaryTier = { id: 'tertiary' as const, model: 'meta-llama/llama-4-scout-17b-16e-instruct', provider: 'groq' as const, dailyTokenLimit: null };
+const tertiaryTier = { id: 'tertiary' as const, model: 'openai/gpt-oss-120b', provider: 'groq' as const, dailyTokenLimit: null };
 
 describe('AI Router Service - Unit Tests', () => {
   let aiRouter: UnifiedAIRouter;
@@ -183,7 +183,7 @@ describe('AI Router Service - Unit Tests', () => {
       });
       vi.mocked(groqModelRouter.generateReply).mockResolvedValueOnce({
         reply: 'Groq reply',
-        modelKey: 'meta-llama/llama-4-scout-17b-16e-instruct',
+        modelKey: 'openai/gpt-oss-120b',
         tokensIn: 1,
         tokensOut: 1,
         latencyMs: 2,
@@ -209,7 +209,7 @@ describe('AI Router Service - Unit Tests', () => {
     it('defaults to groq tertiary when modelKey is not specified', async () => {
       const mockResponse = {
         reply: 'Groq legacy reply',
-        modelKey: 'meta-llama/llama-4-scout-17b-16e-instruct',
+        modelKey: 'openai/gpt-oss-120b',
         tokensIn: 10,
         tokensOut: 15,
         latencyMs: 500,
@@ -250,7 +250,7 @@ describe('AI Router Service - Unit Tests', () => {
       expect(models).toHaveProperty('openai');
       expect(models).toHaveProperty('groq');
       expect(models.openai.some((m) => m.key === 'gpt-5-chat-latest')).toBe(true);
-      expect(models.groq.some((m) => m.key === 'meta-llama/llama-4-scout-17b-16e-instruct')).toBe(true);
+      expect(models.groq.some((m) => m.key === 'openai/gpt-oss-120b')).toBe(true);
     });
   });
 
@@ -262,7 +262,7 @@ describe('AI Router Service - Unit Tests', () => {
     it('returns groq tertiary when routing disabled', () => {
       process.env.MODEL_ROUTING_ENABLED = 'false';
       aiRouter = new UnifiedAIRouter();
-      expect(aiRouter.getRecommendedModel()).toBe('meta-llama/llama-4-scout-17b-16e-instruct');
+      expect(aiRouter.getRecommendedModel()).toBe('openai/gpt-oss-120b');
     });
   });
 

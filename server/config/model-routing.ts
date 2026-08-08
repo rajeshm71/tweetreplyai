@@ -16,7 +16,7 @@ export interface ModelRoutingTier {
 
 const DEFAULT_TIER1_MODEL = 'gpt-5-chat-latest';
 const DEFAULT_TIER2_MODEL = 'gpt-5.4-mini';
-const DEFAULT_TIER3_MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct';
+const DEFAULT_TIER3_MODEL = 'openai/gpt-oss-120b';
 
 function parsePositiveInt(value: string | undefined, fallback: number): number {
   const n = Number(value);

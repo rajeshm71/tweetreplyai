@@ -36,6 +36,6 @@ describe('model-catalog', () => {
 
   it('resolves tier-1 and tier-3 from routing config', () => {
     expect(resolveTierIdForModel('gpt-5-chat-latest')).toBe('primary');
-    expect(resolveTierIdForModel('meta-llama/llama-4-scout-17b-16e-instruct')).toBe('tertiary');
+    expect(resolveTierIdForModel('openai/gpt-oss-120b')).toBe('tertiary');
   });
 });

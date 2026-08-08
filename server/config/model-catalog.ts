@@ -28,7 +28,7 @@ export interface SelectableModelEntry {
 }
 
 const DEFAULT_TIER1_MODEL = 'gpt-5-chat-latest';
-const DEFAULT_TIER3_MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct';
+const DEFAULT_TIER3_MODEL = 'openai/gpt-oss-120b';
 
 function primaryModelFromEnv(): string {
   return process.env.MODEL_ROUTING_TIER1_MODEL?.trim() || DEFAULT_TIER1_MODEL;
@@ -146,15 +146,15 @@ function buildCatalog(): CatalogModel[] {
 
   const tertiary: CatalogModel = {
     key: tertiaryKey,
-    name: 'Llama 4 Scout 17B',
+    name: 'GPT-OSS 120B',
     tierId: 'tertiary',
     provider: 'groq',
     selectableForWhitelist: true,
     apiProfile: 'responses_chat',
-    inputCost: 0.11,
-    outputCost: 0.34,
+    inputCost: 0.15,
+    outputCost: 0.75,
     contextWindow: 131072,
-    description: 'Tier-3 — Groq fallback',
+    description: 'Tier-3 — Groq OpenAI open-weight fallback',
   };
 
   const all = [primary, ...tier2, tertiary];

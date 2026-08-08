@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+﻿import { beforeEach, describe, expect, it, vi } from 'vitest';
 import express from 'express';
 import { setupRoutes } from '../../../server/routes';
 import { createTestApp, expectJsonResponse } from '../../helpers/request';
@@ -23,7 +23,7 @@ vi.mock('../../../server/services/ai-router', () => ({
 vi.mock('../../../server/services/prompts', () => ({
   getAvailablePrompts: vi.fn().mockReturnValue([
     { name: 'default', description: 'Natural, casual responses' },
-    { name: 'humorous', description: 'Observational wit—one sharp angle tied to a concrete detail in the tweet' },
+    { name: 'humorous', description: 'Observational witâ€”one sharp angle tied to a concrete detail in the tweet' },
   ]),
 }));
 
@@ -43,7 +43,7 @@ describe('AI Catalog Routes - Unit Tests', () => {
       const { aiRouter } = await import('../../../server/services/ai-router');
       vi.mocked(aiRouter.getModelsByProvider).mockReturnValue({
         openai: ['gpt-4o-mini'],
-        groq: ['meta-llama/llama-4-scout-17b-16e-instruct'],
+        groq: ['openai/gpt-oss-120b'],
       });
 
       const res = await app.raw().get('/api/models');

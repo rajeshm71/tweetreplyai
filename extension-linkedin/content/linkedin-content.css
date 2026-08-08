@@ -68,6 +68,10 @@
   max-width: 88px;
 }
 
+.li-ai-model-select {
+  max-width: 120px;
+}
+
 /* ── Base Button ──────────────────────────────────────────── */
 .li-ai-reply-btn {
   display: inline-flex;

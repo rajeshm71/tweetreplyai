@@ -15,19 +15,29 @@ const groq = process.env.GROQ_API_KEY ? new Groq() : null;
 export class GroqModelRouter {
   private readonly MODELS = {
     [getGroqTertiaryModel()]: {
-      name: "Llama 4 Scout (tertiary)",
-      ...MODEL_SPECS.LLAMA_SCOUT,
-      description: "Tertiary cascade tier — fast Groq Llama model",
+      name: "GPT-OSS 120B (tertiary)",
+      ...MODEL_SPECS.GPT_OSS_120B,
+      description: "Tertiary cascade tier — OpenAI open-weight model on Groq",
     },
   } as const;
+
+  private isAllowedGroqModel(modelPreference?: string): boolean {
+    if (!modelPreference) return false;
+    return (
+      modelPreference in this.MODELS ||
+      modelPreference.startsWith("openai/") ||
+      modelPreference.startsWith("meta-llama/") ||
+      modelPreference.startsWith("llama-")
+    );
+  }
 
   private getModelForTweet(
     _tweetText: string,
     modelPreference?: string,
   ): string {
     const tertiary = getGroqTertiaryModel();
-    if (modelPreference && (modelPreference in this.MODELS || modelPreference.startsWith("meta-llama/"))) {
-      return modelPreference;
+    if (this.isAllowedGroqModel(modelPreference)) {
+      return modelPreference!;
     }
     return tertiary;
   }
@@ -164,8 +174,8 @@ export class GroqModelRouter {
 
   async improveDraft(tweetText: string, draftReply: string, modelPreference?: string): Promise<ReplyResponse> {
     const startTime = Date.now();
-    const modelKey = modelPreference && (modelPreference in this.MODELS || modelPreference.startsWith("meta-llama/"))
-      ? modelPreference
+    const modelKey = this.isAllowedGroqModel(modelPreference)
+      ? modelPreference!
       : getGroqTertiaryModel();
     const promptConfig = this.getPromptConfig("improve");
 
@@ -239,8 +249,8 @@ Write a clean, natural reply based on the user's draft idea. Keep it under ${REP
     opts: ReframePromptOptions & { modelPreference?: string } = {},
   ): Promise<ReplyResponse> {
     const startTime = Date.now();
-    const modelKey = opts.modelPreference && (opts.modelPreference in this.MODELS || opts.modelPreference.startsWith("meta-llama/"))
-      ? opts.modelPreference
+    const modelKey = this.isAllowedGroqModel(opts.modelPreference)
+      ? opts.modelPreference!
       : getGroqTertiaryModel();
     const config = getReframePromptConfig(degree, {
       allowLong: opts.allowLong,
@@ -303,8 +313,8 @@ Write a clean, natural reply based on the user's draft idea. Keep it under ${REP
     modelPreference?: string,
   ): Promise<import("./openai.js").ReplyResponse> {
     const startTime = Date.now();
-    const modelKey = modelPreference && (modelPreference in this.MODELS || modelPreference.startsWith("meta-llama/"))
-      ? modelPreference
+    const modelKey = this.isAllowedGroqModel(modelPreference)
+      ? modelPreference!
       : getGroqTertiaryModel();
 
     if (!groq) {
@@ -348,9 +358,9 @@ Write a clean, natural reply based on the user's draft idea. Keep it under ${REP
       entries.push([
         tertiary,
         {
-          name: "Llama 4 Scout (tertiary)",
-          ...MODEL_SPECS.LLAMA_SCOUT,
-          description: "Tertiary cascade tier — fast Groq Llama model",
+          name: "GPT-OSS 120B (tertiary)",
+          ...MODEL_SPECS.GPT_OSS_120B,
+          description: "Tertiary cascade tier — OpenAI open-weight model on Groq",
         },
       ]);
     }

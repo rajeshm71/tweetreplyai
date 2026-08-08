@@ -15,7 +15,11 @@ console.log('[TweetAnalysis] TWEET_ANALYSIS_FALLBACK:', AI_MODELS.FALLBACK);
 console.log('[TweetAnalysis] TWEET_ANALYSIS_MODEL (used for both agents):', AI_MODELS.ANALYSIS);
 
 function isGroqModel(modelKey: string): boolean {
-  return modelKey.startsWith("meta-llama/") || modelKey.startsWith("llama-");
+  return (
+    modelKey.startsWith("meta-llama/") ||
+    modelKey.startsWith("llama-") ||
+    modelKey.startsWith("openai/")
+  );
 }
 
 // Interfaces
