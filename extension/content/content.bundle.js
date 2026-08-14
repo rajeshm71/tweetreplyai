@@ -7492,7 +7492,6 @@ ${cta}` : cta;
     const BANDS = constants?.DEGREE_BANDS || DEFAULT_BANDS;
     const DEFAULT_DEGREE = constants?.DEFAULT_DEGREE ?? 50;
     const TWITTER_CHAR_LIMIT = constants?.TWITTER_CHAR_LIMIT ?? 280;
-    const LONG_TWEET_CHAR_LIMIT = constants?.LONG_TWEET_CHAR_LIMIT ?? 4e3;
     const existing = document.getElementById(MODAL_ID);
     if (existing) {
       existing.focus?.();
@@ -7641,7 +7640,7 @@ ${cta}` : cta;
     card.appendChild(h("label", { class: "tweetreply-reuse-field" }, [
       h("div", { class: "tweetreply-reuse-field-label" }, "Guidance (optional)"),
       guidanceTextarea,
-      h("div", { class: "tweetreply-reuse-hint" }, "Tone, audience, or format \u2014 must stay consistent with the degree slider above.")
+      h("div", { class: "tweetreply-reuse-hint" }, "Tone, audience, or format \u2014 followed as author instructions.")
     ]));
     try {
       chrome?.storage?.local?.get?.([REUSE_GUIDANCE_STORAGE_KEY], (result) => {
@@ -7694,12 +7693,10 @@ ${cta}` : cta;
       errorBox
     ]));
     const generateBtn = h("button", { type: "button", class: "tweetreply-reuse-generate" }, "Generate");
-    const regenerateBtn = h("button", { type: "button", class: "tweetreply-reuse-regenerate", hidden: true }, "Regenerate");
     const copyBtn = h("button", { type: "button", class: "tweetreply-reuse-copy", disabled: true }, "Copy");
     const postBtn = h("button", { type: "button", class: "tweetreply-reuse-post", disabled: true }, "Post to X");
     card.appendChild(h("footer", { class: "tweetreply-reuse-footer" }, [
       generateBtn,
-      regenerateBtn,
       copyBtn,
       postBtn
     ]));
@@ -7846,20 +7843,20 @@ ${cta}` : cta;
       copyBtn.disabled = false;
       postBtn.disabled = Boolean(sel.safetyOutcome);
     }
+    function generateLabel() {
+      return generationHistory.length > 0 ? "Regenerate" : "Generate";
+    }
     function setState(next, { error: error2 } = {}) {
       state = next;
       if (state === "generating") {
         errorBox.hidden = true;
         generateBtn.textContent = "Generating\u2026";
-        regenerateBtn.textContent = "Generating\u2026";
         copyBtn.disabled = true;
         postBtn.disabled = true;
       } else {
-        generateBtn.textContent = "Generate";
-        regenerateBtn.textContent = "Regenerate";
+        generateBtn.textContent = generateLabel();
       }
       if (state === "result") {
-        regenerateBtn.hidden = generationHistory.length === 0;
         applyResultChrome();
       }
       if (state === "error" && error2) {
@@ -7889,7 +7886,6 @@ ${cta}` : cta;
       const allowLong = Boolean(allowLongCheckbox.checked);
       const token = ++requestToken;
       setState("generating");
-      const charLimit = allowLong ? LONG_TWEET_CHAR_LIMIT : TWITTER_CHAR_LIMIT;
       const startedAt = Date.now();
       try {
         const modelKey = modelSelectEl?.value || "auto";
@@ -7915,7 +7911,7 @@ ${cta}` : cta;
           surface: "content",
           context: {
             action: `degree:${entry.degree}`,
-            note: `band=${entry.band || ""};chars=${entry.reframed.length};charLimit=${charLimit};latency=${Date.now() - startedAt}`
+            note: `band=${entry.band || ""};chars=${entry.reframed.length};charLimit=${allowLong ? "uncapped" : TWITTER_CHAR_LIMIT};latency=${Date.now() - startedAt}`
           }
         });
       } catch (err) {
@@ -7942,7 +7938,6 @@ ${cta}` : cta;
       }
     }
     generateBtn.addEventListener("click", runGenerate);
-    regenerateBtn.addEventListener("click", runGenerate);
     copyBtn.addEventListener("click", async () => {
       const sel = getSelected();
       if (!sel?.reframed) return;

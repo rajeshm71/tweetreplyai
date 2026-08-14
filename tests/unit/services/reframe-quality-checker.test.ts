@@ -47,4 +47,31 @@ describe("reframe-quality-checker", () => {
     const result = checkReframeQuality(source, output, "balanced");
     expect(result.structurePassed).toBe(true);
   });
+
+  it("does not penalize length over 4000 when allowLong is true", () => {
+    const source = "A long source tweet about shipping product and talking to users every week.";
+    const output = `${"Shipping well means talking to customers and landing tiny diffs. ".repeat(80)}Fresh wording throughout.`;
+    expect(output.length).toBeGreaterThan(4000);
+    const result = checkReframeQuality(source, output, "balanced", true);
+    const lengthParam = result.parameters.find((p) => p.name === "Length fit");
+    expect(lengthParam?.score).toBe(10);
+    expect(lengthParam?.reason).toMatch(/no product character cap/i);
+  });
+
+  it("still penalizes over-280 length when allowLong is false", () => {
+    const source = "A source tweet about shipping product and talking to users every week.";
+    const output = `${"Shipping well means talking to customers and landing tiny diffs. ".repeat(8)}Fresh wording.`;
+    expect(output.length).toBeGreaterThan(280);
+    const result = checkReframeQuality(source, output, "balanced", false);
+    const lengthParam = result.parameters.find((p) => p.name === "Length fit");
+    expect(lengthParam?.score).toBe(3);
+  });
+
+  it("treats collapsed output as structure-pass when guidance is present", () => {
+    const source = "Tips:\n- Ship fast\n- Talk to users\n- Iterate daily";
+    const output =
+      "Tips: ship fast, talk to users, and iterate daily so you keep momentum on the product.";
+    const result = checkReframeQuality(source, output, "balanced", false, true);
+    expect(result.structurePassed).toBe(true);
+  });
 });

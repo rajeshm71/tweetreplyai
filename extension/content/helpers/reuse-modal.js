@@ -87,7 +87,6 @@ export function createReuseModal(payload, deps) {
   const BANDS = constants?.DEGREE_BANDS || DEFAULT_BANDS;
   const DEFAULT_DEGREE = constants?.DEFAULT_DEGREE ?? 50;
   const TWITTER_CHAR_LIMIT = constants?.TWITTER_CHAR_LIMIT ?? 280;
-  const LONG_TWEET_CHAR_LIMIT = constants?.LONG_TWEET_CHAR_LIMIT ?? 4000;
 
   // If a modal already exists, focus it and return a handle that is a no-op
   // on close (the existing modal owns its own lifecycle).
@@ -250,7 +249,7 @@ export function createReuseModal(payload, deps) {
   card.appendChild(h('label', { class: 'tweetreply-reuse-field' }, [
     h('div', { class: 'tweetreply-reuse-field-label' }, 'Guidance (optional)'),
     guidanceTextarea,
-    h('div', { class: 'tweetreply-reuse-hint' }, 'Tone, audience, or format — must stay consistent with the degree slider above.'),
+    h('div', { class: 'tweetreply-reuse-hint' }, 'Tone, audience, or format — followed as author instructions.'),
   ]));
 
   try {
@@ -308,12 +307,11 @@ export function createReuseModal(payload, deps) {
 
   // Buttons -----------------------------------------------------------------
   const generateBtn = h('button', { type: 'button', class: 'tweetreply-reuse-generate' }, 'Generate');
-  const regenerateBtn = h('button', { type: 'button', class: 'tweetreply-reuse-regenerate', hidden: true }, 'Regenerate');
   const copyBtn = h('button', { type: 'button', class: 'tweetreply-reuse-copy', disabled: true }, 'Copy');
   const postBtn = h('button', { type: 'button', class: 'tweetreply-reuse-post', disabled: true }, 'Post to X');
 
   card.appendChild(h('footer', { class: 'tweetreply-reuse-footer' }, [
-    generateBtn, regenerateBtn, copyBtn, postBtn,
+    generateBtn, copyBtn, postBtn,
   ]));
 
   function newVariationId() {
@@ -475,25 +473,25 @@ export function createReuseModal(payload, deps) {
     postBtn.disabled = Boolean(sel.safetyOutcome);
   }
 
+  function generateLabel() {
+    return generationHistory.length > 0 ? 'Regenerate' : 'Generate';
+  }
+
   function setState(next, { error } = {}) {
     state = next;
-    // NOTE: Generate / Regenerate are intentionally kept clickable while a
-    // previous request is in-flight — the `requestToken` guard ensures only
-    // the most recent response lands in the UI, and a second click simply
-    // supersedes the earlier one.
+    // NOTE: Generate is intentionally kept clickable while a previous request
+    // is in-flight — the `requestToken` guard ensures only the most recent
+    // response lands in the UI, and a second click simply supersedes the earlier one.
     if (state === 'generating') {
       errorBox.hidden = true;
       generateBtn.textContent = 'Generating…';
-      regenerateBtn.textContent = 'Generating…';
       // While a new request is in-flight, the prior preview is stale for Copy/Post.
       copyBtn.disabled = true;
       postBtn.disabled = true;
     } else {
-      generateBtn.textContent = 'Generate';
-      regenerateBtn.textContent = 'Regenerate';
+      generateBtn.textContent = generateLabel();
     }
     if (state === 'result') {
-      regenerateBtn.hidden = generationHistory.length === 0;
       applyResultChrome();
     }
     if (state === 'error' && error) {
@@ -527,7 +525,6 @@ export function createReuseModal(payload, deps) {
     const token = ++requestToken;
     setState('generating');
 
-    const charLimit = allowLong ? LONG_TWEET_CHAR_LIMIT : TWITTER_CHAR_LIMIT;
     const startedAt = Date.now();
 
     try {
@@ -555,7 +552,7 @@ export function createReuseModal(payload, deps) {
         surface: 'content',
         context: {
           action: `degree:${entry.degree}`,
-          note: `band=${entry.band || ''};chars=${entry.reframed.length};charLimit=${charLimit};latency=${Date.now() - startedAt}`,
+          note: `band=${entry.band || ''};chars=${entry.reframed.length};charLimit=${allowLong ? 'uncapped' : TWITTER_CHAR_LIMIT};latency=${Date.now() - startedAt}`,
         },
       });
     } catch (err) {
@@ -585,7 +582,6 @@ export function createReuseModal(payload, deps) {
   }
 
   generateBtn.addEventListener('click', runGenerate);
-  regenerateBtn.addEventListener('click', runGenerate);
 
   copyBtn.addEventListener('click', async () => {
     const sel = getSelected();

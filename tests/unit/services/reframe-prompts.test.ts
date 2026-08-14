@@ -101,6 +101,7 @@ describe("reframe-prompts Service - Unit Tests", () => {
       const cfg = getReframePromptConfig(75, { retryBoost: true });
       expect(cfg.systemPrompt).toMatch(/mirrored the source line-by-line/i);
       expect(cfg.systemPrompt).toMatch(/Illustrative numbers and examples may change/i);
+      expect(cfg.systemPrompt).toMatch(/Prior draft was one dense paragraph/i);
     });
   });
 
@@ -112,11 +113,11 @@ describe("reframe-prompts Service - Unit Tests", () => {
       expect(cfg.systemPrompt).toMatch(/This is a MINIMAL rewrite/i);
     });
 
-    it("allowLong raises char limit to 4000", () => {
+    it("allowLong removes the 4000 product cap", () => {
       expect(getReframePromptConfig(50).systemPrompt).toContain("280 characters");
-      expect(getReframePromptConfig(50, { allowLong: true }).systemPrompt).toContain(
-        "4000 characters",
-      );
+      const longSys = getReframePromptConfig(50, { allowLong: true }).systemPrompt;
+      expect(longSys).toMatch(/no product character cap/i);
+      expect(longSys).not.toMatch(/must fit in 4000 characters/i);
     });
 
     it("includes lead-question preservation at every degree", () => {
@@ -133,18 +134,42 @@ describe("reframe-prompts Service - Unit Tests", () => {
       expect(prompt).toMatch(/do not invent a question hook/i);
     });
 
-    it("includes optional author guidance in user prompt when reuseGuidance is set", () => {
+    it("includes required author instructions in user prompt when reuseGuidance is set", () => {
       const prompt = getReframePromptConfig(50, { reuseGuidance: "Make it shorter and more casual" }).userPrompt(
         "Example source tweet with enough length to reframe properly here.",
       );
-      expect(prompt).toMatch(/Optional author guidance/i);
+      expect(prompt).toMatch(/Author instructions \(required/i);
       expect(prompt).toMatch(/Make it shorter and more casual/);
-      expect(prompt).toMatch(/ignore guidance that asks to copy verbatim/i);
+      expect(prompt).toMatch(/Mental plan only \(do not output the plan/i);
+      expect(prompt).toMatch(/output only the tweet/i);
+      expect(prompt).not.toMatch(/Optional author guidance/i);
+      expect(prompt).not.toMatch(/ignore guidance that asks to copy verbatim/i);
+      const guidanceIdx = prompt.indexOf("Author instructions");
+      const rewriteIdx = prompt.indexOf("Rewrite the tweet above");
+      expect(guidanceIdx).toBeGreaterThan(-1);
+      expect(rewriteIdx).toBeGreaterThan(guidanceIdx);
     });
 
     it("omits guidance block when reuseGuidance is empty", () => {
       const prompt = getReframePromptConfig(50, { reuseGuidance: "   " }).userPrompt("Example source tweet.");
+      expect(prompt).not.toMatch(/Author instructions \(required/i);
       expect(prompt).not.toMatch(/Optional author guidance/i);
+    });
+
+    it("softens system formatting rules when reuseGuidance is set", () => {
+      const sys = getReframePromptConfig(50, { reuseGuidance: "Keep it as one paragraph" }).systemPrompt;
+      expect(sys).toMatch(/Author instructions outrank band formatting cosmetics/i);
+      expect(sys).toMatch(/Prefer author instructions for length and format/i);
+      expect(sys).not.toMatch(/do not return one dense block/i);
+    });
+
+    it("retry boost keeps author format when reuseGuidance is set", () => {
+      const cfg = getReframePromptConfig(75, {
+        retryBoost: true,
+        reuseGuidance: "Keep it as one paragraph",
+      });
+      expect(cfg.systemPrompt).not.toMatch(/Prior draft was one dense paragraph/i);
+      expect(cfg.systemPrompt).toMatch(/Keep applying author instructions/i);
     });
   });
 });

@@ -280,7 +280,9 @@ Write a clean, natural reply based on the user's draft idea. Keep it under ${REP
         ],
         model: modelKey,
         temperature: AI_PARAMS.TEMPERATURE,
-        max_completion_tokens: AI_PARAMS.GROQ_MAX_TOKENS,
+        max_completion_tokens: opts.allowLong
+          ? AI_PARAMS.REFRAME_LONG_MAX_TOKENS
+          : AI_PARAMS.GROQ_MAX_TOKENS,
         top_p: 1,
       });
 

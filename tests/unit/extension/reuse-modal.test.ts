@@ -436,7 +436,7 @@ describe("createReuseModal (extension helper)", () => {
     expect(copyBtn.disabled).toBe(false);
     expect(postBtn.disabled).toBe(false);
 
-    modal.querySelector<HTMLButtonElement>(".tweetreply-reuse-regenerate")!.click();
+    modal.querySelector<HTMLButtonElement>(".tweetreply-reuse-generate")!.click();
     await Promise.resolve();
 
     expect(copyBtn.disabled).toBe(true);
@@ -448,6 +448,74 @@ describe("createReuseModal (extension helper)", () => {
 
     expect(copyBtn.disabled).toBe(false);
     expect(postBtn.disabled).toBe(false);
+  });
+
+  it("uses a single Generate button that becomes Regenerate after the first success", async () => {
+    const deps = makeDeps();
+    deps.apiClient.reframeTweet.mockResolvedValueOnce({
+      reframed: "First result",
+      qualityScore: 80,
+      degree: 50,
+      band: "balanced",
+      meta: {},
+    });
+
+    createReuseModal({ text: "This source tweet is long enough.", author: "alice" }, deps);
+    const modal = document.getElementById(REUSE.MODAL_ID)!;
+    expect(modal.querySelector(".tweetreply-reuse-regenerate")).toBeNull();
+    const generate = modal.querySelector<HTMLButtonElement>(".tweetreply-reuse-generate")!;
+    expect(generate.textContent).toBe("Generate");
+
+    generate.click();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(modal.querySelectorAll(".tweetreply-reuse-generate").length).toBe(1);
+    expect(modal.querySelector(".tweetreply-reuse-regenerate")).toBeNull();
+    expect(generate.textContent).toBe("Regenerate");
+  });
+
+  it("keeps Generate after an error with no prior success", async () => {
+    const deps = makeDeps();
+    deps.apiClient.reframeTweet.mockRejectedValueOnce(new Error("500: Server error"));
+
+    createReuseModal({ text: "This source tweet is long enough.", author: "alice" }, deps);
+    const modal = document.getElementById(REUSE.MODAL_ID)!;
+    const generate = modal.querySelector<HTMLButtonElement>(".tweetreply-reuse-generate")!;
+    generate.click();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(generate.textContent).toBe("Generate");
+  });
+
+  it("keeps Regenerate after an error when a prior success exists", async () => {
+    const deps = makeDeps();
+    deps.apiClient.reframeTweet
+      .mockResolvedValueOnce({
+        reframed: "Already have this",
+        qualityScore: 80,
+        degree: 50,
+        band: "balanced",
+        meta: {},
+      })
+      .mockRejectedValueOnce(new Error("500: Server error"));
+
+    createReuseModal({ text: "This source tweet is long enough.", author: "alice" }, deps);
+    const modal = document.getElementById(REUSE.MODAL_ID)!;
+    const generate = modal.querySelector<HTMLButtonElement>(".tweetreply-reuse-generate")!;
+    generate.click();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(generate.textContent).toBe("Regenerate");
+
+    generate.click();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(generate.textContent).toBe("Regenerate");
   });
 
   it("absorbs the self-initiated popstate from postToCompose so a timeout error can still render in the modal", async () => {

@@ -414,6 +414,93 @@ describe('AI Reframe Tweet Route - Unit Tests', () => {
     );
   });
 
+  it('returns 400 when source_tweet exceeds 2000 without allow_long', async () => {
+    const res = await app
+      .raw()
+      .post('/api/reframe-tweet')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({ source_tweet: 'x'.repeat(2001), degree: 50 });
+
+    expectValidationError(res);
+  });
+
+  it('accepts source_tweet longer than 2000 when allow_long is true', async () => {
+    const longSource = `${'Shipping product with users in the loop. '.repeat(80)}End.`;
+    expect(longSource.length).toBeGreaterThan(2000);
+    expect(longSource.length).toBeLessThan(25000);
+
+    const res = await app
+      .raw()
+      .post('/api/reframe-tweet')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({ source_tweet: longSource, degree: 50, allow_long: true });
+
+    expect(res.status).toBe(200);
+    const { aiRouter } = await import('../../../server/services/ai-router');
+    expect(vi.mocked(aiRouter.reframeTweet)).toHaveBeenCalledWith(
+      longSource,
+      50,
+      expect.objectContaining({ allowLong: true }),
+    );
+  });
+
+  it('returns 400 when source_tweet exceeds 25000 even with allow_long', async () => {
+    const res = await app
+      .raw()
+      .post('/api/reframe-tweet')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({ source_tweet: 'x'.repeat(25001), degree: 50, allow_long: true });
+
+    expectValidationError(res);
+  });
+
+  it('retries on collapsed structure when reuse_guidance is absent', async () => {
+    const listSource = 'Tips for shipping:\n- Talk to users every week\n- Ship small diffs daily\n- Measure what actually moved';
+    const collapsed =
+      'Shipping well means talking to customers often, landing tiny diffs, and tracking the metric that actually moved this week instead of vanity counts.';
+    const { aiRouter } = await import('../../../server/services/ai-router');
+    vi.mocked(aiRouter.reframeTweet)
+      .mockResolvedValueOnce({ ...mockReframeResponse, reply: collapsed })
+      .mockResolvedValueOnce({
+        ...mockReframeResponse,
+        reply: 'Talk to users weekly.\nShip tiny diffs.\nTrack the metric that moved.',
+      });
+
+    const res = await app
+      .raw()
+      .post('/api/reframe-tweet')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({ source_tweet: listSource, degree: 50 });
+
+    expect(res.status).toBe(200);
+    expect(vi.mocked(aiRouter.reframeTweet)).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not structure-retry collapsed output when reuse_guidance is set', async () => {
+    const listSource = 'Tips for shipping:\n- Talk to users every week\n- Ship small diffs daily\n- Measure what actually moved';
+    const collapsed =
+      'Shipping well means talking to customers often, landing tiny diffs, and tracking the metric that actually moved this week instead of vanity counts.';
+    const { aiRouter } = await import('../../../server/services/ai-router');
+    vi.mocked(aiRouter.reframeTweet).mockResolvedValueOnce({
+      ...mockReframeResponse,
+      reply: collapsed,
+    });
+
+    const res = await app
+      .raw()
+      .post('/api/reframe-tweet')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({
+        source_tweet: listSource,
+        degree: 50,
+        reuse_guidance: 'Keep it as one paragraph',
+      });
+
+    expect(res.status).toBe(200);
+    expect(vi.mocked(aiRouter.reframeTweet)).toHaveBeenCalledTimes(1);
+    expect(res.body.reframed).toBe(collapsed);
+  });
+
   it('forwards reuse_guidance to aiRouter.reframeTweet', async () => {
     await app
       .raw()

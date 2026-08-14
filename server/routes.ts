@@ -3600,8 +3600,7 @@ User draft reply: ${draft_reply}`;
       const schema = z.object({
         source_tweet: z
           .string()
-          .min(VALIDATION.MIN_TWEET_LENGTH, `Source tweet must be at least ${VALIDATION.MIN_TWEET_LENGTH} characters`)
-          .max(VALIDATION.MAX_TWEET_LENGTH),
+          .min(VALIDATION.MIN_TWEET_LENGTH, `Source tweet must be at least ${VALIDATION.MIN_TWEET_LENGTH} characters`),
         degree: z.number().int().min(0).max(100),
         source_author: z.string().max(50).optional(),
         source_tweet_url: z.string().url().optional(),
@@ -3610,6 +3609,18 @@ User draft reply: ${draft_reply}`;
         reuse_guidance: z.string().trim().max(300).optional(),
         allow_long: z.boolean().optional().default(false),
         platform: z.enum(['twitter']).optional().default('twitter'),
+      }).superRefine((data, ctx) => {
+        const maxLen = data.allow_long ? VALIDATION.MAX_LONG_TWEET_LENGTH : VALIDATION.MAX_TWEET_LENGTH;
+        if (data.source_tweet.length > maxLen) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.too_big,
+            maximum: maxLen,
+            type: 'string',
+            inclusive: true,
+            path: ['source_tweet'],
+            message: `Source tweet must be at most ${maxLen} characters`,
+          });
+        }
       });
 
       const body = schema.parse(req.body);
@@ -3783,10 +3794,11 @@ User draft reply: ${draft_reply}`;
           generation.reply,
           band,
           body.allow_long,
+          Boolean(reuseGuidance),
         );
 
         const qualityNeedsRetry = (result: typeof qualityResult) =>
-          !result.originality.passed || !result.structurePassed;
+          !result.originality.passed || (!reuseGuidance && !result.structurePassed);
 
         if (qualityNeedsRetry(qualityResult)) {
           retriedForOriginality = true;
@@ -3800,6 +3812,7 @@ User draft reply: ${draft_reply}`;
               retryGeneration.reply,
               band,
               body.allow_long,
+              Boolean(reuseGuidance),
             );
             const firstPasses = !qualityNeedsRetry(qualityResult);
             const retryPasses = !qualityNeedsRetry(retryQuality);

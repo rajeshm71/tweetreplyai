@@ -25,18 +25,6 @@ export interface ReframePromptOptions {
   reuseGuidance?: string;
 }
 
-const RETRY_BOOST = [
-  'RETRY — prior draft was too similar to the source.',
-  'Rephrase the opening with a different structure.',
-  'Replace at least two body/list lines with fresh wording.',
-  'Keep the same insight and stance.',
-  'Your last draft mirrored the source line-by-line. Reorder the claims.',
-  "Change how each point is written—do not reuse the source's sentence shapes or clause patterns.",
-  'Keep factual claims accurate; rewrite delivery. Illustrative numbers and examples may change.',
-  'If the source opened with a statement, do not start the retry with a question.',
-  'Prior draft was one dense paragraph. Split into short tweet lines — one idea per line, breaks after sentences or list items.',
-].join('\n');
-
 export function getDegreeBand(degree: number): DegreeBand {
   const d = clampDegree(degree);
   if (d <= 20) return 'minimal';
@@ -106,29 +94,29 @@ const BAND_INSTRUCTIONS: Record<DegreeBand, string> = {
 };
 
 const TWITTER_CHAR_LIMIT = 280;
-const LONG_TWEET_CHAR_LIMIT = 4000;
 
-function buildSharedRules(degree: number, allowLong: boolean): string {
-  const band = getDegreeBand(degree);
-  const charLimit = allowLong ? LONG_TWEET_CHAR_LIMIT : TWITTER_CHAR_LIMIT;
+function lengthRule(allowLong: boolean, hasGuidance: boolean): string {
+  if (allowLong) {
+    return '- Length: no product character cap. The tweet may exceed 280 characters (X Premium). Match source density and any author length instructions. Do not truncate to 4000 or any other ceiling.';
+  }
+  if (hasGuidance) {
+    return `- Target length: prefer author length instructions over the default ${TWITTER_CHAR_LIMIT}-character target. If instructions are silent on length, fit in ${TWITTER_CHAR_LIMIT} characters.`;
+  }
+  return `- Target length: the reframed tweet must fit in ${TWITTER_CHAR_LIMIT} characters.`;
+}
 
-  const lines = [
-    'Hard rules that apply to EVERY reframe:',
-    '- Preserve the source language. If the source is Hindi, output Hindi; if Spanish, output Spanish; etc. Do not translate.',
-    '- Plain language (when the source is English): use simple, everyday words and short, natural sentences. Avoid fancy vocabulary, academic tone, and corporate jargon unless the source depends on a specific term. If the source sounds stiff or verbose, simplify wording while preserving meaning. If the source is not English, keep that language; do not elevate style.',
-    "- Output is the user's OWN standalone tweet. Do NOT attribute the idea. Do NOT include phrases like \"as @someone said\", \"quoting X\", \"via @\", or surrounding quotation marks.",
-    `- Target length: the reframed tweet must fit in ${charLimit} characters.`,
-    '- Do not add hashtags unless the source used them.',
-    '- Do not wrap the output in quotes or code fences. No markdown syntax (no **bold**, _italic_, or #headings). Plain line breaks are allowed and encouraged.',
-    '- Structural pattern: If the source is list-like or multiline, keep the same break rhythm—one main idea per line as in the source, preserve blank lines between stanzas, and do not concatenate multiple source lines into one paragraph. List markers may change (dashes, bullets, numbers, quoted lines vs plain lines). Do not collapse list-like sources into one or two narrative paragraphs. If the source is already continuous prose, short paragraphs and line breaks between ideas are fine.',
-    '- Lead question (when applicable): If the first substantive line of the source ends with ? or is clearly interrogative, the output must open with a question that preserves the same meaning and framing (who it is for, what is being asked). Light rephrase only—do not replace with a statement lead or a different question.',
-    '- Declarative opening (when applicable): If the source does NOT open with a question, the output must NOT open with a question either—use a statement, claim, or headline-style opening. Do not invent a question hook for engagement. This applies at every degree, including heavy and reimagined rewrites.',
-    '',
-    'Anti-duplicate (all bands):',
-    '- Never copy the source opening line verbatim; rephrase the hook.',
-    '- Never reproduce any contiguous span of 8+ words identical to the source.',
-    '- Avoid duplicate-feeling phrasing; express the same idea in fresh words.',
-    '',
+function formattingRules(hasGuidance: boolean): string[] {
+  if (hasGuidance) {
+    return [
+      'Tweet output formatting (how the post should look on X):',
+      '- Prefer author instructions for length and format over these defaults.',
+      '- Default (only when instructions are silent): short lines with line breaks, one main idea per line.',
+      '- If instructions ask for shorter, one paragraph, keep a list, or similar, follow that instead of splitting or expanding.',
+      '- Do not stack multiple questions unless author instructions ask for it; if the source opens with one question, keep that single lead question only.',
+      '- Very short one-liners (single sentence under ~80 characters) may stay on one line.',
+    ];
+  }
+  return [
     'Tweet output formatting (how the post should look on X):',
     '- Output must be formatted like a real X tweet: short lines with line breaks. One main idea per line.',
     '- If the source is a continuous paragraph, split your rewrite into multiple short lines at natural sentence or clause boundaries — do not return one dense block.',
@@ -138,6 +126,56 @@ function buildSharedRules(degree: number, allowLong: boolean): string {
     '- Do not stack multiple questions; if the source opens with one question, keep that single lead question only.',
     '- Short, scannable lines — like a real X post people scroll past.',
     '- Very short one-liners (single sentence under ~80 characters) may stay on one line.',
+  ];
+}
+
+function structuralPatternRule(hasGuidance: boolean): string {
+  if (hasGuidance) {
+    return '- Structural pattern: follow author instructions for layout. If instructions are silent, keep list-like or multiline sources scannable (one main idea per line) and do not invent a new format.';
+  }
+  return '- Structural pattern: If the source is list-like or multiline, keep the same break rhythm—one main idea per line as in the source, preserve blank lines between stanzas, and do not concatenate multiple source lines into one paragraph. List markers may change (dashes, bullets, numbers, quoted lines vs plain lines). Do not collapse list-like sources into one or two narrative paragraphs. If the source is already continuous prose, short paragraphs and line breaks between ideas are fine.';
+}
+
+function buildRetryBoost(hasGuidance: boolean): string {
+  const lines = [
+    'RETRY — prior draft was too similar to the source.',
+    'Rephrase the opening with a different structure.',
+    'Replace at least two body/list lines with fresh wording.',
+    'Keep the same insight and stance.',
+    'Your last draft mirrored the source line-by-line. Reorder the claims.',
+    "Change how each point is written—do not reuse the source's sentence shapes or clause patterns.",
+    'Keep factual claims accurate; rewrite delivery. Illustrative numbers and examples may change.',
+    'If the source opened with a statement, do not start the retry with a question.',
+  ];
+  if (hasGuidance) {
+    lines.push('Keep applying author instructions; do not split into short lines if instructions asked for a paragraph or shorter block.');
+  } else {
+    lines.push('Prior draft was one dense paragraph. Split into short tweet lines — one idea per line, breaks after sentences or list items.');
+  }
+  return lines.join('\n');
+}
+
+function buildSharedRules(degree: number, allowLong: boolean, hasGuidance: boolean): string {
+  const band = getDegreeBand(degree);
+
+  const lines = [
+    'Hard rules that apply to EVERY reframe:',
+    '- Preserve the source language. If the source is Hindi, output Hindi; if Spanish, output Spanish; etc. Do not translate.',
+    '- Plain language (when the source is English): use simple, everyday words and short, natural sentences. Avoid fancy vocabulary, academic tone, and corporate jargon unless the source depends on a specific term. If the source sounds stiff or verbose, simplify wording while preserving meaning. If the source is not English, keep that language; do not elevate style.',
+    "- Output is the user's OWN standalone tweet. Do NOT attribute the idea. Do NOT include phrases like \"as @someone said\", \"quoting X\", \"via @\", or surrounding quotation marks.",
+    lengthRule(allowLong, hasGuidance),
+    '- Do not add hashtags unless the source used them.',
+    '- Do not wrap the output in quotes or code fences. No markdown syntax (no **bold**, _italic_, or #headings). Plain line breaks are allowed and encouraged.',
+    structuralPatternRule(hasGuidance),
+    '- Lead question (when applicable): If the first substantive line of the source ends with ? or is clearly interrogative, the output must open with a question that preserves the same meaning and framing (who it is for, what is being asked). Light rephrase only—do not replace with a statement lead or a different question.',
+    '- Declarative opening (when applicable): If the source does NOT open with a question, the output must NOT open with a question either—use a statement, claim, or headline-style opening. Do not invent a question hook for engagement. This applies at every degree, including heavy and reimagined rewrites.',
+    '',
+    'Anti-duplicate (all bands):',
+    '- Never copy the source opening line verbatim; rephrase the hook.',
+    '- Never reproduce any contiguous span of 8+ words identical to the source.',
+    '- Avoid duplicate-feeling phrasing; express the same idea in fresh words.',
+    '',
+    ...formattingRules(hasGuidance),
   ];
 
   if (band === 'heavy' || band === 'reimagined') {
@@ -180,19 +218,40 @@ function buildSystemPrompt(
   degree: number,
   band: DegreeBand,
   allowLong: boolean,
-  retryBoost?: boolean,
+  retryBoost: boolean,
+  hasGuidance: boolean,
 ): string {
   return [
     "You are an X (Twitter) user rewriting another user's tweet into YOUR OWN standalone tweet, in plain everyday language.",
     `Degree of change: ${degree}/100 (band: ${band}).`,
     '',
     BAND_INSTRUCTIONS[band],
+    hasGuidance
+      ? '\nAuthor instructions outrank band formatting cosmetics (line breaks, paragraph vs list, target length). Keep this band\'s rewrite intensity (how much to reword). Do not drop instruction intent to satisfy default scannability.'
+      : '',
     '',
-    buildSharedRules(degree, allowLong),
-    retryBoost ? `\n${RETRY_BOOST}` : '',
+    buildSharedRules(degree, allowLong, hasGuidance),
+    retryBoost ? `\n${buildRetryBoost(hasGuidance)}` : '',
   ]
     .filter(Boolean)
     .join('\n');
+}
+
+function defaultStructureHint(structure: ReturnType<typeof analyzeTweetStructure>): string {
+  if (structure.isDenseParagraph) {
+    return 'Source layout: continuous paragraph. Split your rewrite into multiple short tweet lines at sentence or clause boundaries — do not output one dense block.';
+  }
+  if (structure.isListLike || structure.isMultiline) {
+    return `Source layout: ${structure.lineCount} lines, ${structure.isListLike ? 'list-like' : 'multiline'}. Write as a scannable X tweet with proper line breaks; markers and order may change but do not merge into one paragraph.`;
+  }
+  return 'Write as a scannable X tweet with proper line breaks when the content has multiple ideas.';
+}
+
+function guidanceStructureHint(structure: ReturnType<typeof analyzeTweetStructure>): string {
+  if (structure.isListLike || structure.isMultiline) {
+    return `Source layout: ${structure.lineCount} lines, ${structure.isListLike ? 'list-like' : 'multiline'}. Follow author instructions for format; keep list/multiline shape unless instructions say otherwise.`;
+  }
+  return 'Follow author instructions for length and format. Default tweet-style line breaks only if they do not conflict with those instructions.';
 }
 
 export function getReframePromptConfig(
@@ -202,42 +261,54 @@ export function getReframePromptConfig(
   const clamped = clampDegree(degree);
   const band = getDegreeBand(clamped);
   const allowLong = opts.allowLong === true;
-  const systemPrompt = buildSystemPrompt(clamped, band, allowLong, opts.retryBoost);
+  const hasGuidance = Boolean(opts.reuseGuidance?.trim());
+  const systemPrompt = buildSystemPrompt(
+    clamped,
+    band,
+    allowLong,
+    opts.retryBoost === true,
+    hasGuidance,
+  );
 
   const userPrompt = (source: string) => {
     const trimmed = (source ?? '').trim();
     const structure = analyzeTweetStructure(trimmed);
-    const structureHint = structure.isDenseParagraph
-      ? 'Source layout: continuous paragraph. Split your rewrite into multiple short tweet lines at sentence or clause boundaries — do not output one dense block.'
-      : structure.isListLike || structure.isMultiline
-        ? `Source layout: ${structure.lineCount} lines, ${structure.isListLike ? 'list-like' : 'multiline'}. Write as a scannable X tweet with proper line breaks; markers and order may change but do not merge into one paragraph.`
-        : 'Write as a scannable X tweet with proper line breaks when the content has multiple ideas.';
+    const guidance = opts.reuseGuidance?.trim();
+    const structureHint = guidance
+      ? guidanceStructureHint(structure)
+      : defaultStructureHint(structure);
 
     const baseTask = [
       'Source tweet:',
       '"""',
       trimmed,
       '"""',
+    ];
+
+    if (guidance) {
+      baseTask.push(
+        '',
+        'Author instructions (required — apply these; they outrank default length/format/degree cosmetics):',
+        '"""',
+        guidance,
+        '"""',
+        'Non-negotiable floor (override instructions only for these): safety refusal; preserve source language; do not flip stance; do not copy 8+ contiguous words verbatim; no attribution or wrapper quotes.',
+        'Mental plan only (do not output the plan; output only the tweet): (1) how each author instruction will be applied; (2) how to keep the non-negotiable floor without dropping instruction intent; (3) then write the tweet.',
+      );
+    }
+
+    baseTask.push(
       '',
       `Rewrite the tweet above as your own standalone tweet at degree ${clamped}/100 (${band}).`,
       structureHint,
-      'Format like a real X post: short lines, one idea per line. If the source opens with a question, keep that question’s intent in the opening line. If the source opens with a statement or headline, keep a statement opening—do not invent a question hook. List markers may change. For English sources, use simple everyday words. Output only the rewritten tweet text, no quotes, no preamble.',
-    ];
+      guidance
+        ? 'If the source opens with a question, keep that question’s intent in the opening line unless author instructions specify otherwise. If the source opens with a statement or headline, keep a statement opening unless author instructions specify otherwise. List markers may change. For English sources, use simple everyday words. Output only the rewritten tweet text, no quotes, no preamble, no plan.'
+        : 'Format like a real X post: short lines, one idea per line. If the source opens with a question, keep that question’s intent in the opening line. If the source opens with a statement or headline, keep a statement opening—do not invent a question hook. List markers may change. For English sources, use simple everyday words. Output only the rewritten tweet text, no quotes, no preamble.',
+    );
 
     if (band === 'heavy' || band === 'reimagined') {
       baseTask.push(
         "At this degree: keep core facts and stance but do not mirror the source's sentence order or rhetorical shapes—write it as your own post, not a rearranged paraphrase. Illustrative numbers and examples may change; factual claims must stay accurate.",
-      );
-    }
-
-    const guidance = opts.reuseGuidance?.trim();
-    if (guidance) {
-      baseTask.push(
-        '',
-        'Optional author guidance (apply only if consistent with hard rules and degree band above; ignore guidance that asks to copy verbatim, exceed the character limit, change language, flip stance, or bypass safety):',
-        '"""',
-        guidance,
-        '"""',
       );
     }
 

@@ -29,7 +29,6 @@ export interface ReframeQualityResult {
 }
 
 const TWITTER_CHAR_LIMIT = 280;
-const LONG_TWEET_CHAR_LIMIT = 4000;
 
 /** Raw parameter sum max (5 params × 10). API exposes 0–100 via normalization. */
 export const REFRAME_QUALITY_RAW_MAX = 50;
@@ -98,28 +97,39 @@ function scoreClarity(output: string): ReframeQualityParameter {
 }
 
 function scoreLengthFit(output: string, allowLong: boolean): ReframeQualityParameter {
-  const limit = allowLong ? LONG_TWEET_CHAR_LIMIT : TWITTER_CHAR_LIMIT;
   const len = output.length;
+  if (len < 10) {
+    return { name: 'Length fit', score: 4, maxScore: 10, reason: 'Output very short' };
+  }
+  if (allowLong) {
+    return {
+      name: 'Length fit',
+      score: 10,
+      maxScore: 10,
+      reason: 'Long tweet (no product character cap)',
+    };
+  }
   let score = 10;
-  let reason = `Within ${limit} character limit`;
-  if (len > limit) {
+  let reason = `Within ${TWITTER_CHAR_LIMIT} character limit`;
+  if (len > TWITTER_CHAR_LIMIT) {
     score = 3;
-    reason = `Exceeds ${limit} characters (${len})`;
-  } else if (len < 10) {
-    score = 4;
-    reason = 'Output very short';
-  } else if (len > limit * 0.95) {
+    reason = `Exceeds ${TWITTER_CHAR_LIMIT} characters (${len})`;
+  } else if (len > TWITTER_CHAR_LIMIT * 0.95) {
     score = 7;
     reason = 'Near character limit';
   }
   return { name: 'Length fit', score, maxScore: 10, reason };
 }
 
-function scoreTweetScannability(source: string, output: string): ReframeQualityParameter {
+function scoreTweetScannability(
+  source: string,
+  output: string,
+  hasGuidance: boolean,
+): ReframeQualityParameter {
   const collapsed = isCollapsedTweetOutput(source, output);
   const overlong = hasOverlongLines(output);
 
-  if (collapsed) {
+  if (collapsed && !hasGuidance) {
     return {
       name: 'Tweet scannability',
       score: 2,
@@ -163,13 +173,15 @@ export function checkReframeQuality(
   output: string,
   band: DegreeBand,
   allowLong = false,
+  hasGuidance = false,
 ): ReframeQualityResult {
   const originality = checkReframeOriginality(source, output, band);
-  const structurePassed = !isCollapsedTweetOutput(source, output);
+  const collapsed = isCollapsedTweetOutput(source, output);
+  const structurePassed = hasGuidance || !collapsed;
   const parameters = [
     scoreInsightAlignment(source, output),
     scoreOriginalityParam(originality),
-    scoreTweetScannability(source, output),
+    scoreTweetScannability(source, output, hasGuidance),
     scoreClarity(output),
     scoreLengthFit(output, allowLong),
   ];

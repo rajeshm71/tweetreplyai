@@ -126,12 +126,14 @@ export class ModelRouter {
     systemPrompt: string,
     userPrompt: string,
     profileOverride?: ModelApiProfile,
+    maxTokens?: number,
   ): Promise<{ text: string; tokensIn?: number; tokensOut?: number; rawUsage?: Record<string, unknown> }> {
     if (!openai) {
       throw new Error("OpenAI client not configured");
     }
 
     const profile = profileOverride ?? getApiProfile(modelKey);
+    const tokenLimit = maxTokens ?? AI_PARAMS.GROQ_MAX_TOKENS;
 
     if (profile === "responses_chat") {
       const response = await openai.responses.create({
@@ -142,6 +144,7 @@ export class ModelRouter {
         ],
         top_p: 1,
         temperature: AI_PARAMS.TEMPERATURE,
+        max_output_tokens: tokenLimit,
       });
       const usage = response.usage as Record<string, unknown> | undefined;
       return {
@@ -160,8 +163,8 @@ export class ModelRouter {
         { role: "user", content: userPrompt },
       ],
       ...(isReasoning
-        ? { max_completion_tokens: AI_PARAMS.GROQ_MAX_TOKENS }
-        : { temperature: AI_PARAMS.TEMPERATURE, max_tokens: AI_PARAMS.GROQ_MAX_TOKENS }),
+        ? { max_completion_tokens: tokenLimit }
+        : { temperature: AI_PARAMS.TEMPERATURE, max_tokens: tokenLimit }),
     });
 
     const choice = response.choices[0]?.message?.content ?? "";
@@ -363,6 +366,8 @@ Write a clean, natural reply based on the user's draft idea. Keep it under ${REP
         modelKey,
         config.systemPrompt,
         config.userPrompt(source),
+        undefined,
+        opts.allowLong ? AI_PARAMS.REFRAME_LONG_MAX_TOKENS : undefined,
       );
 
       const processedReply = replyPostProcessor.processReframe(completion.text);
